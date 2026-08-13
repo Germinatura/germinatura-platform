@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id           String                @id @default(cuid())
+  nome         String
+  email        String                @unique
+  senha        String
+  cpf          String?
+  telefone     String?
+  perfil       Perfil                @default(VENDEDOR)
+  criadoEm     DateTime              @default(now())
+  atualizadoEm DateTime              @updatedAt
+  reservas     Reserva[]
+  transacoes   TransacaoFinanceira[]
+  vendas       Venda[]
+  numerosRifa  NumeroRifa[]
+  pedidosRifa  PedidoRifa[]
+}
+
+model Produto {
+  id           String         @id @default(cuid())
+  nome         String
+  ativo        Boolean        @default(true)
+  imagemUrl    String?
+  criadoEm     DateTime       @default(now())
+  atualizadoEm DateTime       @updatedAt
+  estoque      Int            @default(0)
+  itensReserva ItemReserva[]
+  itensVenda   ItemVenda[]
+  precos       PrecoProduto[]
+
+  // Agrupamentos e Promoções
+  isGroup       Boolean @default(false)
+  isPromocional Boolean @default(false)
+  produtoPaiId  String?
+  promocaoId    String?
+
+  produtoPai     Produto?  @relation("ProdutosFilhos", fields: [produtoPaiId], references: [id])
+  produtosFilhos Produto[] @relation("ProdutosFilhos")
+  promocao       Promocao? @relation(fields: [promocaoId], references: [id])
+  promocaoItens  PromocaoItem[]
+}
+
+model PrecoProduto {
+  id        String   @id @default(cuid())
+  valor     Float
+  produtoId String
+  criadoEm  DateTime @default(now())
+  produto   Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+}
+
+model Promocao {
+  id               String       @id @default(cuid())
+  produtoId        String?
+  tipo             TipoPromocao
+  valorDesconto    Float? // Usado para VALOR (%) ou Preço Fixo (QUANTIDADE)
+  quantidadeMinima Int? // Usado para QUANTIDADE
+  dataInicio       DateTime
+  dataFim          DateTime
+  ativo            Boolean      @default(true)
+  criadoEm         DateTime       @default(now())
+  atualizadoEm     DateTime       @updatedAt
+  produtos         Produto[]
+  itensCombo       PromocaoItem[]
+}
+
+model PromocaoItem {
+  id         String   @id @default(cuid())
+  promocaoId String
+  produtoId  String
+  quantidade Int
+  promocao   Promocao @relation(fields: [promocaoId], references: [id], onDelete: Cascade)
+  produto    Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+}
+
+model Venda {
+  id          String               @id @default(cuid())
+  total       Float
+  transacaoId String?              @unique
+  criadoEm    DateTime             @default(now())
+  usuarioId   String?
+  itens       ItemVenda[]
+  transacao   TransacaoFinanceira? @relation(fields: [transacaoId], references: [id])
+  usuario     Usuario?             @relation(fields: [usuarioId], references: [id])
+}
+
+model ItemVenda {
+  id            String  @id @default(cuid())
+  vendaId       String
+  produtoId     String
+  quantidade    Int
+  precoUnitario Float
+  produto       Produto @relation(fields: [produtoId], references: [id])
+  venda         Venda   @relation(fields: [vendaId], references: [id])
+}
+
+model TransacaoFinanceira {
+  id           String        @id @default(cuid())
+  tipo         TipoTransacao
+  categoria    String
+  descricao    String
+  valor        Float
+  data         DateTime      @default(now())
+  criadoEm     DateTime      @default(now())
+  atualizadoEm DateTime      @updatedAt
+  usuarioId    String?
+  usuario      Usuario?      @relation(fields: [usuarioId], references: [id])
+  venda        Venda?
+}
+
+model Reserva {
+  id           String        @id @default(cuid())
+  usuarioId    String
+  status       StatusReserva @default(PENDENTE)
+  criadoEm     DateTime      @default(now())
+  atualizadoEm DateTime      @updatedAt
+  itens        ItemReserva[]
+  usuario      Usuario       @relation(fields: [usuarioId], references: [id])
+}
+
+model ItemReserva {
+  id         String  @id @default(cuid())
+  reservaId  String
+  produtoId  String
+  quantidade Int
+  produto    Produto @relation(fields: [produtoId], references: [id])
+  reserva    Reserva @relation(fields: [reservaId], references: [id])
+}
+
+model Configuracao {
+  id           String   @id @default(cuid())
+  chave        String   @unique
+  valor        String
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+}
+
+enum Perfil {
+  ADMIN
+  VENDEDOR
+  CONSUMER
+}
+
+enum TipoTransacao {
+  ENTRADA
+  SAIDA
+}
+
+enum StatusReserva {
+  PENDENTE
+  APROVADA
+  CANCELADA
+  CONCLUIDA
+}
+
+enum TipoPromocao {
+  VALOR
+  QUANTIDADE
+  COMBO
+  GRUPO
+  COMBO_MIX
+}
+
+model Rifa {
+  id                String       @id @default(cuid())
+  titulo            String
+  descricao         String
+  imagemUrl         String?
+  precoPorNumero    Float
+  quantidadeNumeros Int
+  status            StatusRifa   @default(RASCUNHO)
+  dataSorteio       DateTime?
+  numeroSorteado    Int?
+  criadoEm          DateTime     @default(now())
+  atualizadoEm      DateTime     @updatedAt
+  numeros           NumeroRifa[]
+}
+
+model NumeroRifa {
+  id           String           @id @default(cuid())
+  rifaId       String
+  numero       Int
+  status       StatusNumeroRifa @default(DISPONIVEL)
+  usuarioId    String?
+  pedidoRifaId String?
+  criadoEm     DateTime         @default(now())
+
+  rifa       Rifa        @relation(fields: [rifaId], references: [id], onDelete: Cascade)
+  usuario    Usuario?    @relation(fields: [usuarioId], references: [id])
+  pedidoRifa PedidoRifa? @relation(fields: [pedidoRifaId], references: [id])
+
+  @@unique([rifaId, numero])
+}
+
+enum StatusRifa {
+  RASCUNHO
+  ATIVA
+  FINALIZADA
+  CANCELADA
+}
+
+enum StatusNumeroRifa {
+  DISPONIVEL
+  RESERVADO
+  VENDIDO
+}
+
+model PedidoRifa {
+  id              String           @id @default(cuid())
+  usuarioId       String
+  usuario         Usuario          @relation(fields: [usuarioId], references: [id])
+  valorTotal      Float
+  status          StatusPedidoRifa @default(PENDENTE)
+  abacatePayId    String?          @unique
+  pixKey          String?
+  pixQrCodeUrl    String?
+  criadoEm        DateTime         @default(now())
+  atualizadoEm    DateTime         @updatedAt
+
+  numerosRifa NumeroRifa[]
+}
+
+enum StatusPedidoRifa {
+  PENDENTE
+  PAGO
+  CANCELADO
+}

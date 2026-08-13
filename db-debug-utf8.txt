@@ -1,0 +1,67 @@
+﻿--- PRODUTOS (RAW SQL) ---
+[
+  {
+    "id": "cmmdairkk0004fj0irjs92q3v",
+    "nome": "P├úo de Mel",
+    "isPromocional": false,
+    "produtoPaiId": null,
+    "promocaoId": null,
+    "estoque": 98
+  },
+  {
+    "id": "cmmdal27g0006fj0i9me9ibsb",
+    "nome": "Bolo de Pote",
+    "isPromocional": false,
+    "produtoPaiId": null,
+    "promocaoId": null,
+    "estoque": 107
+  },
+  {
+    "id": "cmmdab9hd0000fj0iua98diu4",
+    "nome": "Brownie (Individual)",
+    "isPromocional": false,
+    "produtoPaiId": null,
+    "promocaoId": null,
+    "estoque": 0
+  },
+  {
+    "id": "cmmdaeute0002fj0ig6xjg9vn",
+    "nome": "Brownie (Promo duas unidades)",
+    "isPromocional": false,
+    "produtoPaiId": null,
+    "promocaoId": null,
+    "estoque": 40
+  },
+  {
+    "id": "cmmj7mfz20002pej4qm0yiyg3",
+    "nome": "Teste Produto (Promo├º├úo 2 un.)",
+    "isPromocional": true,
+    "produtoPaiId": "cmmj1gzf70001pejscmemzvss",
+    "promocaoId": "cmmj7mfnz0000pej4kzlk7xv5",
+    "estoque": 0
+  },
+  {
+    "id": "cmmj1gzf70001pejscmemzvss",
+    "nome": "Teste Produto",
+    "isPromocional": false,
+    "produtoPaiId": null,
+    "promocaoId": null,
+    "estoque": 100
+  }
+]
+
+--- PROMO├ç├òES (RAW SQL) ---
+[
+  {
+    "id": "cmmj7mfnz0000pej4kzlk7xv5",
+    "produtoId": "cmmj1gzf70001pejscmemzvss",
+    "tipo": "QUANTIDADE",
+    "valorDesconto": 20,
+    "quantidadeMinima": 2,
+    "dataInicio": "2026-03-09T00:00:00.000Z",
+    "dataFim": "2026-03-16T00:00:00.000Z",
+    "ativo": true,
+    "criadoEm": "2026-03-09T13:21:22.895Z",
+    "atualizadoEm": "2026-03-09T13:21:22.895Z"
+  }
+]
