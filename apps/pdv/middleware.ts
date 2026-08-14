@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export default async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  if (path === "/login") return NextResponse.next();
+  const isLogin = path === "/login";
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -21,14 +21,18 @@ export default async function middleware(request: NextRequest) {
     },
   });
   const { data } = await client.auth.getUser();
-  if (!data.user) return NextResponse.redirect(new URL("/login", request.url));
+  if (!data.user) return isLogin ? response : NextResponse.redirect(new URL("/login", request.url));
 
   const { data: sessionData } = await client.rpc("get_my_session");
   const roles = sessionData && typeof sessionData === "object" && "roles" in sessionData
     ? (sessionData.roles as unknown[])
     : [];
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
+  if (isLogin) {
+    if (roles.includes("ADMIN")) return NextResponse.redirect(new URL("/", portalUrl));
+    if (roles.includes("VENDEDOR")) return NextResponse.redirect(new URL("/", request.url));
+  }
   if (!roles.includes("ADMIN") && !roles.includes("VENDEDOR")) {
-    const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
     return NextResponse.redirect(new URL("/reservas", portalUrl));
   }
   return response;

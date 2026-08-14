@@ -5,6 +5,7 @@ import { Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -20,28 +21,35 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const res = await apiFetch("/api/auth/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email, password }),
-            });
+            const client = getSupabaseBrowserClient();
+            const { error: signInError } = await client.auth.signInWithPassword({ email, password });
+            if (signInError) throw new Error("Credenciais inválidas");
+
+            const res = await apiFetch("/api/v1/auth/session");
 
             if (res.ok) {
                 const data = await res.json();
                 if (data.user.perfil === "CONSUMER") {
                     showToast("Seu perfil não possui acesso ao PDV", "error");
-                    await apiFetch("/api/auth/logout", { method: "POST" });
+                    await client.auth.signOut();
                     return;
                 }
-                window.location.assign("/");
+                if (data.user.perfil === "ADMIN") {
+                    const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
+                    window.location.assign(portalUrl);
+                } else {
+                    window.location.assign("/");
+                }
             } else {
                 const data = await res.json();
+                await client.auth.signOut();
                 showToast(data.message || "Credenciais inválidas", "error");
                 setError(data.message || "Credenciais inválidas");
             }
-        } catch (err) {
-            showToast("Erro ao conectar com o servidor", "error");
-            setError("Erro ao conectar com o servidor");
+        } catch (loginError) {
+            const message = loginError instanceof Error ? loginError.message : "Erro ao conectar com o servidor";
+            showToast(message, "error");
+            setError(message);
         } finally {
             setLoading(false);
         }

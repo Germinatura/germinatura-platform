@@ -24,6 +24,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { montarPayloadPix } from "@/lib/pix";
 import { useToast } from "@/components/ui/Toast";
 import { apiFetch } from "@/lib/api";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 interface Product {
     id: string;
@@ -62,8 +63,9 @@ export default function PDVMobile() {
 
     const handleLogout = async () => {
         try {
-            await apiFetch("/api/auth/logout", { method: "POST" });
-            router.push("/login");
+            await getSupabaseBrowserClient().auth.signOut();
+            const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
+            window.location.assign(user?.perfil === "ADMIN" ? `${portalUrl}/login` : "/login");
         } catch (error) {
             console.error("Erro ao fazer logout:", error);
         }
@@ -421,7 +423,11 @@ export default function PDVMobile() {
 
             <header className="sticky top-0 z-30 flex items-center justify-between bg-white/80 px-4 py-4 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => router.push("/")} className="cursor-pointer mr-1 p-2 rounded-full hover:bg-slate-100/50 text-slate-500 transition-colors" title="Voltar ao Painel">
+                    <button
+                        onClick={() => window.location.assign(process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000")}
+                        className="cursor-pointer mr-1 p-2 rounded-full hover:bg-slate-100/50 text-slate-500 transition-colors"
+                        title="Voltar ao Painel"
+                    >
                         <ArrowLeft className="size-5" />
                     </button>
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary border border-primary/20 shadow-inner">
@@ -434,7 +440,12 @@ export default function PDVMobile() {
                         <p className="text-[9px] font-black text-primary/80 uppercase tracking-[0.2em]">{user?.perfil === 'ADMIN' ? 'Administrador' : 'Vendedor'}</p>
                     </div>
                 </div>
-                <button onClick={handleLogout} className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95 border border-transparent hover:border-red-100">
+                <button
+                    onClick={handleLogout}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95 border border-transparent hover:border-red-100"
+                    title="Sair do PDV"
+                    aria-label="Sair do PDV"
+                >
                     <LogOut className="size-4" />
                 </button>
             </header>
