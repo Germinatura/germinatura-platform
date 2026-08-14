@@ -2,9 +2,11 @@ packages:
   - apps/*
   - packages/*
 
-onlyBuiltDependencies:
-  - '@prisma/client'
-  - '@prisma/engines'
-  - esbuild
-  - prisma
-  - supabase
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  sharp: true
+  supabase: true
+  unrs-resolver: true
