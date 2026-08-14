@@ -1,74 +1,63 @@
-# Germinatura - Gestão Financeira para Comissões de Formatura
+# Germinatura v2 — Foundation
 
-Germinatura é uma plataforma robusta desenvolvida para simplificar a gestão financeira e administrativa de comissões de formatura. O sistema oferece visibilidade total sobre arrecadações, gastos e gestão de produtos para eventos, garantindo transparência e eficiência no processo.
+Este repositório contém dois produtos web no mesmo monorepo:
 
-## 🚀 Funcionalidades Principais
+- `apps/portal`: Portal público, consumidor e administração.
+- `apps/pdv`: PDV mobile-first, executado separadamente.
 
-- **Dashboard Executivo**: Visão consolidada de KPIs essenciais, incluindo saldo atual, total arrecadado e total gasto.
-- **Gestão de Cardápio/Produtos**: Controle completo de itens disponíveis para venda, com histórico de preços e alternância de status de disponibilidade.
-- **PDV (Ponto de Venda)**: Interface otimizada para realização de vendas rápidas durante eventos.
-- **Histórico de Vendas**: Registro detalhado e pesquisável de todas as transações realizadas no sistema.
-- **Fluxo de Caixa**: Gestão de entradas e saídas financeiras com categorização e descrições detalhadas.
-- **Gestão de Usuários**: Controle de acesso por perfis (ADMIN e VENDEDOR).
+Regras e contratos compartilhados ficam em `packages/`. O banco Prisma atual permanece temporariamente em `packages/legacy-db`; novas identidades, papéis, permissões, RLS e Storage são versionados em `supabase/`.
 
-## 🛠️ Tecnologias Utilizadas
+## Requisitos locais
 
-A plataforma é construída com um stack moderno e performante:
+- Node.js 20 ou superior.
+- pnpm 11.19.0.
+- Docker Desktop em execução.
 
-- **Frontend**: [Next.js](https://nextjs.org/) (App Router) com React.
-- **Estilização**: Tailwind CSS para um design responsivo e premium.
-- **Banco de Dados**: PostgreSQL gerenciado via [Prisma ORM](https://www.prisma.io/).
-- **Autenticação**: Sistema seguro baseado em JWT (Jose) com cookies HTTP-only.
-- **Ícones**: Lucide React.
+## Preparação
 
-## ⚙️ Configuração e Instalação
+```powershell
+Copy-Item apps/portal/.env.example apps/portal/.env.local
+Copy-Item apps/pdv/.env.example apps/pdv/.env.local
+pnpm install --frozen-lockfile
+pnpm legacy-db:start
+pnpm legacy-db:push
+pnpm supabase:start
+pnpm supabase:reset
+pnpm dev
+```
 
-### Pré-requisitos
-- Node.js (v18+)
-- PostgreSQL
+Após `supabase:start`, substitua as chaves ilustrativas nos dois arquivos locais pelos valores exibidos por `node tools/run-supabase.mjs status -o env`. O PDV recebe somente variáveis públicas; service role, banco legado e pagamentos ficam exclusivamente no Portal. Nunca faça commit desses arquivos.
 
-### Passos para Instalação
+- Portal: `http://127.0.0.1:3000`
+- PDV: `http://127.0.0.1:3001`
+- Supabase Studio: `http://127.0.0.1:54323`
 
-1. **Clonar o repositório**:
-   ```bash
-   git clone <url-do-repositorio>
-   cd plataforma-web
-   ```
+Identidades locais são criadas por `supabase/seed.sql`, todas no domínio reservado `.test`:
 
-2. **Instalar dependências**:
-   ```bash
-   npm install
-   ```
+| Perfil | Email | Senha |
+| --- | --- | --- |
+| Administrador | `admin@germinatura.test` | `Admin123!` |
+| Vendedor | `vendedor@germinatura.test` | `Vendedor123!` |
+| Consumidor | `consumer@germinatura.test` | `Consumer123!` |
 
-3. **Configurar variáveis de ambiente**:
-   Crie um arquivo `.env` na raiz do projeto com as seguintes chaves:
-   ```env
-   DATABASE_URL="postgresql://usuario:senha@localhost:5432/nome-do-banco"
-   ```
+O PostgreSQL da raiz (`docker compose`) existe apenas para manter as telas Prisma legadas funcionando durante a transição. Ele não substitui o banco local do Supabase. Para executar somente os testes de fundação, use `pnpm supabase:start:test`, que inicia apenas os serviços necessários a Auth, PostgREST, migrations e RLS.
 
-4. **Rodar Migrações do Prisma**:
-   ```bash
-   npx prisma migrate dev
-   ```
+## Qualidade
 
-5. **Iniciar o servidor de desenvolvimento**:
-   ```bash
-   npm run dev
-   ```
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm test:unit
+pnpm supabase:reset
+pnpm test:db
+pnpm build
+pnpm test:e2e
+```
 
-A plataforma estará disponível em `http://localhost:3000`.
+O código novo usa lint estrito. Portal e PDV carregam temporariamente avisos herdados do monólito, sem permitir erros de lint. A dívida é isolada para remoção posterior.
 
-## 📂 Estrutura do Projeto
+## Limites desta branch
 
-- `app/`: Contém as rotas, páginas e lógica da API (Next.js App Router).
-- `components/`: Componentes React reutilizáveis e UI (Sidebar, Modal, etc.).
-- `lib/`: Utilitários, configurações do Prisma e lógica de autenticação.
-- `prisma/`: Schema do banco de dados e migrações.
-- `public/`: Assets estáticos.
+Esta fundação não migra o domínio operacional para o novo modelo. Estoque ledger, dinheiro em centavos, migração histórica, motor de promoções e idempotência completa serão implementados em `feat/v2-core-domain`. Pagamentos e conciliação ficam em `feat/v2-payments-finance`.
 
-## 📄 Licença
-
-Este projeto é de uso restrito para a gestão financeira de comissões de formatura.
-
----
-Desenvolvido com ❤️ para facilitar a realização de sonhos.
+O webhook AbacatePay permanece desabilitado por padrão e rejeita chamadas quando `PAYMENTS_ENABLED` e o segredo não estão configurados.
