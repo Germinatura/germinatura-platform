@@ -1,0 +1,61 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+      - name: Start local Supabase
+        run: pnpm supabase:start:test
+      - name: Export local Supabase configuration
+        shell: bash
+        run: |
+          node tools/run-supabase.mjs status -o env > supabase.env
+          source supabase.env
+          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_PORTAL_URL=http://127.0.0.1:3000" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_PDV_URL=http://127.0.0.1:3001" >> "$GITHUB_ENV"
+          echo "PAYMENTS_ENABLED=false" >> "$GITHUB_ENV"
+      - run: pnpm supabase:reset
+      - run: pnpm test:db
+      - name: Start temporary legacy database
+        run: pnpm legacy-db:start
+      - name: Apply temporary legacy schema
+        run: pnpm legacy-db:push
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/plataforma_vendas
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e --project=chromium
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/plataforma_vendas
+      - run: pnpm build
+      - name: Reject committed secrets and environment files
+        shell: bash
+        run: |
+          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$'; then exit 1; fi
+          if git ls-files | grep -E '(^|/)(dump|backup|users)\.(sql|json)$|(^|/)(db-debug|verification_output).*\.txt$|(^|/)out\.json$|\.log$'; then exit 1; fi
+          if git grep -n -E 'secret_key_formatura' -- ':!docs/**' ':!.github/workflows/quality.yml'; then exit 1; fi
+          if git grep -n -E 'SUPABASE_SERVICE_ROLE_KEY=(ey|[A-Za-z0-9_-]{20,})|ABACATEPAY_API_KEY=[A-Za-z0-9_-]{20,}' -- ':!docs/**' ':!.github/workflows/quality.yml' ':!.env.example' ':!apps/portal/.env.example' ':!apps/pdv/.env.example'; then exit 1; fi

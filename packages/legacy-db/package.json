@@ -1,0 +1,18 @@
+{
+  "name": "@germinatura/legacy-db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "prisma": "^6.19.2"
+  },
+  "devDependencies": { "@types/node": "^20", "typescript": "^5.9.2" }
+}
