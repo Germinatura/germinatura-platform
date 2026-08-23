@@ -45,10 +45,10 @@ function TrocarSenhaForm() {
                 router.push("/");
             } else {
                 const data = await res.json();
-                showToast(data.error || "Erro ao alterar senha", "error");
-                setError(data.error || "Erro ao alterar senha");
+                showToast(data.message || "Erro ao alterar senha", "error");
+                setError(data.message || "Erro ao alterar senha");
             }
-        } catch (err) {
+        } catch {
             showToast("Erro ao conectar com o servidor", "error");
             setError("Erro ao conectar com o servidor");
         } finally {
@@ -93,7 +93,7 @@ function TrocarSenhaForm() {
                                         minLength={8}
                                         type={showPassword ? "text" : "password"}
                                         value={novaSenha}
-                                        onChange={(e: any) => setNovaSenha(e.target.value)}
+                                        onChange={(e) => setNovaSenha(e.target.value)}
                                         placeholder="Mínimo 8 caracteres"
                                         className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-slate-400 font-medium"
                                     />
@@ -116,7 +116,7 @@ function TrocarSenhaForm() {
                                         minLength={8}
                                         type={showConfirmPassword ? "text" : "password"}
                                         value={confirmarSenha}
-                                        onChange={(e: any) => setConfirmarSenha(e.target.value)}
+                                        onChange={(e) => setConfirmarSenha(e.target.value)}
                                         placeholder="Repita a nova senha"
                                         className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-slate-400 font-medium"
                                     />

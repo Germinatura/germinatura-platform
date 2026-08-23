@@ -9,5 +9,8 @@ export async function GET(request: Request) {
   if (!session) {
     return NextResponse.json(createApiError("UNAUTHENTICATED", "Sessão ausente ou expirada", requestId), { status: 401 });
   }
-  return NextResponse.json({ user: session.user, request_id: requestId });
+  return NextResponse.json(
+    { user: session.user, request_id: requestId },
+    { headers: { "Cache-Control": "no-store", "x-request-id": requestId } },
+  );
 }

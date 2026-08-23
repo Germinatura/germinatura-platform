@@ -29,10 +29,14 @@ jobs:
       - name: Export local Supabase configuration
         shell: bash
         run: |
-          node tools/run-supabase.mjs status -o env > supabase.env
-          source supabase.env
-          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
-          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
+          while IFS='=' read -r name value; do
+            value="${value#\"}"
+            value="${value%\"}"
+            case "$name" in
+              API_URL) echo "NEXT_PUBLIC_SUPABASE_URL=$value" >> "$GITHUB_ENV" ;;
+              PUBLISHABLE_KEY) echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$value" >> "$GITHUB_ENV" ;;
+            esac
+          done < <(node tools/run-supabase.mjs status -o env)
           echo "NEXT_PUBLIC_PORTAL_URL=http://127.0.0.1:3000" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_PDV_URL=http://127.0.0.1:3001" >> "$GITHUB_ENV"
       - run: pnpm supabase:reset
@@ -45,8 +49,4 @@ jobs:
         run: |
           if git grep -n -E 'PrismaClient|@prisma/client|@germinatura/legacy-db|DATABASE_URL|ABACATEPAY' -- apps packages supabase e2e tools package.json pnpm-workspace.yaml turbo.json; then exit 1; fi
       - name: Reject committed secrets and environment files
-        shell: bash
-        run: |
-          if git ls-files | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$'; then exit 1; fi
-          if git ls-files | grep -E '(^|/)(dump|backup|users)[^/]*\.(sql|json|zip|tar|gz)$|(^|/)(db-debug|verification_output).*\.txt$|(^|/)out\.json$|\.log$'; then exit 1; fi
-          if git grep -n -E '(SUPABASE_SERVICE_ROLE_KEY|CLOUDFLARE_API_TOKEN|MERCADO_PAGO_ACCESS_TOKEN|PICPAY_CLIENT_SECRET)=[A-Za-z0-9._-]{20,}|postgres(ql)?://[^[:space:]]+:[^[:space:]@]+@' -- ':!docs/**' ':!.github/workflows/quality.yml' ':!.env.example' ':!apps/portal/.env.example' ':!apps/pdv/.env.example'; then exit 1; fi
+        run: pnpm security:scan
