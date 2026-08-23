@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-export const appRoleSchema = z.enum(["ADMIN", "VENDEDOR", "CONSUMER"]);
+export const appRoleSchema = z.enum([
+  "ADMIN",
+  "VENDEDOR",
+  "ESTOQUE",
+  "FINANCEIRO",
+  "COMUNICACAO",
+  "MODERADOR",
+  "CONSUMIDOR",
+]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 
 export const permissionSchema = z.enum([
@@ -20,6 +28,8 @@ export const permissionSchema = z.enum([
   "raffles.manage",
   "users.manage",
   "finance.manage",
+  "communications.manage",
+  "community.moderate",
 ]);
 export type Permission = z.infer<typeof permissionSchema>;
 
@@ -30,7 +40,6 @@ export const sessionUserSchema = z.object({
   name: z.string().min(1),
   role: appRoleSchema,
   roles: z.array(appRoleSchema).min(1),
-  legacyUserId: z.string().nullable(),
 });
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 

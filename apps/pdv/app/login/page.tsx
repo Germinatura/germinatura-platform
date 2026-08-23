@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -29,7 +28,7 @@ export default function LoginPage() {
 
             if (res.ok) {
                 const data = await res.json();
-                if (data.user.perfil === "CONSUMER") {
+                if (data.user.perfil !== "ADMIN" && data.user.perfil !== "VENDEDOR") {
                     showToast("Seu perfil não possui acesso ao PDV", "error");
                     await client.auth.signOut();
                     return;
@@ -130,19 +129,14 @@ export default function LoginPage() {
                             </button>
                         </form>
 
-                        <div className="pt-6 text-center">
-                            <p className="text-sm font-medium text-slate-500">
-                                Não possui conta?{" "}
-                                <Link href={`${process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000"}/cadastro`} className="text-primary hover:text-primary/80 font-bold transition-colors">
-                                    Cadastre-se
-                                </Link>
-                            </p>
-                        </div>
+                        <p className="pt-6 text-center text-sm font-medium text-slate-500">
+                            Acesso restrito a vendedores e administradores.
+                        </p>
                     </div>
 
                     <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
                         <p className="text-sm text-slate-500 font-medium">
-                            Controle de Comissões e Vendas
+                            Fundação autenticada do PDV v2.1
                         </p>
                     </div>
                 </div>

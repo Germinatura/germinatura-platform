@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import { Suspense } from "react";
 
@@ -14,8 +14,6 @@ function TrocarSenhaForm() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const callbackUrl = searchParams.get("callbackUrl");
     const { showToast } = useToast();
 
     const handleReset = async (e: React.FormEvent) => {
@@ -43,19 +41,8 @@ function TrocarSenhaForm() {
             });
 
             if (res.ok) {
-                const data = await res.json();
                 showToast("Senha alterada com sucesso!", "success");
-
-                // Redireciona com base no perfil retornado ou manda pro root (middleware cuida do resto)
-                if (callbackUrl) {
-                    router.push(callbackUrl);
-                } else if (data.perfil === "ADMIN") {
-                    router.push("/");
-                } else if (data.perfil === "CONSUMER") {
-                    router.push("/reservas");
-                } else {
-                    router.push("/pdv");
-                }
+                router.push("/");
             } else {
                 const data = await res.json();
                 showToast(data.error || "Erro ao alterar senha", "error");
@@ -83,8 +70,8 @@ function TrocarSenhaForm() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-rose-500 shadow-lg shadow-rose-500/20 text-white mb-4">
                         <ShieldAlert className="size-8" />
                     </div>
-                    <h1 className="text-3xl font-black tracking-tight text-white mb-2">Troca Obrigatória</h1>
-                    <p className="text-slate-400 font-medium">Você está usando a senha padrão da plataforma. Para continuar, por favor, defina uma nova senha segura.</p>
+                    <h1 className="text-3xl font-black tracking-tight text-white mb-2">Alterar senha</h1>
+                    <p className="text-slate-400 font-medium">Defina uma nova senha para a sua conta do Supabase Auth.</p>
                 </div>
 
                 {/* Reset Card */}
@@ -107,7 +94,7 @@ function TrocarSenhaForm() {
                                         type={showPassword ? "text" : "password"}
                                         value={novaSenha}
                                         onChange={(e: any) => setNovaSenha(e.target.value)}
-                                        placeholder="Mínimo 6 caracteres"
+                                        placeholder="Mínimo 8 caracteres"
                                         className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-slate-400 font-medium"
                                     />
                                     <button
