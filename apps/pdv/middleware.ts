@@ -6,11 +6,11 @@ export default async function middleware(request: NextRequest) {
   const isLogin = path === "/login";
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return NextResponse.redirect(new URL("/login", request.url));
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) return NextResponse.redirect(new URL("/login", request.url));
 
   let response = NextResponse.next({ request });
-  const client = createServerClient(url, anonKey, {
+  const client = createServerClient(url, publishableKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet) => {
@@ -33,7 +33,7 @@ export default async function middleware(request: NextRequest) {
     if (roles.includes("VENDEDOR")) return NextResponse.redirect(new URL("/", request.url));
   }
   if (!roles.includes("ADMIN") && !roles.includes("VENDEDOR")) {
-    return NextResponse.redirect(new URL("/reservas", portalUrl));
+    return NextResponse.redirect(new URL("/", portalUrl));
   }
   return response;
 }

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
-import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
 
 export default function LoginPage() {
@@ -27,12 +26,10 @@ export default function LoginPage() {
 
             if (res.ok) {
                 const data = await res.json();
-                if (data.user.perfil === "ADMIN") {
-                    window.location.assign("/");
-                } else if (data.user.perfil === "CONSUMER") {
-                    window.location.assign("/reservas");
-                } else {
+                if (data.user.perfil === "VENDEDOR") {
                     window.location.assign(process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001");
+                } else {
+                    window.location.assign("/");
                 }
             } else {
                 const data = await res.json();
@@ -122,19 +119,14 @@ export default function LoginPage() {
                             </button>
                         </form>
 
-                        <div className="pt-6 text-center">
-                            <p className="text-sm font-medium text-slate-500">
-                                Não possui conta?{" "}
-                                <Link href="/cadastro" className="text-primary hover:text-primary/80 font-bold transition-colors">
-                                    Cadastre-se
-                                </Link>
-                            </p>
-                        </div>
+                        <p className="pt-6 text-center text-sm font-medium text-slate-500">
+                            Contas são criadas pela administração da plataforma.
+                        </p>
                     </div>
 
                     <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
                         <p className="text-sm text-slate-500 font-medium">
-                            Controle de Comissões e Vendas
+                            Acesso seguro à fundação v2.1
                         </p>
                     </div>
                 </div>

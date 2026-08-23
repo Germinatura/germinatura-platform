@@ -4,14 +4,15 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
   display_name text,
-  legacy_user_id text unique,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create table public.roles (
   id uuid primary key default gen_random_uuid(),
-  key text not null unique check (key in ('ADMIN', 'VENDEDOR', 'CONSUMER')),
+  key text not null unique check (key in (
+    'ADMIN', 'VENDEDOR', 'ESTOQUE', 'FINANCEIRO', 'COMUNICACAO', 'MODERADOR', 'CONSUMIDOR'
+  )),
   name text not null,
   created_at timestamptz not null default now()
 );
@@ -39,7 +40,11 @@ create table public.role_permissions (
 insert into public.roles (id, key, name) values
   ('00000000-0000-4000-8000-000000000001', 'ADMIN', 'Administrador'),
   ('00000000-0000-4000-8000-000000000002', 'VENDEDOR', 'Vendedor'),
-  ('00000000-0000-4000-8000-000000000003', 'CONSUMER', 'Consumidor');
+  ('00000000-0000-4000-8000-000000000003', 'CONSUMIDOR', 'Consumidor'),
+  ('00000000-0000-4000-8000-000000000004', 'ESTOQUE', 'Estoque'),
+  ('00000000-0000-4000-8000-000000000005', 'FINANCEIRO', 'Financeiro'),
+  ('00000000-0000-4000-8000-000000000006', 'COMUNICACAO', 'Comunicação'),
+  ('00000000-0000-4000-8000-000000000007', 'MODERADOR', 'Moderador');
 
 insert into public.permissions (key, description) values
   ('portal.access', 'Acessar o Portal'),
@@ -57,7 +62,9 @@ insert into public.permissions (key, description) values
   ('raffles.sell', 'Vender números de rifa no PDV'),
   ('raffles.manage', 'Administrar rifas'),
   ('users.manage', 'Administrar usuários e permissões'),
-  ('finance.manage', 'Administrar o financeiro');
+  ('finance.manage', 'Administrar o financeiro'),
+  ('communications.manage', 'Administrar comunicações'),
+  ('community.moderate', 'Moderar conteúdo da comunidade');
 
 insert into public.role_permissions (role_id, permission_id)
 select r.id, p.id from public.roles r cross join public.permissions p
@@ -72,9 +79,11 @@ where r.key = 'VENDEDOR' and p.key in (
 
 insert into public.role_permissions (role_id, permission_id)
 select r.id, p.id from public.roles r cross join public.permissions p
-where r.key = 'CONSUMER' and p.key in (
-  'portal.access', 'catalog.read', 'reservations.manage.own', 'raffles.buy'
-);
+where (r.key = 'ESTOQUE' and p.key in ('portal.access', 'catalog.read', 'inventory.read', 'inventory.manage'))
+   or (r.key = 'FINANCEIRO' and p.key in ('portal.access', 'sales.read.all', 'finance.manage'))
+   or (r.key = 'COMUNICACAO' and p.key in ('portal.access', 'communications.manage'))
+   or (r.key = 'MODERADOR' and p.key in ('portal.access', 'community.moderate'))
+   or (r.key = 'CONSUMIDOR' and p.key in ('portal.access', 'catalog.read', 'reservations.manage.own', 'raffles.buy'));
 
 create or replace function public.handle_new_auth_user()
 returns trigger
@@ -86,7 +95,7 @@ begin
   values (new.id, new.email, coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1)));
 
   insert into public.user_roles (user_id, role_id)
-  select new.id, id from public.roles where key = 'CONSUMER';
+  select new.id, id from public.roles where key = 'CONSUMIDOR';
   return new;
 end;
 $$;
@@ -120,7 +129,6 @@ as $$
     'auth_id', u.id,
     'email', u.email,
     'display_name', p.display_name,
-    'legacy_user_id', p.legacy_user_id,
     'roles', coalesce(jsonb_agg(r.key order by r.key) filter (where r.key is not null), '[]'::jsonb)
   )
   from auth.users u
@@ -128,7 +136,7 @@ as $$
   left join public.user_roles ur on ur.user_id = p.id
   left join public.roles r on r.id = ur.role_id
   where u.id = auth.uid()
-  group by u.id, u.email, p.display_name, p.legacy_user_id;
+  group by u.id, u.email, p.display_name;
 $$;
 
 revoke all on function public.has_permission(text) from public;

@@ -35,6 +35,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 *.log
+*.dump
+*.bak
+*.backup
+*.sql.gz
+*.tar.gz
 db-debug*.txt
 verification_output*.txt
 /out.json
@@ -44,16 +49,23 @@ verification_output*.txt
 !.env.example
 **/.env*
 !**/.env.example
+.dev.vars
+**/.dev.vars
 
 # vercel
 .vercel
+.wrangler/
+**/.wrangler/
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-/app/generated/prisma
 playwright-report/
 test-results/
 supabase/.branches/
 supabase/.temp/
+supabase/.env
+supabase/.env.local
+supabase/.linked
+supabase/.link

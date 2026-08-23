@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Germinatura",
-  description: "Plataforma completa para controle de vendas e fluxo de caixa",
+  description: "Fundação greenfield da plataforma Germinatura v2.1",
 };
 
 import { ToastProvider } from "@/components/ui/Toast";

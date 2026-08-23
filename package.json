@@ -1,6 +1,6 @@
 {
   "name": "germinatura",
-  "version": "2.0.0-foundation",
+  "version": "2.1.0-greenfield",
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "engines": {
@@ -16,14 +16,10 @@
     "test:db": "node tools/run-supabase.mjs test db",
     "test:e2e": "playwright test",
     "test:ci": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build",
-    "db:generate": "pnpm --filter @germinatura/legacy-db db:generate",
-    "legacy-db:start": "docker compose up -d --wait db",
-    "legacy-db:push": "pnpm --filter @germinatura/legacy-db exec prisma db push --schema prisma/schema.prisma",
     "supabase:start": "node tools/run-supabase.mjs start",
     "supabase:start:test": "node tools/run-supabase.mjs start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
     "supabase:stop": "node tools/run-supabase.mjs stop",
-    "supabase:reset": "node tools/run-supabase.mjs db reset",
-    "postinstall": "pnpm db:generate"
+    "supabase:reset": "node tools/run-supabase.mjs db reset"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",

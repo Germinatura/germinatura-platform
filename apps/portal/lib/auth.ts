@@ -1,5 +1,5 @@
 import { hasPermission, primaryRole } from "@germinatura/auth";
-import type { AppRole, Permission, SessionUser } from "@germinatura/contracts";
+import { appRoleSchema, type AppRole, type Permission, type SessionUser } from "@germinatura/contracts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { headers } from "next/headers";
@@ -11,11 +11,10 @@ const sessionRpcSchema = z.object({
   auth_id: z.string().uuid(),
   email: z.string().email(),
   display_name: z.string().nullable(),
-  legacy_user_id: z.string().nullable(),
-  roles: z.array(z.enum(["ADMIN", "VENDEDOR", "CONSUMER"])),
+  roles: z.array(appRoleSchema),
 });
 
-export interface LegacyCompatibleSession {
+export interface SupabaseSession {
   user: {
     id: string;
     authId: string;
@@ -23,7 +22,6 @@ export interface LegacyCompatibleSession {
     perfil: AppRole;
     nome: string;
     roles: AppRole[];
-    legacyUserId: string | null;
     needsPasswordReset: false;
   };
 }
@@ -35,14 +33,14 @@ export class AuthorizationError extends Error {
   }
 }
 
-async function resolveSession(client: SupabaseClient, accessToken?: string): Promise<LegacyCompatibleSession | null> {
+async function resolveSession(client: SupabaseClient, accessToken?: string): Promise<SupabaseSession | null> {
   const { data: userData, error: userError } = await client.auth.getUser(accessToken);
   if (userError || !userData.user?.email) return null;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const rpcClient = accessToken && url && anonKey
-    ? createClient(url, anonKey, {
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const rpcClient = accessToken && url && publishableKey
+    ? createClient(url, publishableKey, {
         auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
         global: { headers: { Authorization: `Bearer ${accessToken}` } },
       })
@@ -52,30 +50,29 @@ async function resolveSession(client: SupabaseClient, accessToken?: string): Pro
   const parsed = sessionRpcSchema.safeParse(data);
   if (!parsed.success) return null;
 
-  const roles = parsed.data.roles.length > 0 ? parsed.data.roles : ["CONSUMER" as const];
+  const roles = parsed.data.roles.length > 0 ? parsed.data.roles : ["CONSUMIDOR" as const];
   const perfil = primaryRole(roles);
   return {
     user: {
-      id: parsed.data.legacy_user_id ?? parsed.data.auth_id,
+      id: parsed.data.auth_id,
       authId: parsed.data.auth_id,
       email: parsed.data.email,
       perfil,
       nome: parsed.data.display_name ?? parsed.data.email,
       roles,
-      legacyUserId: parsed.data.legacy_user_id,
       needsPasswordReset: false,
     },
   };
 }
 
-export async function getSession(): Promise<LegacyCompatibleSession | null> {
+export async function getSession(): Promise<SupabaseSession | null> {
   try {
     const authorization = (await headers()).get("authorization");
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (authorization?.startsWith("Bearer ") && url && anonKey) {
+    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (authorization?.startsWith("Bearer ") && url && publishableKey) {
       const accessToken = authorization.slice("Bearer ".length);
-      const client = createClient(url, anonKey, {
+      const client = createClient(url, publishableKey, {
         auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
         global: { headers: { Authorization: authorization } },
       });
@@ -111,7 +108,6 @@ export async function requireSession(): Promise<SessionUser> {
     name: session.user.nome,
     role: session.user.perfil,
     roles: session.user.roles,
-    legacyUserId: session.user.legacyUserId,
   };
 }
 
@@ -124,20 +120,20 @@ export async function requirePermission(permission: Permission): Promise<Session
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return { response, session: null };
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) return { response, session: null };
 
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) {
     const accessToken = authorization.slice("Bearer ".length);
-    const client = createClient(url, anonKey, {
+    const client = createClient(url, publishableKey, {
       auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
       global: { headers: { Authorization: authorization } },
     });
     return { response, session: await resolveSession(client, accessToken) };
   }
 
-  const client = createServerClient(url, anonKey, {
+  const client = createServerClient(url, publishableKey, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet) => {

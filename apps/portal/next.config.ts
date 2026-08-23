@@ -31,7 +31,6 @@ const nextConfig: NextConfig = {
     "@germinatura/auth",
     "@germinatura/config",
     "@germinatura/contracts",
-    "@germinatura/legacy-db",
     "@germinatura/observability",
   ],
   async headers() {

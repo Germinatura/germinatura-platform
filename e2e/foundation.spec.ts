@@ -1,120 +1,111 @@
 import { expect, test } from "@playwright/test";
 
+const portalUrl = "http://127.0.0.1:3000";
 const pdvUrl = process.env.PDV_URL ?? "http://127.0.0.1:3001";
 
-test("Portal and PDV expose independent health endpoints", async ({ request }) => {
+async function login(page: import("@playwright/test").Page, email: string, password: string) {
+  await page.waitForLoadState("networkidle");
+  const emailInput = page.locator('input[type="email"]');
+  const passwordInput = page.locator('input[type="password"]');
+  await emailInput.fill(email);
+  await passwordInput.fill(password);
+  await expect(emailInput).toHaveValue(email);
+  await expect(passwordInput).toHaveValue(password);
+  await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
+}
+
+test("Portal and PDV expose minimal independent health endpoints", async ({ request }) => {
   const portal = await request.get("/api/v1/health");
   await expect(portal).toBeOK();
-  await expect(portal.json()).resolves.toMatchObject({ service: "portal", status: "ok" });
+  await expect(portal.json()).resolves.toEqual({ service: "portal", status: "ok" });
 
   const pdv = await request.get(`${pdvUrl}/api/v1/health`);
   await expect(pdv).toBeOK();
-  await expect(pdv.json()).resolves.toMatchObject({ service: "pdv", status: "ok" });
+  await expect(pdv.json()).resolves.toEqual({ service: "pdv", status: "ok" });
 });
 
-test("Unauthenticated users are redirected to login", async ({ page }) => {
+test("Unauthenticated page and API access are blocked", async ({ page, request }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
+  expect((await request.get("/api/v1/auth/session")).status()).toBe(401);
 });
 
-test("Administrator can enter the Portal", async ({ page }) => {
+test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {
   await page.goto("/login");
-  await page.locator('input[type="email"]').fill("admin@germinatura.test");
-  await page.locator('input[type="password"]').fill("Admin123!");
-  await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
-  await expect(page).toHaveURL(/http:\/\/127\.0\.0\.1:3000\/$/);
+  await login(page, "admin@germinatura.test", "Admin123!");
+  await expect(page).toHaveURL(`${portalUrl}/`);
+  await expect(page.getByText("Fundação v2.1 greenfield")).toBeVisible();
 
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();
-  await expect(session.json()).resolves.toMatchObject({
-    user: { perfil: "ADMIN", legacyUserId: "legacy-local-admin" },
-  });
-
-  await page.goto("/configuracoes/usuarios");
-  await expect(page).toHaveURL(/\/configuracoes\/usuarios$/);
+  await expect(session.json()).resolves.toMatchObject({ user: { perfil: "ADMIN", roles: ["ADMIN"] } });
 
   await page.goto(`${pdvUrl}/`);
   await page.getByTitle("Voltar ao Painel").click();
-  await expect(page).toHaveURL("http://127.0.0.1:3000/");
+  await expect(page).toHaveURL(`${portalUrl}/`);
 });
 
-test("Administrator leaving the PDV logs back into the Portal by default", async ({ page }) => {
+test("Administrator leaving the PDV can log back into the Portal", async ({ page }) => {
   await page.goto(`${pdvUrl}/login`);
-  await page.locator('input[type="email"]').fill("admin@germinatura.test");
-  await page.locator('input[type="password"]').fill("Admin123!");
-  await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
-  await expect(page).toHaveURL("http://127.0.0.1:3000/");
+  await login(page, "admin@germinatura.test", "Admin123!");
+  await expect(page).toHaveURL(`${portalUrl}/`);
 
   await page.goto(`${pdvUrl}/`);
   await page.getByRole("button", { name: "Sair do PDV" }).click();
-  await expect(page).toHaveURL("http://127.0.0.1:3000/login");
+  await expect(page).toHaveURL(`${portalUrl}/login`);
   expect((await page.request.get("/api/v1/auth/session")).status()).toBe(401);
-  await page.waitForLoadState("networkidle");
 
-  const emailInput = page.locator('input[type="email"]');
-  const passwordInput = page.locator('input[type="password"]');
-  await emailInput.fill("admin@germinatura.test");
-  await passwordInput.fill("Admin123!");
-  await expect(emailInput).toHaveValue("admin@germinatura.test");
-  await expect(passwordInput).toHaveValue("Admin123!");
-  await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
-  await expect(page).toHaveURL("http://127.0.0.1:3000/");
+  await page.waitForLoadState("networkidle");
+  await login(page, "admin@germinatura.test", "Admin123!");
+  await expect(page).toHaveURL(`${portalUrl}/`);
 });
 
-test("Consumer is routed to reservations and cannot enter the PDV", async ({ browser }) => {
+test("Consumer enters only the Portal foundation and is rejected by the PDV", async ({ browser }) => {
   const portalContext = await browser.newContext();
   const portalPage = await portalContext.newPage();
-  await portalPage.goto("http://127.0.0.1:3000/login");
-  await portalPage.locator('input[type="email"]').fill("consumer@germinatura.test");
-  await portalPage.locator('input[type="password"]').fill("Consumer123!");
-  await portalPage.getByRole("button", { name: /Entrar na Plataforma/i }).click();
-  await expect(portalPage).toHaveURL(/\/reservas$/);
-  await portalPage.goto("http://127.0.0.1:3000/configuracoes/usuarios");
-  await expect(portalPage).toHaveURL(/\/reservas$/);
+  await portalPage.goto(`${portalUrl}/login`);
+  await login(portalPage, "consumidor@germinatura.test", "Consumidor123!");
+  await expect(portalPage).toHaveURL(`${portalUrl}/`);
+  await expect(portalPage.getByText("Consumidor", { exact: true })).toBeVisible();
   await portalContext.close();
 
   const pdvContext = await browser.newContext();
   const pdvPage = await pdvContext.newPage();
   await pdvPage.goto(`${pdvUrl}/login`);
-  await pdvPage.locator('input[type="email"]').fill("consumer@germinatura.test");
-  await pdvPage.locator('input[type="password"]').fill("Consumer123!");
-  await pdvPage.getByRole("button", { name: /Entrar na Plataforma/i }).click();
+  await login(pdvPage, "consumidor@germinatura.test", "Consumidor123!");
   await expect(pdvPage).toHaveURL(new RegExp(`${pdvUrl.replaceAll(".", "\\.")}\/login$`));
+  await expect(pdvPage.getByText("Seu perfil não possui acesso ao PDV")).toBeVisible();
   await pdvContext.close();
 });
 
-test("Seller can enter the PDV", async ({ page }) => {
+test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ page }) => {
   await page.goto(`${pdvUrl}/login`);
-  await page.locator('input[type="email"]').fill("vendedor@germinatura.test");
-  await page.locator('input[type="password"]').fill("Vendedor123!");
-  await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
-  await expect(page).toHaveURL(new RegExp(`${pdvUrl.replaceAll(".", "\\.")}\/$`));
+  await login(page, "vendedor@germinatura.test", "Vendedor123!");
+  await expect(page).toHaveURL(`${pdvUrl}/`);
+  await expect(page.getByText("Acesso autorizado")).toBeVisible();
 
-  await page.goto("http://127.0.0.1:3000/configuracoes/usuarios");
-  await expect(page).toHaveURL("http://127.0.0.1:3000/");
+  await page.goto(`${portalUrl}/`);
+  await expect(page).toHaveURL(`${portalUrl}/`);
+  await expect(page.getByText("Vendedor", { exact: true })).toBeVisible();
 });
 
 test("Logout and an expired bearer session are rejected", async ({ page, request }) => {
   await page.goto("/login");
-  await page.locator('input[type="email"]').fill("admin@germinatura.test");
-  await page.locator('input[type="password"]').fill("Admin123!");
-  await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
-  await expect(page).toHaveURL(/http:\/\/127\.0\.0\.1:3000\/$/);
+  await login(page, "admin@germinatura.test", "Admin123!");
+  await expect(page).toHaveURL(`${portalUrl}/`);
 
   const logoutStatus = await page.evaluate(async () => (await fetch("/api/auth/logout", { method: "POST" })).status);
   expect(logoutStatus).toBe(200);
   expect((await page.request.get("/api/v1/auth/session")).status()).toBe(401);
 
-  const expired = await request.get("/api/v1/auth/session", {
-    headers: { Authorization: "Bearer expired.fixture.token" },
-  });
+  const expired = await request.get("/api/v1/auth/session", { headers: { Authorization: "Bearer expired.fixture.token" } });
   expect(expired.status()).toBe(401);
 });
 
-test("Unsigned payment webhook stays disabled", async ({ request }) => {
-  const response = await request.post("/api/webhooks/abacatepay", {
-    data: { event: "BILLING_PAID" },
-  });
-  expect(response.status()).toBe(503);
-  await expect(response.json()).resolves.toMatchObject({ code: "PAYMENTS_DISABLED" });
+test("Removed legacy domains are not exposed as functional APIs", async ({ page }) => {
+  await page.goto("/login");
+  await login(page, "admin@germinatura.test", "Admin123!");
+  await expect(page).toHaveURL(`${portalUrl}/`);
+  const status = await page.evaluate(async () => (await fetch("/api/produtos")).status);
+  expect(status).toBe(404);
 });

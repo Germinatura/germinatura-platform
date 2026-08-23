@@ -18,6 +18,8 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "raffles.manage",
     "users.manage",
     "finance.manage",
+    "communications.manage",
+    "community.moderate",
   ],
   VENDEDOR: [
     "portal.access",
@@ -29,7 +31,26 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "raffles.buy",
     "raffles.sell",
   ],
-  CONSUMER: [
+  ESTOQUE: [
+    "portal.access",
+    "catalog.read",
+    "inventory.read",
+    "inventory.manage",
+  ],
+  FINANCEIRO: [
+    "portal.access",
+    "sales.read.all",
+    "finance.manage",
+  ],
+  COMUNICACAO: [
+    "portal.access",
+    "communications.manage",
+  ],
+  MODERADOR: [
+    "portal.access",
+    "community.moderate",
+  ],
+  CONSUMIDOR: [
     "portal.access",
     "catalog.read",
     "reservations.manage.own",
@@ -38,13 +59,17 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
 };
 
 const rolePriority: Readonly<Record<AppRole, number>> = {
-  ADMIN: 3,
-  VENDEDOR: 2,
-  CONSUMER: 1,
+  ADMIN: 7,
+  VENDEDOR: 6,
+  ESTOQUE: 5,
+  FINANCEIRO: 4,
+  COMUNICACAO: 3,
+  MODERADOR: 2,
+  CONSUMIDOR: 1,
 };
 
 export function primaryRole(roles: readonly AppRole[]): AppRole {
-  return [...roles].sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMER";
+  return [...roles].sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
 }
 
 export function hasPermission(

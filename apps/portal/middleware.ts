@@ -3,8 +3,8 @@ import { createApiError } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
 import { updateSession } from "@/lib/auth";
 
-const publicRoutes = ["/login", "/cadastro"];
-const publicApiRoutes = ["/api/auth/login", "/api/cadastro", "/api/v1/health", "/api/webhooks/abacatepay"];
+const publicRoutes = ["/login"];
+const publicApiRoutes = ["/api/auth/login", "/api/v1/health"];
 
 export default async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -20,7 +20,7 @@ export default async function middleware(request: NextRequest) {
     }
     const unsafeMethod = !["GET", "HEAD", "OPTIONS"].includes(request.method);
     const hasBearer = request.headers.get("authorization")?.startsWith("Bearer ") ?? false;
-    if (unsafeMethod && !hasBearer && path !== "/api/webhooks/abacatepay") {
+    if (unsafeMethod && !hasBearer) {
       const origin = request.headers.get("origin");
       const allowed = new Set([
         process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000",
@@ -30,12 +30,6 @@ export default async function middleware(request: NextRequest) {
         return NextResponse.json(createApiError("INVALID_ORIGIN", "Origem não autorizada", requestId), { status: 403 });
       }
     }
-    if (session?.user.perfil !== "ADMIN" && (path.startsWith("/api/admin/") || path.startsWith("/api/usuarios") || path.startsWith("/api/configuracoes/"))) {
-      return NextResponse.json(createApiError("FORBIDDEN", "Permissão administrativa obrigatória", requestId), { status: 403 });
-    }
-    if (session?.user.perfil === "CONSUMER" && (path.startsWith("/api/pdv/") || path.startsWith("/api/vendas"))) {
-      return NextResponse.json(createApiError("FORBIDDEN", "Permissão de vendedor obrigatória", requestId), { status: 403 });
-    }
     return response;
   }
 
@@ -43,16 +37,6 @@ export default async function middleware(request: NextRequest) {
   if (!session) return response;
 
   if (isPublicRoute) {
-    const destination = session.user.perfil === "CONSUMER" ? "/reservas" : "/";
-    return NextResponse.redirect(new URL(destination, request.url));
-  }
-
-  const isReservation = path.startsWith("/reservas");
-  const isRaffle = path.startsWith("/rifas");
-  if (session.user.perfil === "CONSUMER" && path !== "/" && !isReservation && !isRaffle) {
-    return NextResponse.redirect(new URL("/reservas", request.url));
-  }
-  if (session.user.perfil === "VENDEDOR" && path !== "/" && !isReservation && !isRaffle && !path.startsWith("/pdv")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   return response;
