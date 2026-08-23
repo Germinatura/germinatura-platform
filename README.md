@@ -56,8 +56,10 @@ pnpm test:e2e
 
 O código novo usa lint estrito. Portal e PDV carregam temporariamente avisos herdados do monólito, sem permitir erros de lint. A dívida é isolada para remoção posterior.
 
-## Limites desta branch
+## Próximas entregas
 
-Esta fundação não migra o domínio operacional para o novo modelo. Estoque ledger, dinheiro em centavos, migração histórica, motor de promoções e idempotência completa serão implementados em `feat/v2-core-domain`. Pagamentos e conciliação ficam em `feat/v2-payments-finance`.
+Esta fundação ainda não migra o domínio operacional para o novo modelo. A execução da especificação v2.1 foi dividida em branches curtas para evitar que estoque, preços, vendas, pagamentos e financeiro sejam alterados no mesmo PR.
 
-O webhook AbacatePay permanece desabilitado por padrão e rejeita chamadas quando `PAYMENTS_ENABLED` e o segredo não estão configurados.
+A ordem, as dependências, os impedimentos, os testes e o procedimento de cutover estão documentados em [`docs/v2.1-implementation-roadmap.md`](docs/v2.1-implementation-roadmap.md). As primeiras branches de código serão `fix/v2-security-closeout`, `chore/v2-staging-delivery` e `feat/v2-core-contracts`; cada etapa seguinte nasce da `main` depois do merge da anterior.
+
+O webhook AbacatePay permanece desabilitado por padrão e rejeita chamadas quando `PAYMENTS_ENABLED` e o segredo não estão configurados. Ele é apenas uma compatibilidade temporária e não faz parte da arquitetura-alvo v2.1.
