@@ -1,5 +1,5 @@
 begin;
-select plan(27);
+select plan(30);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'roles', 'roles table exists');
@@ -30,6 +30,15 @@ select results_eq(
   array[0::bigint],
   'authenticated users have no self-service write policy for RBAC tables'
 );
+select ok(
+  not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename in ('profiles', 'roles', 'permissions', 'user_roles', 'role_permissions')
+      and 'public' = any(roles)
+  ),
+  'foundation policies never grant anonymous public access'
+);
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select ok(public.has_permission('users.manage'), 'administrator can manage users');
@@ -44,6 +53,14 @@ select results_eq($$select count(*)::bigint from storage.buckets where id = 'pro
 select ok((select allowed_mime_types @> array['image/jpeg', 'image/png', 'image/webp'] from storage.buckets where id = 'product-images'), 'product image MIME types are restricted');
 select results_eq($$select file_size_limit from storage.buckets where id = 'product-images'$$, array[10485760::bigint], 'product image size is limited');
 select results_eq($$select count(*)::bigint from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'catalog_images_%'$$, array[4::bigint], 'storage policies cover read and managed writes');
+select ok(
+  (select with_check like '%auth.uid()%' and with_check like '%storage.extension%' from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'catalog_images_admin_insert'),
+  'storage inserts require a generated user-scoped path and approved extension'
+);
+select ok(
+  (select qual is not null and with_check is not null from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'catalog_images_admin_update'),
+  'storage updates validate both existing and resulting rows'
+);
 
 select * from finish();
 rollback;

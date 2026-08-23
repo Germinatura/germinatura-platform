@@ -169,11 +169,19 @@ create policy "catalog_images_public_read" on storage.objects
   for select using (bucket_id = 'product-images');
 create policy "catalog_images_admin_insert" on storage.objects
   for insert to authenticated with check (
-    bucket_id = 'product-images' and public.has_permission('catalog.manage')
+    bucket_id = 'product-images'
+    and public.has_permission('catalog.manage')
+    and name ~ ('^' || auth.uid()::text || '/[0-9a-fA-F-]{36}\.(jpg|jpeg|png|webp)$')
+    and lower(storage.extension(name)) in ('jpg', 'jpeg', 'png', 'webp')
   );
 create policy "catalog_images_admin_update" on storage.objects
   for update to authenticated using (
     bucket_id = 'product-images' and public.has_permission('catalog.manage')
+  ) with check (
+    bucket_id = 'product-images'
+    and public.has_permission('catalog.manage')
+    and name ~ ('^' || auth.uid()::text || '/[0-9a-fA-F-]{36}\.(jpg|jpeg|png|webp)$')
+    and lower(storage.extension(name)) in ('jpg', 'jpeg', 'png', 'webp')
   );
 create policy "catalog_images_admin_delete" on storage.objects
   for delete to authenticated using (

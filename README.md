@@ -89,6 +89,7 @@ O workflow de CI executa essa fundação contra Supabase local. Ele não acessa 
 - [ADR 0001 — Germinatura v2.1 greenfield](docs/adr/0001-greenfield-v2.md);
 - [Roadmap de implementação v2.1](docs/v2.1-implementation-roadmap.md);
 - [Runbook da fundação local](docs/v2-foundation-runbook.md);
+- [Baseline de segurança e classificação de endpoints](docs/security-baseline.md);
 - `docs/Germinatura_Especificacao_Funcional_Tecnica_v2.1.docx`: fonte funcional principal, exceto por qualquer trecho de migração superado pelo ADR.
 
 Documentos v1/v2 anteriores permanecem como histórico e não representam a arquitetura operacional atual.

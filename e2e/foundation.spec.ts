@@ -11,7 +11,12 @@ async function login(page: import("@playwright/test").Page, email: string, passw
   await passwordInput.fill(password);
   await expect(emailInput).toHaveValue(email);
   await expect(passwordInput).toHaveValue(password);
+  const loginResponse = page.waitForResponse((response) => {
+    const path = new URL(response.url()).pathname;
+    return response.request().method() === "POST" && (path === "/api/auth/login" || path === "/auth/v1/token");
+  });
   await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
+  expect((await loginResponse).status()).toBe(200);
 }
 
 test("Portal and PDV expose minimal independent health endpoints", async ({ request }) => {
@@ -22,6 +27,36 @@ test("Portal and PDV expose minimal independent health endpoints", async ({ requ
   const pdv = await request.get(`${pdvUrl}/api/v1/health`);
   await expect(pdv).toBeOK();
   await expect(pdv.json()).resolves.toEqual({ service: "pdv", status: "ok" });
+  for (const response of [portal, pdv]) {
+    expect(response.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
+    expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers()["x-frame-options"]).toBe("DENY");
+    expect(response.headers()["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(response.headers()["permissions-policy"]).toContain("camera=()");
+  }
+});
+
+test("API allowlist enforces methods, authentication and CSRF origin", async ({ request }) => {
+  const method = await request.get("/api/auth/login");
+  expect(method.status()).toBe(405);
+  expect(method.headers().allow).toBe("POST");
+
+  const missingOrigin = await request.post("/api/auth/login", {
+    data: { email: "admin@germinatura.test", password: "Admin123!" },
+  });
+  expect(missingOrigin.status()).toBe(403);
+
+  const crossOrigin = await request.post("/api/auth/login", {
+    headers: { Origin: "https://malicious.invalid", "Sec-Fetch-Site": "cross-site" },
+    data: { email: "admin@germinatura.test", password: "Admin123!" },
+  });
+  expect(crossOrigin.status()).toBe(403);
+
+  const protectedMutation = await request.post("/api/auth/reset-password", {
+    headers: { Origin: portalUrl },
+    data: { novaSenha: "Example123!" },
+  });
+  expect(protectedMutation.status()).toBe(401);
 });
 
 test("Unauthenticated page and API access are blocked", async ({ page, request }) => {
@@ -38,7 +73,11 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
 
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();
-  await expect(session.json()).resolves.toMatchObject({ user: { perfil: "ADMIN", roles: ["ADMIN"] } });
+  const sessionBody = await session.json();
+  expect(sessionBody).toMatchObject({ user: { perfil: "ADMIN", roles: ["ADMIN"] } });
+  const sessionText = JSON.stringify(sessionBody);
+  expect(sessionText).not.toContain("access_token");
+  expect(sessionText).not.toContain("refresh_token");
 
   await page.goto(`${pdvUrl}/`);
   await page.getByTitle("Voltar ao Painel").click();

@@ -36,7 +36,7 @@ export default function LoginPage() {
                 showToast(data.message || "Credenciais inválidas", "error");
                 setError(data.message || "Credenciais inválidas");
             }
-        } catch (err) {
+        } catch {
             showToast("Erro ao conectar com o servidor", "error");
             setError("Erro ao conectar com o servidor");
         } finally {
@@ -75,7 +75,7 @@ export default function LoginPage() {
                                         required
                                         type="email"
                                         value={email}
-                                        onChange={(e: any) => setEmail(e.target.value)}
+                                        onChange={(e) => setEmail(e.target.value)}
                                         placeholder="seu@email.com"
                                         className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-slate-400 font-medium"
                                     />
@@ -90,7 +90,7 @@ export default function LoginPage() {
                                         required
                                         type={showPassword ? "text" : "password"}
                                         value={password}
-                                        onChange={(e: any) => setPassword(e.target.value)}
+                                        onChange={(e) => setPassword(e.target.value)}
                                         placeholder="••••••••"
                                         className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-slate-400 font-medium"
                                     />

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
-import { Menu, X, GraduationCap } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -11,7 +11,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    if (pathname === "/login" || pathname === "/cadastro" || pathname.startsWith("/pdv") || pathname === "/trocar-senha") {
+    if (pathname === "/login" || pathname.startsWith("/pdv") || pathname === "/trocar-senha") {
         return <>{children}</>;
     }
 

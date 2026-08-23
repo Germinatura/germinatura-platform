@@ -15,6 +15,7 @@
     "test:unit": "vitest run",
     "test:db": "node tools/run-supabase.mjs test db",
     "test:e2e": "playwright test",
+    "security:scan": "node tools/check-repository-security.mjs",
     "test:ci": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build",
     "supabase:start": "node tools/run-supabase.mjs start",
     "supabase:start:test": "node tools/run-supabase.mjs start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
