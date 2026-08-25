@@ -20,7 +20,7 @@ Data da auditoria: 2026-08-25. Base: `b58f93e`. Fonte-alvo: especificação v2.2
 | INV-003 Reserva concorrente | AUSENTE | Sem locks/reservas | P0 | INV-001, SALE-001 | Crítico | RPC atômica e teste da última unidade |
 | SALE-001 Checkout idempotente | AUSENTE | Sem venda/checkout | P0 | Pricing, estoque | Crítico | Idempotency-Key + transação |
 | SALE-002 Conclusão/cancelamento reversível | AUSENTE | Sem lifecycle | P0 | Outbox, financeiro | Crítico | Máquina de estados e reversões |
-| PAY-001 Contrato neutro de provider | PARCIAL | Interface mínima e estados insuficientes | P0 | ADR 0005 | Alto | Ampliar contrato/testes sem rede |
+| PAY-001 Contrato neutro de provider | IMPLEMENTADO | Persistência/transações ainda pertencem às próximas fatias | P0 | ADR 0005 | Médio | Preservar contratos e ligar ao domínio somente com migration testada |
 | PAY-002 PicPay único em produção | LEGADO A SUBSTITUIR | Roadmap v2.1 ainda planeja Mercado Pago | P0 | Decisão v2.2 | Alto | Novo roadmap + ADR; antigo fica histórico |
 | PAY-003 PicPay Checkout/API | BLOQUEADO POR DECISÃO EXTERNA | Sem adapter, docs/credenciais/habilitação no repo | P1 | Contrato comercial, sandbox | Crítico | Somente contrato/flag até confirmação oficial |
 | PAY-004 Maquininha/Tap controlado | AUSENTE | Sem payment attempt/confirmação manual auditada | P1 | Modelo de vendas | Alto | Modelar canal e origem de confirmação; não iniciar terminal |

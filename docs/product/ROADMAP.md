@@ -16,7 +16,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
 | Monorepo Portal/PDV/packages | DONE | P1 | — | ARCH-001/002 | Builds/apps/packages em CI |
-| Contratos de pagamentos auditáveis | IN PROGRESS | P0 | ADR 0005/0006 | PAY-001/002/003/008 | Estados/transições/adapters indisponíveis testados |
+| Contratos de pagamentos auditáveis | DONE | P0 | ADR 0005/0006 | PAY-001/002/003/008 | `fdd4425`: estados/transições e adapter indisponível; 5 testes + lint/typecheck |
 | Money, erros, cursor e idempotência comuns | TODO | P0 | Contratos | PRICE-001, IDEM-001 | Tipos/testes sem Float/duplicação |
 | Audit log e transactional outbox | TODO | P0 | Migration | AUD-001, OBS-001 | Evento no mesmo commit + worker idempotente |
 
