@@ -1,4 +1,4 @@
-# Germinatura v2.1 — Greenfield
+# Germinatura v2.2 — Greenfield
 
 A Germinatura v2.1 é uma plataforma nova, composta por duas aplicações Next.js independentes no mesmo monorepo:
 
@@ -84,16 +84,18 @@ pnpm build
 
 O workflow de CI executa essa fundação contra Supabase local. Ele não acessa Supabase remoto, não faz deploy e rejeita arquivos de ambiente, dumps, backups e padrões de credenciais proibidos.
 
-## Documentação
+## Documentação vigente
 
 - [ADR 0001 — Germinatura v2.1 greenfield](docs/adr/0001-greenfield-v2.md);
-- [Roadmap de implementação v2.1](docs/v2.1-implementation-roadmap.md);
+- [PRD v2.2](docs/product/PRD.md);
+- [Roadmap oficial v2.2](docs/product/ROADMAP.md);
+- [Diagnóstico v2.2](docs/product/GAP_ANALYSIS.md);
 - [Runbook da fundação local](docs/v2-foundation-runbook.md);
 - [Baseline de segurança e classificação de endpoints](docs/security-baseline.md);
-- `docs/Germinatura_Especificacao_Funcional_Tecnica_v2.1.docx`: fonte funcional principal, exceto por qualquer trecho de migração superado pelo ADR.
+- `docs/specs/Germinatura_Especificacao_Funcional_Tecnica_v2.2.docx`: fonte funcional e técnica vigente, exceto por qualquer trecho de migração superado pelo ADR 0001.
 
-Documentos v1/v2 anteriores permanecem como histórico e não representam a arquitetura operacional atual.
+Documentos v1, v2 e v2.1 permanecem como histórico e não representam decisões vigentes de pagamentos.
 
 ## Próximas entregas
 
-Depois do reset greenfield e do fechamento de segurança, a próxima branch será `chore/v2-staging-delivery`. Ela poderá preparar Supabase e Cloudflare por ambiente, OpenNext/Wrangler e os fluxos de deploy. Nenhum ambiente remoto é configurado nesta etapa.
+O plano vigente e seus bloqueios estão em `docs/product/ROADMAP.md`. Staging continua condicionado ao provisionamento externo já documentado; integrações PicPay reais permanecem desligadas até documentação, credenciais e habilitação oficiais.
