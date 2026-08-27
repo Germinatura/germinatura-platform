@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-27. Base: `0640c11` + branch `feat/foundation-money`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-27. Base: `a769f50` + branch `feat/idempotency`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -19,6 +19,7 @@ Data da auditoria: 2026-08-27. Base: `0640c11` + branch `feat/foundation-money`.
 | INV-002 Localizações/vendedor | AUSENTE | Sem saldo/localização | P0 | INV-001 | Crítico | Criar central e localizações operacionais |
 | INV-003 Reserva concorrente | AUSENTE | Sem locks/reservas | P0 | INV-001, SALE-001 | Crítico | RPC atômica e teste da última unidade |
 | SALE-001 Checkout idempotente | AUSENTE | Sem venda/checkout | P0 | Pricing, estoque | Crítico | Idempotency-Key + transação |
+| IDEM-001 Fundação idempotente | PARCIAL — contrato e persistência em implementação na branch `feat/idempotency` | Ainda não há mutação de negócio consumidora | P0 | Money, RPCs de domínio | Alto | Validar replay/conflito/rollback; integrar depois em ledger/reservas |
 | SALE-002 Conclusão/cancelamento reversível | AUSENTE | Sem lifecycle | P0 | Outbox, financeiro | Crítico | Máquina de estados e reversões |
 | PAY-001 Contrato neutro de provider | IMPLEMENTADO | Persistência/transações ainda pertencem às próximas fatias | P0 | ADR 0005 | Médio | Preservar contratos e ligar ao domínio somente com migration testada |
 | PAY-002 PicPay único em produção | LEGADO A SUBSTITUIR | Roadmap v2.1 ainda planeja Mercado Pago | P0 | Decisão v2.2 | Alto | Novo roadmap + ADR; antigo fica histórico |

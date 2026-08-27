@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { apiErrorSchema, createApiClient, moneyCentsSchema, sessionUserSchema } from "./index";
+import {
+  apiErrorSchema,
+  createApiClient,
+  idempotencyKeySchema,
+  idempotencyStatusSchema,
+  moneyCentsSchema,
+  sessionUserSchema,
+} from "./index";
 
 describe("shared contracts", () => {
   it("rejects an invalid session identity", () => {
@@ -17,6 +24,15 @@ describe("shared contracts", () => {
 
     for (const invalid of [-1, 12.9, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
       expect(moneyCentsSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
+  it("validates portable idempotency keys and persisted statuses", () => {
+    expect(idempotencyKeySchema.parse("checkout:550e8400-e29b-41d4-a716-446655440000")).toContain("checkout:");
+    expect(idempotencyStatusSchema.parse("SUCCEEDED")).toBe("SUCCEEDED");
+
+    for (const invalid of ["", "contains whitespace", "a".repeat(129)]) {
+      expect(idempotencyKeySchema.safeParse(invalid).success).toBe(false);
     }
   });
 
