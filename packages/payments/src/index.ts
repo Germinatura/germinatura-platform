@@ -1,11 +1,13 @@
+import type { MoneyCents } from "@germinatura/domain";
+
 export const paymentStatuses = ["CREATED", "PENDING", "AWAITING_EXTERNAL_CONFIRMATION", "APPROVED", "DECLINED", "CANCELLED", "EXPIRED", "REFUNDED", "RECONCILIATION_PENDING", "RECONCILED"] as const;
 export type PaymentStatus = (typeof paymentStatuses)[number];
 export type PaymentConfirmationSource = "WEBHOOK" | "STATUS_QUERY" | "MANUAL" | "RECONCILIATION_IMPORT";
 export type PaymentIntegrationChannel = "PIX_AREA" | "CHECKOUT_API" | "PICPAY_WALLET" | "PAYMENT_LINK" | "MAQUININHA" | "TAP";
 
-export interface PaymentRequest { orderId: string; amountInCents: number; idempotencyKey: string; }
+export interface PaymentRequest { orderId: string; amountInCents: MoneyCents; idempotencyKey: string; }
 export interface PaymentResult { externalId?: string; status: PaymentStatus; confirmationSource?: PaymentConfirmationSource; }
-export interface RefundRequest { externalId: string; amountInCents?: number; idempotencyKey: string; }
+export interface RefundRequest { externalId: string; amountInCents?: MoneyCents; idempotencyKey: string; }
 
 export interface PaymentProvider {
   createPayment(input: PaymentRequest): Promise<PaymentResult>;

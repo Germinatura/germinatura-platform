@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiErrorSchema, createApiClient, sessionUserSchema } from "./index";
+import { apiErrorSchema, createApiClient, moneyCentsSchema, sessionUserSchema } from "./index";
 
 describe("shared contracts", () => {
   it("rejects an invalid session identity", () => {
@@ -10,6 +10,14 @@ describe("shared contracts", () => {
     expect(
       apiErrorSchema.parse({ code: "FORBIDDEN", message: "Acesso negado", request_id: "req-1" }),
     ).toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("validates money as safe non-negative integer cents", () => {
+    expect(moneyCentsSchema.parse(1290)).toBe(1290);
+
+    for (const invalid of [-1, 12.9, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(moneyCentsSchema.safeParse(invalid).success).toBe(false);
+    }
   });
 
   it("sends a Supabase bearer token through the shared API client", async () => {

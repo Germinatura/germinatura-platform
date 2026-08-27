@@ -7,7 +7,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
 | Auth Supabase, RBAC/RLS e baseline web | DONE | P0 | — | AUTH-001/002, SEC-001 | Migration, testes SQL/E2E e CI em `b58f93e` |
-| Fonte v2.2, PRD, gaps e ADRs | IN PROGRESS | P0 | PR | GOV-001 | Docs em `main`, CI verde e v2.1 marcada histórica |
+| Fonte v2.2, PRD, gaps e ADRs | DONE | P0 | PR | GOV-001 | `0640c11` em `main`, CI `32852994966` verde e v2.1 marcada histórica |
 | Granularidade futura de autorização | TODO | P0 | Cada domínio | AUTH-002 | Rota + permission + RLS + teste de abuso |
 | Staging segregado | BLOCKED | P1 | Supabase/Cloudflare/GitHub Environment/domínios | SEC-001, OBS-001 | Deploy e smoke reais sem produção |
 
@@ -17,7 +17,8 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 | --- | --- | --- | --- | --- | --- |
 | Monorepo Portal/PDV/packages | DONE | P1 | — | ARCH-001/002 | Builds/apps/packages em CI |
 | Contratos de pagamentos auditáveis | DONE | P0 | ADR 0005/0006 | PAY-001/002/003/008 | `fdd4425`: estados/transições e adapter indisponível; 5 testes + lint/typecheck |
-| Money, erros, cursor e idempotência comuns | TODO | P0 | Contratos | PRICE-001, IDEM-001 | Tipos/testes sem Float/duplicação |
+| Money compartilhado | IN PROGRESS | P0 | Contratos | PRICE-001 | Implementação e gates locais concluídos; requer CI verde e merge do PR para `DONE` |
+| Erros, cursor e idempotência comuns | TODO | P0 | Money | IDEM-001 | Contratos + persistência testada sem duplicação |
 | Audit log e transactional outbox | TODO | P0 | Migration | AUD-001, OBS-001 | Evento no mesmo commit + worker idempotente |
 
 ## Fase 2 — Estoque confiável

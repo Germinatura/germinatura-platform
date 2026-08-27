@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { moneyFromCents } from "@germinatura/domain";
 import { assertPaymentTransition, canTransitionPayment, PaymentIntegrationUnavailableError, UnavailablePicPayCardPresentProvider } from "./index";
 
 describe("payment state transitions", () => {
@@ -19,6 +20,6 @@ describe("unavailable PicPay card-present adapter", () => {
   it("never claims remote initiation support", () => expect(new UnavailablePicPayCardPresentProvider().supportsRemoteInitiation()).toBe(false));
   it("fails closed instead of simulating payment", async () => {
     const provider = new UnavailablePicPayCardPresentProvider();
-    await expect(provider.createPaymentAttempt({ orderId: "order-1", amountInCents: 2500, idempotencyKey: "attempt-1", channel: "MAQUININHA", operatorId: "seller-1" })).rejects.toBeInstanceOf(PaymentIntegrationUnavailableError);
+    await expect(provider.createPaymentAttempt({ orderId: "order-1", amountInCents: moneyFromCents(2500), idempotencyKey: "attempt-1", channel: "MAQUININHA", operatorId: "seller-1" })).rejects.toBeInstanceOf(PaymentIntegrationUnavailableError);
   });
 });

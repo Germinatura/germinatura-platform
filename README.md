@@ -1,6 +1,6 @@
 # Germinatura v2.2 — Greenfield
 
-A Germinatura v2.1 é uma plataforma nova, composta por duas aplicações Next.js independentes no mesmo monorepo:
+A Germinatura v2.2 é uma plataforma nova, composta por duas aplicações Next.js independentes no mesmo monorepo:
 
 - `apps/portal`: Portal autenticado para consumidores e equipes internas;
 - `apps/pdv`: shell mobile-first do ponto de venda, executado separadamente;
@@ -15,7 +15,7 @@ Não existe Prisma, banco PostgreSQL legado, dual-write, backfill, cutover de da
 
 ## Estado funcional
 
-O repositório contém a fundação autenticada e os health checks do Portal e do PDV. Catálogo, estoque, preços, promoções, vendas, pagamentos, reservas, rifas, financeiro, comunidade e notificações ainda não estão implementados. As telas antigas desses domínios foram retiradas da navegação e suas APIs foram removidas para não aparentarem funcionalidade sem um modelo transacional v2.
+O repositório contém a fundação autenticada, os health checks do Portal e do PDV, uma primitive compartilhada de dinheiro em centavos e contratos neutros de pagamento que falham de forma fechada. Catálogo, estoque, preços persistidos, promoções, vendas, integrações de pagamento, reservas, rifas, financeiro, comunidade e notificações ainda não estão implementados. As telas antigas desses domínios foram retiradas da navegação e suas APIs foram removidas para não aparentarem funcionalidade sem um modelo transacional v2.
 
 Papéis disponíveis, com suporte a múltiplos papéis por usuário:
 
