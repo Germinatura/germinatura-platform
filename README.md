@@ -9,13 +9,13 @@ A Germinatura v2.2 é uma plataforma nova, composta por duas aplicações Next.j
 
 O Supabase é a única persistência planejada. Supabase Auth é a única infraestrutura de identidade, ligada a `profiles`, `user_roles`, `roles`, `permissions` e `role_permissions`. Todas as tabelas públicas da fundação usam RLS.
 
-> A Germinatura v2.1 inicia com uma base nova. Nenhum dado operacional do sistema legado será migrado.
+> A Germinatura v2.2 inicia com uma base nova. Nenhum dado operacional do sistema legado será migrado.
 
 Não existe Prisma, banco PostgreSQL legado, dual-write, backfill, cutover de dados, Neon ou integração financeira ativa. A decisão está formalizada no [ADR 0001](docs/adr/0001-greenfield-v2.md).
 
 ## Estado funcional
 
-O repositório contém a fundação autenticada, os health checks do Portal e do PDV, uma primitive compartilhada de dinheiro em centavos e contratos neutros de pagamento que falham de forma fechada. Catálogo, estoque, preços persistidos, promoções, vendas, integrações de pagamento, reservas, rifas, financeiro, comunidade e notificações ainda não estão implementados. As telas antigas desses domínios foram retiradas da navegação e suas APIs foram removidas para não aparentarem funcionalidade sem um modelo transacional v2.
+O repositório contém a fundação autenticada, os health checks do Portal e do PDV, uma primitive compartilhada de dinheiro em centavos, a fundação persistente de idempotência e contratos neutros de pagamento que falham de forma fechada. Nenhuma mutação de negócio consome idempotência ainda. Catálogo, estoque, preços persistidos, promoções, vendas, integrações de pagamento, reservas, rifas, financeiro, comunidade e notificações ainda não estão implementados. As telas antigas desses domínios foram retiradas da navegação e suas APIs foram removidas para não aparentarem funcionalidade sem um modelo transacional v2.
 
 Papéis disponíveis, com suporte a múltiplos papéis por usuário:
 

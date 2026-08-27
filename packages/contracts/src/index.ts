@@ -7,6 +7,19 @@ export const moneyCentsSchema = z.number()
   .refine(Number.isSafeInteger, "Money cents must be a safe integer")
   .transform(moneyFromCents);
 
+export const idempotencyKeySchema = z.string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9._:-]+$/);
+
+export const idempotencyStatusSchema = z.enum([
+  "IN_PROGRESS",
+  "SUCCEEDED",
+  "REJECTED",
+  "FAILED",
+]);
+export type IdempotencyStatus = z.infer<typeof idempotencyStatusSchema>;
+
 export const appRoleSchema = z.enum([
   "ADMIN",
   "VENDEDOR",

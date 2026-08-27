@@ -17,8 +17,9 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 | --- | --- | --- | --- | --- | --- |
 | Monorepo Portal/PDV/packages | DONE | P1 | — | ARCH-001/002 | Builds/apps/packages em CI |
 | Contratos de pagamentos auditáveis | DONE | P0 | ADR 0005/0006 | PAY-001/002/003/008 | `fdd4425`: estados/transições e adapter indisponível; 5 testes + lint/typecheck |
-| Money compartilhado | IN PROGRESS | P0 | Contratos | PRICE-001 | Implementação e gates locais concluídos; requer CI verde e merge do PR para `DONE` |
-| Erros, cursor e idempotência comuns | TODO | P0 | Money | IDEM-001 | Contratos + persistência testada sem duplicação |
+| Money compartilhado | DONE | P0 | Contratos | PRICE-001 | `a769f50` em `main`; CI pós-merge `33094580327` verde |
+| Idempotência persistente | IN PROGRESS | P0 | Money | IDEM-001 | Implementação local deve passar migration, RLS, replay, conflito, rollback, PR e CI |
+| Erros e cursor comuns | TODO | P1 | Contratos | ARCH-002 | Envelopes e paginação compartilhados com consumidores reais |
 | Audit log e transactional outbox | TODO | P0 | Migration | AUD-001, OBS-001 | Evento no mesmo commit + worker idempotente |
 
 ## Fase 2 — Estoque confiável
@@ -78,4 +79,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 
 ## Próxima fatia recomendada
 
-Após os contratos de pagamento desta sessão: consolidar tipos de dinheiro/idempotência e preparar o desenho testável do catálogo + ledger. Não iniciar checkout, PicPay real ou migration financeira antes desses invariantes.
+Concluir e mesclar a fundação de idempotência; depois criar o catálogo mínimo com preço vigente em centavos, RLS e testes SQL. Não iniciar checkout, PicPay real, estoque ou migration financeira antes desses gates.
