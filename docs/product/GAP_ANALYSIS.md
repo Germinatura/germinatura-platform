@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-27. Base: `a769f50` + branch `feat/idempotency`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-27. Base: `62ae97c` + branch `feat/catalog-core`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -11,15 +11,15 @@ Data da auditoria: 2026-08-27. Base: `a769f50` + branch `feat/idempotency`. Font
 | AUTH-002 RBAC múltiplos papéis | IMPLEMENTADO | Permissões de domínios futuros ainda genéricas | P1 | Novos casos de uso | Alto | Evoluir catálogo de permissões com cada módulo |
 | AUTH-003 Autorização server-side/RLS | PARCIAL | Cobertura só da fundação ativa | P0 | Cada nova tabela/rota | Alto | Rota/policy/teste juntos |
 | SEC-001 Secrets e proteção web | PARCIAL | Scan/headers/CSRF básicos; rate limit/monitoramento ausentes | P0 | Borda/staging | Alto | Preservar gates; completar por ambiente |
-| CAT-001 Catálogo normalizado | AUSENTE | Sem tabelas, API ou UI funcional | P1 | Auth, storage | Médio | Entregar antes de pricing/estoque |
-| PRICE-001 Dinheiro sem Float | PARCIAL — `MoneyCents`, schema Zod e contratos de pagamento implementados; PIX genérico removido | Persistência de preços ainda ausente | P0 | Catálogo | Médio | Persistir valores futuros em `BIGINT` de centavos e manter validação nas fronteiras |
+| CAT-001 Catálogo normalizado | PARCIAL — categorias, produtos, histórico de preços, RLS e testes em implementação | API, imagens e UI ainda ausentes | P1 | Auth, storage | Médio | Validar/mesclar o schema e expor leitura em fatia posterior |
+| PRICE-001 Dinheiro sem Float | IMPLEMENTADO NA FUNDAÇÃO — `MoneyCents`, schema Zod, contratos e preços `BIGINT` limitados ao safe integer | Pricing de negócio ainda ausente | P0 | Catálogo | Médio | Manter validação nas fronteiras e histórico sem sobreposição |
 | PRICE-002 Pricing server authority | AUSENTE | Nenhum motor/cotação | P0 | Catálogo | Crítico | Endpoint/RPC recalcula tudo |
 | PROMO-001 Promoções por regras | AUSENTE | Nenhum motor | P1 | Catálogo, pricing | Alto | Implementar funções puras + casos obrigatórios |
 | INV-001 Ledger imutável | AUSENTE | Nenhuma tabela de estoque | P0 | Migration/RPC | Crítico | Projetar ledger e saldos transacionais |
 | INV-002 Localizações/vendedor | AUSENTE | Sem saldo/localização | P0 | INV-001 | Crítico | Criar central e localizações operacionais |
 | INV-003 Reserva concorrente | AUSENTE | Sem locks/reservas | P0 | INV-001, SALE-001 | Crítico | RPC atômica e teste da última unidade |
 | SALE-001 Checkout idempotente | AUSENTE | Sem venda/checkout | P0 | Pricing, estoque | Crítico | Idempotency-Key + transação |
-| IDEM-001 Fundação idempotente | PARCIAL — contrato e persistência em implementação na branch `feat/idempotency` | Ainda não há mutação de negócio consumidora | P0 | Money, RPCs de domínio | Alto | Validar replay/conflito/rollback; integrar depois em ledger/reservas |
+| IDEM-001 Fundação idempotente | PARCIAL — contrato, persistência, replay, conflito, RLS e rollback validados em `62ae97c` | Ainda não há mutação de negócio consumidora | P0 | RPCs de domínio | Alto | Integrar incrementalmente em ledger/reservas |
 | SALE-002 Conclusão/cancelamento reversível | AUSENTE | Sem lifecycle | P0 | Outbox, financeiro | Crítico | Máquina de estados e reversões |
 | PAY-001 Contrato neutro de provider | IMPLEMENTADO | Persistência/transações ainda pertencem às próximas fatias | P0 | ADR 0005 | Médio | Preservar contratos e ligar ao domínio somente com migration testada |
 | PAY-002 PicPay único em produção | LEGADO A SUBSTITUIR | Roadmap v2.1 ainda planeja Mercado Pago | P0 | Decisão v2.2 | Alto | Novo roadmap + ADR; antigo fica histórico |
@@ -47,7 +47,6 @@ Data da auditoria: 2026-08-27. Base: `a769f50` + branch `feat/idempotency`. Font
 
 ## Dívidas que bloqueiam evolução
 
-1. Domínios vazios: contratos centrais, dinheiro, idempotência e estado precisam preceder telas.
-2. `apps/pdv/lib/pix.ts` usa `parseFloat` e representa PIX estático genérico; não deve orientar a nova implementação.
-3. A matriz de permissões precisará ganhar ações granulares com cada módulo.
-4. Outbox, audit log e receipt de webhook precisam nascer junto do primeiro fluxo crítico, não depois.
+1. Domínios operacionais ainda não possuem casos de uso: catálogo começa pelo schema e permanecerá sem tela até a leitura real.
+2. A matriz de permissões precisará ganhar ações granulares com cada módulo.
+3. Outbox, audit log e receipt de webhook precisam nascer junto do primeiro fluxo crítico, não depois.

@@ -1,6 +1,6 @@
 # Roadmap oficial — Germinatura v2.2
 
-Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada em `b58f93e`; documentação histórica não prova implementação.
+Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada até `62ae97c`; documentação histórica não prova implementação.
 
 ## Fase 0 — Auditoria e segurança
 
@@ -18,7 +18,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 | Monorepo Portal/PDV/packages | DONE | P1 | — | ARCH-001/002 | Builds/apps/packages em CI |
 | Contratos de pagamentos auditáveis | DONE | P0 | ADR 0005/0006 | PAY-001/002/003/008 | `fdd4425`: estados/transições e adapter indisponível; 5 testes + lint/typecheck |
 | Money compartilhado | DONE | P0 | Contratos | PRICE-001 | `a769f50` em `main`; CI pós-merge `33094580327` verde |
-| Idempotência persistente | IN PROGRESS | P0 | Money | IDEM-001 | Implementação local deve passar migration, RLS, replay, conflito, rollback, PR e CI |
+| Idempotência persistente | DONE | P0 | Money | IDEM-001 | `62ae97c` em `main`; 61 testes SQL e CI pós-merge `33097920723` verde. Consumo por mutações permanece incremental |
 | Erros e cursor comuns | TODO | P1 | Contratos | ARCH-002 | Envelopes e paginação compartilhados com consumidores reais |
 | Audit log e transactional outbox | TODO | P0 | Migration | AUD-001, OBS-001 | Evento no mesmo commit + worker idempotente |
 
@@ -26,7 +26,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Catálogo/preços base | TODO | P0 | Fundação | CAT-001, PRICE-001 | Migration/RLS/API/testes |
+| Catálogo/preços base | IN PROGRESS | P0 | Fundação | CAT-001, PRICE-001 | Schema, histórico em centavos, RLS e testes nesta fatia; API em fatia própria |
 | Ledger, saldos e localizações | TODO | P0 | Catálogo/outbox | INV-001/002 | Movimentos imutáveis e saldo explicável |
 | Reserva/concorrência/inventário | TODO | P0 | Ledger | INV-003/004, CONC-001 | Última unidade e simultaneidade testadas |
 
@@ -79,4 +79,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 
 ## Próxima fatia recomendada
 
-Concluir e mesclar a fundação de idempotência; depois criar o catálogo mínimo com preço vigente em centavos, RLS e testes SQL. Não iniciar checkout, PicPay real, estoque ou migration financeira antes desses gates.
+Concluir e mesclar o catálogo mínimo com preço vigente em centavos, RLS e testes SQL; depois criar localizações e saldos protegidos em uma fatia própria. Não iniciar checkout, PicPay real ou migration financeira antes desses gates.

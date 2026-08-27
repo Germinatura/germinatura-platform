@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   apiErrorSchema,
+  catalogProductFlagsSchema,
+  catalogSlugSchema,
   createApiClient,
   idempotencyKeySchema,
   idempotencyStatusSchema,
   moneyCentsSchema,
+  productSkuSchema,
   sessionUserSchema,
 } from "./index";
 
@@ -34,6 +37,28 @@ describe("shared contracts", () => {
     for (const invalid of ["", "contains whitespace", "a".repeat(129)]) {
       expect(idempotencyKeySchema.safeParse(invalid).success).toBe(false);
     }
+  });
+
+  it("validates canonical catalog identifiers", () => {
+    expect(catalogSlugSchema.parse("camiseta-turma-2026")).toBe("camiseta-turma-2026");
+    expect(productSkuSchema.parse("CAMISETA-2026_P")).toBe("CAMISETA-2026_P");
+
+    for (const invalid of [" Camiseta", "camiseta_azul", "camiseta--azul", "Camiseta"]) {
+      expect(catalogSlugSchema.safeParse(invalid).success).toBe(false);
+    }
+    for (const invalid of ["sku minusculo", "SKU COM ESPACO", "-SKU", "SKU-"]) {
+      expect(productSkuSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
+  it("requires every catalog behavior flag", () => {
+    expect(catalogProductFlagsSchema.parse({
+      active: true,
+      published: false,
+      sellablePdv: true,
+      reservable: true,
+      tracksLots: false,
+    })).toMatchObject({ active: true, published: false, sellablePdv: true });
   });
 
   it("sends a Supabase bearer token through the shared API client", async () => {
