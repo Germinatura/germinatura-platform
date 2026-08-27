@@ -1,10 +1,10 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-25. Base: `b58f93e`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-27. Base: `0640c11` + branch `feat/foundation-money`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
-| GOV-001 Fonte de verdade v2.2 | PARCIAL — DOCX recebido, não versionado | Organizar e declarar vigência | P0 | PR/CI | Médio | Versionar em `docs/specs` e atualizar docs vigentes |
+| GOV-001 Fonte de verdade v2.2 | IMPLEMENTADO | — | P0 | PR/CI | Baixo | Preservar especificação, PRD, roadmap e ADRs versionados |
 | ARCH-001 Monorepo Portal + PDV | IMPLEMENTADO | Apps ainda são shells | P1 | Domínios | Baixo | Preservar estrutura e evoluir por módulos |
 | ARCH-002 Monólito modular | PARCIAL | Packages existem; casos de uso ausentes | P1 | Contratos | Médio | Introduzir módulos por fatias, sem microserviços |
 | AUTH-001 Supabase Auth | IMPLEMENTADO | Fluxos avançados/sessões ativas ausentes | P1 | Supabase | Médio | Manter e ampliar com testes |
@@ -12,7 +12,7 @@ Data da auditoria: 2026-08-25. Base: `b58f93e`. Fonte-alvo: especificação v2.2
 | AUTH-003 Autorização server-side/RLS | PARCIAL | Cobertura só da fundação ativa | P0 | Cada nova tabela/rota | Alto | Rota/policy/teste juntos |
 | SEC-001 Secrets e proteção web | PARCIAL | Scan/headers/CSRF básicos; rate limit/monitoramento ausentes | P0 | Borda/staging | Alto | Preservar gates; completar por ambiente |
 | CAT-001 Catálogo normalizado | AUSENTE | Sem tabelas, API ou UI funcional | P1 | Auth, storage | Médio | Entregar antes de pricing/estoque |
-| PRICE-001 Dinheiro sem Float | PARCIAL | Sem domínio monetário; PIX legado usa `parseFloat` | P0 | Contratos | Alto | Criar Money em centavos; retirar legado no fluxo correto |
+| PRICE-001 Dinheiro sem Float | PARCIAL — `MoneyCents`, schema Zod e contratos de pagamento implementados; PIX genérico removido | Persistência de preços ainda ausente | P0 | Catálogo | Médio | Persistir valores futuros em `BIGINT` de centavos e manter validação nas fronteiras |
 | PRICE-002 Pricing server authority | AUSENTE | Nenhum motor/cotação | P0 | Catálogo | Crítico | Endpoint/RPC recalcula tudo |
 | PROMO-001 Promoções por regras | AUSENTE | Nenhum motor | P1 | Catálogo, pricing | Alto | Implementar funções puras + casos obrigatórios |
 | INV-001 Ledger imutável | AUSENTE | Nenhuma tabela de estoque | P0 | Migration/RPC | Crítico | Projetar ledger e saldos transacionais |

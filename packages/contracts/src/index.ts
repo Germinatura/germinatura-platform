@@ -1,4 +1,11 @@
+import { moneyFromCents } from "@germinatura/domain";
 import { z } from "zod";
+
+export const moneyCentsSchema = z.number()
+  .int()
+  .nonnegative()
+  .refine(Number.isSafeInteger, "Money cents must be a safe integer")
+  .transform(moneyFromCents);
 
 export const appRoleSchema = z.enum([
   "ADMIN",

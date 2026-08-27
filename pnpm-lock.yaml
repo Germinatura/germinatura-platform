@@ -187,6 +187,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@germinatura/domain':
+        specifier: workspace:*
+        version: link:../domain
       zod:
         specifier: ^4.1.5
         version: 4.4.3
@@ -217,6 +220,10 @@ importers:
         version: 5.9.3
 
   packages/payments:
+    dependencies:
+      '@germinatura/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       typescript:
         specifier: ^5.9.2
