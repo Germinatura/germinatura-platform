@@ -29,3 +29,10 @@ insert into public.user_roles (user_id, role_id) values
   ('10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001'),
   ('10000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000002'),
   ('10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000003');
+
+insert into public.stock_locations (id, location_type, name, seller_id) values
+  ('50000000-0000-4000-8000-000000000001', 'CENTRAL', 'Estoque central', null),
+  ('50000000-0000-4000-8000-000000000002', 'SELLER', 'Estoque do vendedor local', '10000000-0000-4000-8000-000000000002')
+on conflict (id) do update set
+  name = excluded.name,
+  active = true;
