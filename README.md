@@ -15,7 +15,7 @@ Não existe Prisma, banco PostgreSQL legado, dual-write, backfill, cutover de da
 
 ## Estado funcional
 
-O repositório contém a fundação autenticada, os health checks do Portal e do PDV, uma primitive compartilhada de dinheiro em centavos, a fundação persistente de idempotência e contratos neutros de pagamento que falham de forma fechada. Nenhuma mutação de negócio consome idempotência ainda. Catálogo, estoque, preços persistidos, promoções, vendas, integrações de pagamento, reservas, rifas, financeiro, comunidade e notificações ainda não estão implementados. As telas antigas desses domínios foram retiradas da navegação e suas APIs foram removidas para não aparentarem funcionalidade sem um modelo transacional v2.
+O repositório contém a fundação autenticada, os health checks do Portal e do PDV, uma primitive compartilhada de dinheiro em centavos, a fundação persistente de idempotência e contratos neutros de pagamento que falham de forma fechada. A fundação de catálogo persiste categorias, produtos e histórico de preços em centavos com RLS, mas ainda não possui API nem tela. Nenhuma mutação de negócio consome idempotência ainda. Estoque, promoções, vendas, integrações de pagamento, reservas, rifas, financeiro, comunidade e notificações ainda não estão implementados. As telas antigas desses domínios foram retiradas da navegação e suas APIs foram removidas para não aparentarem funcionalidade sem um modelo transacional v2.
 
 Papéis disponíveis, com suporte a múltiplos papéis por usuário:
 

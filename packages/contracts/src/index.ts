@@ -12,6 +12,25 @@ export const idempotencyKeySchema = z.string()
   .max(128)
   .regex(/^[A-Za-z0-9._:-]+$/);
 
+export const catalogSlugSchema = z.string()
+  .min(1)
+  .max(100)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+
+export const productSkuSchema = z.string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Z0-9]+(?:[-_.][A-Z0-9]+)*$/);
+
+export const catalogProductFlagsSchema = z.object({
+  active: z.boolean(),
+  published: z.boolean(),
+  sellablePdv: z.boolean(),
+  reservable: z.boolean(),
+  tracksLots: z.boolean(),
+});
+export type CatalogProductFlags = z.infer<typeof catalogProductFlagsSchema>;
+
 export const idempotencyStatusSchema = z.enum([
   "IN_PROGRESS",
   "SUCCEEDED",
