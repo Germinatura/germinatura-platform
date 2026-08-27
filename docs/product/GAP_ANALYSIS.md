@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-27. Base: `62ae97c` + branch `feat/catalog-core`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-27. Base: `4898755` + branch `feat/inventory-locations`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -11,12 +11,12 @@ Data da auditoria: 2026-08-27. Base: `62ae97c` + branch `feat/catalog-core`. Fon
 | AUTH-002 RBAC múltiplos papéis | IMPLEMENTADO | Permissões de domínios futuros ainda genéricas | P1 | Novos casos de uso | Alto | Evoluir catálogo de permissões com cada módulo |
 | AUTH-003 Autorização server-side/RLS | PARCIAL | Cobertura só da fundação ativa | P0 | Cada nova tabela/rota | Alto | Rota/policy/teste juntos |
 | SEC-001 Secrets e proteção web | PARCIAL | Scan/headers/CSRF básicos; rate limit/monitoramento ausentes | P0 | Borda/staging | Alto | Preservar gates; completar por ambiente |
-| CAT-001 Catálogo normalizado | PARCIAL — categorias, produtos, histórico de preços, RLS e testes em implementação | API, imagens e UI ainda ausentes | P1 | Auth, storage | Médio | Validar/mesclar o schema e expor leitura em fatia posterior |
+| CAT-001 Catálogo normalizado | PARCIAL — categorias, produtos, histórico de preços, RLS e testes em `4898755` | API, imagens e UI ainda ausentes | P1 | Auth, storage | Médio | Expor leitura em fatia posterior, sem antecipar telas |
 | PRICE-001 Dinheiro sem Float | IMPLEMENTADO NA FUNDAÇÃO — `MoneyCents`, schema Zod, contratos e preços `BIGINT` limitados ao safe integer | Pricing de negócio ainda ausente | P0 | Catálogo | Médio | Manter validação nas fronteiras e histórico sem sobreposição |
 | PRICE-002 Pricing server authority | AUSENTE | Nenhum motor/cotação | P0 | Catálogo | Crítico | Endpoint/RPC recalcula tudo |
 | PROMO-001 Promoções por regras | AUSENTE | Nenhum motor | P1 | Catálogo, pricing | Alto | Implementar funções puras + casos obrigatórios |
 | INV-001 Ledger imutável | AUSENTE | Nenhuma tabela de estoque | P0 | Migration/RPC | Crítico | Projetar ledger e saldos transacionais |
-| INV-002 Localizações/vendedor | AUSENTE | Sem saldo/localização | P0 | INV-001 | Crítico | Criar central e localizações operacionais |
+| INV-002 Localizações/vendedor | PARCIAL — central, localização por vendedor, saldo derivado e RLS em implementação | Ledger/RPCs ainda ausentes; saldo permanece sem caminho de mutação | P0 | INV-001 | Crítico | Validar/mesclar a fundação e mutar somente pelo futuro ledger |
 | INV-003 Reserva concorrente | AUSENTE | Sem locks/reservas | P0 | INV-001, SALE-001 | Crítico | RPC atômica e teste da última unidade |
 | SALE-001 Checkout idempotente | AUSENTE | Sem venda/checkout | P0 | Pricing, estoque | Crítico | Idempotency-Key + transação |
 | IDEM-001 Fundação idempotente | PARCIAL — contrato, persistência, replay, conflito, RLS e rollback validados em `62ae97c` | Ainda não há mutação de negócio consumidora | P0 | RPCs de domínio | Alto | Integrar incrementalmente em ledger/reservas |

@@ -1,6 +1,6 @@
 # Roadmap oficial — Germinatura v2.2
 
-Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada até `62ae97c`; documentação histórica não prova implementação.
+Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada até `4898755`; documentação histórica não prova implementação.
 
 ## Fase 0 — Auditoria e segurança
 
@@ -26,8 +26,9 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Catálogo/preços base | IN PROGRESS | P0 | Fundação | CAT-001, PRICE-001 | Schema, histórico em centavos, RLS e testes nesta fatia; API em fatia própria |
-| Ledger, saldos e localizações | TODO | P0 | Catálogo/outbox | INV-001/002 | Movimentos imutáveis e saldo explicável |
+| Catálogo/preços base | DONE | P0 | Fundação | CAT-001, PRICE-001 | `4898755` em `main`; schema/RLS/histórico e CI pós-merge `33099929575` verdes. API permanece em fatia própria |
+| Localizações e saldos protegidos | IN PROGRESS | P0 | Catálogo | INV-002 | Central/vendedor, projeção não negativa, RLS e testes; nenhuma escrita direta |
+| Ledger imutável | TODO | P0 | Localizações/outbox | INV-001 | Movimentos imutáveis e saldo explicável |
 | Reserva/concorrência/inventário | TODO | P0 | Ledger | INV-003/004, CONC-001 | Última unidade e simultaneidade testadas |
 
 ## Fase 3 — PDV
@@ -79,4 +80,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 
 ## Próxima fatia recomendada
 
-Concluir e mesclar o catálogo mínimo com preço vigente em centavos, RLS e testes SQL; depois criar localizações e saldos protegidos em uma fatia própria. Não iniciar checkout, PicPay real ou migration financeira antes desses gates.
+Concluir e mesclar localizações e saldos protegidos; depois criar ledger, auditoria e outbox transacionais em uma fatia própria. Não iniciar checkout, PicPay real ou migration financeira antes desses gates.
