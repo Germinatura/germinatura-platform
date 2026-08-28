@@ -124,7 +124,7 @@ reset role;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select results_eq($$select count(*)::bigint from public.stock_locations$$, array[2::bigint], 'inventory manager sees every location');
-select results_eq($$select count(*)::bigint from public.inventory_balances$$, array[2::bigint], 'inventory manager sees every balance');
+select results_eq($$select count(*)::bigint from public.inventory_balances$$, array[3::bigint], 'inventory manager sees every balance');
 select throws_ok(
   $$insert into public.inventory_balances (location_id, product_id) values ('50000000-0000-4000-8000-000000000001', '31000000-0000-4000-8000-000000000001')$$,
   '42501', null, 'inventory manager cannot write balances directly'

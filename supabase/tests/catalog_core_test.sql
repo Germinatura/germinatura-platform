@@ -109,8 +109,8 @@ reset role;
 
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
-select results_eq($$select count(*)::bigint from public.categories$$, array[2::bigint], 'catalog manager reads inactive categories');
-select results_eq($$select count(*)::bigint from public.products$$, array[4::bigint], 'catalog manager reads unpublished and inactive products');
+select results_eq($$select count(*)::bigint from public.categories$$, array[3::bigint], 'catalog manager reads inactive categories');
+select results_eq($$select count(*)::bigint from public.products$$, array[5::bigint], 'catalog manager reads unpublished and inactive products');
 select results_eq($$select count(*)::bigint from public.product_prices$$, array[6::bigint], 'catalog manager reads complete price history');
 select throws_ok(
   $$insert into public.categories (name, slug) values ('Direta', 'direta')$$,

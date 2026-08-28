@@ -10,6 +10,8 @@ import {
   productSkuSchema,
   sessionUserSchema,
   stockMovementTypeSchema,
+  stockReservationItemSchema,
+  stockReservationStatusSchema,
 } from "./index";
 
 describe("shared contracts", () => {
@@ -66,6 +68,18 @@ describe("shared contracts", () => {
     expect(stockMovementTypeSchema.parse("TRANSFERENCIA")).toBe("TRANSFERENCIA");
     expect(stockMovementTypeSchema.parse("AJUSTE_NEGATIVO")).toBe("AJUSTE_NEGATIVO");
     expect(stockMovementTypeSchema.safeParse("ALTERACAO_DIRETA").success).toBe(false);
+  });
+
+  it("validates reservation status and safe quantities", () => {
+    expect(stockReservationStatusSchema.parse("ACTIVE")).toBe("ACTIVE");
+    expect(stockReservationItemSchema.parse({
+      productId: "33000000-0000-4000-8000-000000000001",
+      quantity: 1,
+    })).toMatchObject({ quantity: 1 });
+    expect(stockReservationItemSchema.safeParse({
+      productId: "33000000-0000-4000-8000-000000000001",
+      quantity: 0,
+    }).success).toBe(false);
   });
 
   it("sends a Supabase bearer token through the shared API client", async () => {

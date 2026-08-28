@@ -36,3 +36,26 @@ insert into public.stock_locations (id, location_type, name, seller_id) values
 on conflict (id) do update set
   name = excluded.name,
   active = true;
+
+insert into public.categories (id, name, slug, active, sort_order) values
+  ('23000000-0000-4000-8000-000000000001', 'Fixtures de concorrência', 'fixtures-concorrencia', false, 999)
+on conflict (id) do update set active = false;
+
+insert into public.products (
+  id, category_id, sku, slug, name, active, published, sellable_pdv, reservable, tracks_lots
+) values (
+  '33000000-0000-4000-8000-000000000001',
+  '23000000-0000-4000-8000-000000000001',
+  'CONCURRENCY-ITEM',
+  'concurrency-item',
+  'Item local para testes de concorrência',
+  true, false, false, true, false
+)
+on conflict (id) do update set active = true, reservable = true;
+
+insert into public.inventory_balances (location_id, product_id)
+values (
+  '50000000-0000-4000-8000-000000000001',
+  '33000000-0000-4000-8000-000000000001'
+)
+on conflict (location_id, product_id) do nothing;

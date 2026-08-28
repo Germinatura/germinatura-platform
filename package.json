@@ -9,10 +9,11 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
-    "lint": "turbo run lint && node tools/check-eslint-budget.mjs",
-    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint && eslint integration/**/*.ts && node tools/check-eslint-budget.mjs",
+    "typecheck": "turbo run typecheck && tsc --project integration/tsconfig.json",
     "test": "turbo run test",
     "test:unit": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:db": "node tools/run-supabase.mjs test db",
     "test:e2e": "playwright test",
     "security:scan": "node tools/check-repository-security.mjs",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",
+    "@types/node": "^20",
     "@playwright/test": "^1.55.0",
     "eslint": "^9.34.0",
     "supabase": "^2.39.2",
