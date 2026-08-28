@@ -31,6 +31,22 @@ export const catalogProductFlagsSchema = z.object({
 });
 export type CatalogProductFlags = z.infer<typeof catalogProductFlagsSchema>;
 
+export const stockMovementTypeSchema = z.enum([
+  "SALDO_INICIAL",
+  "ENTRADA_COMPRA",
+  "TRANSFERENCIA",
+  "VENDA",
+  "RESERVA",
+  "LIBERACAO_RESERVA",
+  "PERDA",
+  "VENCIMENTO",
+  "DEVOLUCAO",
+  "AJUSTE_POSITIVO",
+  "AJUSTE_NEGATIVO",
+  "CANCELAMENTO_VENDA",
+]);
+export type StockMovementType = z.infer<typeof stockMovementTypeSchema>;
+
 export const idempotencyStatusSchema = z.enum([
   "IN_PROGRESS",
   "SUCCEEDED",

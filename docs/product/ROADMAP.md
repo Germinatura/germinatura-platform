@@ -1,6 +1,6 @@
 # Roadmap oficial — Germinatura v2.2
 
-Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada até `4898755`; documentação histórica não prova implementação.
+Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada até `77f7fc2`; documentação histórica não prova implementação.
 
 ## Fase 0 — Auditoria e segurança
 
@@ -20,15 +20,15 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 | Money compartilhado | DONE | P0 | Contratos | PRICE-001 | `a769f50` em `main`; CI pós-merge `33094580327` verde |
 | Idempotência persistente | DONE | P0 | Money | IDEM-001 | `62ae97c` em `main`; 61 testes SQL e CI pós-merge `33097920723` verde. Consumo por mutações permanece incremental |
 | Erros e cursor comuns | TODO | P1 | Contratos | ARCH-002 | Envelopes e paginação compartilhados com consumidores reais |
-| Audit log e transactional outbox | TODO | P0 | Migration | AUD-001, OBS-001 | Evento no mesmo commit + worker idempotente |
+| Audit log e transactional outbox | IN PROGRESS | P0 | Migration | AUD-001, OBS-001 | Escrita/claim/ack/retry nesta fatia; consumidor e monitoramento continuam pendentes |
 
 ## Fase 2 — Estoque confiável
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
 | Catálogo/preços base | DONE | P0 | Fundação | CAT-001, PRICE-001 | `4898755` em `main`; schema/RLS/histórico e CI pós-merge `33099929575` verdes. API permanece em fatia própria |
-| Localizações e saldos protegidos | IN PROGRESS | P0 | Catálogo | INV-002 | Central/vendedor, projeção não negativa, RLS e testes; nenhuma escrita direta |
-| Ledger imutável | TODO | P0 | Localizações/outbox | INV-001 | Movimentos imutáveis e saldo explicável |
+| Localizações e saldos protegidos | DONE | P0 | Catálogo | INV-002 | `77f7fc2` em `main`; constraints/RLS e CI pós-merge `33102680002` verdes |
+| Ledger imutável | IN PROGRESS | P0 | Localizações/outbox | INV-001 | Ajuste, transferência e reversão atômicos; movimento, saldo, auditoria e outbox no mesmo commit |
 | Reserva/concorrência/inventário | TODO | P0 | Ledger | INV-003/004, CONC-001 | Última unidade e simultaneidade testadas |
 
 ## Fase 3 — PDV
@@ -80,4 +80,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência atual foi auditada
 
 ## Próxima fatia recomendada
 
-Concluir e mesclar localizações e saldos protegidos; depois criar ledger, auditoria e outbox transacionais em uma fatia própria. Não iniciar checkout, PicPay real ou migration financeira antes desses gates.
+Concluir e mesclar ledger, auditoria e outbox transacionais; depois criar reservas idempotentes e seu teste concorrente em uma fatia própria. Não iniciar checkout, PicPay real ou migration financeira antes desses gates.
