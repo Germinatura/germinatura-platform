@@ -31,6 +31,39 @@ export const catalogProductFlagsSchema = z.object({
 });
 export type CatalogProductFlags = z.infer<typeof catalogProductFlagsSchema>;
 
+export const publicCatalogProductsQuerySchema = z.object({
+  cursor: z.uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type PublicCatalogProductsQuery = z.infer<typeof publicCatalogProductsQuerySchema>;
+
+export const publicCatalogProductSchema = z.object({
+  id: z.uuid(),
+  sku: productSkuSchema,
+  slug: catalogSlugSchema,
+  name: z.string().min(1).max(160),
+  description: z.string().min(1).max(2000).nullable(),
+  category: z.object({
+    id: z.uuid(),
+    slug: catalogSlugSchema,
+    name: z.string().min(1).max(120),
+  }),
+  price: z.object({
+    amountCents: moneyCentsSchema,
+    currency: z.literal("BRL"),
+  }),
+  sellablePdv: z.boolean(),
+  reservable: z.boolean(),
+});
+export type PublicCatalogProduct = z.infer<typeof publicCatalogProductSchema>;
+
+export const publicCatalogProductsResponseSchema = z.object({
+  data: z.array(publicCatalogProductSchema),
+  nextCursor: z.uuid().nullable(),
+  request_id: z.string().min(1),
+});
+export type PublicCatalogProductsResponse = z.infer<typeof publicCatalogProductsResponseSchema>;
+
 export const stockMovementTypeSchema = z.enum([
   "SALDO_INICIAL",
   "ENTRADA_COMPRA",

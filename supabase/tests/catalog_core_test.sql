@@ -84,9 +84,9 @@ select throws_ok(
 );
 
 set local role anon;
-select results_eq($$select array_agg(slug order by slug) from public.categories$$, $$values (array['vestuario'::text])$$, 'anonymous users see only active categories');
-select results_eq($$select array_agg(slug order by slug) from public.products$$, $$values (array['camiseta-p'::text])$$, 'anonymous users see only public products in active categories');
-select results_eq($$select array_agg(amount_cents order by amount_cents) from public.product_prices$$, $$values (array[1290::bigint])$$, 'anonymous users see only the current public price');
+select results_eq($$select array_agg(slug order by slug) from public.categories$$, $$values (array['catalogo-publico-local'::text, 'vestuario'::text])$$, 'anonymous users see only active categories');
+select results_eq($$select array_agg(slug order by slug) from public.products$$, $$values (array['camiseta-p'::text, 'public-item-a'::text, 'public-item-b'::text])$$, 'anonymous users see only public products in active categories');
+select results_eq($$select array_agg(amount_cents order by amount_cents) from public.product_prices$$, $$values (array[1290::bigint, 2590::bigint, 3490::bigint])$$, 'anonymous users see only the current public price');
 select throws_ok(
   $$insert into public.categories (name, slug) values ('Proibida', 'proibida')$$,
   '42501',
@@ -97,8 +97,8 @@ reset role;
 
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000003';
-select results_eq($$select count(*)::bigint from public.products$$, array[1::bigint], 'consumer receives only the public catalog');
-select results_eq($$select count(*)::bigint from public.product_prices$$, array[1::bigint], 'consumer cannot read price history');
+select results_eq($$select count(*)::bigint from public.products$$, array[3::bigint], 'consumer receives only the public catalog');
+select results_eq($$select count(*)::bigint from public.product_prices$$, array[3::bigint], 'consumer cannot read price history');
 select throws_ok(
   $$update public.products set published = false where id = '30000000-0000-4000-8000-000000000001'$$,
   '42501',
@@ -109,9 +109,9 @@ reset role;
 
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
-select results_eq($$select count(*)::bigint from public.categories$$, array[3::bigint], 'catalog manager reads inactive categories');
-select results_eq($$select count(*)::bigint from public.products$$, array[5::bigint], 'catalog manager reads unpublished and inactive products');
-select results_eq($$select count(*)::bigint from public.product_prices$$, array[6::bigint], 'catalog manager reads complete price history');
+select results_eq($$select count(*)::bigint from public.categories$$, array[4::bigint], 'catalog manager reads inactive categories');
+select results_eq($$select count(*)::bigint from public.products$$, array[8::bigint], 'catalog manager reads unpublished and inactive products');
+select results_eq($$select count(*)::bigint from public.product_prices$$, array[9::bigint], 'catalog manager reads complete price history');
 select throws_ok(
   $$insert into public.categories (name, slug) values ('Direta', 'direta')$$,
   '42501',
