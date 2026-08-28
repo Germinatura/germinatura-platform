@@ -59,3 +59,53 @@ values (
   '33000000-0000-4000-8000-000000000001'
 )
 on conflict (location_id, product_id) do nothing;
+
+insert into public.categories (id, name, slug, active, sort_order) values
+  ('23f00000-0000-4000-8000-000000000001', 'Catálogo público local', 'catalogo-publico-local', true, 10)
+on conflict (id) do update set name = excluded.name, active = true, sort_order = excluded.sort_order;
+
+insert into public.products (
+  id, category_id, sku, slug, name, description, active, published, sellable_pdv, reservable, tracks_lots
+) values
+  (
+    '33f00000-0000-4000-8000-000000000001',
+    '23f00000-0000-4000-8000-000000000001',
+    'PUBLIC-ITEM-A',
+    'public-item-a',
+    'Item público A',
+    'Fixture pública para o catálogo local.',
+    true, true, true, true, false
+  ),
+  (
+    '33f00000-0000-4000-8000-000000000002',
+    '23f00000-0000-4000-8000-000000000001',
+    'HIDDEN-ITEM',
+    'hidden-item',
+    'Item não publicado',
+    null,
+    true, false, true, true, false
+  ),
+  (
+    '33f00000-0000-4000-8000-000000000003',
+    '23f00000-0000-4000-8000-000000000001',
+    'PUBLIC-ITEM-B',
+    'public-item-b',
+    'Item público B',
+    null,
+    true, true, true, false, false
+  )
+on conflict (id) do update set
+  category_id = excluded.category_id,
+  name = excluded.name,
+  description = excluded.description,
+  active = excluded.active,
+  published = excluded.published,
+  sellable_pdv = excluded.sellable_pdv,
+  reservable = excluded.reservable,
+  tracks_lots = excluded.tracks_lots;
+
+insert into public.product_prices (id, product_id, amount_cents, valid_from) values
+  ('43f00000-0000-4000-8000-000000000001', '33f00000-0000-4000-8000-000000000001', 2590, '2026-01-01T00:00:00Z'),
+  ('43f00000-0000-4000-8000-000000000002', '33f00000-0000-4000-8000-000000000002', 1990, '2026-01-01T00:00:00Z'),
+  ('43f00000-0000-4000-8000-000000000003', '33f00000-0000-4000-8000-000000000003', 3490, '2026-01-01T00:00:00Z')
+on conflict (id) do nothing;

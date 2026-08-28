@@ -4,9 +4,10 @@ const portalUrl = "http://127.0.0.1:3000";
 const pdvUrl = process.env.PDV_URL ?? "http://127.0.0.1:3001";
 
 async function login(page: import("@playwright/test").Page, email: string, password: string) {
-  await page.waitForLoadState("networkidle");
   const emailInput = page.locator('input[type="email"]');
   const passwordInput = page.locator('input[type="password"]');
+  await expect(emailInput).toBeVisible();
+  await expect(passwordInput).toBeVisible();
   await emailInput.fill(email);
   await passwordInput.fill(password);
   await expect(emailInput).toHaveValue(email);
@@ -57,6 +58,46 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
     data: { novaSenha: "Example123!" },
   });
   expect(protectedMutation.status()).toBe(401);
+});
+
+test("Public catalog is bounded, paginated and restricted to the anonymous RLS view", async ({ page, request }) => {
+  const invalidLimit = await request.get("/api/v1/catalog/products?limit=51");
+  expect(invalidLimit.status()).toBe(422);
+  await expect(invalidLimit.json()).resolves.toMatchObject({ code: "INVALID_QUERY" });
+
+  const invalidCursor = await request.get("/api/v1/catalog/products?cursor=not-a-uuid");
+  expect(invalidCursor.status()).toBe(422);
+
+  const method = await request.post("/api/v1/catalog/products");
+  expect(method.status()).toBe(405);
+  expect(method.headers().allow).toBe("GET");
+
+  const firstPage = await request.get("/api/v1/catalog/products?limit=1");
+  await expect(firstPage).toBeOK();
+  const firstBody = await firstPage.json();
+  expect(firstBody).toMatchObject({
+    data: [{ sku: "PUBLIC-ITEM-A", price: { amountCents: 2590, currency: "BRL" } }],
+  });
+  expect(firstBody.data).toHaveLength(1);
+  expect(firstBody.nextCursor).toBe(firstBody.data[0].id);
+  expect(firstPage.headers()["x-request-id"]).toBe(firstBody.request_id);
+
+  const secondPage = await request.get(`/api/v1/catalog/products?limit=1&cursor=${firstBody.nextCursor}`);
+  await expect(secondPage).toBeOK();
+  await expect(secondPage.json()).resolves.toMatchObject({
+    data: [{ sku: "PUBLIC-ITEM-B" }],
+    nextCursor: null,
+  });
+
+  await page.goto("/login");
+  await login(page, "admin@germinatura.test", "Admin123!");
+  const authenticatedResponse = await page.request.get("/api/v1/catalog/products?limit=50");
+  await expect(authenticatedResponse).toBeOK();
+  const authenticatedBody = await authenticatedResponse.json();
+  expect(authenticatedBody.data.map((product: { sku: string }) => product.sku)).toEqual([
+    "PUBLIC-ITEM-A",
+    "PUBLIC-ITEM-B",
+  ]);
 });
 
 test("Unauthenticated page and API access are blocked", async ({ page, request }) => {

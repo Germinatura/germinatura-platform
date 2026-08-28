@@ -8,6 +8,8 @@ import {
   idempotencyStatusSchema,
   moneyCentsSchema,
   productSkuSchema,
+  publicCatalogProductsQuerySchema,
+  publicCatalogProductsResponseSchema,
   sessionUserSchema,
   stockMovementTypeSchema,
   stockReservationItemSchema,
@@ -62,6 +64,33 @@ describe("shared contracts", () => {
       reservable: true,
       tracksLots: false,
     })).toMatchObject({ active: true, published: false, sellablePdv: true });
+  });
+
+  it("bounds public catalog pagination and validates its response", () => {
+    expect(publicCatalogProductsQuerySchema.parse({})).toEqual({ limit: 20 });
+    expect(publicCatalogProductsQuerySchema.parse({ limit: "50" })).toEqual({ limit: 50 });
+    expect(publicCatalogProductsQuerySchema.safeParse({ limit: 51 }).success).toBe(false);
+    expect(publicCatalogProductsQuerySchema.safeParse({ cursor: "not-a-uuid" }).success).toBe(false);
+
+    expect(publicCatalogProductsResponseSchema.parse({
+      data: [{
+        id: "33f00000-0000-4000-8000-000000000001",
+        sku: "PUBLIC-ITEM",
+        slug: "public-item",
+        name: "Item publico",
+        description: null,
+        category: {
+          id: "23f00000-0000-4000-8000-000000000001",
+          slug: "publica",
+          name: "Publica",
+        },
+        price: { amountCents: 2590, currency: "BRL" },
+        sellablePdv: true,
+        reservable: true,
+      }],
+      nextCursor: null,
+      request_id: "req-catalog",
+    })).toMatchObject({ data: [{ price: { amountCents: 2590 } }] });
   });
 
   it("shares the closed inventory movement vocabulary", () => {
