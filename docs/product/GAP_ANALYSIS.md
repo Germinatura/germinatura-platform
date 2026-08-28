@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-28. Base: `77f7fc2` + branch `feat/inventory-ledger`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-28. Base: `3db74fc` + branch `feat/inventory-reservations`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -15,11 +15,11 @@ Data da auditoria: 2026-08-28. Base: `77f7fc2` + branch `feat/inventory-ledger`.
 | PRICE-001 Dinheiro sem Float | IMPLEMENTADO NA FUNDAÇÃO — `MoneyCents`, schema Zod, contratos e preços `BIGINT` limitados ao safe integer | Pricing de negócio ainda ausente | P0 | Catálogo | Médio | Manter validação nas fronteiras e histórico sem sobreposição |
 | PRICE-002 Pricing server authority | AUSENTE | Nenhum motor/cotação | P0 | Catálogo | Crítico | Endpoint/RPC recalcula tudo |
 | PROMO-001 Promoções por regras | AUSENTE | Nenhum motor | P1 | Catálogo, pricing | Alto | Implementar funções puras + casos obrigatórios |
-| INV-001 Ledger imutável | PARCIAL — movimentos, itens, ajuste, transferência e reversão em implementação | Reservas/venda e reconciliação ampla ainda ausentes | P0 | Migration/RPC | Crítico | Validar/mesclar RPCs transacionais e manter saldo mutável somente pelo ledger |
+| INV-001 Ledger imutável | IMPLEMENTADO NA FUNDAÇÃO — movimentos, itens, ajuste, transferência e reversão em `3db74fc` | Consumo por venda e reconciliação ampla ainda ausentes | P0 | Migration/RPC | Crítico | Manter saldo mutável somente pelo ledger e ampliar por movimentos atômicos |
 | INV-002 Localizações/vendedor | IMPLEMENTADO NA FUNDAÇÃO — central, localização por vendedor, saldo derivado e RLS em `77f7fc2` | Operação do vendedor ainda depende dos casos de uso seguintes | P0 | INV-001 | Alto | Preservar constraints e acesso restrito |
-| INV-003 Reserva concorrente | AUSENTE | Sem locks/reservas | P0 | INV-001, SALE-001 | Crítico | RPC atômica e teste da última unidade |
+| INV-003 Reserva concorrente | IMPLEMENTADO NA FUNDAÇÃO — `d4d1489` cria reserva, liberação e expiração idempotentes com locks determinísticos | Consumo pela venda permanece adiado | P0 | INV-001, SALE-001 | Alto | Preservar o teste concorrente da última unidade e integrar somente por casos de uso server-side |
 | SALE-001 Checkout idempotente | AUSENTE | Sem venda/checkout | P0 | Pricing, estoque | Crítico | Idempotency-Key + transação |
-| IDEM-001 Fundação idempotente | PARCIAL — contrato, persistência, replay, conflito, RLS e rollback validados em `62ae97c` | Ainda não há mutação de negócio consumidora | P0 | RPCs de domínio | Alto | Integrar incrementalmente em ledger/reservas |
+| IDEM-001 Fundação idempotente | IMPLEMENTADO NA FUNDAÇÃO — persistência, replay e conflito consumidos pelo ledger e pelas reservas | Novos domínios ainda precisam adotar o contrato | P0 | RPCs de domínio | Alto | Integrar incrementalmente em cada mutação crítica |
 | SALE-002 Conclusão/cancelamento reversível | AUSENTE | Sem lifecycle | P0 | Outbox, financeiro | Crítico | Máquina de estados e reversões |
 | PAY-001 Contrato neutro de provider | IMPLEMENTADO | Persistência/transações ainda pertencem às próximas fatias | P0 | ADR 0005 | Médio | Preservar contratos e ligar ao domínio somente com migration testada |
 | PAY-002 PicPay único em produção | LEGADO A SUBSTITUIR | Roadmap v2.1 ainda planeja Mercado Pago | P0 | Decisão v2.2 | Alto | Novo roadmap + ADR; antigo fica histórico |
@@ -28,7 +28,7 @@ Data da auditoria: 2026-08-28. Base: `77f7fc2` + branch `feat/inventory-ledger`.
 | PAY-005 V.A./V.R. | BLOQUEADO POR DECISÃO EXTERNA | Sem credenciamento Alelo/Ticket | P1 | CNPJ/rede/Maquininha | Crítico | Flag desligada; não mascarar como crédito |
 | PAY-006 Webhook/idempotência | AUSENTE | Sem receipt, assinatura ou replay | P0 | PicPay oficial, outbox | Crítico | Implementar apenas com documentação oficial |
 | FIN-001 Ledger financeiro/conciliação | AUSENTE | Nenhuma tabela/fluxo | P1 | Vendas/pagamentos | Crítico | Eventos idempotentes e pendências de conciliação |
-| RES-001 Reservas | AUSENTE | Domínio removido no greenfield | P2 | Estoque/pricing | Alto | Reimplementar atomicamente com snapshot |
+| RES-001 Reservas | PARCIAL — bloqueio de estoque atômico implementado em `d4d1489` | Snapshot de preço e lifecycle comercial dependem de pricing/venda | P2 | Estoque/pricing | Alto | Reutilizar a primitive sem confundir `reservable` comercial com hold de inventário |
 | RAF-001 Rifas | AUSENTE | Domínio removido no greenfield | P2 | Pagamentos/financeiro | Alto | Reserva concorrente e sorteio auditável |
 | PROC-001 Fornecedores/compras | AUSENTE | Sem origem/custo do estoque | P2 | Catálogo/ledger | Médio | Compras e recebimentos parciais |
 | CLOSE-001 Fechamento de vendedor | AUSENTE | Sem turnos/contagens | P2 | Estoque/vendas/financeiro | Alto | Conferência auditável e reabertura motivada |
@@ -47,6 +47,6 @@ Data da auditoria: 2026-08-28. Base: `77f7fc2` + branch `feat/inventory-ledger`.
 
 ## Dívidas que bloqueiam evolução
 
-1. Domínios operacionais ainda não possuem casos de uso: catálogo começa pelo schema e permanecerá sem tela até a leitura real.
+1. Catálogo permanece sem API/tela; a próxima integração deve começar por leitura versionada e limitada.
 2. A matriz de permissões precisará ganhar ações granulares com cada módulo.
 3. Outbox, audit log e receipt de webhook precisam nascer junto do primeiro fluxo crítico, não depois.
