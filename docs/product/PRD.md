@@ -33,6 +33,7 @@ Não objetivos do MVP: microserviços, app nativo, chat privado, Open Finance co
 
 - **PORTAL-001** — Portal oferece vitrine, catálogo/compra, reservas, rifas, campanhas, mural, notificações, conta e administração conforme flags/permissões.
 - **CAT-001** — Produtos e categorias são normalizados, inativáveis, publicáveis por canal e mantêm histórico de preço.
+- **CAT-002** — A API pública versionada lista somente produtos publicados em categoria ativa e com preço vigente, usando visão anônima consistente, paginação por cursor e limite máximo de 50 itens.
 - **ADMIN-001** — Dashboard deriva indicadores de eventos conciliados e ledger, nunca de números manuais desconectados.
 - **AUD-001** — Ajuste, perda, cancelamento, reabertura, sorteio, login, falha de autorização e permissão são investigáveis por correlação.
 
