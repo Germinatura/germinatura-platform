@@ -9,6 +9,7 @@ import {
   moneyCentsSchema,
   productSkuSchema,
   sessionUserSchema,
+  stockMovementTypeSchema,
 } from "./index";
 
 describe("shared contracts", () => {
@@ -59,6 +60,12 @@ describe("shared contracts", () => {
       reservable: true,
       tracksLots: false,
     })).toMatchObject({ active: true, published: false, sellablePdv: true });
+  });
+
+  it("shares the closed inventory movement vocabulary", () => {
+    expect(stockMovementTypeSchema.parse("TRANSFERENCIA")).toBe("TRANSFERENCIA");
+    expect(stockMovementTypeSchema.parse("AJUSTE_NEGATIVO")).toBe("AJUSTE_NEGATIVO");
+    expect(stockMovementTypeSchema.safeParse("ALTERACAO_DIRETA").success).toBe(false);
   });
 
   it("sends a Supabase bearer token through the shared API client", async () => {

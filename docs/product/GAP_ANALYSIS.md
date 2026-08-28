@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-27. Base: `4898755` + branch `feat/inventory-locations`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-28. Base: `77f7fc2` + branch `feat/inventory-ledger`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -15,8 +15,8 @@ Data da auditoria: 2026-08-27. Base: `4898755` + branch `feat/inventory-location
 | PRICE-001 Dinheiro sem Float | IMPLEMENTADO NA FUNDAÇÃO — `MoneyCents`, schema Zod, contratos e preços `BIGINT` limitados ao safe integer | Pricing de negócio ainda ausente | P0 | Catálogo | Médio | Manter validação nas fronteiras e histórico sem sobreposição |
 | PRICE-002 Pricing server authority | AUSENTE | Nenhum motor/cotação | P0 | Catálogo | Crítico | Endpoint/RPC recalcula tudo |
 | PROMO-001 Promoções por regras | AUSENTE | Nenhum motor | P1 | Catálogo, pricing | Alto | Implementar funções puras + casos obrigatórios |
-| INV-001 Ledger imutável | AUSENTE | Nenhuma tabela de estoque | P0 | Migration/RPC | Crítico | Projetar ledger e saldos transacionais |
-| INV-002 Localizações/vendedor | PARCIAL — central, localização por vendedor, saldo derivado e RLS em implementação | Ledger/RPCs ainda ausentes; saldo permanece sem caminho de mutação | P0 | INV-001 | Crítico | Validar/mesclar a fundação e mutar somente pelo futuro ledger |
+| INV-001 Ledger imutável | PARCIAL — movimentos, itens, ajuste, transferência e reversão em implementação | Reservas/venda e reconciliação ampla ainda ausentes | P0 | Migration/RPC | Crítico | Validar/mesclar RPCs transacionais e manter saldo mutável somente pelo ledger |
+| INV-002 Localizações/vendedor | IMPLEMENTADO NA FUNDAÇÃO — central, localização por vendedor, saldo derivado e RLS em `77f7fc2` | Operação do vendedor ainda depende dos casos de uso seguintes | P0 | INV-001 | Alto | Preservar constraints e acesso restrito |
 | INV-003 Reserva concorrente | AUSENTE | Sem locks/reservas | P0 | INV-001, SALE-001 | Crítico | RPC atômica e teste da última unidade |
 | SALE-001 Checkout idempotente | AUSENTE | Sem venda/checkout | P0 | Pricing, estoque | Crítico | Idempotency-Key + transação |
 | IDEM-001 Fundação idempotente | PARCIAL — contrato, persistência, replay, conflito, RLS e rollback validados em `62ae97c` | Ainda não há mutação de negócio consumidora | P0 | RPCs de domínio | Alto | Integrar incrementalmente em ledger/reservas |
@@ -32,7 +32,7 @@ Data da auditoria: 2026-08-27. Base: `4898755` + branch `feat/inventory-location
 | RAF-001 Rifas | AUSENTE | Domínio removido no greenfield | P2 | Pagamentos/financeiro | Alto | Reserva concorrente e sorteio auditável |
 | PROC-001 Fornecedores/compras | AUSENTE | Sem origem/custo do estoque | P2 | Catálogo/ledger | Médio | Compras e recebimentos parciais |
 | CLOSE-001 Fechamento de vendedor | AUSENTE | Sem turnos/contagens | P2 | Estoque/vendas/financeiro | Alto | Conferência auditável e reabertura motivada |
-| OBS-001 Logs/auditoria/outbox | PARCIAL | Logger/redação e request id básicos; audit/outbox ausentes | P0 | Schema | Alto | Criar junto ao primeiro caso transacional |
+| OBS-001 Logs/auditoria/outbox | PARCIAL — audit log e outbox transacionais em implementação no primeiro caso de estoque | Consumidor, retenção, alertas e monitoramento ainda ausentes | P0 | Schema/worker | Alto | Validar persistência atômica; criar consumidor em fatia posterior |
 | CI-001 Gates locais/CI | IMPLEMENTADO | CI não faz deploy; staging bloqueado | P1 | Docker para DB/E2E | Médio | Manter qualidade; provisionar staging separadamente |
 | PWA-001 PDV instalável | AUSENTE | Shell mobile-first, sem manifest/service worker | P2 | Fluxo PDV | Baixo | Implementar após checkout confiável |
 | COM-001 Comunidade/notificações | AUSENTE | Sem domínio | P3 | Outbox/moderação | Médio | Pós-MVP |
