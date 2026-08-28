@@ -41,6 +41,7 @@ jobs:
           echo "NEXT_PUBLIC_PDV_URL=http://127.0.0.1:3001" >> "$GITHUB_ENV"
       - run: pnpm supabase:reset
       - run: pnpm test:db
+      - run: pnpm test:integration
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e --project=chromium
       - run: pnpm build

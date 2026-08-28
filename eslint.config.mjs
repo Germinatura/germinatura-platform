@@ -6,7 +6,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ["packages/**/*.{ts,tsx}", "e2e/**/*.ts", "*.ts"],
+    files: ["packages/**/*.{ts,tsx}", "e2e/**/*.ts", "integration/**/*.ts", "*.ts"],
     languageOptions: {
       parserOptions: {
         projectService: true,

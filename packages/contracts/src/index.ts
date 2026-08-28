@@ -47,6 +47,20 @@ export const stockMovementTypeSchema = z.enum([
 ]);
 export type StockMovementType = z.infer<typeof stockMovementTypeSchema>;
 
+export const stockReservationStatusSchema = z.enum([
+  "ACTIVE",
+  "CONSUMED",
+  "RELEASED",
+  "EXPIRED",
+]);
+export type StockReservationStatus = z.infer<typeof stockReservationStatusSchema>;
+
+export const stockReservationItemSchema = z.object({
+  productId: z.uuid(),
+  quantity: z.number().int().positive().refine(Number.isSafeInteger, "Quantity must be a safe integer"),
+});
+export type StockReservationItem = z.infer<typeof stockReservationItemSchema>;
+
 export const idempotencyStatusSchema = z.enum([
   "IN_PROGRESS",
   "SUCCEEDED",
