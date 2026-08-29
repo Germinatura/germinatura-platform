@@ -178,6 +178,7 @@ describe("QUANTIDADE_PRECO promotion", () => {
     productId: "product-a",
     groupQuantity: 2,
     groupPriceCents: moneyFromCents(1_000),
+    maxGroupsPerLine: null,
     ...overrides,
   });
 
@@ -244,6 +245,23 @@ describe("QUANTIDADE_PRECO promotion", () => {
     });
   });
 
+  it("honors the persisted maximum number of groups per line", () => {
+    expect(applyQuantityFixedPricePromotion(
+      item(5),
+      rule({ maxGroupsPerLine: 1 }),
+    )).toMatchObject({
+      originalSubtotalCents: 7_500,
+      discountCents: 2_000,
+      effectiveSubtotalCents: 5_500,
+      appliedPromotion: {
+        groups: 1,
+        promotedQuantity: 2,
+        remainderQuantity: 3,
+        savingsCents: 2_000,
+      },
+    });
+  });
+
   it("does not apply a valid rule to a different product", () => {
     expect(applyQuantityFixedPricePromotion(
       item(3, 100),
@@ -271,6 +289,13 @@ describe("QUANTIDADE_PRECO promotion", () => {
           rule({ groupPriceCents: moneyFromCents(groupPriceCents) }),
         ),
         "INVALID_PROMOTION_GROUP_PRICE",
+      );
+    }
+
+    for (const maxGroupsPerLine of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expectDomainError(
+        () => applyQuantityFixedPricePromotion(item(2), rule({ maxGroupsPerLine })),
+        "INVALID_PROMOTION_GROUP_LIMIT",
       );
     }
 
