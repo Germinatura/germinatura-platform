@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-28. Base: `1abd440` em `main`, com CI pós-merge `33193987691` verde. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-29. Base: `18008b3` em `main`, com CI pós-merge `33196034014` verde, mais `a25eab5` na branch `feat/pricing-base`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ Data da auditoria: 2026-08-28. Base: `1abd440` em `main`, com CI pós-merge `331
 | CAT-001 Catálogo normalizado | IMPLEMENTADO NA FUNDAÇÃO — categorias, produtos, histórico de preços, RLS e testes em `4898755` | Imagens e administração/UI ainda ausentes | P1 | Auth, storage | Médio | Preservar invariantes e evoluir a administração em fatia própria |
 | CAT-002 API pública versionada | IMPLEMENTADO — `GET /api/v1/catalog/products` em `1abd440` usa visão `anon`, preço vigente, cursor e limite máximo 50 | Busca, disponibilidade, promoções e ordenação editorial ficaram fora do contrato inicial | P1 | CAT-001, RLS | Médio | Evoluir o contrato somente com consumidor e testes correspondentes |
 | PRICE-001 Dinheiro sem Float | IMPLEMENTADO NA FUNDAÇÃO — `MoneyCents`, schema Zod, contratos e preços `BIGINT` limitados ao safe integer | Pricing de negócio ainda ausente | P0 | Catálogo | Médio | Manter validação nas fronteiras e histórico sem sobreposição |
-| PRICE-002 Pricing server authority | AUSENTE | Nenhum motor/cotação | P0 | Catálogo | Crítico | Endpoint/RPC recalcula tudo |
+| PRICE-002 Pricing server authority | PARCIAL — `a25eab5` calcula linhas e total em centavos, rejeita duplicidade/quantidade inválida e falha fechado em overflow | Preço vigente ainda não é resolvido pelo servidor; promoções e API de cotação estão ausentes | P0 | Catálogo | Crítico | Implementar promoções puras e depois integrar preços vigentes em endpoint server-only |
 | PROMO-001 Promoções por regras | AUSENTE | Nenhum motor | P1 | Catálogo, pricing | Alto | Implementar funções puras + casos obrigatórios |
 | INV-001 Ledger imutável | IMPLEMENTADO NA FUNDAÇÃO — movimentos, itens, ajuste, transferência e reversão em `3db74fc` | Consumo por venda e reconciliação ampla ainda ausentes | P0 | Migration/RPC | Crítico | Manter saldo mutável somente pelo ledger e ampliar por movimentos atômicos |
 | INV-002 Localizações/vendedor | IMPLEMENTADO NA FUNDAÇÃO — central, localização por vendedor, saldo derivado e RLS em `77f7fc2` | Operação do vendedor ainda depende dos casos de uso seguintes | P0 | INV-001 | Alto | Preservar constraints e acesso restrito |
@@ -50,6 +50,6 @@ Data da auditoria: 2026-08-28. Base: `1abd440` em `main`, com CI pós-merge `331
 
 ## Dívidas que bloqueiam evolução
 
-1. Pricing server-side permanece ausente; checkout não pode começar antes de preço-base e promoções serem recalculados pelo servidor.
+1. Pricing-base puro existe, mas o servidor ainda não resolve preços vigentes nem promoções; checkout permanece bloqueado até a cotação autoritativa.
 2. A matriz de permissões precisará ganhar ações granulares com cada módulo.
 3. A outbox ainda não possui consumidor operacional; receipt de webhook só pode nascer com documentação oficial do PicPay.

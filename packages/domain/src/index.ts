@@ -111,3 +111,67 @@ export function compareMoney(left: MoneyCents, right: MoneyCents): -1 | 0 | 1 {
   if (leftCents === rightCents) return 0;
   return leftCents < rightCents ? -1 : 1;
 }
+
+export interface BasePricingItemInput {
+  readonly productId: string;
+  readonly unitPriceCents: MoneyCents;
+  readonly quantity: number;
+}
+
+export interface BasePricingLine {
+  readonly productId: string;
+  readonly unitPriceCents: MoneyCents;
+  readonly quantity: number;
+  readonly subtotalCents: MoneyCents;
+}
+
+export interface BaseCartQuote {
+  readonly lines: readonly BasePricingLine[];
+  readonly totalCents: MoneyCents;
+  readonly rounding: "NONE";
+}
+
+/**
+ * Prices a canonical cart using unit prices already resolved by a trusted
+ * server-side caller. This base slice performs only integer-cent arithmetic,
+ * so no rounding is applied.
+ */
+export function priceBaseCart(items: readonly BasePricingItemInput[]): BaseCartQuote {
+  const productIds = new Set<string>();
+  const lines: BasePricingLine[] = [];
+  let totalCents = moneyFromCents(0);
+
+  for (const item of items) {
+    if (item.productId.length === 0 || item.productId.trim() !== item.productId) {
+      throw new DomainError(
+        "INVALID_PRICING_PRODUCT_ID",
+        "Pricing product ID must be a non-empty canonical identifier",
+      );
+    }
+    if (productIds.has(item.productId)) {
+      throw new DomainError(
+        "DUPLICATE_PRICING_PRODUCT",
+        "Pricing cart cannot contain duplicate product IDs",
+      );
+    }
+    if (!Number.isSafeInteger(item.quantity) || item.quantity <= 0) {
+      throw new DomainError(
+        "INVALID_PRICING_QUANTITY",
+        "Pricing quantity must be a positive safe integer",
+      );
+    }
+
+    productIds.add(item.productId);
+    const unitPriceCents = moneyFromCents(item.unitPriceCents);
+    const subtotalCents = multiplyMoney(unitPriceCents, item.quantity);
+    totalCents = addMoney(totalCents, subtotalCents);
+    lines.push({
+      productId: item.productId,
+      unitPriceCents,
+      quantity: item.quantity,
+      subtotalCents,
+    });
+  }
+
+  return { lines, totalCents, rounding: "NONE" };
+}

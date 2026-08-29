@@ -8,6 +8,7 @@ import {
   moneyFromCents,
   multiplyMoney,
   parseBrlToCents,
+  priceBaseCart,
   subtractMoney,
 } from "./index";
 
@@ -80,6 +81,85 @@ describe("MoneyCents", () => {
     );
     expectDomainError(
       () => addMoney(moneyFromCents(Number.MAX_SAFE_INTEGER), moneyFromCents(1)),
+      "INVALID_MONEY_CENTS",
+    );
+  });
+});
+
+describe("base cart pricing", () => {
+  it("returns a zero quote for an empty cart", () => {
+    expect(priceBaseCart([])).toEqual({
+      lines: [],
+      totalCents: 0,
+      rounding: "NONE",
+    });
+  });
+
+  it("prices one or more canonical lines deterministically", () => {
+    expect(priceBaseCart([
+      { productId: "product-a", unitPriceCents: moneyFromCents(1_250), quantity: 2 },
+      { productId: "product-b", unitPriceCents: moneyFromCents(399), quantity: 3 },
+    ])).toEqual({
+      lines: [
+        { productId: "product-a", unitPriceCents: 1_250, quantity: 2, subtotalCents: 2_500 },
+        { productId: "product-b", unitPriceCents: 399, quantity: 3, subtotalCents: 1_197 },
+      ],
+      totalCents: 3_697,
+      rounding: "NONE",
+    });
+  });
+
+  it("rejects invalid quantities and product identifiers", () => {
+    for (const quantity of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expectDomainError(
+        () => priceBaseCart([
+          { productId: "product-a", unitPriceCents: moneyFromCents(100), quantity },
+        ]),
+        "INVALID_PRICING_QUANTITY",
+      );
+    }
+
+    for (const productId of ["", " product-a", "product-a "]) {
+      expectDomainError(
+        () => priceBaseCart([
+          { productId, unitPriceCents: moneyFromCents(100), quantity: 1 },
+        ]),
+        "INVALID_PRICING_PRODUCT_ID",
+      );
+    }
+  });
+
+  it("rejects duplicate products instead of silently aggregating them", () => {
+    expectDomainError(
+      () => priceBaseCart([
+        { productId: "product-a", unitPriceCents: moneyFromCents(100), quantity: 1 },
+        { productId: "product-a", unitPriceCents: moneyFromCents(200), quantity: 1 },
+      ]),
+      "DUPLICATE_PRICING_PRODUCT",
+    );
+  });
+
+  it("fails closed when a line or cart total overflows safe integer cents", () => {
+    expectDomainError(
+      () => priceBaseCart([
+        {
+          productId: "product-a",
+          unitPriceCents: moneyFromCents(Number.MAX_SAFE_INTEGER),
+          quantity: 2,
+        },
+      ]),
+      "INVALID_MONEY_CENTS",
+    );
+
+    expectDomainError(
+      () => priceBaseCart([
+        {
+          productId: "product-a",
+          unitPriceCents: moneyFromCents(Number.MAX_SAFE_INTEGER),
+          quantity: 1,
+        },
+        { productId: "product-b", unitPriceCents: moneyFromCents(1), quantity: 1 },
+      ]),
       "INVALID_MONEY_CENTS",
     );
   });
