@@ -162,6 +162,18 @@ export interface QuantityFixedPriceLineQuote {
   readonly rounding: "NONE";
 }
 
+export interface PrioritizedQuantityPromotionRule extends QuantityFixedPricePromotionRule {
+  readonly priority: number;
+}
+
+export interface PromotedCartQuote {
+  readonly lines: readonly QuantityFixedPriceLineQuote[];
+  readonly originalTotalCents: MoneyCents;
+  readonly discountTotalCents: MoneyCents;
+  readonly totalCents: MoneyCents;
+  readonly rounding: "NONE";
+}
+
 /**
  * Prices a canonical cart using unit prices already resolved by a trusted
  * server-side caller. This base slice performs only integer-cent arithmetic,
@@ -321,4 +333,45 @@ export function applyQuantityFixedPricePromotion(
     },
     rounding: "NONE",
   };
+}
+
+/** Selects at most one quantity promotion per line by priority, then lowest
+ * effective subtotal, then stable promotion ID, and totals the trusted cart. */
+export function priceCartWithQuantityPromotions(
+  items: readonly BasePricingItemInput[],
+  rules: readonly PrioritizedQuantityPromotionRule[],
+): PromotedCartQuote {
+  const base = priceBaseCart(items);
+  const lines = base.lines.map((line) => {
+    const candidates = rules
+      .filter((rule) => rule.productId === line.productId)
+      .map((rule) => ({ rule, quote: applyQuantityFixedPricePromotion(line, rule) }))
+      .filter(({ quote }) => quote.appliedPromotion !== null)
+      .sort((left, right) => (
+        right.rule.priority - left.rule.priority
+        || left.quote.effectiveSubtotalCents - right.quote.effectiveSubtotalCents
+        || left.rule.promotionId.localeCompare(right.rule.promotionId)
+      ));
+
+    return candidates[0]?.quote ?? {
+      productId: line.productId,
+      unitPriceCents: line.unitPriceCents,
+      quantity: line.quantity,
+      originalSubtotalCents: line.subtotalCents,
+      discountCents: moneyFromCents(0),
+      effectiveSubtotalCents: line.subtotalCents,
+      appliedPromotion: null,
+      rounding: "NONE" as const,
+    };
+  });
+
+  let originalTotalCents = moneyFromCents(0);
+  let discountTotalCents = moneyFromCents(0);
+  let totalCents = moneyFromCents(0);
+  for (const line of lines) {
+    originalTotalCents = addMoney(originalTotalCents, line.originalSubtotalCents);
+    discountTotalCents = addMoney(discountTotalCents, line.discountCents);
+    totalCents = addMoney(totalCents, line.effectiveSubtotalCents);
+  }
+  return { lines, originalTotalCents, discountTotalCents, totalCents, rounding: "NONE" };
 }

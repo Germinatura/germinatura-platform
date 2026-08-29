@@ -10,6 +10,7 @@ import {
   multiplyMoney,
   parseBrlToCents,
   priceBaseCart,
+  priceCartWithQuantityPromotions,
   subtractMoney,
 } from "./index";
 
@@ -325,5 +326,57 @@ describe("QUANTIDADE_PRECO promotion", () => {
       ),
       "INVALID_MONEY_CENTS",
     );
+  });
+});
+
+describe("promoted cart pricing", () => {
+  it("selects priority before economics and aggregates explained totals", () => {
+    const quote = priceCartWithQuantityPromotions([
+      { productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 3 },
+      { productId: "product-b", unitPriceCents: moneyFromCents(500), quantity: 1 },
+    ], [
+      {
+        promotionId: "lower-priority-better-price",
+        type: "QUANTIDADE_PRECO",
+        productId: "product-a",
+        priority: 9,
+        groupQuantity: 2,
+        groupPriceCents: moneyFromCents(500),
+        maxGroupsPerLine: null,
+      },
+      {
+        promotionId: "higher-priority",
+        type: "QUANTIDADE_PRECO",
+        productId: "product-a",
+        priority: 10,
+        groupQuantity: 2,
+        groupPriceCents: moneyFromCents(1_000),
+        maxGroupsPerLine: null,
+      },
+    ]);
+
+    expect(quote).toMatchObject({
+      originalTotalCents: 5_000,
+      discountTotalCents: 2_000,
+      totalCents: 3_000,
+      rounding: "NONE",
+      lines: [{ appliedPromotion: { promotionId: "higher-priority" } }, { appliedPromotion: null }],
+    });
+  });
+
+  it("uses lowest effective price and stable ID as same-priority tie breakers", () => {
+    const item = [{ productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 2 }];
+    const common = { type: "QUANTIDADE_PRECO" as const, productId: "product-a", priority: 10, groupQuantity: 2, maxGroupsPerLine: null };
+    const economicWinner = priceCartWithQuantityPromotions(item, [
+      { ...common, promotionId: "promo-a", groupPriceCents: moneyFromCents(1_000) },
+      { ...common, promotionId: "promo-b", groupPriceCents: moneyFromCents(900) },
+    ]);
+    expect(economicWinner.lines[0].appliedPromotion?.promotionId).toBe("promo-b");
+
+    const stableWinner = priceCartWithQuantityPromotions(item, [
+      { ...common, promotionId: "promo-b", groupPriceCents: moneyFromCents(1_000) },
+      { ...common, promotionId: "promo-a", groupPriceCents: moneyFromCents(1_000) },
+    ]);
+    expect(stableWinner.lines[0].appliedPromotion?.promotionId).toBe("promo-a");
   });
 });
