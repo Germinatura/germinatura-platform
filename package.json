@@ -1,37 +1,48 @@
 {
-  "name": "germinatura",
-  "version": "2.1.0-greenfield",
-  "private": true,
-  "packageManager": "pnpm@11.19.0",
-  "engines": {
-    "node": ">=20"
-  },
-  "scripts": {
-    "dev": "turbo run dev --parallel",
-    "build": "turbo run build",
-    "lint": "turbo run lint && eslint integration/**/*.ts && node tools/check-eslint-budget.mjs",
-    "typecheck": "turbo run typecheck && tsc --project integration/tsconfig.json",
-    "test": "turbo run test",
-    "test:unit": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:db": "node tools/run-supabase.mjs test db",
-    "test:e2e": "playwright test",
-    "security:scan": "node tools/check-repository-security.mjs",
-    "test:ci": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build",
-    "supabase:start": "node tools/run-supabase.mjs start",
-    "supabase:start:test": "node tools/run-supabase.mjs start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
-    "supabase:stop": "node tools/run-supabase.mjs stop",
-    "supabase:reset": "node tools/run-supabase.mjs db reset"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.34.0",
-    "@types/node": "^20",
-    "@playwright/test": "^1.55.0",
-    "eslint": "^9.34.0",
-    "supabase": "^2.39.2",
-    "turbo": "^2.5.8",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.41.0",
-    "vitest": "^3.2.4"
-  }
+    "name":  "@germinatura/pdv",
+    "version":  "0.1.0",
+    "private":  true,
+    "scripts":  {
+                    "dev":  "next dev -p 3001",
+                    "build":  "next build",
+                    "start":  "next start -p 3001",
+                    "lint":  "eslint",
+                    "typecheck":  "tsc --noEmit",
+                    "test":  "vitest run --passWithNoTests",
+                    "dev:vinext":  "vinext dev --port 3001",
+                    "build:vinext":  "vinext build",
+                    "start:vinext":  "wrangler dev --config dist/server/wrangler.json",
+                    "deploy:vinext":  "vinext-cloudflare deploy --config dist/server/wrangler.json"
+                },
+    "dependencies":  {
+                         "@germinatura/auth":  "workspace:*",
+                         "@germinatura/contracts":  "workspace:*",
+                         "@supabase/ssr":  "^0.7.0",
+                         "@supabase/supabase-js":  "^2.56.1",
+                         "@vinext/cloudflare":  "1.0.0-beta.6",
+                         "lucide-react":  "^0.576.0",
+                         "next":  "16.2.11",
+                         "qrcode.react":  "^4.2.0",
+                         "react":  "19.2.8",
+                         "react-dom":  "19.2.8",
+                         "react-server-dom-webpack":  "^19.2.8",
+                         "vinext":  "1.0.0-beta.8"
+                     },
+    "devDependencies":  {
+                            "@cloudflare/vite-plugin":  "^1.54.2",
+                            "@tailwindcss/postcss":  "^4",
+                            "@types/node":  "^20",
+                            "@types/react":  "^19",
+                            "@types/react-dom":  "^19",
+                            "@vitejs/plugin-react":  "^6.1.1",
+                            "@vitejs/plugin-rsc":  "^0.5.34",
+                            "eslint":  "^9",
+                            "eslint-config-next":  "16.2.11",
+                            "tailwindcss":  "^4",
+                            "typescript":  "^5",
+                            "vite":  "^8.2.2",
+                            "vitest":  "^3.2.4",
+                            "wrangler":  "^4.127.1"
+                        },
+    "type":  "module"
 }
