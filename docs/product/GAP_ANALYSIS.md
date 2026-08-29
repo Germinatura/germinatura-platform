@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual x estado-alvo
 
-Data da auditoria: 2026-08-29. Base: `18008b3` em `main`, com CI pós-merge `33196034014` verde, mais `a25eab5` na branch `feat/pricing-base`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Data da auditoria: 2026-08-29. Base: `780f0c3` em `main`, com CI pós-merge `33262500280` verde, mais a regra pura em desenvolvimento na branch `feat/pricing-quantity-promotion`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
 
 | Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -14,8 +14,8 @@ Data da auditoria: 2026-08-29. Base: `18008b3` em `main`, com CI pós-merge `331
 | CAT-001 Catálogo normalizado | IMPLEMENTADO NA FUNDAÇÃO — categorias, produtos, histórico de preços, RLS e testes em `4898755` | Imagens e administração/UI ainda ausentes | P1 | Auth, storage | Médio | Preservar invariantes e evoluir a administração em fatia própria |
 | CAT-002 API pública versionada | IMPLEMENTADO — `GET /api/v1/catalog/products` em `1abd440` usa visão `anon`, preço vigente, cursor e limite máximo 50 | Busca, disponibilidade, promoções e ordenação editorial ficaram fora do contrato inicial | P1 | CAT-001, RLS | Médio | Evoluir o contrato somente com consumidor e testes correspondentes |
 | PRICE-001 Dinheiro sem Float | IMPLEMENTADO NA FUNDAÇÃO — `MoneyCents`, schema Zod, contratos e preços `BIGINT` limitados ao safe integer | Pricing de negócio ainda ausente | P0 | Catálogo | Médio | Manter validação nas fronteiras e histórico sem sobreposição |
-| PRICE-002 Pricing server authority | PARCIAL — `a25eab5` calcula linhas e total em centavos, rejeita duplicidade/quantidade inválida e falha fechado em overflow | Preço vigente ainda não é resolvido pelo servidor; promoções e API de cotação estão ausentes | P0 | Catálogo | Crítico | Implementar promoções puras e depois integrar preços vigentes em endpoint server-only |
-| PROMO-001 Promoções por regras | AUSENTE | Nenhum motor | P1 | Catálogo, pricing | Alto | Implementar funções puras + casos obrigatórios |
+| PRICE-002 Pricing server authority | PARCIAL — `780f0c3` calcula linhas e total em centavos, rejeita duplicidade/quantidade inválida e falha fechado em overflow | Preço vigente ainda não é resolvido pelo servidor; API de cotação está ausente | P0 | Catálogo | Crítico | Persistir promoções e integrar preços vigentes em endpoint server-only |
+| PROMO-001/002 Promoções por regras | PARCIAL — a branch atual implementa `QUANTIDADE_PRECO` puro, com agrupamento máximo, resto a preço-base e explicação da economia | Sem persistência, vigência, canal, prioridade, cumulatividade ou demais tipos | P1 | Catálogo, pricing | Alto | Persistir somente a primeira regra e sua seleção vigente antes de ampliar tipos |
 | INV-001 Ledger imutável | IMPLEMENTADO NA FUNDAÇÃO — movimentos, itens, ajuste, transferência e reversão em `3db74fc` | Consumo por venda e reconciliação ampla ainda ausentes | P0 | Migration/RPC | Crítico | Manter saldo mutável somente pelo ledger e ampliar por movimentos atômicos |
 | INV-002 Localizações/vendedor | IMPLEMENTADO NA FUNDAÇÃO — central, localização por vendedor, saldo derivado e RLS em `77f7fc2` | Operação do vendedor ainda depende dos casos de uso seguintes | P0 | INV-001 | Alto | Preservar constraints e acesso restrito |
 | INV-003 Reserva concorrente | IMPLEMENTADO NA FUNDAÇÃO — `d4d1489` cria reserva, liberação e expiração idempotentes com locks determinísticos | Consumo pela venda permanece adiado | P0 | INV-001, SALE-001 | Alto | Preservar o teste concorrente da última unidade e integrar somente por casos de uso server-side |
@@ -50,6 +50,6 @@ Data da auditoria: 2026-08-29. Base: `18008b3` em `main`, com CI pós-merge `331
 
 ## Dívidas que bloqueiam evolução
 
-1. Pricing-base puro existe, mas o servidor ainda não resolve preços vigentes nem promoções; checkout permanece bloqueado até a cotação autoritativa.
+1. Pricing-base e a primeira regra promocional pura existem, mas o servidor ainda não resolve preços ou promoções vigentes; checkout permanece bloqueado até a cotação autoritativa.
 2. A matriz de permissões precisará ganhar ações granulares com cada módulo.
 3. A outbox ainda não possui consumidor operacional; receipt de webhook só pode nascer com documentação oficial do PicPay.

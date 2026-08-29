@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addMoney,
+  applyQuantityFixedPricePromotion,
   compareMoney,
   DomainError,
   formatMoneyBrl,
@@ -160,6 +161,143 @@ describe("base cart pricing", () => {
         },
         { productId: "product-b", unitPriceCents: moneyFromCents(1), quantity: 1 },
       ]),
+      "INVALID_MONEY_CENTS",
+    );
+  });
+});
+
+describe("QUANTIDADE_PRECO promotion", () => {
+  const item = (quantity: number, unitPriceCents = 1_500) => ({
+    productId: "product-a",
+    unitPriceCents: moneyFromCents(unitPriceCents),
+    quantity,
+  });
+  const rule = (overrides: Partial<Parameters<typeof applyQuantityFixedPricePromotion>[1]> = {}) => ({
+    promotionId: "promotion-a",
+    type: "QUANTIDADE_PRECO" as const,
+    productId: "product-a",
+    groupQuantity: 2,
+    groupPriceCents: moneyFromCents(1_000),
+    ...overrides,
+  });
+
+  it("keeps quantities below the group at base price", () => {
+    expect(applyQuantityFixedPricePromotion(item(1), rule())).toEqual({
+      productId: "product-a",
+      unitPriceCents: 1_500,
+      quantity: 1,
+      originalSubtotalCents: 1_500,
+      discountCents: 0,
+      effectiveSubtotalCents: 1_500,
+      appliedPromotion: null,
+      rounding: "NONE",
+    });
+  });
+
+  it("applies one complete group", () => {
+    expect(applyQuantityFixedPricePromotion(item(2), rule())).toMatchObject({
+      originalSubtotalCents: 3_000,
+      discountCents: 2_000,
+      effectiveSubtotalCents: 1_000,
+      appliedPromotion: {
+        groups: 1,
+        promotedQuantity: 2,
+        remainderQuantity: 0,
+        savingsCents: 2_000,
+      },
+    });
+  });
+
+  it("prices the required three-unit example as R$25", () => {
+    expect(applyQuantityFixedPricePromotion(item(3), rule())).toEqual({
+      productId: "product-a",
+      unitPriceCents: 1_500,
+      quantity: 3,
+      originalSubtotalCents: 4_500,
+      discountCents: 2_000,
+      effectiveSubtotalCents: 2_500,
+      appliedPromotion: {
+        promotionId: "promotion-a",
+        type: "QUANTIDADE_PRECO",
+        groupQuantity: 2,
+        groupPriceCents: 1_000,
+        groups: 1,
+        promotedQuantity: 2,
+        remainderQuantity: 1,
+        savingsCents: 2_000,
+      },
+      rounding: "NONE",
+    });
+  });
+
+  it("forms the maximum number of groups and prices the remainder at base price", () => {
+    expect(applyQuantityFixedPricePromotion(item(5), rule())).toMatchObject({
+      originalSubtotalCents: 7_500,
+      discountCents: 4_000,
+      effectiveSubtotalCents: 3_500,
+      appliedPromotion: {
+        groups: 2,
+        promotedQuantity: 4,
+        remainderQuantity: 1,
+        savingsCents: 4_000,
+      },
+    });
+  });
+
+  it("does not apply a valid rule to a different product", () => {
+    expect(applyQuantityFixedPricePromotion(
+      item(3, 100),
+      rule({ productId: "product-b", groupPriceCents: moneyFromCents(1_000) }),
+    )).toMatchObject({
+      originalSubtotalCents: 300,
+      discountCents: 0,
+      effectiveSubtotalCents: 300,
+      appliedPromotion: null,
+    });
+  });
+
+  it("rejects invalid rules and promotions without a positive saving", () => {
+    for (const groupQuantity of [0, 1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expectDomainError(
+        () => applyQuantityFixedPricePromotion(item(2), rule({ groupQuantity })),
+        "INVALID_PROMOTION_GROUP_QUANTITY",
+      );
+    }
+
+    for (const groupPriceCents of [3_000, 3_001]) {
+      expectDomainError(
+        () => applyQuantityFixedPricePromotion(
+          item(2),
+          rule({ groupPriceCents: moneyFromCents(groupPriceCents) }),
+        ),
+        "INVALID_PROMOTION_GROUP_PRICE",
+      );
+    }
+
+    expectDomainError(
+      () => applyQuantityFixedPricePromotion(item(2), rule({ promotionId: " promotion-a" })),
+      "INVALID_PROMOTION_ID",
+    );
+    expectDomainError(
+      () => applyQuantityFixedPricePromotion(item(2), rule({ productId: "" })),
+      "INVALID_PROMOTION_PRODUCT_ID",
+    );
+  });
+
+  it("fails closed on base or promotion arithmetic overflow", () => {
+    expectDomainError(
+      () => applyQuantityFixedPricePromotion(
+        item(2, Number.MAX_SAFE_INTEGER),
+        rule({ groupPriceCents: moneyFromCents(1) }),
+      ),
+      "INVALID_MONEY_CENTS",
+    );
+
+    expectDomainError(
+      () => applyQuantityFixedPricePromotion(
+        item(1, Math.ceil(Number.MAX_SAFE_INTEGER / 2)),
+        rule({ groupPriceCents: moneyFromCents(1) }),
+      ),
       "INVALID_MONEY_CENTS",
     );
   });
