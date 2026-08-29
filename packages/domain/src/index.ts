@@ -131,6 +131,36 @@ export interface BaseCartQuote {
   readonly rounding: "NONE";
 }
 
+export interface QuantityFixedPricePromotionRule {
+  readonly promotionId: string;
+  readonly type: "QUANTIDADE_PRECO";
+  readonly productId: string;
+  readonly groupQuantity: number;
+  readonly groupPriceCents: MoneyCents;
+}
+
+export interface QuantityFixedPricePromotionExplanation {
+  readonly promotionId: string;
+  readonly type: "QUANTIDADE_PRECO";
+  readonly groupQuantity: number;
+  readonly groupPriceCents: MoneyCents;
+  readonly groups: number;
+  readonly promotedQuantity: number;
+  readonly remainderQuantity: number;
+  readonly savingsCents: MoneyCents;
+}
+
+export interface QuantityFixedPriceLineQuote {
+  readonly productId: string;
+  readonly unitPriceCents: MoneyCents;
+  readonly quantity: number;
+  readonly originalSubtotalCents: MoneyCents;
+  readonly discountCents: MoneyCents;
+  readonly effectiveSubtotalCents: MoneyCents;
+  readonly appliedPromotion: QuantityFixedPricePromotionExplanation | null;
+  readonly rounding: "NONE";
+}
+
 /**
  * Prices a canonical cart using unit prices already resolved by a trusted
  * server-side caller. This base slice performs only integer-cent arithmetic,
@@ -174,4 +204,108 @@ export function priceBaseCart(items: readonly BasePricingItemInput[]): BaseCartQ
   }
 
   return { lines, totalCents, rounding: "NONE" };
+}
+
+function assertCanonicalIdentifier(value: string, code: string, label: string): void {
+  if (value.length === 0 || value.trim() !== value) {
+    throw new DomainError(code, `${label} must be a non-empty canonical identifier`);
+  }
+}
+
+/**
+ * Applies one canonical QUANTIDADE_PRECO rule to a trusted, server-priced
+ * item. The maximum number of complete groups receives the fixed group price;
+ * remaining units keep their base unit price. Arithmetic stays in integer
+ * cents and therefore applies no rounding.
+ */
+export function applyQuantityFixedPricePromotion(
+  item: BasePricingItemInput,
+  rule: QuantityFixedPricePromotionRule,
+): QuantityFixedPriceLineQuote {
+  const baseLine = priceBaseCart([item]).lines[0];
+  assertCanonicalIdentifier(
+    rule.promotionId,
+    "INVALID_PROMOTION_ID",
+    "Promotion ID",
+  );
+  assertCanonicalIdentifier(
+    rule.productId,
+    "INVALID_PROMOTION_PRODUCT_ID",
+    "Promotion product ID",
+  );
+  if (rule.type !== "QUANTIDADE_PRECO") {
+    throw new DomainError(
+      "INVALID_PROMOTION_TYPE",
+      "Quantity fixed-price promotion must use QUANTIDADE_PRECO",
+    );
+  }
+  if (!Number.isSafeInteger(rule.groupQuantity) || rule.groupQuantity < 2) {
+    throw new DomainError(
+      "INVALID_PROMOTION_GROUP_QUANTITY",
+      "Promotion group quantity must be a safe integer of at least two",
+    );
+  }
+
+  const groupPriceCents = moneyFromCents(rule.groupPriceCents);
+  if (rule.productId !== baseLine.productId) {
+    return {
+      productId: baseLine.productId,
+      unitPriceCents: baseLine.unitPriceCents,
+      quantity: baseLine.quantity,
+      originalSubtotalCents: baseLine.subtotalCents,
+      discountCents: moneyFromCents(0),
+      effectiveSubtotalCents: baseLine.subtotalCents,
+      appliedPromotion: null,
+      rounding: "NONE",
+    };
+  }
+
+  const baseGroupPriceCents = multiplyMoney(baseLine.unitPriceCents, rule.groupQuantity);
+  if (compareMoney(groupPriceCents, baseGroupPriceCents) >= 0) {
+    throw new DomainError(
+      "INVALID_PROMOTION_GROUP_PRICE",
+      "Promotion group price must produce a positive saving",
+    );
+  }
+
+  const groups = Math.floor(baseLine.quantity / rule.groupQuantity);
+  if (groups === 0) {
+    return {
+      productId: baseLine.productId,
+      unitPriceCents: baseLine.unitPriceCents,
+      quantity: baseLine.quantity,
+      originalSubtotalCents: baseLine.subtotalCents,
+      discountCents: moneyFromCents(0),
+      effectiveSubtotalCents: baseLine.subtotalCents,
+      appliedPromotion: null,
+      rounding: "NONE",
+    };
+  }
+
+  const promotedQuantity = groups * rule.groupQuantity;
+  const remainderQuantity = baseLine.quantity - promotedQuantity;
+  const promotedSubtotalCents = multiplyMoney(groupPriceCents, groups);
+  const remainderSubtotalCents = multiplyMoney(baseLine.unitPriceCents, remainderQuantity);
+  const effectiveSubtotalCents = addMoney(promotedSubtotalCents, remainderSubtotalCents);
+  const discountCents = subtractMoney(baseLine.subtotalCents, effectiveSubtotalCents);
+
+  return {
+    productId: baseLine.productId,
+    unitPriceCents: baseLine.unitPriceCents,
+    quantity: baseLine.quantity,
+    originalSubtotalCents: baseLine.subtotalCents,
+    discountCents,
+    effectiveSubtotalCents,
+    appliedPromotion: {
+      promotionId: rule.promotionId,
+      type: rule.type,
+      groupQuantity: rule.groupQuantity,
+      groupPriceCents,
+      groups,
+      promotedQuantity,
+      remainderQuantity,
+      savingsCents: discountCents,
+    },
+    rounding: "NONE",
+  };
 }
