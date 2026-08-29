@@ -1,6 +1,6 @@
 # Roadmap oficial — Germinatura v2.2
 
-Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi auditada até `780f0c3`; documentação histórica não prova implementação.
+Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi auditada até `9e2ca83`; documentação histórica não prova implementação.
 
 ## Fase 0 — Auditoria e segurança
 
@@ -36,7 +36,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Pricing e promoções server-side | IN PROGRESS | P0 | Catálogo | PRICE-002, PROMO-001/002 | `780f0c3` cobre preço-base puro; a branch atual cobre `QUANTIDADE_PRECO`, enquanto persistência e API autoritativa permanecem pendentes |
+| Pricing e promoções server-side | IN PROGRESS | P0 | Catálogo | PRICE-002, PROMO-001/002 | `9e2ca83` cobre preço-base e `QUANTIDADE_PRECO`; a branch atual cobre persistência/consulta vigente, enquanto a API autoritativa permanece pendente |
 | Checkout/venda/cancelamento | TODO | P0 | Pricing/ledger/outbox | SALE-001/002/003 | Atomicidade e duplicação testadas |
 | PWA/estoque vendedor/fechamento | TODO | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Offline read-only e fechamento auditado |
 
@@ -81,4 +81,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 ## Próxima fatia recomendada
 
-Persistir promoções e a regra `QUANTIDADE_PRECO` com vigência `[)`, canal, prioridade, cumulatividade e RLS fechada, sem alegar suporte executável aos demais tipos e sem API, checkout, tela ou integração PicPay.
+Expor `POST /api/v1/pricing/quote`: receber somente canal e `{productId, quantity}`, resolver preços e `QUANTIDADE_PRECO` vigentes no servidor e devolver linhas explicadas, totais e `request_id`, sem reservar estoque ou garantir preço futuro.

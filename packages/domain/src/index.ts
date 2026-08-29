@@ -137,6 +137,7 @@ export interface QuantityFixedPricePromotionRule {
   readonly productId: string;
   readonly groupQuantity: number;
   readonly groupPriceCents: MoneyCents;
+  readonly maxGroupsPerLine: number | null;
 }
 
 export interface QuantityFixedPricePromotionExplanation {
@@ -245,6 +246,15 @@ export function applyQuantityFixedPricePromotion(
       "Promotion group quantity must be a safe integer of at least two",
     );
   }
+  if (
+    rule.maxGroupsPerLine !== null
+    && (!Number.isSafeInteger(rule.maxGroupsPerLine) || rule.maxGroupsPerLine < 1)
+  ) {
+    throw new DomainError(
+      "INVALID_PROMOTION_GROUP_LIMIT",
+      "Promotion group limit must be null or a positive safe integer",
+    );
+  }
 
   const groupPriceCents = moneyFromCents(rule.groupPriceCents);
   if (rule.productId !== baseLine.productId) {
@@ -268,7 +278,10 @@ export function applyQuantityFixedPricePromotion(
     );
   }
 
-  const groups = Math.floor(baseLine.quantity / rule.groupQuantity);
+  const availableGroups = Math.floor(baseLine.quantity / rule.groupQuantity);
+  const groups = rule.maxGroupsPerLine === null
+    ? availableGroups
+    : Math.min(availableGroups, rule.maxGroupsPerLine);
   if (groups === 0) {
     return {
       productId: baseLine.productId,
