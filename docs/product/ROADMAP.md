@@ -1,6 +1,6 @@
 # Roadmap oficial — Germinatura v2.2
 
-Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi auditada até `1abd440`; documentação histórica não prova implementação.
+Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi auditada até `18008b3`; documentação histórica não prova implementação.
 
 ## Fase 0 — Auditoria e segurança
 
@@ -36,7 +36,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Pricing e promoções server-side | TODO | P0 | Catálogo | PRICE-002, PROMO-001/002 | Casos puros + API ignora total cliente |
+| Pricing e promoções server-side | IN PROGRESS | P0 | Catálogo | PRICE-002, PROMO-001/002 | `a25eab5` cobre preço-base puro, centavos e overflow; promoções e API autoritativa permanecem pendentes |
 | Checkout/venda/cancelamento | TODO | P0 | Pricing/ledger/outbox | SALE-001/002/003 | Atomicidade e duplicação testadas |
 | PWA/estoque vendedor/fechamento | TODO | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Offline read-only e fechamento auditado |
 
@@ -81,4 +81,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 ## Próxima fatia recomendada
 
-Criar a primeira fatia de pricing server-side como domínio puro e testável, começando por preço-base vigente e arredondamento explícito, sem checkout, promoção persistida, tela ou integração PicPay.
+Adicionar `QUANTIDADE_PRECO` ao domínio puro: formar o máximo de grupos, manter o restante a preço cheio e explicar economia, sem persistência, API, checkout, tela ou integração PicPay.
