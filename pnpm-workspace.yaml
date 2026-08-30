@@ -11,3 +11,4 @@ allowBuilds:
   sharp: true
   supabase: true
   unrs-resolver: true
+  workerd: true

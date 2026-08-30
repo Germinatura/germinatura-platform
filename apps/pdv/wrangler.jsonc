@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "germinatura-pdv",
+  "account_id": "ac1e415bccca201b80f8313dd5ffeec8",
+  "compatibility_date": "2026-08-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "cache": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "germinatura-pdv-staging",
+      "workers_dev": true,
+      "images": { "binding": "IMAGES" },
+      "kv_namespaces": [
+        { "binding": "VINEXT_KV_CACHE", "id": "50bc848c36c145019fe1bffbaced9dfc" }
+      ]
+    },
+    "production": {
+      "name": "germinatura-pdv-production",
+      "workers_dev": true,
+      "images": { "binding": "IMAGES" },
+      "kv_namespaces": [
+        { "binding": "VINEXT_KV_CACHE", "id": "bb849c695d3944008ebebcce0f87761b" }
+      ]
+    }
+  }
+}
