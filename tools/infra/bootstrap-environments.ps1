@@ -122,7 +122,7 @@ function Ensure-Vinext($app, $port) {
       @{n="dev:vinext";v="vinext dev --port $port"},
       @{n="build:vinext";v="vinext build"},
       @{n="start:vinext";v="wrangler dev --config dist/server/wrangler.json"},
-      @{n="deploy:vinext";v="vinext-cloudflare deploy --config dist/server/wrangler.json"}
+      @{n="deploy:vinext";v="vinext-cloudflare deploy"}
     )) {
       if ($pkg.scripts.PSObject.Properties.Name -contains $p.n) {
         $pkg.scripts.($p.n) = $p.v
@@ -367,9 +367,9 @@ jobs:
       - run: pnpm exec supabase db push --dry-run
       - run: pnpm exec supabase db push
       - working-directory: apps/portal
-        run: pnpm run deploy:vinext -- --env staging
+        run: pnpm exec vinext-cloudflare deploy --env staging
       - working-directory: apps/pdv
-        run: pnpm run deploy:vinext -- --env staging
+        run: pnpm exec vinext-cloudflare deploy --env staging
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PORTAL_URL}/api/v1/health"
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/health"
 '@
@@ -426,9 +426,9 @@ jobs:
       - run: pnpm exec supabase db push --dry-run
       - run: pnpm exec supabase db push
       - working-directory: apps/portal
-        run: pnpm run deploy:vinext -- --env production
+        run: pnpm exec vinext-cloudflare deploy --env production
       - working-directory: apps/pdv
-        run: pnpm run deploy:vinext -- --env production
+        run: pnpm exec vinext-cloudflare deploy --env production
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PORTAL_URL}/api/v1/health"
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/health"
 '@
@@ -453,7 +453,7 @@ foreach ($cfg in @(
     Push-Location "$RepoRoot\apps\$app"
     try {
       Write-Host "Dry-run $app / $($cfg.env)" -ForegroundColor Cyan
-      pnpm run deploy:vinext -- --env $cfg.env --dry-run
+      pnpm exec vinext-cloudflare deploy --env $cfg.env --dry-run
       if ($LASTEXITCODE -ne 0) { throw "Dry-run falhou: $app / $($cfg.env)" }
     } finally { Pop-Location }
   }
@@ -477,10 +477,10 @@ if ($DeployStaging) {
   if ($confirm -eq "DEPLOY-STAGING") {
     pnpm exec supabase db push
     Push-Location "$RepoRoot\apps\portal"
-    pnpm run deploy:vinext -- --env staging
+    pnpm exec vinext-cloudflare deploy --env staging
     Pop-Location
     Push-Location "$RepoRoot\apps\pdv"
-    pnpm run deploy:vinext -- --env staging
+    pnpm exec vinext-cloudflare deploy --env staging
     Pop-Location
 
     Invoke-RestMethod "$PortalStagingUrl/api/v1/health"
