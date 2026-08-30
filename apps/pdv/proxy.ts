@@ -27,12 +27,15 @@ export default async function proxy(request: NextRequest) {
   const roles = sessionData && typeof sessionData === "object" && "roles" in sessionData
     ? (sessionData.roles as unknown[])
     : [];
+  const active = sessionData && typeof sessionData === "object" && "active" in sessionData
+    ? sessionData.active === true
+    : false;
   const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
   if (isLogin) {
     if (roles.includes("ADMIN")) return NextResponse.redirect(new URL("/", portalUrl));
     if (roles.includes("VENDEDOR")) return NextResponse.redirect(new URL("/", request.url));
   }
-  if (!roles.includes("ADMIN") && !roles.includes("VENDEDOR")) {
+  if (!active || (!roles.includes("ADMIN") && !roles.includes("VENDEDOR"))) {
     return NextResponse.redirect(new URL("/", portalUrl));
   }
   return response;

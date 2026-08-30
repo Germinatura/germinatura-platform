@@ -10,6 +10,10 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
   { path: "/api/v1/pricing/quote", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
+  { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },
   { path: "/api/auth/login", methods: ["POST"], access: "public" },
   { path: "/api/auth/logout", methods: ["POST"], access: "authenticated" },
   { path: "/api/auth/me", methods: ["GET"], access: "authenticated" },
@@ -18,7 +22,13 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
 ];
 
 export function apiAccessRule(path: string): ApiAccessRule | undefined {
-  return apiAccessRules.find((rule) => rule.path === path);
+  return apiAccessRules.find((rule) => {
+    if (rule.path === path) return true;
+    if (rule.path === "/api/v1/admin/users/:id/roles") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
+    }
+    return false;
+  });
 }
 
 export function rolesSatisfyAccess(roles: readonly string[], access: ApiAccessLevel): boolean {

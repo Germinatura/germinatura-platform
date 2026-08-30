@@ -11,6 +11,7 @@ const sessionRpcSchema = z.object({
   auth_id: z.string().uuid(),
   email: z.string().email(),
   display_name: z.string().nullable(),
+  active: z.boolean(),
   roles: z.array(appRoleSchema),
 });
 
@@ -22,6 +23,7 @@ export interface SupabaseSession {
     perfil: AppRole;
     nome: string;
     roles: AppRole[];
+    active: true;
     needsPasswordReset: false;
   };
 }
@@ -48,7 +50,7 @@ async function resolveSession(client: SupabaseClient, accessToken?: string): Pro
   const { data, error } = await rpcClient.rpc("get_my_session");
   if (error || !data) return null;
   const parsed = sessionRpcSchema.safeParse(data);
-  if (!parsed.success) return null;
+  if (!parsed.success || !parsed.data.active) return null;
 
   const roles = parsed.data.roles.length > 0 ? parsed.data.roles : ["CONSUMIDOR" as const];
   const perfil = primaryRole(roles);
@@ -60,6 +62,7 @@ async function resolveSession(client: SupabaseClient, accessToken?: string): Pro
       perfil,
       nome: parsed.data.display_name ?? parsed.data.email,
       roles,
+      active: true,
       needsPasswordReset: false,
     },
   };
@@ -84,15 +87,6 @@ export async function getSession(): Promise<SupabaseSession | null> {
   }
 }
 
-export async function login(credentials: { email: string; password: string }) {
-  const client = await createSupabaseServerClient();
-  const { data, error } = await client.auth.signInWithPassword(credentials);
-  if (error) throw new AuthorizationError(401, "Credenciais inválidas");
-  const session = await resolveSession(client, data.session?.access_token);
-  if (!session) throw new AuthorizationError(401, "Perfil de acesso não configurado");
-  return session;
-}
-
 export async function logout() {
   const client = await createSupabaseServerClient();
   await client.auth.signOut();
@@ -108,7 +102,21 @@ export async function requireSession(): Promise<SessionUser> {
     name: session.user.nome,
     role: session.user.perfil,
     roles: session.user.roles,
+    active: true,
   };
+}
+
+export async function loginLocalFixture(credentials: { email: string; password: string }) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  if (process.env.NODE_ENV === "production" || !/^http:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(url)) {
+    throw new AuthorizationError(403, "Login local indisponível");
+  }
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.auth.signInWithPassword(credentials);
+  if (error) throw new AuthorizationError(401, "Credenciais locais inválidas");
+  const session = await resolveSession(client, data.session?.access_token);
+  if (!session) throw new AuthorizationError(401, "Perfil local indisponível");
+  return session;
 }
 
 export async function requirePermission(permission: Permission): Promise<SessionUser> {
