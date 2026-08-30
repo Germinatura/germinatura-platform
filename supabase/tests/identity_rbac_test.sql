@@ -26,7 +26,7 @@ select results_eq($$select count(*)::bigint from public.role_permissions rp join
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'FINANCEIRO'$$, array[3::bigint], 'finance permission matrix is seeded');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'COMUNICACAO'$$, array[2::bigint], 'communications permission matrix is seeded');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'MODERADOR'$$, array[2::bigint], 'moderator permission matrix is seeded');
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'CONSUMIDOR'$$, array[4::bigint], 'consumer permission matrix is seeded');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'CONSUMIDOR'$$, array[5::bigint], 'consumer permission matrix includes own sale history');
 
 select results_eq(
   $$select count(*)::bigint from pg_class where oid in ('public.profiles'::regclass, 'public.roles'::regclass, 'public.permissions'::regclass, 'public.user_roles'::regclass, 'public.role_permissions'::regclass) and relrowsecurity$$,

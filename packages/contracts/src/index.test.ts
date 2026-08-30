@@ -14,6 +14,8 @@ import {
   pricingQuoteResponseSchema,
   publicCatalogProductsQuerySchema,
   publicCatalogProductsResponseSchema,
+  saleSchema,
+  saleStatusSchema,
   sessionUserSchema,
   stockMovementTypeSchema,
   stockReservationItemSchema,
@@ -203,5 +205,40 @@ describe("shared contracts", () => {
       },
       request_id: "req-pricing",
     }).data.totalCents).toBe(2500);
+  });
+
+  it("validates immutable sale snapshots and the closed status vocabulary", () => {
+    expect(saleStatusSchema.parse("AWAITING_PAYMENT")).toBe("AWAITING_PAYMENT");
+    expect(saleStatusSchema.safeParse("PAID").success).toBe(false);
+
+    const sale = saleSchema.parse({
+      id: "71000000-0000-4000-8000-000000000001",
+      channel: "PDV",
+      locationId: "50000000-0000-4000-8000-000000000002",
+      createdBy: "10000000-0000-4000-8000-000000000002",
+      customerId: null,
+      status: "DRAFT",
+      currency: "BRL",
+      originalTotalCents: 3000,
+      discountTotalCents: 500,
+      totalCents: 2500,
+      quotedAt: "2026-08-30T14:00:00.000Z",
+      correlationId: "72000000-0000-4000-8000-000000000001",
+      items: [{
+        id: "73000000-0000-4000-8000-000000000001",
+        productId: "33000000-0000-4000-8000-000000000001",
+        productSku: "CONCURRENCY-ITEM",
+        productName: "Item",
+        quantity: 2,
+        unitPriceCents: 1500,
+        originalSubtotalCents: 3000,
+        discountCents: 500,
+        totalCents: 2500,
+        promotionId: null,
+        promotionSnapshot: null,
+      }],
+    });
+    expect(sale.totalCents).toBe(2500);
+    expect(saleSchema.safeParse({ ...sale, totalCents: 1, authoritativeTotal: 2500 }).success).toBe(false);
   });
 });
