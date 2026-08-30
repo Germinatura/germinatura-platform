@@ -47,8 +47,8 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Tentativa e confirmação manual controlada | TODO | P0 | Venda/permissões | PAY-002/003/005 | Origem manual explícita, idempotente e auditada |
-| Área Pix PicPay operacional | BLOCKED | P1 | Conta/política homologadas | PAY-003/005 | Fluxo autorizado, sem alegar webhook |
+| Tentativa e confirmação manual controlada | DONE | P0 | Venda/permissões | PAY-002/003/005 | `MAQUININHA` e `PIX_AREA` confirmam somente venda própria no valor exato, com origem `MANUAL`, referência não sensível, idempotência, estoque e recebível atômicos |
+| Área Pix PicPay operacional | IN PROGRESS | P1 | Conta/política homologadas | PAY-003/005 | Contrato manual está implementado sem chamada remota; procedimento humano de homologação ainda é necessário |
 | Checkout/API e webhook | BLOCKED | P1 | Habilitação, docs e credenciais oficiais | PAY-004/007 | Sandbox, assinatura, dedupe, consulta e E2E |
 | Maquininha/Tap e conciliação | BLOCKED | P1 | Terminal/operador/processo | PAY-005/008, FIN-003 | Sem iniciação remota fictícia; extrato conciliado |
 | V.A./V.R. | BLOCKED | P1 | Credenciamento Alelo/Ticket | PAY-006 | Flag + elegibilidade e operação aprovadas |
@@ -57,7 +57,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Lançamentos/taxas/conciliação | TODO | P1 | Venda/pagamento/outbox | FIN-001/002/003 | Uma origem, um efeito; divergências preservadas |
+| Lançamentos/taxas/conciliação | IN PROGRESS | P1 | Venda/pagamento/outbox | FIN-001/002/003 | Recebível PicPay imutável nasce com a confirmação; taxa, liquidação, reembolso, divergência e conciliação seguem na próxima fatia |
 | Compras/fornecedores/custo | TODO | P2 | Catálogo/ledger | PROC-001 | Recebimento parcial gera lote/movimento/despesa |
 | Fechamentos e dashboards | TODO | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Indicadores reconciliados e reabertura auditada |
 
