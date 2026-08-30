@@ -23,7 +23,7 @@ api_url = "http://127.0.0.1"
 
 [local_smtp]
 enabled = true
-port = 54324
+port = 54325
 
 [storage]
 enabled = true

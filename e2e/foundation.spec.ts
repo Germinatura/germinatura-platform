@@ -71,7 +71,7 @@ test("Institutional OTP creates only a consumer session and rejects external dom
 
   let otpCode = "";
   await expect.poll(async () => {
-    const mailbox = await request.get("http://127.0.0.1:54324/api/v1/messages");
+    const mailbox = await request.get("http://127.0.0.1:54325/api/v1/messages");
     const body = await mailbox.json() as { messages: Array<{ To: Array<{ Address: string }>; Snippet: string }> };
     const message = body.messages.find((candidate) => candidate.To.some((recipient) => recipient.Address === email));
     otpCode = message?.Snippet.match(/\b\d{6}\b/)?.[0] ?? "";
