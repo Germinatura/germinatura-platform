@@ -8,8 +8,10 @@ Data da auditoria: 2026-08-29. Base: `9e2ca83` em `main`, com CI pós-merge `332
 | ARCH-001 Monorepo Portal + PDV | IMPLEMENTADO | Apps ainda são shells | P1 | Domínios | Baixo | Preservar estrutura e evoluir por módulos |
 | ARCH-002 Monólito modular | PARCIAL | Packages existem; casos de uso ausentes | P1 | Contratos | Médio | Introduzir módulos por fatias, sem microserviços |
 | AUTH-001 Supabase Auth | IMPLEMENTADO | Fluxos avançados/sessões ativas ausentes | P1 | Supabase | Médio | Manter e ampliar com testes |
-| AUTH-002 RBAC múltiplos papéis | IMPLEMENTADO | Permissões de domínios futuros ainda genéricas | P1 | Novos casos de uso | Alto | Evoluir catálogo de permissões com cada módulo |
-| AUTH-003 Autorização server-side/RLS | PARCIAL | Fundação, catálogo e estoque estão cobertos; domínios futuros ainda não existem | P0 | Cada nova tabela/rota | Alto | Rota/policy/teste juntos |
+| AUTH-002 Autorização server-side/RLS e múltiplos papéis | PARCIAL | Fundação, catálogo e estoque estão cobertos; permissões dos domínios futuros ainda são genéricas | P0 | Cada nova tabela/rota | Alto | Entregar rota, permission, policy e teste juntos |
+| AUTH-003 Acesso institucional por código | AUSENTE | Login atual não oferece ingresso autocadastrado restrito ao domínio exato `@institutojef.org.br`, código de uso único nem testes de domínio/replay/expiração | P0 | Supabase Auth, e-mail, rate limit | Alto | Implementar OTP institucional fail-closed e conceder somente o papel base após verificação |
+| AUTH-004 Papel base e ativação do vendedor | PARCIAL | O schema aceita múltiplos papéis, mas não há onboarding que conceda `CONSUMIDOR` nem fluxo administrativo auditado para ativar `VENDEDOR`/PDV | P0 | AUTH-003, RBAC, auditoria | Alto | Separar elegibilidade do Portal de autorização do PDV e testar abuso |
+| AUTH-005 Primeiro administrador | AUSENTE | Não há bootstrap idempotente e auditável de `theo.martins@institutojef.org.br` | P0 | AUTH-003, procedimento seguro | Crítico | Conceder o primeiro `ADMIN` somente ao endereço verificado, sem senha/segredo no Git, e desabilitar o bootstrap após sucesso |
 | SEC-001 Secrets e proteção web | PARCIAL | Scan/headers/CSRF básicos; rate limit/monitoramento ausentes | P0 | Borda/staging | Alto | Preservar gates; completar por ambiente |
 | CAT-001 Catálogo normalizado | IMPLEMENTADO NA FUNDAÇÃO — categorias, produtos, histórico de preços, RLS e testes em `4898755` | Imagens e administração/UI ainda ausentes | P1 | Auth, storage | Médio | Preservar invariantes e evoluir a administração em fatia própria |
 | CAT-002 API pública versionada | IMPLEMENTADO — `GET /api/v1/catalog/products` em `1abd440` usa visão `anon`, preço vigente, cursor e limite máximo 50 | Busca, disponibilidade, promoções e ordenação editorial ficaram fora do contrato inicial | P1 | CAT-001, RLS | Médio | Evoluir o contrato somente com consumidor e testes correspondentes |
@@ -38,7 +40,7 @@ Data da auditoria: 2026-08-29. Base: `9e2ca83` em `main`, com CI pós-merge `332
 | OBS-001 Logs/auditoria/outbox | PARCIAL — audit log, outbox transacional e claim/ack/retry estão em `3db74fc` | Consumidor, retenção, alertas e monitoramento ainda ausentes | P0 | Worker/staging | Alto | Criar consumidor testável; ativação operacional depende de ambiente |
 | CI-001 Gates locais/CI | IMPLEMENTADO | CI não faz deploy; staging bloqueado | P1 | Docker para DB/E2E | Médio | Manter qualidade; provisionar staging separadamente |
 | PWA-001 PDV instalável | AUSENTE | Shell mobile-first, sem manifest/service worker | P2 | Fluxo PDV | Baixo | Implementar após checkout confiável |
-| COM-001 Comunidade/notificações | AUSENTE | Sem domínio | P3 | Outbox/moderação | Médio | Pós-MVP |
+| COM-001 Rede Social Germinare/notificações | AUSENTE | Sem domínio | P3 | AUTH-003, outbox, moderação | Médio | Mural institucional moderado; recursos avançados no pós-MVP |
 
 ## Riscos P0/P1
 
@@ -47,9 +49,12 @@ Data da auditoria: 2026-08-29. Base: `9e2ca83` em `main`, com CI pós-merge `332
 - Confirmação manual presencial pode ser confundida com confirmação automática se a origem não for persistida e exibida.
 - Staging e credenciais externas não estão provisionados; mocks não podem ser promovidos como adapters reais.
 - O ADR 0001 greenfield prevalece sobre trechos de migração histórica da especificação: não há dados legados a converter.
+- Comparar o domínio por sufixo ou confiar apenas no texto enviado pelo cliente pode admitir endereços externos ou semelhantes; a elegibilidade deve usar o e-mail normalizado e verificado pelo provedor.
+- O bootstrap administrativo não pode virar uma elevação permanente por e-mail, nem criar usuário com senha padrão; deve ser único, idempotente, auditado e encerrado após a primeira concessão válida.
 
 ## Dívidas que bloqueiam evolução
 
 1. Pricing-base, `QUANTIDADE_PRECO` e sua consulta vigente existem, mas o servidor ainda não os compõe em uma cotação autoritativa; checkout permanece bloqueado até essa API.
-2. A matriz de permissões precisará ganhar ações granulares com cada módulo.
-3. A outbox ainda não possui consumidor operacional; receipt de webhook só pode nascer com documentação oficial do PicPay.
+2. O onboarding institucional por código, o papel base `CONSUMIDOR`, a ativação administrativa de `VENDEDOR` e o bootstrap do primeiro `ADMIN` ainda não existem.
+3. A matriz de permissões precisará ganhar ações granulares com cada módulo.
+4. A outbox ainda não possui consumidor operacional; receipt de webhook só pode nascer com documentação oficial do PicPay.
