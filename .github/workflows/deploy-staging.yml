@@ -45,8 +45,8 @@ jobs:
       - run: pnpm exec supabase db push --dry-run
       - run: pnpm exec supabase db push
       - working-directory: apps/portal
-        run: pnpm run deploy:vinext -- --env staging
+        run: pnpm exec vinext-cloudflare deploy --env staging
       - working-directory: apps/pdv
-        run: pnpm run deploy:vinext -- --env staging
+        run: pnpm exec vinext-cloudflare deploy --env staging
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PORTAL_URL}/api/v1/health"
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/health"
