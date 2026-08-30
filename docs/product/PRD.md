@@ -12,10 +12,14 @@ Não objetivos do MVP: microserviços, app nativo, chat privado, Open Finance co
 
 ## Usuários e papéis
 
+- Acesso institucional: qualquer pessoa que controle um e-mail no domínio exato `@institutojef.org.br` pode autenticar-se no Portal por código de uso único enviado ao próprio endereço.
 - Consumidor: compra, reserva, rifa, histórico e preferências.
 - Vendedor: PDV, próprio estoque/vendas, transferências, perdas e fechamento.
 - Estoque, Financeiro, Comunicação e Moderador: capacidades específicas e de menor privilégio.
 - Admin: configuração e exceções auditadas, sem substituir controles do provedor.
+- Uma única identidade pode acumular papéis. O acesso institucional concede somente o papel base `CONSUMIDOR`; o papel `VENDEDOR` e o acesso ao PDV exigem ativação explícita por administrador.
+
+Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo.
 
 ## Requisitos funcionais
 
@@ -26,12 +30,15 @@ Não objetivos do MVP: microserviços, app nativo, chat privado, Open Finance co
 - **ARCH-002** — O backend é monólito modular; operações críticas permanecem próximas ao PostgreSQL.
 - **AUTH-001** — Usar Supabase Auth; usuário pode ter múltiplos papéis e ser inativado sem perder histórico.
 - **AUTH-002** — Toda ação protegida exige autorização server-side e RLS quando exposta pela Data API.
+- **AUTH-003** — Qualquer pessoa que comprove controle de um endereço no domínio exato `@institutojef.org.br` pode autenticar-se no Portal por código de uso único enviado por e-mail; endereços não verificados, domínios externos, subdomínios e grafias semelhantes são rejeitados.
+- **AUTH-004** — A identidade institucional recebe o papel base `CONSUMIDOR` e pode acumular outros papéis. O domínio institucional, isoladamente, nunca concede acesso ao PDV: `VENDEDOR` e a permissão de venda presencial dependem de ativação explícita por administrador, com auditoria.
+- **AUTH-005** — O bootstrap greenfield define `theo.martins@institutojef.org.br` como primeiro administrador. A elevação ocorre uma única vez, somente após verificação do endereço, de forma idempotente e auditável, sem senha, código ou segredo versionado; depois do bootstrap, novas concessões administrativas seguem o fluxo normal de permissões.
 - **SEC-001** — Segredos ficam somente no backend; logs, auditoria e respostas não expõem tokens, cartão ou benefício.
 - **SEC-002** — Mutações por cookie têm proteção CSRF/origin; login, checkout e webhook recebem rate limit apropriado.
 
 ### Portal, catálogo e administração
 
-- **PORTAL-001** — Portal oferece vitrine, catálogo/compra, reservas, rifas, campanhas, mural, notificações, conta e administração conforme flags/permissões.
+- **PORTAL-001** — Portal oferece vitrine, catálogo/compra, reservas, rifas, campanhas, Rede Social Germinare/mural, notificações, conta e administração conforme flags/permissões.
 - **CAT-001** — Produtos e categorias são normalizados, inativáveis, publicáveis por canal e mantêm histórico de preço.
 - **CAT-002** — A API pública versionada lista somente produtos publicados em categoria ativa e com preço vigente, usando visão anônima consistente, paginação por cursor e limite máximo de 50 itens.
 - **ADMIN-001** — Dashboard deriva indicadores de eventos conciliados e ledger, nunca de números manuais desconectados.
@@ -54,7 +61,7 @@ Não objetivos do MVP: microserviços, app nativo, chat privado, Open Finance co
 
 ### Vendas e PDV
 
-- **PDV-001** — PDV é mobile-first, rápido, separado do Portal e bloqueia consumidor/inativo no servidor.
+- **PDV-001** — PDV é mobile-first, rápido, separado do Portal e bloqueia consumidor, usuário inativo ou conta institucional sem ativação administrativa de vendedor no servidor.
 - **SALE-001** — Cobrar recalcula carrinho, reserva estoque e cria venda/tentativa com `Idempotency-Key` em uma transação.
 - **SALE-002** — Venda só conclui com pagamento confirmado ou método manual autorizado; conclusão cria estoque e financeiro atomicamente.
 - **SALE-003** — Cancelamento não exclui: registra motivo e cria reversões vinculadas, repetíveis sem duplicação.
@@ -84,7 +91,7 @@ Não objetivos do MVP: microserviços, app nativo, chat privado, Open Finance co
 - **RES-001** — Reserva congela preço, bloqueia estoque e conclui/cancela/expira atomicamente.
 - **RAF-001** — Número de rifa é reservado concorrentemente; pagamento integra financeiro; sorteio é auditável.
 - **NOTIF-001** — Notificação in-app é MVP; e-mail/push são assíncronos e falhas não desfazem transação.
-- **COMM-001** — Comunidade começa como mural moderado, sem mensagens privadas no MVP.
+- **COMM-001** — A Rede Social Germinare começa como mural moderado para identidades institucionais verificadas, sem mensagens privadas no MVP; publicação, comentário e moderação respeitam papéis, flags e permissões.
 - **GROW-001** — Campanhas podem gerar texto, links rastreáveis e QR; cards automáticos são posteriores.
 
 ## Requisitos não funcionais
@@ -104,7 +111,7 @@ Bloqueados externamente: conta/KYC e representante legal; termos e habilitação
 
 ## MVP e pós-MVP
 
-MVP: fundação segura; catálogo; centavos/pricing; ledger/localizações/reservas; checkout/venda; tentativa PicPay; PIX manual controlado e Maquininha manual auditada; idempotência/outbox; financeiro/conciliação básica; fechamento; reservas/rifas essenciais; notificações in-app.
+MVP: fundação segura; acesso institucional por código de e-mail; bootstrap controlado do primeiro administrador; papéis cumulativos com ativação administrativa do vendedor; catálogo; centavos/pricing; ledger/localizações/reservas; checkout/venda; tentativa PicPay; PIX manual controlado e Maquininha manual auditada; idempotência/outbox; financeiro/conciliação básica; fechamento; reservas/rifas essenciais; notificações in-app.
 
 Pós-MVP: Checkout online quando habilitado; automação SFTP; Web Push; cards; comunidade avançada; integração presencial privada oficial; Open Finance somente se conciliação justificar; app nativo/chat apenas com evidência de necessidade.
 
@@ -112,7 +119,7 @@ Pós-MVP: Checkout online quando habilitado; automação SFTP; Web Push; cards; 
 
 Cada requisito só muda para DONE com código/migration quando aplicável, testes relevantes, lint, typecheck, build, segurança, documentação/roadmap e evidência reproduzível. Telas desabilitadas, stubs e mocks não contam como integração real.
 
-Casos obrigatórios: última unidade disputada; duplo Cobrar; webhook/confirmar/cancelar duplicados; venda e transferência simultâneas; pagamento pendente não baixa definitivo; confirmação manual rotulada; voucher desligado sem credenciamento.
+Casos obrigatórios: última unidade disputada; duplo Cobrar; webhook/confirmar/cancelar duplicados; venda e transferência simultâneas; pagamento pendente não baixa definitivo; confirmação manual rotulada; voucher desligado sem credenciamento; domínio externo ou semelhante rejeitado; código expirado ou reutilizado rejeitado; nova identidade institucional entra somente como `CONSUMIDOR`; consumidor é bloqueado no PDV até ativação administrativa de `VENDEDOR`; bootstrap administrativo aceita somente `theo.martins@institutojef.org.br` verificado e não duplica concessões.
 
 ## Riscos
 
