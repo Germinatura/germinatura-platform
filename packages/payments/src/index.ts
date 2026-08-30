@@ -28,6 +28,14 @@ export interface ManualTerminalConfirmation {
   occurredAt: string; nonSensitiveReference?: string;
 }
 
+export interface ManualPaymentConfirmation {
+  attemptId: string;
+  idempotencyKey: string;
+  operatorId: string;
+  channel: Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">;
+  nonSensitiveReference: string;
+}
+
 export interface CardPresentProvider {
   createPaymentAttempt(input: CardPresentAttemptRequest): Promise<PaymentResult>;
   confirmExternalTerminalPayment(input: ManualTerminalConfirmation): Promise<PaymentResult>;

@@ -12,6 +12,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/pricing/quote", methods: ["POST"], access: "public" },
   { path: "/api/v1/sales/checkout", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
   { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
@@ -31,6 +32,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/sales/:id/cancel") {
       return /^\/api\/v1\/sales\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/sales/:id/payments/manual-confirmation") {
+      return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/manual-confirmation$/i.test(path);
     }
     return false;
   });

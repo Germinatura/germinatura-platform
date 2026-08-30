@@ -238,6 +238,39 @@ export const salesCancelResponseSchema = z.object({
 }).strict();
 export type SalesCancelResponse = z.infer<typeof salesCancelResponseSchema>;
 
+export const manualPaymentConfirmationRequestSchema = z.object({
+  integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
+  proofReference: z.string().min(4).max(128)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
+    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
+}).strict();
+export type ManualPaymentConfirmationRequest = z.infer<typeof manualPaymentConfirmationRequestSchema>;
+
+export const manualPaymentConfirmationResponseSchema = z.object({
+  data: z.object({
+    saleId: z.uuid(),
+    saleStatus: z.literal("CONFIRMED"),
+    paymentAttempt: z.object({
+      attemptId: z.uuid(),
+      status: z.literal("APPROVED"),
+      amountCents: moneyCentsSchema,
+      integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
+      confirmationSource: z.literal("MANUAL"),
+      confirmedAt: z.iso.datetime({ offset: true }),
+      proofReference: z.string().min(4).max(128),
+    }).strict(),
+    stock: z.object({
+      reservationId: z.uuid(),
+      status: z.literal("CONSUMED"),
+      saleMovementId: z.uuid(),
+    }).strict(),
+    financialLedgerEntryId: z.uuid(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type ManualPaymentConfirmationResponse = z.infer<typeof manualPaymentConfirmationResponseSchema>;
+
 export const stockMovementTypeSchema = z.enum([
   "SALDO_INICIAL",
   "ENTRADA_COMPRA",
