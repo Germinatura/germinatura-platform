@@ -5,18 +5,18 @@ insert into auth.users (
   phone_change_token, email_change_token_current, reauthentication_token,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'admin@germinatura.test', extensions.crypt('Admin123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Admin Local"}', now(), now()),
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'vendedor@germinatura.test', extensions.crypt('Vendedor123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Vendedor Local"}', now(), now()),
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'consumidor@germinatura.test', extensions.crypt('Consumidor123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Consumidor Local"}', now(), now())
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'admin.teste@institutojef.org.br', extensions.crypt('Admin123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Admin Local"}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'vendedor.teste@institutojef.org.br', extensions.crypt('Vendedor123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Vendedor Local"}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'consumidor.teste@institutojef.org.br', extensions.crypt('Consumidor123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Consumidor Local"}', now(), now())
 on conflict (id) do nothing;
 
 insert into auth.identities (
   id, provider_id, user_id, identity_data, provider,
   last_sign_in_at, created_at, updated_at
 ) values
-  (gen_random_uuid(), '10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '{"sub":"10000000-0000-4000-8000-000000000001","email":"admin@germinatura.test","email_verified":true}', 'email', now(), now(), now()),
-  (gen_random_uuid(), '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '{"sub":"10000000-0000-4000-8000-000000000002","email":"vendedor@germinatura.test","email_verified":true}', 'email', now(), now(), now()),
-  (gen_random_uuid(), '10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', '{"sub":"10000000-0000-4000-8000-000000000003","email":"consumidor@germinatura.test","email_verified":true}', 'email', now(), now(), now())
+  (gen_random_uuid(), '10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '{"sub":"10000000-0000-4000-8000-000000000001","email":"admin.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now()),
+  (gen_random_uuid(), '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '{"sub":"10000000-0000-4000-8000-000000000002","email":"vendedor.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now()),
+  (gen_random_uuid(), '10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', '{"sub":"10000000-0000-4000-8000-000000000003","email":"consumidor.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now())
 on conflict (provider_id, provider) do nothing;
 
 delete from public.user_roles where user_id in (
