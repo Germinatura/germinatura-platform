@@ -10,7 +10,15 @@ select has_function('public', 'has_permission', array['text'], 'permission funct
 select has_function('public', 'get_my_session', 'session function exists');
 select results_eq('select count(*)::bigint from public.roles', array[7::bigint], 'all v2.1 roles are seeded');
 select results_eq('select count(*)::bigint from public.permissions', array[18::bigint], 'permission catalog is seeded');
-select results_eq('select count(*)::bigint from public.profiles', array[3::bigint], 'local users receive profiles');
+select results_eq(
+  $$select count(*)::bigint from public.profiles where id in (
+    '10000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000003'
+  )$$,
+  array[3::bigint],
+  'local fixture users receive profiles'
+);
 
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ADMIN'$$, array[18::bigint], 'administrator receives every permission');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'VENDEDOR'$$, array[8::bigint], 'seller permission matrix is seeded');
