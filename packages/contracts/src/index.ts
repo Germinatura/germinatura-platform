@@ -116,6 +116,46 @@ export const pricingQuoteResponseSchema = z.object({
 });
 export type PricingQuoteResponse = z.infer<typeof pricingQuoteResponseSchema>;
 
+export const saleStatusSchema = z.enum([
+  "DRAFT",
+  "AWAITING_PAYMENT",
+  "CONFIRMED",
+  "CANCELLED",
+]);
+export type SaleStatus = z.infer<typeof saleStatusSchema>;
+
+export const saleItemSnapshotSchema = z.object({
+  id: z.uuid(),
+  productId: z.uuid(),
+  productSku: productSkuSchema,
+  productName: z.string().min(1).max(160),
+  quantity: z.number().int().positive().refine(Number.isSafeInteger, "Quantity must be a safe integer"),
+  unitPriceCents: moneyCentsSchema,
+  originalSubtotalCents: moneyCentsSchema,
+  discountCents: moneyCentsSchema,
+  totalCents: moneyCentsSchema,
+  promotionId: z.uuid().nullable(),
+  promotionSnapshot: z.record(z.string(), z.unknown()).nullable(),
+}).strict();
+export type SaleItemSnapshot = z.infer<typeof saleItemSnapshotSchema>;
+
+export const saleSchema = z.object({
+  id: z.uuid(),
+  channel: pricingChannelSchema,
+  locationId: z.uuid(),
+  createdBy: z.uuid(),
+  customerId: z.uuid().nullable(),
+  status: saleStatusSchema,
+  currency: z.literal("BRL"),
+  originalTotalCents: moneyCentsSchema,
+  discountTotalCents: moneyCentsSchema,
+  totalCents: moneyCentsSchema,
+  quotedAt: z.iso.datetime({ offset: true }),
+  correlationId: z.uuid(),
+  items: z.array(saleItemSnapshotSchema).min(1).max(100),
+}).strict();
+export type Sale = z.infer<typeof saleSchema>;
+
 export const stockMovementTypeSchema = z.enum([
   "SALDO_INICIAL",
   "ENTRADA_COMPRA",

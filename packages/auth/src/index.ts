@@ -53,6 +53,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
   CONSUMIDOR: [
     "portal.access",
     "catalog.read",
+    "sales.read.own",
     "reservations.manage.own",
     "raffles.buy",
   ],

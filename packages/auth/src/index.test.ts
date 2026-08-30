@@ -11,6 +11,7 @@ describe("RBAC", () => {
     expect(hasPermission({ roles: ["FINANCEIRO"] }, "finance.manage")).toBe(true);
     expect(hasPermission({ roles: ["COMUNICACAO"] }, "communications.manage")).toBe(true);
     expect(hasPermission({ roles: ["MODERADOR"] }, "community.moderate")).toBe(true);
+    expect(hasPermission({ roles: ["CONSUMIDOR"] }, "sales.read.own")).toBe(true);
     expect(hasPermission({ roles: ["CONSUMIDOR"] }, "admin.access")).toBe(false);
   });
 
