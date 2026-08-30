@@ -40,7 +40,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
 | Pricing e promoções server-side | DONE | P0 | Catálogo | PRICE-002, PROMO-001/002 | `86238e1` promoveu a cotação autoritativa para `PORTAL`/`PDV`; staging/produção e rejeição de total adulterado foram validados |
-| Checkout/venda/cancelamento | IN PROGRESS | P0 | Pricing/ledger/outbox | SALE-001/002/003 | `feat/sales-foundation` persiste agregado, snapshots e lifecycle fechado; checkout/reserva/idempotência ficam na próxima fatia |
+| Checkout/venda/cancelamento | DONE | P0 | Pricing/ledger/outbox | SALE-001/002/003 | RPC e API recalculam preço, congelam snapshots, reservam estoque e criam tentativa em uma transação; replay/conflito, concorrência real e cancelamento pendente com liberação única são testados. Venda confirmada permanece fail-closed até reversões financeira e de estoque |
 | PWA/estoque vendedor/fechamento | TODO | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Offline read-only e fechamento auditado |
 
 ## Fase 4 — PicPay
@@ -84,4 +84,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 ## Próxima fatia recomendada
 
-Concluir e integrar `feat/sales-foundation`; depois iniciar `feat/sales-checkout` para cotação, criação, reserva e tentativa em uma única transação idempotente, ainda sem confirmação fictícia do PicPay.
+Iniciar `feat/manual-picpay-payments` para confirmação manual auditada somente por `MAQUININHA` e `PIX_AREA`, com valor exato e operação própria. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
