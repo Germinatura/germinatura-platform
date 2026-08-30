@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { moneyFromCents } from "@germinatura/domain";
-import { assertPaymentTransition, canTransitionPayment, PaymentIntegrationUnavailableError, UnavailablePicPayCardPresentProvider } from "./index";
+import { assertPaymentTransition, canTransitionPayment, type ManualPaymentConfirmation, PaymentIntegrationUnavailableError, UnavailablePicPayCardPresentProvider } from "./index";
 
 describe("payment state transitions", () => {
   it("supports a controlled manual card-present lifecycle", () => {
@@ -10,6 +10,16 @@ describe("payment state transitions", () => {
     expect(canTransitionPayment("RECONCILIATION_PENDING", "RECONCILED")).toBe(true);
   });
   it("accepts idempotent repetition", () => expect(canTransitionPayment("APPROVED", "APPROVED")).toBe(true));
+  it("types only the enabled manual MVP channels", () => {
+    const confirmation: ManualPaymentConfirmation = {
+      attemptId: "attempt-1",
+      idempotencyKey: "confirm-1",
+      operatorId: "seller-1",
+      channel: "PIX_AREA",
+      nonSensitiveReference: "PIX-TEST-1",
+    };
+    expect(confirmation.channel).toBe("PIX_AREA");
+  });
   it("rejects reopening terminal states", () => {
     expect(() => assertPaymentTransition("CANCELLED", "APPROVED")).toThrow("Invalid payment status transition");
     expect(canTransitionPayment("RECONCILED", "PENDING")).toBe(false);

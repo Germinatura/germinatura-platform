@@ -249,6 +249,77 @@ test("Checkout rejects client totals and deduplicates Cobrar atomically", async 
   await expect(cancelReplay.json()).resolves.toMatchObject({ data: cancelledBody.data });
 });
 
+test("Manual PicPay confirmation is explicit, idempotent and consumes stock once", async ({ page }) => {
+  const productId = "33f00000-0000-4000-8000-000000000001";
+  const locationId = "50000000-0000-4000-8000-000000000001";
+  await page.goto("/login");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
+
+  const checkoutKey = `e2e-manual-checkout-${Date.now()}`;
+  const checkout = await page.request.post("/api/v1/sales/checkout", {
+    headers: { Origin: portalUrl, "Idempotency-Key": checkoutKey },
+    data: { channel: "PDV", locationId, items: [{ productId, quantity: 1 }] },
+  });
+  expect(checkout.status()).toBe(201);
+  const checkoutBody = await checkout.json();
+  const saleId = checkoutBody.data.saleId as string;
+
+  const unsupported = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-tap` },
+    data: { integrationChannel: "TAP", proofReference: "TAP-E2E-0001" },
+  });
+  expect(unsupported.status()).toBe(422);
+
+  const sensitive = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-pan` },
+    data: { integrationChannel: "MAQUININHA", proofReference: "4111111111111111" },
+  });
+  expect(sensitive.status()).toBe(422);
+
+  const confirmationKey = `${checkoutKey}-confirm`;
+  const confirmationPayload = {
+    integrationChannel: "PIX_AREA",
+    proofReference: `PIX-E2E-${Date.now().toString(36)}`,
+  };
+  const confirmed = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": confirmationKey },
+    data: confirmationPayload,
+  });
+  expect(confirmed.status()).toBe(200);
+  const confirmedBody = await confirmed.json();
+  expect(confirmedBody).toMatchObject({
+    data: {
+      saleId,
+      saleStatus: "CONFIRMED",
+      paymentAttempt: {
+        attemptId: checkoutBody.data.paymentAttempt.attemptId,
+        status: "APPROVED",
+        amountCents: 2590,
+        integrationChannel: "PIX_AREA",
+        confirmationSource: "MANUAL",
+        proofReference: confirmationPayload.proofReference,
+      },
+      stock: {
+        reservationId: checkoutBody.data.reservation.reservationId,
+        status: "CONSUMED",
+      },
+    },
+  });
+
+  const replay = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": confirmationKey },
+    data: confirmationPayload,
+  });
+  expect(replay.status()).toBe(200);
+  await expect(replay.json()).resolves.toMatchObject({ data: confirmedBody.data });
+
+  const cancelled = await page.request.post(`/api/v1/sales/${saleId}/cancel`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-cancel-confirmed` },
+  });
+  expect(cancelled.status()).toBe(409);
+  await expect(cancelled.json()).resolves.toMatchObject({ code: "CONFIRMED_SALE_REVERSAL_REQUIRED" });
+});
+
 test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {
   await page.goto("/login");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
