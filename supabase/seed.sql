@@ -109,3 +109,10 @@ insert into public.product_prices (id, product_id, amount_cents, valid_from) val
   ('43f00000-0000-4000-8000-000000000002', '33f00000-0000-4000-8000-000000000002', 1990, '2026-01-01T00:00:00Z'),
   ('43f00000-0000-4000-8000-000000000003', '33f00000-0000-4000-8000-000000000003', 3490, '2026-01-01T00:00:00Z')
 on conflict (id) do nothing;
+
+insert into public.inventory_balances (location_id, product_id)
+values (
+  '50000000-0000-4000-8000-000000000001',
+  '33f00000-0000-4000-8000-000000000001'
+)
+on conflict (location_id, product_id) do nothing;

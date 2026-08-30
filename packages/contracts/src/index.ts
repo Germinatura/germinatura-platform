@@ -156,6 +156,88 @@ export const saleSchema = z.object({
 }).strict();
 export type Sale = z.infer<typeof saleSchema>;
 
+export const paymentAttemptStatusSchema = z.enum([
+  "CREATED",
+  "PENDING",
+  "AWAITING_EXTERNAL_CONFIRMATION",
+  "APPROVED",
+  "DECLINED",
+  "CANCELLED",
+  "EXPIRED",
+  "REFUNDED",
+  "RECONCILIATION_PENDING",
+  "RECONCILED",
+]);
+export type PaymentAttemptStatus = z.infer<typeof paymentAttemptStatusSchema>;
+
+export const paymentIntegrationChannelSchema = z.enum([
+  "PIX_AREA",
+  "CHECKOUT_API",
+  "PICPAY_WALLET",
+  "PAYMENT_LINK",
+  "MAQUININHA",
+  "TAP",
+]);
+export type PaymentIntegrationChannel = z.infer<typeof paymentIntegrationChannelSchema>;
+
+export const paymentConfirmationSourceSchema = z.enum([
+  "WEBHOOK",
+  "STATUS_QUERY",
+  "MANUAL",
+  "RECONCILIATION_IMPORT",
+]);
+export type PaymentConfirmationSource = z.infer<typeof paymentConfirmationSourceSchema>;
+
+export const salesCheckoutRequestSchema = pricingQuoteRequestSchema.extend({
+  locationId: z.uuid(),
+}).strict();
+export type SalesCheckoutRequest = z.infer<typeof salesCheckoutRequestSchema>;
+
+export const salesCheckoutResponseSchema = z.object({
+  data: z.object({
+    saleId: z.uuid(),
+    status: z.literal("AWAITING_PAYMENT"),
+    channel: pricingChannelSchema,
+    locationId: z.uuid(),
+    quote: pricingQuoteResponseSchema.shape.data,
+    reservation: z.object({
+      reservationId: z.uuid(),
+      status: z.literal("ACTIVE"),
+      expiresAt: z.iso.datetime({ offset: true }),
+      reservationMovementId: z.uuid(),
+    }).strict(),
+    paymentAttempt: z.object({
+      attemptId: z.uuid(),
+      status: z.literal("CREATED"),
+      amountCents: moneyCentsSchema,
+      integrationChannel: z.null(),
+      confirmationSource: z.null(),
+    }).strict(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type SalesCheckoutResponse = z.infer<typeof salesCheckoutResponseSchema>;
+
+export const salesCancelResponseSchema = z.object({
+  data: z.object({
+    saleId: z.uuid(),
+    status: z.literal("CANCELLED"),
+    reservation: z.object({
+      reservationId: z.uuid(),
+      status: z.enum(["RELEASED", "EXPIRED"]),
+      releaseMovementId: z.uuid().nullable(),
+    }).strict(),
+    paymentAttempt: z.object({
+      attemptId: z.uuid(),
+      status: z.literal("CANCELLED"),
+    }).strict(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type SalesCancelResponse = z.infer<typeof salesCancelResponseSchema>;
+
 export const stockMovementTypeSchema = z.enum([
   "SALDO_INICIAL",
   "ENTRADA_COMPRA",

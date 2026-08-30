@@ -157,6 +157,98 @@ test("Pricing quote rejects client totals and calculates public prices server-si
   });
 });
 
+test("Checkout rejects client totals and deduplicates Cobrar atomically", async ({ page }) => {
+  const productId = "33f00000-0000-4000-8000-000000000001";
+  const locationId = "50000000-0000-4000-8000-000000000001";
+  await page.goto("/login");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
+
+  const tampered = await page.request.post("/api/v1/sales/checkout", {
+    headers: { Origin: portalUrl, "Idempotency-Key": `e2e-tampered-${Date.now()}` },
+    data: { channel: "PDV", locationId, items: [{ productId, quantity: 1 }], totalCents: 1 },
+  });
+  expect(tampered.status()).toBe(422);
+  await expect(tampered.json()).resolves.toMatchObject({ code: "INVALID_CHECKOUT" });
+
+  const key = `e2e-checkout-${Date.now()}`;
+  const payload = { channel: "PDV", locationId, items: [{ productId, quantity: 1 }] };
+  const first = await page.request.post("/api/v1/sales/checkout", {
+    headers: { Origin: portalUrl, "Idempotency-Key": key },
+    data: payload,
+  });
+  expect(first.status()).toBe(201);
+  const firstBody = await first.json();
+  expect(firstBody).toMatchObject({
+    data: {
+      status: "AWAITING_PAYMENT",
+      channel: "PDV",
+      locationId,
+      quote: { totalCents: 2590 },
+      reservation: { status: "ACTIVE" },
+      paymentAttempt: {
+        status: "CREATED",
+        amountCents: 2590,
+        integrationChannel: null,
+        confirmationSource: null,
+      },
+    },
+  });
+
+  const replay = await page.request.post("/api/v1/sales/checkout", {
+    headers: { Origin: portalUrl, "Idempotency-Key": key },
+    data: payload,
+  });
+  expect(replay.status()).toBe(201);
+  await expect(replay.json()).resolves.toMatchObject({
+    data: {
+      saleId: firstBody.data.saleId,
+      reservation: { reservationId: firstBody.data.reservation.reservationId },
+      paymentAttempt: { attemptId: firstBody.data.paymentAttempt.attemptId },
+    },
+  });
+
+  const conflictingReplay = await page.request.post("/api/v1/sales/checkout", {
+    headers: { Origin: portalUrl, "Idempotency-Key": key },
+    data: { ...payload, items: [{ productId, quantity: 2 }] },
+  });
+  expect(conflictingReplay.status()).toBe(409);
+  await expect(conflictingReplay.json()).resolves.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+
+  const noStock = await page.request.post("/api/v1/sales/checkout", {
+    headers: { Origin: portalUrl, "Idempotency-Key": `${key}-no-stock` },
+    data: payload,
+  });
+  expect(noStock.status()).toBe(409);
+  await expect(noStock.json()).resolves.toMatchObject({ code: "STOCK_CONFLICT" });
+
+  const cancelKey = `${key}-cancel`;
+  const cancelled = await page.request.post(`/api/v1/sales/${firstBody.data.saleId}/cancel`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": cancelKey },
+  });
+  expect(cancelled.status()).toBe(200);
+  const cancelledBody = await cancelled.json();
+  expect(cancelledBody).toMatchObject({
+    data: {
+      saleId: firstBody.data.saleId,
+      status: "CANCELLED",
+      reservation: {
+        reservationId: firstBody.data.reservation.reservationId,
+        status: "RELEASED",
+      },
+      paymentAttempt: {
+        attemptId: firstBody.data.paymentAttempt.attemptId,
+        status: "CANCELLED",
+      },
+    },
+  });
+
+  const cancelReplay = await page.request.post(`/api/v1/sales/${firstBody.data.saleId}/cancel`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": cancelKey },
+  });
+  expect(cancelReplay.status()).toBe(200);
+  await expect(cancelReplay.json()).resolves.toMatchObject({ data: cancelledBody.data });
+});
+
 test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {
   await page.goto("/login");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");

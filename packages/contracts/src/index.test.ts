@@ -16,6 +16,9 @@ import {
   publicCatalogProductsResponseSchema,
   saleSchema,
   saleStatusSchema,
+  salesCancelResponseSchema,
+  salesCheckoutRequestSchema,
+  salesCheckoutResponseSchema,
   sessionUserSchema,
   stockMovementTypeSchema,
   stockReservationItemSchema,
@@ -240,5 +243,82 @@ describe("shared contracts", () => {
     });
     expect(sale.totalCents).toBe(2500);
     expect(saleSchema.safeParse({ ...sale, totalCents: 1, authoritativeTotal: 2500 }).success).toBe(false);
+  });
+
+  it("accepts only non-authoritative checkout inputs and explained results", () => {
+    const productId = "33000000-0000-4000-8000-000000000001";
+    const locationId = "50000000-0000-4000-8000-000000000002";
+    expect(salesCheckoutRequestSchema.parse({
+      channel: "PDV",
+      locationId,
+      items: [{ productId, quantity: 2 }],
+    })).toMatchObject({ channel: "PDV", locationId });
+    expect(salesCheckoutRequestSchema.safeParse({
+      channel: "PDV",
+      locationId,
+      items: [{ productId, quantity: 2 }],
+      totalCents: 1,
+    }).success).toBe(false);
+
+    expect(salesCheckoutResponseSchema.parse({
+      data: {
+        saleId: "71000000-0000-4000-8000-000000000001",
+        status: "AWAITING_PAYMENT",
+        channel: "PDV",
+        locationId,
+        quote: {
+          channel: "PDV",
+          quotedAt: "2026-08-30T18:00:00.000Z",
+          currency: "BRL",
+          rounding: "NONE",
+          lines: [{
+            productId,
+            name: "Item",
+            unitPriceCents: 1500,
+            quantity: 2,
+            originalSubtotalCents: 3000,
+            discountCents: 0,
+            totalCents: 3000,
+            appliedPromotion: null,
+          }],
+          originalTotalCents: 3000,
+          discountTotalCents: 0,
+          totalCents: 3000,
+        },
+        reservation: {
+          reservationId: "74000000-0000-4000-8000-000000000001",
+          status: "ACTIVE",
+          expiresAt: "2026-08-30T18:10:00.000Z",
+          reservationMovementId: "75000000-0000-4000-8000-000000000001",
+        },
+        paymentAttempt: {
+          attemptId: "76000000-0000-4000-8000-000000000001",
+          status: "CREATED",
+          amountCents: 3000,
+          integrationChannel: null,
+          confirmationSource: null,
+        },
+        correlationId: "72000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-checkout",
+    }).data.paymentAttempt.status).toBe("CREATED");
+
+    expect(salesCancelResponseSchema.parse({
+      data: {
+        saleId: "71000000-0000-4000-8000-000000000001",
+        status: "CANCELLED",
+        reservation: {
+          reservationId: "74000000-0000-4000-8000-000000000001",
+          status: "RELEASED",
+          releaseMovementId: "75000000-0000-4000-8000-000000000002",
+        },
+        paymentAttempt: {
+          attemptId: "76000000-0000-4000-8000-000000000001",
+          status: "CANCELLED",
+        },
+        correlationId: "72000000-0000-4000-8000-000000000002",
+      },
+      request_id: "request-cancel",
+    }).data.status).toBe("CANCELLED");
   });
 });
