@@ -50,7 +50,7 @@ async function adminAccessToken(config: SupabaseConfig): Promise<string> {
       apikey: config.publishableKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email: "admin@germinatura.test", password: "Admin123!" }),
+    body: JSON.stringify({ email: "admin.teste@institutojef.org.br", password: "Admin123!" }),
   });
   const body = (await response.json()) as { access_token?: string; message?: string };
   if (!response.ok || !body.access_token) {

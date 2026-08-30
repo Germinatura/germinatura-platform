@@ -6,6 +6,8 @@ import {
   createApiClient,
   idempotencyKeySchema,
   idempotencyStatusSchema,
+  institutionalEmailSchema,
+  institutionalOtpVerifySchema,
   moneyCentsSchema,
   productSkuSchema,
   pricingQuoteRequestSchema,
@@ -16,11 +18,38 @@ import {
   stockMovementTypeSchema,
   stockReservationItemSchema,
   stockReservationStatusSchema,
+  userAccessUpdateSchema,
 } from "./index";
 
 describe("shared contracts", () => {
   it("rejects an invalid session identity", () => {
     expect(() => sessionUserSchema.parse({ id: "1" })).toThrow();
+  });
+
+  it("accepts only the canonical institutional email domain", () => {
+    expect(institutionalEmailSchema.parse(" Pessoa@InstitutoJef.org.br ")).toBe("pessoa@institutojef.org.br");
+    for (const email of [
+      "pessoa@example.org",
+      "pessoa@sub.institutojef.org.br",
+      "pessoa@institutojef.org.br.example.org",
+      "pessoa@institutojeforgbr",
+    ]) {
+      expect(institutionalEmailSchema.safeParse(email).success).toBe(false);
+    }
+    expect(institutionalOtpVerifySchema.safeParse({
+      email: "pessoa@institutojef.org.br",
+      token: "123456",
+    }).success).toBe(true);
+    expect(institutionalOtpVerifySchema.safeParse({
+      email: "pessoa@institutojef.org.br",
+      token: "1234567",
+    }).success).toBe(false);
+  });
+
+  it("validates cumulative user access updates", () => {
+    expect(userAccessUpdateSchema.parse({ roles: ["VENDEDOR", "CONSUMIDOR"], active: true }))
+      .toEqual({ roles: ["VENDEDOR", "CONSUMIDOR"], active: true });
+    expect(userAccessUpdateSchema.safeParse({ roles: ["SUPERADMIN"], active: true }).success).toBe(false);
   });
 
   it("accepts the standard API error envelope", () => {

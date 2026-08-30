@@ -19,7 +19,7 @@
     "security:scan": "node tools/check-repository-security.mjs",
     "test:ci": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build",
     "supabase:start": "node tools/run-supabase.mjs start",
-    "supabase:start:test": "node tools/run-supabase.mjs start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
+    "supabase:start:test": "node tools/run-supabase.mjs start -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
     "supabase:stop": "node tools/run-supabase.mjs stop",
     "supabase:reset": "node tools/run-supabase.mjs db reset"
   },

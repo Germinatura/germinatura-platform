@@ -4,20 +4,14 @@ const portalUrl = "http://127.0.0.1:3000";
 const pdvUrl = process.env.PDV_URL ?? "http://127.0.0.1:3001";
 
 async function login(page: import("@playwright/test").Page, email: string, password: string) {
-  const emailInput = page.locator('input[type="email"]');
-  const passwordInput = page.locator('input[type="password"]');
-  await expect(emailInput).toBeVisible();
-  await expect(passwordInput).toBeVisible();
-  await emailInput.fill(email);
-  await passwordInput.fill(password);
-  await expect(emailInput).toHaveValue(email);
-  await expect(passwordInput).toHaveValue(password);
-  const loginResponse = page.waitForResponse((response) => {
-    const path = new URL(response.url()).pathname;
-    return response.request().method() === "POST" && (path === "/api/auth/login" || path === "/auth/v1/token");
+  const origin = new URL(page.url()).origin;
+  const route = origin === pdvUrl ? "/api/auth/test-login" : "/api/auth/login";
+  const loginResponse = await page.request.post(`${origin}${route}`, {
+    headers: { Origin: origin, "Sec-Fetch-Site": "same-origin" },
+    data: { email, password },
   });
-  await page.getByRole("button", { name: /Entrar na Plataforma/i }).click();
-  expect((await loginResponse).status()).toBe(200);
+  expect(loginResponse.status()).toBe(200);
+  await page.goto(origin === pdvUrl && email.startsWith("admin.") ? `${portalUrl}/` : `${origin}/`);
 }
 
 test("Portal and PDV expose minimal independent health endpoints", async ({ request }) => {
@@ -43,13 +37,13 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
   expect(method.headers().allow).toBe("POST");
 
   const missingOrigin = await request.post("/api/auth/login", {
-    data: { email: "admin@germinatura.test", password: "Admin123!" },
+    data: { email: "admin.teste@institutojef.org.br", password: "Admin123!" },
   });
   expect(missingOrigin.status()).toBe(403);
 
   const crossOrigin = await request.post("/api/auth/login", {
     headers: { Origin: "https://malicious.invalid", "Sec-Fetch-Site": "cross-site" },
-    data: { email: "admin@germinatura.test", password: "Admin123!" },
+    data: { email: "admin.teste@institutojef.org.br", password: "Admin123!" },
   });
   expect(crossOrigin.status()).toBe(403);
 
@@ -58,6 +52,38 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
     data: { novaSenha: "Example123!" },
   });
   expect(protectedMutation.status()).toBe(401);
+});
+
+test("Institutional OTP creates only a consumer session and rejects external domains", async ({ page, request }) => {
+  const external = await request.post("/api/v1/auth/otp/request", {
+    headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
+    data: { email: "pessoa@example.org" },
+  });
+  expect(external.status()).toBe(422);
+
+  const email = `otp.e2e.${Date.now()}@institutojef.org.br`;
+  await page.goto("/login");
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await page.getByLabel("Email institucional").fill(email);
+  const requested = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/otp/request");
+  await page.getByRole("button", { name: "Receber código" }).click();
+  expect((await requested).status()).toBe(202);
+
+  let otpCode = "";
+  await expect.poll(async () => {
+    const mailbox = await request.get("http://127.0.0.1:54325/api/v1/messages");
+    const body = await mailbox.json() as { messages: Array<{ To: Array<{ Address: string }>; Snippet: string }> };
+    const message = body.messages.find((candidate) => candidate.To.some((recipient) => recipient.Address === email));
+    otpCode = message?.Snippet.match(/\b\d{6}\b/)?.[0] ?? "";
+    return otpCode;
+  }, { timeout: 10_000 }).toMatch(/^\d{6}$/);
+
+  await page.getByLabel("Código de 6 dígitos").fill(otpCode);
+  const verified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/otp/verify");
+  await page.getByRole("button", { name: "Confirmar código" }).click();
+  expect((await verified).status()).toBe(200);
+  await expect(page).toHaveURL(`${portalUrl}/`);
+  await expect(page.getByText("Consumidor", { exact: true })).toBeVisible();
 });
 
 test("Public catalog is bounded, paginated and restricted to the anonymous RLS view", async ({ page, request }) => {
@@ -90,7 +116,7 @@ test("Public catalog is bounded, paginated and restricted to the anonymous RLS v
   });
 
   await page.goto("/login");
-  await login(page, "admin@germinatura.test", "Admin123!");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   const authenticatedResponse = await page.request.get("/api/v1/catalog/products?limit=50");
   await expect(authenticatedResponse).toBeOK();
   const authenticatedBody = await authenticatedResponse.json();
@@ -133,9 +159,9 @@ test("Pricing quote rejects client totals and calculates public prices server-si
 
 test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {
   await page.goto("/login");
-  await login(page, "admin@germinatura.test", "Admin123!");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
-  await expect(page.getByText("Fundação v2.1 greenfield")).toBeVisible();
+  await expect(page.getByText("Germinatura v2.2")).toBeVisible();
 
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();
@@ -152,7 +178,7 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
 
 test("Administrator leaving the PDV can log back into the Portal", async ({ page }) => {
   await page.goto(`${pdvUrl}/login`);
-  await login(page, "admin@germinatura.test", "Admin123!");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
 
   await page.goto(`${pdvUrl}/`);
@@ -161,7 +187,7 @@ test("Administrator leaving the PDV can log back into the Portal", async ({ page
   expect((await page.request.get("/api/v1/auth/session")).status()).toBe(401);
 
   await page.waitForLoadState("networkidle");
-  await login(page, "admin@germinatura.test", "Admin123!");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
 });
 
@@ -169,7 +195,7 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   const portalContext = await browser.newContext();
   const portalPage = await portalContext.newPage();
   await portalPage.goto(`${portalUrl}/login`);
-  await login(portalPage, "consumidor@germinatura.test", "Consumidor123!");
+  await login(portalPage, "consumidor.teste@institutojef.org.br", "Consumidor123!");
   await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await expect(portalPage.getByText("Consumidor", { exact: true })).toBeVisible();
   await portalContext.close();
@@ -177,15 +203,15 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   const pdvContext = await browser.newContext();
   const pdvPage = await pdvContext.newPage();
   await pdvPage.goto(`${pdvUrl}/login`);
-  await login(pdvPage, "consumidor@germinatura.test", "Consumidor123!");
-  await expect(pdvPage).toHaveURL(new RegExp(`${pdvUrl.replaceAll(".", "\\.")}\/login$`));
-  await expect(pdvPage.getByText("Seu perfil não possui acesso ao PDV")).toBeVisible();
+  await login(pdvPage, "consumidor.teste@institutojef.org.br", "Consumidor123!");
+  await expect(pdvPage).toHaveURL(`${portalUrl}/`);
+  await expect(pdvPage.getByText("Consumidor", { exact: true })).toBeVisible();
   await pdvContext.close();
 });
 
 test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ page }) => {
   await page.goto(`${pdvUrl}/login`);
-  await login(page, "vendedor@germinatura.test", "Vendedor123!");
+  await login(page, "vendedor.teste@institutojef.org.br", "Vendedor123!");
   await expect(page).toHaveURL(`${pdvUrl}/`);
   await expect(page.getByText("Acesso autorizado")).toBeVisible();
 
@@ -196,7 +222,7 @@ test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ pag
 
 test("Logout and an expired bearer session are rejected", async ({ page, request }) => {
   await page.goto("/login");
-  await login(page, "admin@germinatura.test", "Admin123!");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
 
   const logoutStatus = await page.evaluate(async () => (await fetch("/api/auth/logout", { method: "POST" })).status);
@@ -209,7 +235,7 @@ test("Logout and an expired bearer session are rejected", async ({ page, request
 
 test("Removed legacy domains are not exposed as functional APIs", async ({ page }) => {
   await page.goto("/login");
-  await login(page, "admin@germinatura.test", "Admin123!");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
   const status = await page.evaluate(async () => (await fetch("/api/produtos")).status);
   expect(status).toBe(404);

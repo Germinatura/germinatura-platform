@@ -165,6 +165,30 @@ export const appRoleSchema = z.enum([
 ]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 
+export const institutionalEmailSchema = z.string().max(254)
+  .transform((value) => value.trim().toLowerCase())
+  .pipe(z.email().refine(
+    (value) => /^[^@\s]+@institutojef\.org\.br$/.test(value),
+    "Use um email institucional válido",
+  ));
+
+export const institutionalOtpRequestSchema = z.object({
+  email: institutionalEmailSchema,
+}).strict();
+export type InstitutionalOtpRequest = z.infer<typeof institutionalOtpRequestSchema>;
+
+export const institutionalOtpVerifySchema = z.object({
+  email: institutionalEmailSchema,
+  token: z.string().regex(/^\d{6}$/),
+}).strict();
+export type InstitutionalOtpVerify = z.infer<typeof institutionalOtpVerifySchema>;
+
+export const userAccessUpdateSchema = z.object({
+  roles: z.array(appRoleSchema).max(7),
+  active: z.boolean(),
+}).strict();
+export type UserAccessUpdate = z.infer<typeof userAccessUpdateSchema>;
+
 export const permissionSchema = z.enum([
   "portal.access",
   "admin.access",
@@ -194,6 +218,7 @@ export const sessionUserSchema = z.object({
   name: z.string().min(1),
   role: appRoleSchema,
   roles: z.array(appRoleSchema).min(1),
+  active: z.literal(true),
 });
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 

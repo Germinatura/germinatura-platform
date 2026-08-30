@@ -8,11 +8,11 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | --- | --- | --- | --- | --- | --- |
 | Auth Supabase, RBAC/RLS e baseline web | DONE | P0 | — | AUTH-001/002, SEC-001 | Migration, testes SQL/E2E e CI em `b58f93e` |
 | Fonte v2.2, PRD, gaps e ADRs | DONE | P0 | PR | GOV-001 | `0640c11` em `main`, CI `32852994966` verde e v2.1 marcada histórica |
-| Acesso institucional por código de e-mail | TODO | P0 | Supabase Auth, serviço de e-mail, rate limit | AUTH-003, SEC-002 | Domínio exato `@institutojef.org.br`; código de uso único; rejeição de domínio externo, código expirado e replay; testes E2E |
-| Papel base e ativação de vendedor | TODO | P0 | Acesso institucional, RBAC, auditoria | AUTH-004, PDV-001, AUD-001 | Nova conta recebe somente `CONSUMIDOR`; múltiplos papéis funcionam; PDV permanece bloqueado até ativação administrativa auditada de `VENDEDOR` |
-| Bootstrap do primeiro administrador | TODO | P0 | Acesso institucional, procedimento seguro de bootstrap | AUTH-005, AUD-001 | Somente `theo.martins@institutojef.org.br` verificado recebe a primeira concessão `ADMIN`; operação idempotente, auditada e sem segredo versionado |
+| Acesso institucional por código de e-mail | IN PROGRESS | P0 | Supabase Auth, serviço de e-mail, rate limit | AUTH-003, SEC-002 | `feat/institutional-auth` implementa domínio exato no banco, OTP de 6 dígitos, rate limit persistente e E2E local; falta validar template/SMTP em staging |
+| Papel base e ativação de vendedor | IN PROGRESS | P0 | Acesso institucional, RBAC, auditoria | AUTH-004, PDV-001, AUD-001 | A fatia institucional preserva `CONSUMIDOR`, oferece ativação auditada e corta permissões de perfil inativo; falta evidência remota de staging |
+| Bootstrap do primeiro administrador | IN PROGRESS | P0 | Acesso institucional, procedimento seguro de bootstrap | AUTH-005, AUD-001 | RPC e interface locais aceitam somente a identidade verificada definida no ADR 0009, são idempotentes e fecham após sucesso; bootstrap real continua operacionalmente pendente |
 | Granularidade futura de autorização | TODO | P0 | Cada domínio | AUTH-002 | Rota + permission + RLS + teste de abuso |
-| Staging segregado | IN PROGRESS | P1 | Supabase/Cloudflare/GitHub Environment/domínios | SEC-001, OBS-001 | PR #17 prepara ambientes e pipeline; deploy e smoke reais dependem de merge autorizado e execução validada |
+| Staging segregado | DONE | P1 | Supabase/Cloudflare/GitHub Environment/domínios | SEC-001, OBS-001 | Deploy `33294264656`, CI `33294264662` e smokes remotos verdes em `develop`; domínios próprios permanecem dívida operacional aceita |
 
 ## Fase 1 — Fundação
 
@@ -39,7 +39,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Pricing e promoções server-side | IN PROGRESS | P0 | Catálogo | PRICE-002, PROMO-001/002 | `9f618fd` cobre domínio e persistência; PR #17 adiciona cotação autoritativa para `PORTAL`/`PDV`, com cálculo em centavos e promoções explicadas |
+| Pricing e promoções server-side | DONE | P0 | Catálogo | PRICE-002, PROMO-001/002 | `86238e1` promoveu a cotação autoritativa para `PORTAL`/`PDV`; staging/produção e rejeição de total adulterado foram validados |
 | Checkout/venda/cancelamento | TODO | P0 | Pricing/ledger/outbox | SALE-001/002/003 | Atomicidade e duplicação testadas |
 | PWA/estoque vendedor/fechamento | TODO | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Offline read-only e fechamento auditado |
 

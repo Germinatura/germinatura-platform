@@ -46,6 +46,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:unit
       - run: pnpm exec supabase link --project-ref "$SUPABASE_PROJECT_ID"
+      - run: node tools/configure-supabase-auth.mjs
       - run: pnpm exec supabase db push --dry-run
       - run: pnpm exec supabase db push
       - working-directory: apps/portal
