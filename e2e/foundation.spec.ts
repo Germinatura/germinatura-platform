@@ -106,6 +106,31 @@ test("Unauthenticated page and API access are blocked", async ({ page, request }
   expect((await request.get("/api/v1/auth/session")).status()).toBe(401);
 });
 
+test("Pricing quote rejects client totals and calculates public prices server-side", async ({ request }) => {
+  const productId = "33f00000-0000-4000-8000-000000000001";
+  const tampered = await request.post("/api/v1/pricing/quote", {
+    headers: { Origin: portalUrl },
+    data: { channel: "PORTAL", items: [{ productId, quantity: 2 }], totalCents: 1 },
+  });
+  expect(tampered.status()).toBe(422);
+  await expect(tampered.json()).resolves.toMatchObject({ code: "INVALID_QUOTE" });
+
+  const response = await request.post("/api/v1/pricing/quote", {
+    headers: { Origin: portalUrl },
+    data: { channel: "PORTAL", items: [{ productId, quantity: 2 }] },
+  });
+  await expect(response).toBeOK();
+  await expect(response.json()).resolves.toMatchObject({
+    data: {
+      channel: "PORTAL",
+      originalTotalCents: 5180,
+      discountTotalCents: 0,
+      totalCents: 5180,
+      lines: [{ productId, unitPriceCents: 2590, quantity: 2, appliedPromotion: null }],
+    },
+  });
+});
+
 test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {
   await page.goto("/login");
   await login(page, "admin@germinatura.test", "Admin123!");

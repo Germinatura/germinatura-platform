@@ -64,6 +64,58 @@ export const publicCatalogProductsResponseSchema = z.object({
 });
 export type PublicCatalogProductsResponse = z.infer<typeof publicCatalogProductsResponseSchema>;
 
+export const pricingChannelSchema = z.enum(["PORTAL", "PDV"]);
+export const pricingQuoteRequestSchema = z.object({
+  channel: pricingChannelSchema,
+  items: z.array(z.object({
+    productId: z.uuid(),
+    quantity: z.number().int().positive().refine(Number.isSafeInteger, "Quantity must be a safe integer"),
+  }).strict()).min(1).max(100),
+}).strict().superRefine(({ items }, context) => {
+  const seen = new Set<string>();
+  for (const [index, item] of items.entries()) {
+    if (seen.has(item.productId)) {
+      context.addIssue({ code: "custom", message: "Duplicate product", path: ["items", index, "productId"] });
+    }
+    seen.add(item.productId);
+  }
+});
+export type PricingQuoteRequest = z.infer<typeof pricingQuoteRequestSchema>;
+
+const appliedQuantityPromotionSchema = z.object({
+  promotionId: z.uuid(),
+  type: z.literal("QUANTIDADE_PRECO"),
+  groupQuantity: z.number().int().min(2),
+  groupPriceCents: moneyCentsSchema,
+  groups: z.number().int().positive(),
+  promotedQuantity: z.number().int().positive(),
+  remainderQuantity: z.number().int().nonnegative(),
+  savingsCents: moneyCentsSchema,
+});
+export const pricingQuoteResponseSchema = z.object({
+  data: z.object({
+    channel: pricingChannelSchema,
+    quotedAt: z.iso.datetime({ offset: true }),
+    currency: z.literal("BRL"),
+    rounding: z.literal("NONE"),
+    lines: z.array(z.object({
+      productId: z.uuid(),
+      name: z.string().min(1),
+      unitPriceCents: moneyCentsSchema,
+      quantity: z.number().int().positive(),
+      originalSubtotalCents: moneyCentsSchema,
+      discountCents: moneyCentsSchema,
+      totalCents: moneyCentsSchema,
+      appliedPromotion: appliedQuantityPromotionSchema.nullable(),
+    })),
+    originalTotalCents: moneyCentsSchema,
+    discountTotalCents: moneyCentsSchema,
+    totalCents: moneyCentsSchema,
+  }),
+  request_id: z.string().min(1),
+});
+export type PricingQuoteResponse = z.infer<typeof pricingQuoteResponseSchema>;
+
 export const stockMovementTypeSchema = z.enum([
   "SALDO_INICIAL",
   "ENTRADA_COMPRA",

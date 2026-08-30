@@ -8,6 +8,8 @@ import {
   idempotencyStatusSchema,
   moneyCentsSchema,
   productSkuSchema,
+  pricingQuoteRequestSchema,
+  pricingQuoteResponseSchema,
   publicCatalogProductsQuerySchema,
   publicCatalogProductsResponseSchema,
   sessionUserSchema,
@@ -126,5 +128,51 @@ describe("shared contracts", () => {
 
     expect(new Headers(receivedInit?.headers).get("Authorization")).toBe("Bearer access-token");
     expect(receivedInit?.credentials).toBe("include");
+  });
+
+  it("accepts only canonical pricing inputs and rejects financial tampering", () => {
+    const productId = "33000000-0000-4000-8000-000000000001";
+    expect(pricingQuoteRequestSchema.parse({ channel: "PORTAL", items: [{ productId, quantity: 3 }] }))
+      .toMatchObject({ channel: "PORTAL" });
+    expect(pricingQuoteRequestSchema.safeParse({ channel: "PORTAL", items: [{ productId, quantity: 3 }], totalCents: 1 }).success)
+      .toBe(false);
+    expect(pricingQuoteRequestSchema.safeParse({ channel: "RESERVA", items: [{ productId, quantity: 3 }] }).success)
+      .toBe(false);
+    expect(pricingQuoteRequestSchema.safeParse({ channel: "PORTAL", items: [{ productId, quantity: 1 }, { productId, quantity: 2 }] }).success)
+      .toBe(false);
+  });
+
+  it("validates an explained authoritative pricing response", () => {
+    expect(pricingQuoteResponseSchema.parse({
+      data: {
+        channel: "PORTAL",
+        quotedAt: "2026-08-29T17:00:00.000Z",
+        currency: "BRL",
+        rounding: "NONE",
+        lines: [{
+          productId: "33000000-0000-4000-8000-000000000001",
+          name: "Produto",
+          unitPriceCents: 1500,
+          quantity: 3,
+          originalSubtotalCents: 4500,
+          discountCents: 2000,
+          totalCents: 2500,
+          appliedPromotion: {
+            promotionId: "44000000-0000-4000-8000-000000000001",
+            type: "QUANTIDADE_PRECO",
+            groupQuantity: 2,
+            groupPriceCents: 1000,
+            groups: 1,
+            promotedQuantity: 2,
+            remainderQuantity: 1,
+            savingsCents: 2000,
+          },
+        }],
+        originalTotalCents: 4500,
+        discountTotalCents: 2000,
+        totalCents: 2500,
+      },
+      request_id: "req-pricing",
+    }).data.totalCents).toBe(2500);
   });
 });

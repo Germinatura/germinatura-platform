@@ -1,6 +1,6 @@
 # Roadmap oficial — Germinatura v2.2
 
-Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi auditada até `9e2ca83`; documentação histórica não prova implementação.
+Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi auditada até `9f618fd`; documentação histórica não prova implementação.
 
 ## Fase 0 — Auditoria e segurança
 
@@ -9,7 +9,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Auth Supabase, RBAC/RLS e baseline web | DONE | P0 | — | AUTH-001/002, SEC-001 | Migration, testes SQL/E2E e CI em `b58f93e` |
 | Fonte v2.2, PRD, gaps e ADRs | DONE | P0 | PR | GOV-001 | `0640c11` em `main`, CI `32852994966` verde e v2.1 marcada histórica |
 | Granularidade futura de autorização | TODO | P0 | Cada domínio | AUTH-002 | Rota + permission + RLS + teste de abuso |
-| Staging segregado | BLOCKED | P1 | Supabase/Cloudflare/GitHub Environment/domínios | SEC-001, OBS-001 | Deploy e smoke reais sem produção |
+| Staging segregado | IN PROGRESS | P1 | Supabase/Cloudflare/GitHub Environment/domínios | SEC-001, OBS-001 | PR #17 prepara ambientes e pipeline; deploy e smoke reais dependem de merge autorizado e execução validada |
 
 ## Fase 1 — Fundação
 
@@ -36,7 +36,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Pricing e promoções server-side | IN PROGRESS | P0 | Catálogo | PRICE-002, PROMO-001/002 | `9e2ca83` cobre preço-base e `QUANTIDADE_PRECO`; a branch atual cobre persistência/consulta vigente, enquanto a API autoritativa permanece pendente |
+| Pricing e promoções server-side | IN PROGRESS | P0 | Catálogo | PRICE-002, PROMO-001/002 | `9f618fd` cobre domínio e persistência; PR #17 adiciona cotação autoritativa para `PORTAL`/`PDV`, com cálculo em centavos e promoções explicadas |
 | Checkout/venda/cancelamento | TODO | P0 | Pricing/ledger/outbox | SALE-001/002/003 | Atomicidade e duplicação testadas |
 | PWA/estoque vendedor/fechamento | TODO | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Offline read-only e fechamento auditado |
 
@@ -81,4 +81,4 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 ## Próxima fatia recomendada
 
-Expor `POST /api/v1/pricing/quote`: receber somente canal e `{productId, quantity}`, resolver preços e `QUANTIDADE_PRECO` vigentes no servidor e devolver linhas explicadas, totais e `request_id`, sem reservar estoque ou garantir preço futuro.
+Após a cotação autoritativa ser mesclada, iniciar `feat/sales-foundation`: persistir venda rascunho, itens com snapshot e máquina de estados auditável, ainda sem concluir pagamento ou chamar PicPay.

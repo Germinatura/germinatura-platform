@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "germinatura-portal",
+  "account_id": "ac1e415bccca201b80f8313dd5ffeec8",
+  "compatibility_date": "2026-08-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+  "cache": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "germinatura-portal-staging",
+      "workers_dev": true,
+      "images": { "binding": "IMAGES" },
+      "kv_namespaces": [
+        { "binding": "VINEXT_KV_CACHE", "id": "74f9393ad5b947bc99ba786e87edc13f" }
+      ]
+    },
+    "production": {
+      "name": "germinatura-portal-production",
+      "workers_dev": true,
+      "images": { "binding": "IMAGES" },
+      "kv_namespaces": [
+        { "binding": "VINEXT_KV_CACHE", "id": "22e0d9c1963f479a8d371a2642a6b58a" }
+      ]
+    }
+  }
+}
