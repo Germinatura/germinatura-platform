@@ -161,7 +161,7 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await page.goto("/login");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
-  await expect(page.getByText("Fundação v2.1 greenfield")).toBeVisible();
+  await expect(page.getByText("Germinatura v2.2")).toBeVisible();
 
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();
