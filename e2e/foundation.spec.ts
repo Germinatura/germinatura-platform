@@ -50,6 +50,7 @@ test("Portal and PDV expose minimal independent health endpoints", async ({ requ
 });
 
 test("API allowlist enforces methods, authentication and CSRF origin", async ({ request }) => {
+  const rateLimitedIdentifier = `login.rate.${Date.now().toString(36)}`;
   const method = await request.get("/api/auth/login");
   expect(method.status()).toBe(405);
   expect(method.headers().allow).toBe("POST");
@@ -71,16 +72,28 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
   });
   expect(protectedMutation.status()).toBe(401);
 
+  for (const path of [
+    "/api/v1/reservations",
+    "/api/v1/raffles/94000000-0000-4000-8000-000000000001/numbers/reserve",
+    "/api/v1/admin/raffles",
+  ]) {
+    const protectedDomainMutation = await request.post(path, {
+      headers: { Origin: portalUrl, "Idempotency-Key": `e2e-unauth-${path}` },
+      data: {},
+    });
+    expect(protectedDomainMutation.status()).toBe(401);
+  }
+
   for (let attempt = 1; attempt <= 10; attempt += 1) {
     const invalid = await request.post("/api/auth/login", {
       headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
-      data: { identifier: "login.rate.limit.e2e", password: "SenhaIncorreta123!" },
+      data: { identifier: rateLimitedIdentifier, password: "SenhaIncorreta123!" },
     });
     expect(invalid.status()).toBe(401);
   }
   const rateLimited = await request.post("/api/auth/login", {
     headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
-    data: { identifier: "login.rate.limit.e2e", password: "SenhaIncorreta123!" },
+    data: { identifier: rateLimitedIdentifier, password: "SenhaIncorreta123!" },
   });
   expect(rateLimited.status()).toBe(429);
   await expect(rateLimited.json()).resolves.toMatchObject({ code: "RATE_LIMITED" });
@@ -134,6 +147,20 @@ test("Portal signup verifies institutional email, completes the profile and enab
   await page.goto("/login");
   await login(page, username, password);
   await expect(page).toHaveURL(`${portalUrl}/`);
+
+  await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
+  await page.goto("/login");
+  await page.getByLabel("Usuário ou e-mail").fill(email);
+  await page.getByRole("link", { name: "Criar conta" }).click();
+  await expect(page).toHaveURL(`${portalUrl}/cadastro`);
+  await expect(page.getByLabel("E-mail institucional")).toHaveValue(email);
+  await expect(page.getByRole("button", { name: "Enviar código" })).toBeVisible();
+
+  const existingRequest = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/signup/request");
+  await page.getByRole("button", { name: "Enviar código" }).click();
+  expect((await existingRequest).status()).toBe(409);
+  await expect(page.locator('p[role="alert"]')).toContainText("Já existe uma conta");
+  await expect(page.getByRole("link", { name: "Ir para o login" })).toBeVisible();
 });
 
 test("Password recovery changes the password and the third request requires an audited admin unlock", async ({ page, request }) => {
@@ -298,8 +325,8 @@ test("Checkout rejects client totals and deduplicates Cobrar atomically", async 
     headers: { Origin: portalUrl, "Idempotency-Key": key },
     data: payload,
   });
-  expect(first.status()).toBe(201);
   const firstBody = await first.json();
+  expect(first.status(), JSON.stringify(firstBody)).toBe(201);
   expect(firstBody).toMatchObject({
     data: {
       status: "AWAITING_PAYMENT",
@@ -382,8 +409,8 @@ test("Manual PicPay confirmation is explicit, idempotent and consumes stock once
     headers: { Origin: portalUrl, "Idempotency-Key": checkoutKey },
     data: { channel: "PDV", locationId, items: [{ productId, quantity: 1 }] },
   });
-  expect(checkout.status()).toBe(201);
   const checkoutBody = await checkout.json();
+  expect(checkout.status(), JSON.stringify(checkoutBody)).toBe(201);
   const saleId = checkoutBody.data.saleId as string;
   expect(saleId).toMatch(/^[0-9a-f-]{36}$/);
 
