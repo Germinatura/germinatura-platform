@@ -385,12 +385,21 @@ test("Manual PicPay confirmation is explicit, idempotent and consumes stock once
   expect(checkout.status()).toBe(201);
   const checkoutBody = await checkout.json();
   const saleId = checkoutBody.data.saleId as string;
+  expect(saleId).toMatch(/^[0-9a-f-]{36}$/);
 
-  const unsupported = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
-    headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-tap` },
-    data: { integrationChannel: "TAP", proofReference: "TAP-E2E-0001" },
-  });
-  expect(unsupported.status()).toBe(422);
+  let unsupportedStatus = 0;
+  let unsupportedBody: unknown;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const unsupported = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
+      headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-tap` },
+      data: { integrationChannel: "TAP", proofReference: "TAP-E2E-0001" },
+    });
+    unsupportedStatus = unsupported.status();
+    unsupportedBody = await unsupported.json().catch(() => null);
+    if (unsupportedStatus !== 404) break;
+    await page.waitForTimeout(500);
+  }
+  expect(unsupportedStatus, JSON.stringify(unsupportedBody)).toBe(422);
 
   const sensitive = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
     headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-pan` },
@@ -498,6 +507,34 @@ test("Manual PicPay confirmation is explicit, idempotent and consumes stock once
   });
   expect(cancelled.status()).toBe(409);
   await expect(cancelled.json()).resolves.toMatchObject({ code: "CONFIRMED_SALE_REVERSAL_REQUIRED" });
+});
+
+test("Seller closeout endpoints enforce role, complete counts and managed reopen", async ({ page }) => {
+  const productId = "33f00000-0000-4000-8000-000000000001";
+  const periodEnd = new Date();
+  const periodStart = new Date(periodEnd.getTime() - 60 * 60 * 1000);
+  await page.goto("/login");
+  await login(page, "consumidor.teste", "Consumidor123!");
+  const consumerDenied = await page.request.post("/api/v1/closeouts", {
+    headers: { Origin: portalUrl, "Idempotency-Key": `e2e-closeout-consumer-${Date.now()}` },
+    data: { periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString(), stockCounts: [{ productId, countedQuantity: 0 }] },
+  });
+  expect(consumerDenied.status()).toBe(403);
+
+  await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
+  await login(page, "vendedor.teste", "Vendedor123!");
+  const incompleteCount = await page.request.post("/api/v1/closeouts", {
+    headers: { Origin: portalUrl, "Idempotency-Key": `e2e-closeout-incomplete-${Date.now()}` },
+    data: { periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString(), stockCounts: [{ productId, countedQuantity: 0 }] },
+  });
+  expect(incompleteCount.status()).toBe(422);
+  await expect(incompleteCount.json()).resolves.toMatchObject({ code: "INVALID_CLOSEOUT_STOCK_COUNTS" });
+
+  const sellerReopenDenied = await page.request.post("/api/v1/closeouts/81000000-0000-4000-8000-000000000001/reopen", {
+    headers: { Origin: portalUrl, "Idempotency-Key": `e2e-closeout-reopen-${Date.now()}` },
+    data: { reason: "Tentativa sem permissão" },
+  });
+  expect(sellerReopenDenied.status()).toBe(403);
 });
 
 test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {

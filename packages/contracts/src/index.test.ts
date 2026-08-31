@@ -26,6 +26,9 @@ import {
   salesCancelResponseSchema,
   salesCheckoutRequestSchema,
   salesCheckoutResponseSchema,
+  sellerCloseoutRequestSchema,
+  sellerCloseoutResponseSchema,
+  reopenSellerCloseoutRequestSchema,
   sessionUserSchema,
   signupCompleteSchema,
   signupRequestSchema,
@@ -442,5 +445,48 @@ describe("shared contracts", () => {
       },
       request_id: "request-reconciliation",
     }).data.outcome).toBe("MATCHED");
+  });
+
+  it("validates complete seller closeout snapshots and reopen reasons", () => {
+    const productId = "33f00000-0000-4000-8000-000000000001";
+    expect(sellerCloseoutRequestSchema.parse({
+      periodStart: "2026-08-31T08:00:00.000Z",
+      periodEnd: "2026-08-31T16:00:00.000Z",
+      stockCounts: [{ productId, countedQuantity: 3 }],
+      justification: null,
+    }).stockCounts).toHaveLength(1);
+    expect(sellerCloseoutRequestSchema.safeParse({
+      periodStart: "2026-08-31T16:00:00.000Z",
+      periodEnd: "2026-08-31T08:00:00.000Z",
+      stockCounts: [{ productId, countedQuantity: 3 }],
+    }).success).toBe(false);
+    expect(sellerCloseoutRequestSchema.safeParse({
+      periodStart: "2026-08-31T08:00:00.000Z",
+      periodEnd: "2026-08-31T16:00:00.000Z",
+      stockCounts: [{ productId, countedQuantity: 3 }, { productId, countedQuantity: 3 }],
+    }).success).toBe(false);
+    expect(reopenSellerCloseoutRequestSchema.safeParse({ reason: "x" }).success).toBe(false);
+
+    expect(sellerCloseoutResponseSchema.parse({
+      data: {
+        closeoutId: "81000000-0000-4000-8000-000000000001",
+        sellerId: "10000000-0000-4000-8000-000000000002",
+        locationId: "50000000-0000-4000-8000-000000000002",
+        status: "CLOSED",
+        periodStart: "2026-08-31T08:00:00.000Z",
+        periodEnd: "2026-08-31T16:00:00.000Z",
+        confirmedSalesCount: 1,
+        confirmedSalesTotalCents: 2590,
+        paymentCount: 1,
+        paymentTotalCents: 2590,
+        paymentDifferenceCents: 0,
+        stockDifferenceUnits: 0,
+        justification: null,
+        paymentSummaries: [{ integrationChannel: "PIX_AREA", paymentCount: 1, totalCents: 2590 }],
+        stockCounts: [{ productId, expectedQuantity: 3, countedQuantity: 3, differenceQuantity: 0 }],
+        correlationId: "82000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-closeout",
+    }).data.status).toBe("CLOSED");
   });
 });
