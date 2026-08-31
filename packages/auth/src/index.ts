@@ -18,6 +18,8 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "raffles.manage",
     "users.manage",
     "finance.manage",
+    "closeouts.create",
+    "closeouts.manage",
     "communications.manage",
     "community.moderate",
   ],
@@ -30,6 +32,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "reservations.manage.own",
     "raffles.buy",
     "raffles.sell",
+    "closeouts.create",
   ],
   ESTOQUE: [
     "portal.access",
@@ -41,6 +44,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "portal.access",
     "sales.read.all",
     "finance.manage",
+    "closeouts.manage",
   ],
   COMUNICACAO: [
     "portal.access",
