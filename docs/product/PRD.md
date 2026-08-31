@@ -12,7 +12,7 @@ Não objetivos do MVP: microserviços, app nativo, chat privado, Open Finance co
 
 ## Usuários e papéis
 
-- Acesso institucional: qualquer pessoa que controle um e-mail no domínio exato `@institutojef.org.br` pode autenticar-se no Portal por código de uso único enviado ao próprio endereço.
+- Acesso institucional: qualquer pessoa que comprove um e-mail no domínio exato `@institutojef.org.br` pode criar uma conta de consumidor no Portal. O código de e-mail verifica cadastro ou recuperação; o login cotidiano usa e-mail ou username com senha.
 - Consumidor: compra, reserva, rifa, histórico e preferências.
 - Vendedor: PDV, próprio estoque/vendas, transferências, perdas e fechamento.
 - Estoque, Financeiro, Comunicação e Moderador: capacidades específicas e de menor privilégio.
@@ -30,9 +30,10 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 - **ARCH-002** — O backend é monólito modular; operações críticas permanecem próximas ao PostgreSQL.
 - **AUTH-001** — Usar Supabase Auth; usuário pode ter múltiplos papéis e ser inativado sem perder histórico.
 - **AUTH-002** — Toda ação protegida exige autorização server-side e RLS quando exposta pela Data API.
-- **AUTH-003** — Qualquer pessoa que comprove controle de um endereço no domínio exato `@institutojef.org.br` pode autenticar-se no Portal por código de uso único enviado por e-mail; endereços não verificados, domínios externos, subdomínios e grafias semelhantes são rejeitados.
-- **AUTH-004** — A identidade institucional recebe o papel base `CONSUMIDOR` e pode acumular outros papéis. O domínio institucional, isoladamente, nunca concede acesso ao PDV: `VENDEDOR` e a permissão de venda presencial dependem de ativação explícita por administrador, com auditoria.
+- **AUTH-003** — O cadastro do Portal começa pela verificação, por código de uso único, de um endereço no domínio exato `@institutojef.org.br`. Depois da verificação, o usuário conclui nome, senha e username único; foto é opcional e o e-mail verificado não pode ser trocado nessa etapa. Login cotidiano no Portal e no PDV aceita e-mail ou username com senha e nunca cria conta implicitamente.
+- **AUTH-004** — A identidade criada pelo próprio usuário recebe somente `CONSUMIDOR` e pode acumular outros papéis. O domínio institucional, isoladamente, nunca concede acesso ao PDV: a conta operacional e o papel `VENDEDOR` dependem de provisionamento/ativação explícitos por administrador, com auditoria. O PDV não usa código no login.
 - **AUTH-005** — O bootstrap greenfield define `theo.martins@institutojef.org.br` como primeiro administrador. A elevação ocorre uma única vez, somente após verificação do endereço, de forma idempotente e auditável, sem senha, código ou segredo versionado; depois do bootstrap, novas concessões administrativas seguem o fluxo normal de permissões.
+- **AUTH-006** — “Esqueci minha senha” envia código somente ao e-mail institucional da conta, com respostas sem enumeração. Cada ciclo admite no máximo dois envios; a terceira solicitação permanece bloqueada até um administrador desbloquear e reiniciar a recuperação de forma auditada. O administrador não lê nem define a nova senha.
 - **SEC-001** — Segredos ficam somente no backend; logs, auditoria e respostas não expõem tokens, cartão ou benefício.
 - **SEC-002** — Mutações por cookie têm proteção CSRF/origin; login, checkout e webhook recebem rate limit apropriado.
 
@@ -111,7 +112,7 @@ Bloqueados externamente: conta/KYC e representante legal; termos e habilitação
 
 ## MVP e pós-MVP
 
-MVP: fundação segura; acesso institucional por código de e-mail; bootstrap controlado do primeiro administrador; papéis cumulativos com ativação administrativa do vendedor; catálogo; centavos/pricing; ledger/localizações/reservas; checkout/venda; tentativa PicPay; PIX manual controlado e Maquininha manual auditada; idempotência/outbox; financeiro/conciliação básica; fechamento; reservas/rifas essenciais; notificações in-app.
+MVP: fundação segura; cadastro institucional verificado e login por e-mail/username + senha; recuperação limitada e desbloqueio administrativo; bootstrap controlado do primeiro administrador; papéis cumulativos com provisionamento/ativação administrativa do vendedor; catálogo; centavos/pricing; ledger/localizações/reservas; checkout/venda; tentativa PicPay; PIX manual controlado e Maquininha manual auditada; idempotência/outbox; financeiro/conciliação básica; fechamento; reservas/rifas essenciais; notificações in-app.
 
 Pós-MVP: Checkout online quando habilitado; automação SFTP; Web Push; cards; comunidade avançada; integração presencial privada oficial; Open Finance somente se conciliação justificar; app nativo/chat apenas com evidência de necessidade.
 
@@ -119,7 +120,7 @@ Pós-MVP: Checkout online quando habilitado; automação SFTP; Web Push; cards; 
 
 Cada requisito só muda para DONE com código/migration quando aplicável, testes relevantes, lint, typecheck, build, segurança, documentação/roadmap e evidência reproduzível. Telas desabilitadas, stubs e mocks não contam como integração real.
 
-Casos obrigatórios: última unidade disputada; duplo Cobrar; webhook/confirmar/cancelar duplicados; venda e transferência simultâneas; pagamento pendente não baixa definitivo; confirmação manual rotulada; voucher desligado sem credenciamento; domínio externo ou semelhante rejeitado; código expirado ou reutilizado rejeitado; nova identidade institucional entra somente como `CONSUMIDOR`; consumidor é bloqueado no PDV até ativação administrativa de `VENDEDOR`; bootstrap administrativo aceita somente `theo.martins@institutojef.org.br` verificado e não duplica concessões.
+Casos obrigatórios: última unidade disputada; duplo Cobrar; webhook/confirmar/cancelar duplicados; venda e transferência simultâneas; pagamento pendente não baixa definitivo; confirmação manual rotulada; voucher desligado sem credenciamento; domínio externo ou semelhante rejeitado; código de cadastro/recuperação expirado ou reutilizado rejeitado; username duplicado por variação de caixa rejeitado; login por e-mail e username não enumera contas; terceira solicitação de recuperação é bloqueada até ação administrativa; nova identidade institucional entra somente como `CONSUMIDOR`; consumidor é bloqueado no PDV até provisionamento/ativação administrativa de `VENDEDOR`; bootstrap administrativo aceita somente `theo.martins@institutojef.org.br` verificado e não duplica concessões.
 
 ## Riscos
 
