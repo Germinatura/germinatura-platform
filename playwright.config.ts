@@ -1,13 +1,15 @@
 import { defineConfig } from "@playwright/test";
 import { execSync } from "node:child_process";
 
-function localSupabasePublicEnvironment(): Record<string, string> {
+function localSupabaseEnvironment(): Record<string, string> {
   const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const configuredKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (configuredUrl && configuredKey) {
+  const configuredSecret = process.env.SUPABASE_SECRET_KEY;
+  if (configuredUrl && configuredKey && configuredSecret) {
     return {
       NEXT_PUBLIC_SUPABASE_URL: configuredUrl,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: configuredKey,
+      SUPABASE_SECRET_KEY: configuredSecret,
     };
   }
 
@@ -23,19 +25,21 @@ function localSupabasePublicEnvironment(): Record<string, string> {
   );
   const url = values.API_URL;
   const publishableKey = values.PUBLISHABLE_KEY;
-  if (!url || !publishableKey) {
-    throw new Error("Supabase local iniciado, mas sem URL/chave publica para o E2E");
+  const secretKey = values.SECRET_KEY;
+  if (!url || !publishableKey || !secretKey) {
+    throw new Error("Supabase local iniciado, mas sem configuração de Auth para o E2E");
   }
 
   return {
     NEXT_PUBLIC_SUPABASE_URL: url,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishableKey,
+    SUPABASE_SECRET_KEY: secretKey,
   };
 }
 
 const localServerEnvironment = process.env.PLAYWRIGHT_EXTERNAL_SERVERS
   ? undefined
-  : localSupabasePublicEnvironment();
+  : localSupabaseEnvironment();
 
 export default defineConfig({
   testDir: "./e2e",

@@ -3,15 +3,33 @@ import { expect, test } from "@playwright/test";
 const portalUrl = "http://127.0.0.1:3000";
 const pdvUrl = process.env.PDV_URL ?? "http://127.0.0.1:3001";
 
-async function login(page: import("@playwright/test").Page, email: string, password: string) {
+async function login(page: import("@playwright/test").Page, identifier: string, password: string) {
   const origin = new URL(page.url()).origin;
-  const route = origin === pdvUrl ? "/api/auth/test-login" : "/api/auth/login";
-  const loginResponse = await page.request.post(`${origin}${route}`, {
+  const loginResponse = await page.request.post(`${origin}/api/auth/login`, {
     headers: { Origin: origin, "Sec-Fetch-Site": "same-origin" },
-    data: { email, password },
+    data: { identifier, password },
   });
   expect(loginResponse.status()).toBe(200);
-  await page.goto(origin === pdvUrl && email.startsWith("admin.") ? `${portalUrl}/` : `${origin}/`);
+  await page.goto(origin === pdvUrl && identifier.startsWith("admin.") ? `${portalUrl}/` : `${origin}/`);
+}
+
+async function latestEmailCode(
+  request: import("@playwright/test").APIRequestContext,
+  email: string,
+) {
+  let code = "";
+  await expect.poll(async () => {
+    const mailbox = await request.get("http://127.0.0.1:54325/api/v1/messages");
+    const body = await mailbox.json() as {
+      messages: Array<{ To: Array<{ Address: string }>; Subject: string; Snippet: string; Created: string }>;
+    };
+    const message = body.messages
+      .filter((candidate) => candidate.To.some((recipient) => recipient.Address === email))
+      .sort((left, right) => right.Created.localeCompare(left.Created))[0];
+    code = message?.Snippet.match(/\b\d{6}\b/)?.[0] ?? "";
+    return code;
+  }, { timeout: 10_000 }).toMatch(/^\d{6}$/);
+  return code;
 }
 
 test("Portal and PDV expose minimal independent health endpoints", async ({ request }) => {
@@ -37,13 +55,13 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
   expect(method.headers().allow).toBe("POST");
 
   const missingOrigin = await request.post("/api/auth/login", {
-    data: { email: "admin.teste@institutojef.org.br", password: "Admin123!" },
+    data: { identifier: "admin.teste", password: "Admin123!" },
   });
   expect(missingOrigin.status()).toBe(403);
 
   const crossOrigin = await request.post("/api/auth/login", {
     headers: { Origin: "https://malicious.invalid", "Sec-Fetch-Site": "cross-site" },
-    data: { email: "admin.teste@institutojef.org.br", password: "Admin123!" },
+    data: { identifier: "admin.teste", password: "Admin123!" },
   });
   expect(crossOrigin.status()).toBe(403);
 
@@ -52,38 +70,142 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
     data: { novaSenha: "Example123!" },
   });
   expect(protectedMutation.status()).toBe(401);
+
+  for (let attempt = 1; attempt <= 10; attempt += 1) {
+    const invalid = await request.post("/api/auth/login", {
+      headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
+      data: { identifier: "login.rate.limit.e2e", password: "SenhaIncorreta123!" },
+    });
+    expect(invalid.status()).toBe(401);
+  }
+  const rateLimited = await request.post("/api/auth/login", {
+    headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
+    data: { identifier: "login.rate.limit.e2e", password: "SenhaIncorreta123!" },
+  });
+  expect(rateLimited.status()).toBe(429);
+  await expect(rateLimited.json()).resolves.toMatchObject({ code: "RATE_LIMITED" });
 });
 
-test("Institutional OTP creates only a consumer session and rejects external domains", async ({ page, request }) => {
-  const external = await request.post("/api/v1/auth/otp/request", {
+test("Portal signup verifies institutional email, completes the profile and enables credential login", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const retiredOtp = await request.post("/api/v1/auth/otp/request", {
+    headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
+    data: { email: "pessoa@institutojef.org.br" },
+  });
+  expect(retiredOtp.status()).toBe(410);
+  await expect(retiredOtp.json()).resolves.toMatchObject({ code: "OTP_LOGIN_REMOVED" });
+
+  const external = await request.post("/api/v1/auth/signup/request", {
     headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
     data: { email: "pessoa@example.org" },
   });
   expect(external.status()).toBe(422);
 
-  const email = `otp.e2e.${Date.now()}@institutojef.org.br`;
-  await page.goto("/login");
-  await expect(page.locator('input[type="password"]')).toHaveCount(0);
-  await page.getByLabel("Email institucional").fill(email);
-  const requested = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/otp/request");
-  await page.getByRole("button", { name: "Receber código" }).click();
+  const suffix = Date.now().toString(36);
+  const email = `cadastro.e2e.${suffix}@institutojef.org.br`;
+  const username = `cadastro.${suffix}`;
+  const password = "Cadastro123!";
+  await page.goto("/cadastro");
+  await page.getByLabel("E-mail institucional").fill(email);
+  const requested = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/signup/request");
+  await page.getByRole("button", { name: "Enviar código" }).click();
   expect((await requested).status()).toBe(202);
 
-  let otpCode = "";
-  await expect.poll(async () => {
-    const mailbox = await request.get("http://127.0.0.1:54325/api/v1/messages");
-    const body = await mailbox.json() as { messages: Array<{ To: Array<{ Address: string }>; Snippet: string }> };
-    const message = body.messages.find((candidate) => candidate.To.some((recipient) => recipient.Address === email));
-    otpCode = message?.Snippet.match(/\b\d{6}\b/)?.[0] ?? "";
-    return otpCode;
-  }, { timeout: 10_000 }).toMatch(/^\d{6}$/);
-
-  await page.getByLabel("Código de 6 dígitos").fill(otpCode);
-  const verified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/otp/verify");
+  await page.getByLabel("Código de 6 dígitos").fill(await latestEmailCode(request, email));
+  const verified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/signup/verify");
   await page.getByRole("button", { name: "Confirmar código" }).click();
   expect((await verified).status()).toBe(200);
+  await expect(page).toHaveURL(`${portalUrl}/cadastro/perfil`);
+  await expect(page.locator('form[data-hydrated="true"]')).toBeVisible();
+
+  await page.getByLabel("Nome").fill("Pessoa Cadastro E2E");
+  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Senha", { exact: true }).fill(password);
+  await page.getByLabel("Confirmar senha").fill(password);
+  await page.getByRole("button", { name: "Concluir cadastro" }).click();
   await expect(page).toHaveURL(`${portalUrl}/`);
   await expect(page.getByText("Consumidor", { exact: true })).toBeVisible();
+
+  const session = await page.request.get("/api/v1/auth/session");
+  await expect(session).toBeOK();
+  await expect(session.json()).resolves.toMatchObject({ user: { email, username, roles: ["CONSUMIDOR"] } });
+
+  await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
+  await page.goto("/login");
+  await login(page, username, password);
+  await expect(page).toHaveURL(`${portalUrl}/`);
+});
+
+test("Password recovery changes the password and the third request requires an audited admin unlock", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const suffix = Date.now().toString(36);
+  const email = `recuperacao.e2e.${suffix}@institutojef.org.br`;
+  const username = `recuperacao.${suffix}`;
+  await page.goto("/login");
+  await login(page, "admin.teste", "Admin123!");
+  const provisioned = await page.request.post("/api/v1/admin/users", {
+    headers: { Origin: portalUrl },
+    data: {
+      email,
+      displayName: "Pessoa Recuperação E2E",
+      username,
+      password: "Recuperacao123!",
+      roles: ["CONSUMIDOR"],
+      active: true,
+    },
+  });
+  expect(provisioned.status()).toBe(201);
+  const provisionedBody = await provisioned.json();
+  const provisionedUserId = provisionedBody.data.user_id as string;
+  expect(provisionedUserId).toMatch(/^[0-9a-f-]{36}$/);
+  await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
+
+  await page.goto("/esqueci-senha");
+  await page.getByLabel("Usuário ou e-mail").fill(username);
+  await page.getByRole("button", { name: "Enviar código" }).click();
+  await page.getByLabel("Código de 6 dígitos").fill(await latestEmailCode(request, email));
+  await page.getByRole("button", { name: "Confirmar código" }).click();
+  await expect(page).toHaveURL(`${portalUrl}/recuperar-senha`);
+  await page.getByLabel("Nova senha", { exact: true }).fill("Consumidor456!");
+  await page.getByLabel("Confirmar nova senha").fill("Consumidor456!");
+  await page.getByRole("button", { name: "Salvar nova senha" }).click();
+  await expect(page).toHaveURL(`${portalUrl}/`);
+
+  await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
+  await page.goto("/login");
+  await login(page, username, "Consumidor456!");
+  await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
+
+  const headers = { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" };
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const accepted = await request.post("/api/v1/auth/password-recovery/request", {
+      headers,
+      data: { identifier: username },
+    });
+    expect(accepted.status()).toBe(202);
+  }
+  const blocked = await request.post("/api/v1/auth/password-recovery/request", {
+    headers,
+    data: { identifier: username },
+  });
+  expect(blocked.status()).toBe(429);
+  await expect(blocked.json()).resolves.toMatchObject({ code: "ADMIN_RESET_REQUIRED" });
+
+  await page.goto("/login");
+  await login(page, "admin.teste", "Admin123!");
+  const unlocked = await page.request.post(
+    `/api/v1/admin/users/${provisionedUserId}/password-recovery`,
+    {
+      headers: { Origin: portalUrl },
+      data: { reason: "Desbloqueio validado pelo teste E2E" },
+    },
+  );
+  expect(unlocked.status()).toBe(200);
+  const afterUnlock = await request.post("/api/v1/auth/password-recovery/request", {
+    headers,
+    data: { identifier: username },
+  });
+  expect(afterUnlock.status()).toBe(202);
 });
 
 test("Public catalog is bounded, paginated and restricted to the anonymous RLS view", async ({ page, request }) => {
@@ -424,15 +546,18 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   const pdvContext = await browser.newContext();
   const pdvPage = await pdvContext.newPage();
   await pdvPage.goto(`${pdvUrl}/login`);
-  await login(pdvPage, "consumidor.teste@institutojef.org.br", "Consumidor123!");
-  await expect(pdvPage).toHaveURL(`${portalUrl}/`);
-  await expect(pdvPage.getByText("Consumidor", { exact: true })).toBeVisible();
+  const denied = await pdvPage.request.post(`${pdvUrl}/api/auth/login`, {
+    headers: { Origin: pdvUrl, "Sec-Fetch-Site": "same-origin" },
+    data: { identifier: "consumidor.teste", password: "Consumidor123!" },
+  });
+  expect(denied.status()).toBe(401);
+  await expect(denied.json()).resolves.toMatchObject({ code: "INVALID_CREDENTIALS" });
   await pdvContext.close();
 });
 
 test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ page }) => {
   await page.goto(`${pdvUrl}/login`);
-  await login(page, "vendedor.teste@institutojef.org.br", "Vendedor123!");
+  await login(page, "vendedor.teste", "Vendedor123!");
   await expect(page).toHaveURL(`${pdvUrl}/`);
   await expect(page.getByText("Acesso autorizado")).toBeVisible();
 
@@ -473,4 +598,9 @@ test("Removed legacy domains are not exposed as functional APIs", async ({ page 
   await expect(page).toHaveURL(`${portalUrl}/`);
   const status = await page.evaluate(async () => (await fetch("/api/produtos")).status);
   expect(status).toBe(404);
+  const retiredPdvFixtureLogin = await page.request.post(`${pdvUrl}/api/auth/test-login`, {
+    headers: { Origin: pdvUrl },
+    data: { email: "vendedor.teste@institutojef.org.br", password: "Vendedor123!" },
+  });
+  expect(retiredPdvFixtureLogin.status()).toBe(404);
 });

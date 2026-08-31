@@ -60,12 +60,12 @@ select throws_ok(
   'the database rejects institutional subdomains'
 );
 
-select ok(public.consume_institutional_auth_rate_limit('OTP_REQUEST', repeat('a', 64)), 'OTP request attempt 1 is accepted');
-select ok(public.consume_institutional_auth_rate_limit('OTP_REQUEST', repeat('a', 64)), 'OTP request attempt 2 is accepted');
-select ok(public.consume_institutional_auth_rate_limit('OTP_REQUEST', repeat('a', 64)), 'OTP request attempt 3 is accepted');
-select ok(public.consume_institutional_auth_rate_limit('OTP_REQUEST', repeat('a', 64)), 'OTP request attempt 4 is accepted');
-select ok(public.consume_institutional_auth_rate_limit('OTP_REQUEST', repeat('a', 64)), 'OTP request attempt 5 is accepted');
-select ok(not public.consume_institutional_auth_rate_limit('OTP_REQUEST', repeat('a', 64)), 'OTP request attempt 6 is rejected');
+select ok(public.consume_institutional_auth_rate_limit('SIGNUP_REQUEST', repeat('a', 64)), 'signup request attempt 1 is accepted');
+select ok(public.consume_institutional_auth_rate_limit('SIGNUP_REQUEST', repeat('a', 64)), 'signup request attempt 2 is accepted');
+select ok(public.consume_institutional_auth_rate_limit('SIGNUP_REQUEST', repeat('a', 64)), 'signup request attempt 3 is accepted');
+select ok(public.consume_institutional_auth_rate_limit('SIGNUP_REQUEST', repeat('a', 64)), 'signup request attempt 4 is accepted');
+select ok(public.consume_institutional_auth_rate_limit('SIGNUP_REQUEST', repeat('a', 64)), 'signup request attempt 5 is accepted');
+select ok(not public.consume_institutional_auth_rate_limit('SIGNUP_REQUEST', repeat('a', 64)), 'signup request attempt 6 is rejected');
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -74,8 +74,8 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values (
   '00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000010',
-  'authenticated', 'authenticated', 'theo.martins@institutojef.org.br', '', now(),
-  '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Bootstrap Test"}', now(), now()
+  'authenticated', 'authenticated', 'theo.martins@institutojef.org.br', extensions.crypt('Bootstrap123!', extensions.gen_salt('bf')), now(),
+  '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Bootstrap Test","username":"theo.martins"}', now(), now()
 );
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000010';
