@@ -11,7 +11,10 @@ const sessionRpcSchema = z.object({
   auth_id: z.string().uuid(),
   email: z.string().email(),
   display_name: z.string().nullable(),
+  username: z.string().nullable(),
+  avatar_path: z.string().nullable(),
   active: z.boolean(),
+  onboarding_completed: z.boolean(),
   roles: z.array(appRoleSchema),
 });
 
@@ -22,8 +25,11 @@ export interface SupabaseSession {
     email: string;
     perfil: AppRole;
     nome: string;
+    username: string | null;
+    avatarPath: string | null;
     roles: AppRole[];
     active: true;
+    onboardingCompleted: boolean;
     needsPasswordReset: false;
   };
 }
@@ -61,8 +67,11 @@ async function resolveSession(client: SupabaseClient, accessToken?: string): Pro
       email: parsed.data.email,
       perfil,
       nome: parsed.data.display_name ?? parsed.data.email,
+      username: parsed.data.username,
+      avatarPath: parsed.data.avatar_path,
       roles,
       active: true,
+      onboardingCompleted: parsed.data.onboarding_completed,
       needsPasswordReset: false,
     },
   };
@@ -95,11 +104,16 @@ export async function logout() {
 export async function requireSession(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) throw new AuthorizationError(401, "Autenticação obrigatória");
+  if (!session.user.onboardingCompleted || !session.user.username) {
+    throw new AuthorizationError(403, "Cadastro incompleto");
+  }
   return {
     id: session.user.id,
     authId: session.user.authId,
     email: session.user.email,
     name: session.user.nome,
+    username: session.user.username,
+    avatarPath: session.user.avatarPath,
     role: session.user.perfil,
     roles: session.user.roles,
     active: true,

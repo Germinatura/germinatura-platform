@@ -4,7 +4,7 @@ import { createRequestId } from "@germinatura/observability";
 import { apiAccessRule, isTrustedMutation, rolesSatisfyAccess } from "@/lib/api-security";
 import { updateSession } from "@/lib/auth";
 
-const publicRoutes = new Set(["/login"]);
+const publicRoutes = new Set(["/login", "/cadastro", "/cadastro/perfil", "/esqueci-senha", "/recuperar-senha"]);
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 
 function apiError(code: string, message: string, requestId: string, status: number, headers?: HeadersInit) {
@@ -26,7 +26,7 @@ export default async function proxy(request: NextRequest) {
     if (rule && !rule.methods.includes(request.method)) {
       return apiError("METHOD_NOT_ALLOWED", "Método não permitido", requestId, 405, { Allow: rule.methods.join(", ") });
     }
-    if ((!rule || rule.access !== "public") && !session) {
+    if ((!rule || rule.access !== "public") && (!session || !session.user.onboardingCompleted)) {
       return apiError("UNAUTHENTICATED", "Autenticação obrigatória", requestId, 401);
     }
     if (rule && session && !rolesSatisfyAccess(session.user.roles, rule.access)) {
@@ -43,7 +43,12 @@ export default async function proxy(request: NextRequest) {
 
   const isPublicRoute = publicRoutes.has(path);
   if (!session && !isPublicRoute) return NextResponse.redirect(new URL("/login", request.url));
-  if (session && isPublicRoute) return NextResponse.redirect(new URL("/", request.url));
+  if (session && !session.user.onboardingCompleted && path !== "/cadastro/perfil") {
+    return NextResponse.redirect(new URL("/cadastro/perfil", request.url));
+  }
+  if (session?.user.onboardingCompleted && isPublicRoute && path !== "/recuperar-senha") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
   return response;
 }
 
