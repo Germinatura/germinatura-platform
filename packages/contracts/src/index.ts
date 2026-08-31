@@ -238,6 +238,125 @@ export const salesCancelResponseSchema = z.object({
 }).strict();
 export type SalesCancelResponse = z.infer<typeof salesCancelResponseSchema>;
 
+export const commercialReservationCreateRequestSchema = z.object({
+  locationId: z.uuid(),
+  items: z.array(z.object({
+    productId: z.uuid(),
+    quantity: z.number().int().positive().refine(Number.isSafeInteger),
+  }).strict()).min(1).max(100),
+}).strict();
+export type CommercialReservationCreateRequest = z.infer<typeof commercialReservationCreateRequestSchema>;
+
+export const commercialReservationCreateResponseSchema = z.object({
+  data: z.object({
+    reservationId: z.uuid(),
+    status: z.literal("ACTIVE"),
+    locationId: z.uuid(),
+    quote: pricingQuoteResponseSchema.shape.data,
+    stockReservation: z.object({
+      reservationId: z.uuid(),
+      status: z.literal("ACTIVE"),
+      expiresAt: z.iso.datetime({ offset: true }),
+      reservationMovementId: z.uuid(),
+    }).strict(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type CommercialReservationCreateResponse = z.infer<typeof commercialReservationCreateResponseSchema>;
+
+export const commercialReservationCancelResponseSchema = z.object({
+  data: z.object({
+    reservationId: z.uuid(),
+    status: z.enum(["CANCELLED", "EXPIRED"]),
+    stockReservation: z.object({
+      reservationId: z.uuid(),
+      status: z.enum(["RELEASED", "EXPIRED"]),
+      releaseMovementId: z.uuid().nullable(),
+    }).strict(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type CommercialReservationCancelResponse = z.infer<typeof commercialReservationCancelResponseSchema>;
+
+export const commercialReservationConvertResponseSchema = z.object({
+  data: z.discriminatedUnion("status", [
+    z.object({
+      reservationId: z.uuid(),
+      status: z.literal("CONVERTED"),
+      saleId: z.uuid(),
+      saleStatus: z.literal("AWAITING_PAYMENT"),
+      paymentAttemptId: z.uuid(),
+      stockReservationId: z.uuid(),
+      totalCents: moneyCentsSchema,
+      correlationId: z.uuid(),
+    }).strict(),
+    z.object({
+      reservationId: z.uuid(),
+      status: z.literal("EXPIRED"),
+      saleId: z.null(),
+      paymentAttemptId: z.null(),
+      correlationId: z.uuid(),
+    }).strict(),
+  ]),
+  request_id: z.string().min(1),
+}).strict();
+export type CommercialReservationConvertResponse = z.infer<typeof commercialReservationConvertResponseSchema>;
+
+export const raffleCampaignCreateRequestSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  productId: z.uuid(),
+  locationId: z.uuid(),
+  numberCount: z.number().int().min(1).max(10000),
+  startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }),
+}).strict().refine((value) => Date.parse(value.endsAt) > Date.parse(value.startsAt), {
+  path: ["endsAt"], message: "Campaign end must be after start",
+});
+export type RaffleCampaignCreateRequest = z.infer<typeof raffleCampaignCreateRequestSchema>;
+
+export const raffleCampaignResponseSchema = z.object({
+  data: z.object({
+    campaignId: z.uuid(), status: z.enum(["ACTIVE", "CLOSED"]),
+    numberCount: z.number().int().min(1).max(10000).optional(),
+    startsAt: z.iso.datetime({ offset: true }).optional(),
+    endsAt: z.iso.datetime({ offset: true }).optional(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type RaffleCampaignResponse = z.infer<typeof raffleCampaignResponseSchema>;
+
+export const raffleNumberReservationRequestSchema = z.object({
+  numbers: z.array(z.number().int().min(1).max(10000)).min(1).max(100),
+}).strict().refine((value) => new Set(value.numbers).size === value.numbers.length, {
+  path: ["numbers"], message: "Raffle numbers must be unique",
+});
+export type RaffleNumberReservationRequest = z.infer<typeof raffleNumberReservationRequestSchema>;
+
+export const raffleNumberReservationResponseSchema = z.object({
+  data: z.object({
+    campaignId: z.uuid(), numbers: z.array(z.number().int().positive()).min(1),
+    status: z.literal("RESERVED"), saleId: z.uuid(), saleStatus: z.literal("AWAITING_PAYMENT"),
+    paymentAttemptId: z.uuid(), totalCents: moneyCentsSchema,
+    expiresAt: z.iso.datetime({ offset: true }), correlationId: z.uuid(),
+  }).strict(), request_id: z.string().min(1),
+}).strict();
+export type RaffleNumberReservationResponse = z.infer<typeof raffleNumberReservationResponseSchema>;
+
+export const raffleDrawResponseSchema = z.object({
+  data: z.object({
+    drawId: z.uuid(), campaignId: z.uuid(),
+    eligibleNumbers: z.array(z.number().int().positive()).min(1),
+    randomMaterial: z.string().regex(/^[0-9a-f]{64}$/),
+    auditHash: z.string().regex(/^[0-9a-f]{64}$/),
+    winnerIndex: z.number().int().positive(), winnerNumber: z.number().int().positive(),
+    correlationId: z.uuid(),
+  }).strict(), request_id: z.string().min(1),
+}).strict();
+export type RaffleDrawResponse = z.infer<typeof raffleDrawResponseSchema>;
+
 export const manualPaymentConfirmationRequestSchema = z.object({
   integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
   proofReference: z.string().min(4).max(128)
