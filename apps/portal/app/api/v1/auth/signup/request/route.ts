@@ -5,7 +5,7 @@ import { resolveLoginIdentifier } from "@/lib/credential-auth";
 import { consumeInstitutionalRateLimit } from "@/lib/institutional-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const acceptedMessage = "Se o endereço for elegível, um código de cadastro será enviado.";
+const acceptedMessage = "Código de cadastro solicitado. Verifique também Spam e Promoções.";
 
 export async function POST(request: Request) {
   const requestId = createRequestId(request.headers);
@@ -22,10 +22,28 @@ export async function POST(request: Request) {
       });
     }
     const existing = await resolveLoginIdentifier(parsed.data.email);
-    if (!existing?.onboarding_completed) {
-      await client.auth.signInWithOtp({
-        email: parsed.data.email,
-        options: { shouldCreateUser: existing === null },
+    if (existing?.onboarding_completed) {
+      return NextResponse.json(createApiError(
+        "ACCOUNT_ALREADY_EXISTS",
+        "Já existe uma conta para este e-mail. Entre com sua senha ou use a recuperação.",
+        requestId,
+      ), {
+        status: 409,
+        headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+      });
+    }
+    const { error } = await client.auth.signInWithOtp({
+      email: parsed.data.email,
+      options: { shouldCreateUser: existing === null },
+    });
+    if (error) {
+      return NextResponse.json(createApiError(
+        "EMAIL_DELIVERY_FAILED",
+        "Não foi possível solicitar o código agora. Aguarde e tente novamente.",
+        requestId,
+      ), {
+        status: error.status === 429 ? 429 : 503,
+        headers: { "Cache-Control": "no-store", "Retry-After": "60", "x-request-id": requestId },
       });
     }
     return NextResponse.json({ message: acceptedMessage, request_id: requestId }, {

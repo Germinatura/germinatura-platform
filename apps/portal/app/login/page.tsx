@@ -1,6 +1,6 @@
 "use client";
 
-import { credentialLoginRequestSchema } from "@germinatura/contracts";
+import { credentialLoginRequestSchema, signupRequestSchema } from "@germinatura/contracts";
 import { Loader2, LockKeyhole, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -12,6 +12,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { showToast } = useToast();
+
+  function preserveSignupEmail() {
+    const parsed = signupRequestSchema.safeParse({ email: identifier });
+    if (parsed.success) sessionStorage.setItem("germinatura.signup.email", parsed.data.email);
+    else sessionStorage.removeItem("germinatura.signup.email");
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -63,7 +69,7 @@ export default function LoginPage() {
               </span>
             </label>
             <div className="flex items-center justify-between gap-4 text-sm font-semibold">
-              <Link href="/cadastro" className="text-primary hover:underline">Criar conta</Link>
+              <Link href="/cadastro" onClick={preserveSignupEmail} className="text-primary hover:underline">Criar conta</Link>
               <Link href="/esqueci-senha" className="text-slate-600 hover:underline">Esqueci minha senha</Link>
             </div>
             <button disabled={loading} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-primary py-4 text-lg font-bold text-white disabled:opacity-50">
