@@ -16,6 +16,14 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/payments/:id/reconciliations", methods: ["POST"], access: "finance" },
   { path: "/api/v1/closeouts", methods: ["POST"], access: "seller" },
   { path: "/api/v1/closeouts/:id/reopen", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/reservations", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/reservations/:id/cancel", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/reservations/:id/convert", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/admin/raffles", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/close", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/draw", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/raffles/:id/numbers/reserve", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/raffles/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/signup/request", methods: ["POST"], access: "public" },
@@ -55,6 +63,24 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/closeouts/:id/reopen") {
       return /^\/api\/v1\/closeouts\/[0-9a-f-]+\/reopen$/i.test(path);
+    }
+    if (rule.path === "/api/v1/reservations/:id/cancel") {
+      return /^\/api\/v1\/reservations\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/reservations/:id/convert") {
+      return /^\/api\/v1\/reservations\/[0-9a-f-]+\/convert$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/close") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/close$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/draw") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/draw$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/:id/numbers/reserve") {
+      return /^\/api\/v1\/raffles\/[0-9a-f-]+\/numbers\/reserve$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/sales/:id/cancel") {
+      return /^\/api\/v1\/raffles\/sales\/[0-9a-f-]+\/cancel$/i.test(path);
     }
     return false;
   });

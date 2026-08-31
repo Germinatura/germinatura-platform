@@ -3,6 +3,9 @@ import {
   apiErrorSchema,
   catalogProductFlagsSchema,
   catalogSlugSchema,
+  commercialReservationCancelResponseSchema,
+  commercialReservationConvertResponseSchema,
+  commercialReservationCreateRequestSchema,
   credentialLoginRequestSchema,
   createApiClient,
   idempotencyKeySchema,
@@ -21,6 +24,9 @@ import {
   pricingQuoteResponseSchema,
   publicCatalogProductsQuerySchema,
   publicCatalogProductsResponseSchema,
+  raffleCampaignCreateRequestSchema,
+  raffleDrawResponseSchema,
+  raffleNumberReservationRequestSchema,
   saleSchema,
   saleStatusSchema,
   salesCancelResponseSchema,
@@ -488,5 +494,51 @@ describe("shared contracts", () => {
       },
       request_id: "request-closeout",
     }).data.status).toBe("CLOSED");
+  });
+
+  it("validates commercial reservation lifecycle contracts", () => {
+    const productId = "33f00000-0000-4000-8000-000000000001";
+    const reservationId = "83000000-0000-4000-8000-000000000001";
+    const correlationId = "84000000-0000-4000-8000-000000000001";
+    expect(commercialReservationCreateRequestSchema.parse({
+      locationId: "50000000-0000-4000-8000-000000000001",
+      items: [{ productId, quantity: 2 }],
+    }).items[0]?.quantity).toBe(2);
+    expect(commercialReservationCreateRequestSchema.safeParse({
+      locationId: "50000000-0000-4000-8000-000000000001",
+      items: [{ productId, quantity: 1, totalCents: 1 }],
+    }).success).toBe(false);
+    expect(commercialReservationCancelResponseSchema.parse({
+      data: {
+        reservationId, status: "CANCELLED",
+        stockReservation: {
+          reservationId: "85000000-0000-4000-8000-000000000001",
+          status: "RELEASED", releaseMovementId: "86000000-0000-4000-8000-000000000001",
+        }, correlationId,
+      }, request_id: "request-reservation-cancel",
+    }).data.status).toBe("CANCELLED");
+    expect(commercialReservationConvertResponseSchema.parse({
+      data: {
+        reservationId, status: "CONVERTED", saleId: "87000000-0000-4000-8000-000000000001",
+        saleStatus: "AWAITING_PAYMENT", paymentAttemptId: "88000000-0000-4000-8000-000000000001",
+        stockReservationId: "85000000-0000-4000-8000-000000000001",
+        totalCents: 5180, correlationId,
+      }, request_id: "request-reservation-convert",
+    }).data.status).toBe("CONVERTED");
+  });
+
+  it("validates raffle campaign, unique numbers and audit proof", () => {
+    expect(raffleCampaignCreateRequestSchema.safeParse({
+      name: "Rifa institucional", productId: "33f00000-0000-4000-8000-000000000001",
+      locationId: "50000000-0000-4000-8000-000000000001", numberCount: 100,
+      startsAt: "2026-09-01T10:00:00.000Z", endsAt: "2026-09-02T10:00:00.000Z",
+    }).success).toBe(true);
+    expect(raffleNumberReservationRequestSchema.safeParse({ numbers: [1, 1] }).success).toBe(false);
+    expect(raffleDrawResponseSchema.parse({ data: {
+      drawId: "93000000-0000-4000-8000-000000000001",
+      campaignId: "94000000-0000-4000-8000-000000000001", eligibleNumbers: [1, 7],
+      randomMaterial: "a".repeat(64), auditHash: "b".repeat(64), winnerIndex: 2,
+      winnerNumber: 7, correlationId: "95000000-0000-4000-8000-000000000001",
+    }, request_id: "request-raffle-draw" }).data.winnerNumber).toBe(7);
   });
 });
