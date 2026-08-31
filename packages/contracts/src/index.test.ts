@@ -8,6 +8,8 @@ import {
   idempotencyStatusSchema,
   institutionalEmailSchema,
   institutionalOtpVerifySchema,
+  manualPaymentConfirmationRequestSchema,
+  manualPaymentConfirmationResponseSchema,
   moneyCentsSchema,
   productSkuSchema,
   pricingQuoteRequestSchema,
@@ -320,5 +322,44 @@ describe("shared contracts", () => {
       },
       request_id: "request-cancel",
     }).data.status).toBe("CANCELLED");
+  });
+
+  it("accepts only controlled manual PicPay confirmation data", () => {
+    expect(manualPaymentConfirmationRequestSchema.parse({
+      integrationChannel: "MAQUININHA",
+      proofReference: "NSU-TEST-0001",
+    }).integrationChannel).toBe("MAQUININHA");
+    expect(manualPaymentConfirmationRequestSchema.safeParse({
+      integrationChannel: "TAP",
+      proofReference: "NSU-TEST-0002",
+    }).success).toBe(false);
+    expect(manualPaymentConfirmationRequestSchema.safeParse({
+      integrationChannel: "PIX_AREA",
+      proofReference: "4111111111111111",
+    }).success).toBe(false);
+
+    expect(manualPaymentConfirmationResponseSchema.parse({
+      data: {
+        saleId: "71000000-0000-4000-8000-000000000001",
+        saleStatus: "CONFIRMED",
+        paymentAttempt: {
+          attemptId: "76000000-0000-4000-8000-000000000001",
+          status: "APPROVED",
+          amountCents: 3000,
+          integrationChannel: "PIX_AREA",
+          confirmationSource: "MANUAL",
+          confirmedAt: "2026-08-30T19:00:00.000Z",
+          proofReference: "PIX-TEST-0001",
+        },
+        stock: {
+          reservationId: "74000000-0000-4000-8000-000000000001",
+          status: "CONSUMED",
+          saleMovementId: "75000000-0000-4000-8000-000000000001",
+        },
+        financialLedgerEntryId: "77000000-0000-4000-8000-000000000001",
+        correlationId: "72000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-manual-confirmation",
+    }).data.paymentAttempt.confirmationSource).toBe("MANUAL");
   });
 });

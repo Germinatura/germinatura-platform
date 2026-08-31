@@ -140,4 +140,51 @@ describe("checkout transacional real", () => {
       .toHaveLength(1);
     await cancel(current, accessToken, saleIds[0]);
   });
+
+  it("confirma manualmente uma unica vez sob duplo clique", async () => {
+    const current = config();
+    const accessToken = await token(current);
+    await setStock(current, accessToken, 1);
+
+    const checkout = await rpc(
+      current,
+      accessToken,
+      "checkout_sale",
+      checkoutParameters(`manual-confirm-checkout-${randomUUID()}`),
+    );
+    expect(checkout.ok).toBe(true);
+    const saleId = String((checkout as Extract<Outcome, { ok: true }>).data.sale_id);
+    const confirmationKey = `manual-confirm-${randomUUID()}`;
+    const proofReference = `NSU-${randomUUID()}`;
+    const confirmationParameters = () => ({
+      p_sale_id: saleId,
+      p_integration_channel: "MAQUININHA",
+      p_proof_reference: proofReference,
+      p_idempotency_key: confirmationKey,
+      p_correlation_id: randomUUID(),
+    });
+
+    const confirmations = await Promise.all([
+      rpc(current, accessToken, "confirm_manual_payment", confirmationParameters()),
+      rpc(current, accessToken, "confirm_manual_payment", confirmationParameters()),
+    ]);
+    expect(confirmations.every((result) => result.ok)).toBe(true);
+    const attemptIds = confirmations.map((result) => String(
+      ((result as Extract<Outcome, { ok: true }>).data.payment_attempt as { attempt_id: string }).attempt_id,
+    ));
+    expect(new Set(attemptIds).size).toBe(1);
+    expect(await rows<{ status: string }>(current, accessToken, `sales?select=status&id=eq.${saleId}`))
+      .toEqual([{ status: "CONFIRMED" }]);
+    expect(await rows<{ status: string }>(current, accessToken, `payment_attempts?select=status&sale_id=eq.${saleId}`))
+      .toEqual([{ status: "APPROVED" }]);
+    expect(await rows<{ id: string }>(current, accessToken, `financial_ledger_entries?select=id&sale_id=eq.${saleId}`))
+      .toHaveLength(1);
+    const [balance] = await rows<{ on_hand_quantity: number; reserved_quantity: number }>(
+      current,
+      accessToken,
+      `inventory_balances?select=on_hand_quantity,reserved_quantity&location_id=eq.${CENTRAL_LOCATION_ID}&product_id=eq.${PRODUCT_ID}`,
+    );
+    expect(balance).toEqual({ on_hand_quantity: 0, reserved_quantity: 0 });
+    await setStock(current, accessToken, 1);
+  });
 });
