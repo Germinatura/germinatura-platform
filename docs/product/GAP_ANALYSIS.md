@@ -25,14 +25,14 @@ Data da auditoria: 2026-08-29. Base: `9e2ca83` em `main`, com CI pós-merge `332
 | IDEM-001 Fundação idempotente | IMPLEMENTADO NA FUNDAÇÃO — persistência, replay e conflito consumidos pelo ledger e pelas reservas | Novos domínios ainda precisam adotar o contrato | P0 | RPCs de domínio | Alto | Integrar incrementalmente em cada mutação crítica |
 | SALE-002 Conclusão/cancelamento reversível | PARCIAL — `cancel_sale` cancela venda e tentativa pendentes, libera o hold uma vez e mantém históricos append-only | Confirmação e cancelamento confirmado permanecem fail-closed até estoque e financeiro criarem efeitos/reversões atômicos | P0 | Outbox, financeiro | Crítico | Não abrir confirmação ou reversão sem os ledgers correspondentes |
 | PAY-001 Provider neutro/PicPay em produção | IMPLEMENTADO NA ARQUITETURA — interfaces neutras, adapter fail-closed e ADR 0005; documentação v2.1 está histórica | Configuração e integração reais permanecem bloqueadas | P0 | Habilitação oficial | Alto | Preservar contratos e não configurar outro provider em produção |
-| PAY-002 Estados e transições | PARCIAL — tentativas e histórico são persistidos; cancelamento e confirmação manual seguem transições fechadas e atômicas | Declínio, expiração, reembolso e conciliação ainda precisam de efeitos próprios | P0 | Venda | Alto | Abrir cada transição somente com efeito atômico e teste de abuso |
+| PAY-002 Estados e transições | PARCIAL — tentativas e histórico são persistidos; cancelamento pendente, confirmação manual, divergência e conciliação seguem transições fechadas e atômicas | Declínio, expiração e reembolso ainda precisam de efeitos próprios | P0 | Venda | Alto | Abrir cada transição somente com efeito atômico e teste de abuso |
 | PAY-003 Tentativa auditável | IMPLEMENTADO PARA O MVP MANUAL — checkout cria tentativa neutra e confirmação própria registra valor exato, `MAQUININHA`/`PIX_AREA`, origem `MANUAL`, instante do servidor e referência não sensível | Nenhuma confirmação automática ou iniciação remota existe | P0 | Venda, idempotência | Médio | Homologar o procedimento humano e preservar a rotulagem manual |
 | PAY-004 Checkout/API PicPay | BLOQUEADO POR DECISÃO EXTERNA | Sem adapter, docs, credenciais ou habilitação no repo | P1 | Contrato comercial, sandbox | Crítico | Implementar somente com documentação oficial |
 | PAY-005 Maquininha/Tap controlado | PARCIAL — Maquininha manual auditada está implementada; adapter permanece indisponível e Tap segue bloqueado | Procedimento físico ainda precisa de homologação; iniciação remota não existe | P1 | Venda, permissões, operação | Alto | Validar o procedimento humano sem manipular credenciais ou dados de cartão |
 | PAY-006 V.A./V.R. | BLOQUEADO POR DECISÃO EXTERNA | Sem credenciamento Alelo/Ticket | P1 | CNPJ/rede/Maquininha | Crítico | Flag desligada; não mascarar como crédito |
 | PAY-007 Webhook | BLOQUEADO POR DECISÃO EXTERNA | Sem receipt, assinatura, dedupe ou replay porque não há documentação/habilitação oficial | P1 | PicPay oficial, outbox | Crítico | Implementar somente com contrato verificável do provedor |
 | PAY-008 Adapter privado futuro | IMPLEMENTADO NA ARQUITETURA — borda substituível sem acoplar o domínio | Integração privada/TEF/SDK não ofertada | P3 | Oferta oficial | Alto | Manter indisponível até homologação |
-| FIN-001 Ledger financeiro/conciliação | PARCIAL — ledger imutável cria o recebível PicPay no mesmo commit da confirmação | Taxa, liquidação, reembolso, divergência e conciliação administrativa ainda ausentes | P1 | Vendas/pagamentos | Crítico | Implementar conciliação append-only sem editar recebíveis históricos |
+| FIN-001 Ledger financeiro/conciliação | IMPLEMENTADO PARA O MVP MANUAL — recebível, divergência, taxa e liquidação são append-only; Admin/Financeiro conciliam valores por referência única e mismatch permanece pendente | Reembolso/reversão de venda confirmada ainda não foi aberto | P1 | Vendas/pagamentos | Médio | Preservar referências não sensíveis, idempotência e recebíveis históricos; implementar reversão em fatia própria |
 | RES-001 Reservas | PARCIAL — bloqueio de estoque atômico implementado em `d4d1489` | Snapshot de preço e lifecycle comercial dependem de pricing/venda | P2 | Estoque/pricing | Alto | Reutilizar a primitive sem confundir `reservable` comercial com hold de inventário |
 | RAF-001 Rifas | AUSENTE | Domínio removido no greenfield | P2 | Pagamentos/financeiro | Alto | Reserva concorrente e sorteio auditável |
 | PROC-001 Fornecedores/compras | AUSENTE | Sem origem/custo do estoque | P2 | Catálogo/ledger | Médio | Compras e recebimentos parciais |
@@ -44,7 +44,7 @@ Data da auditoria: 2026-08-29. Base: `9e2ca83` em `main`, com CI pós-merge `332
 
 ## Riscos P0/P1
 
-- Pricing, venda e reserva já formam checkout transacional, mas confirmação e financeiro ainda não existem; nenhuma tentativa pode ser apresentada como paga antes da próxima fatia auditada.
+- Pricing, venda, reserva, confirmação manual e conciliação já formam o núcleo transacional; cancelamento confirmado continua bloqueado até a reversão auditada de estoque e financeiro.
 - A documentação v2.1 planeja Mercado Pago e foi superada; reutilizá-la sem consultar v2.2 causaria divergência financeira.
 - Confirmação manual presencial pode ser confundida com confirmação automática se a origem não for persistida e exibida.
 - Staging e produção estão provisionados e tiveram deploy/smoke reais; domínio próprio, SMTP/capacidade de OTP, backup/PITR e alertas continuam pendências operacionais e não podem ser simulados.
@@ -54,7 +54,7 @@ Data da auditoria: 2026-08-29. Base: `9e2ca83` em `main`, com CI pós-merge `332
 
 ## Dívidas que bloqueiam evolução
 
-1. A conciliação ainda precisa adicionar taxa, liquidação, reembolso e divergência ao ledger sem editar o recebível original.
+1. A reversão de venda confirmada ainda precisa adicionar movimentos compensatórios de estoque e financeiro sem editar os lançamentos originais.
 2. O recebimento e uso único do OTP, a jornada administrativa remota e o fechamento efetivo do bootstrap ainda precisam de homologação operacional em staging.
 3. A matriz de permissões precisará ganhar ações granulares com cada módulo.
 4. A outbox ainda não possui consumidor operacional; receipt de webhook só pode nascer com documentação oficial do PicPay.

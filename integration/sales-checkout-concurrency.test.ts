@@ -179,6 +179,31 @@ describe("checkout transacional real", () => {
       .toEqual([{ status: "APPROVED" }]);
     expect(await rows<{ id: string }>(current, accessToken, `financial_ledger_entries?select=id&sale_id=eq.${saleId}`))
       .toHaveLength(1);
+    const reconciliationKey = `manual-reconciliation-${randomUUID()}`;
+    const externalReference = `SETTLEMENT-${randomUUID()}`;
+    const reconciliationParameters = () => ({
+      p_attempt_id: attemptIds[0],
+      p_observed_amount_cents: 2590,
+      p_fee_amount_cents: 59,
+      p_external_reference: externalReference,
+      p_source: "MANUAL",
+      p_idempotency_key: reconciliationKey,
+      p_correlation_id: randomUUID(),
+    });
+    const reconciliations = await Promise.all([
+      rpc(current, accessToken, "reconcile_payment_attempt", reconciliationParameters()),
+      rpc(current, accessToken, "reconcile_payment_attempt", reconciliationParameters()),
+    ]);
+    expect(reconciliations.every((result) => result.ok)).toBe(true);
+    expect(new Set(reconciliations.map((result) => String(
+      (result as Extract<Outcome, { ok: true }>).data.reconciliation_id,
+    ))).size).toBe(1);
+    expect(await rows<{ status: string }>(current, accessToken, `payment_attempts?select=status&id=eq.${attemptIds[0]}`))
+      .toEqual([{ status: "RECONCILED" }]);
+    expect(await rows<{ id: string }>(current, accessToken, `payment_reconciliations?select=id&payment_attempt_id=eq.${attemptIds[0]}`))
+      .toHaveLength(1);
+    expect(await rows<{ id: string }>(current, accessToken, `financial_ledger_entries?select=id&sale_id=eq.${saleId}`))
+      .toHaveLength(3);
     const [balance] = await rows<{ on_hand_quantity: number; reserved_quantity: number }>(
       current,
       accessToken,
