@@ -378,6 +378,61 @@ export const institutionalOtpVerifySchema = z.object({
 }).strict();
 export type InstitutionalOtpVerify = z.infer<typeof institutionalOtpVerifySchema>;
 
+export const usernameSchema = z.string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(32)
+  .regex(/^[a-z][a-z0-9._]{2,31}$/);
+
+export const accountPasswordSchema = z.string()
+  .min(8)
+  .max(128)
+  .regex(/[a-z]/, "A senha deve conter letra minúscula")
+  .regex(/[A-Z]/, "A senha deve conter letra maiúscula")
+  .regex(/[0-9]/, "A senha deve conter número");
+
+export const loginIdentifierSchema = z.string().trim().toLowerCase().min(3).max(254)
+  .refine((value) => (
+    value.includes("@")
+      ? /^[^@\s]+@institutojef\.org\.br$/.test(value)
+      : /^[a-z][a-z0-9._]{2,31}$/.test(value)
+  ), "Use um email institucional ou username válido");
+
+export const credentialLoginRequestSchema = z.object({
+  identifier: loginIdentifierSchema,
+  password: z.string().min(1).max(128),
+}).strict();
+export type CredentialLoginRequest = z.infer<typeof credentialLoginRequestSchema>;
+
+export const signupRequestSchema = z.object({ email: institutionalEmailSchema }).strict();
+export const signupVerifySchema = institutionalOtpVerifySchema;
+export const signupCompleteSchema = z.object({
+  displayName: z.string().trim().min(2).max(120),
+  username: usernameSchema,
+  password: accountPasswordSchema,
+  avatarPath: z.string().regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp)$/).nullable().default(null),
+}).strict();
+export type SignupComplete = z.infer<typeof signupCompleteSchema>;
+
+export const passwordRecoveryRequestSchema = z.object({ identifier: loginIdentifierSchema }).strict();
+export const passwordRecoveryVerifySchema = z.object({
+  identifier: loginIdentifierSchema,
+  token: z.string().regex(/^\d{6}$/),
+}).strict();
+export const passwordRecoveryCompleteSchema = z.object({ password: accountPasswordSchema }).strict();
+export const passwordRecoveryUnlockSchema = z.object({ reason: z.string().trim().min(4).max(500) }).strict();
+
+export const adminProvisionUserSchema = z.object({
+  email: institutionalEmailSchema,
+  displayName: z.string().trim().min(2).max(120),
+  username: usernameSchema,
+  password: accountPasswordSchema,
+  roles: z.array(appRoleSchema.exclude(["ADMIN"])).min(1).max(6),
+  active: z.boolean().default(true),
+}).strict();
+export type AdminProvisionUser = z.infer<typeof adminProvisionUserSchema>;
+
 export const userAccessUpdateSchema = z.object({
   roles: z.array(appRoleSchema).max(7),
   active: z.boolean(),
@@ -411,6 +466,8 @@ export const sessionUserSchema = z.object({
   authId: z.uuid(),
   email: z.email(),
   name: z.string().min(1),
+  username: usernameSchema,
+  avatarPath: z.string().nullable(),
   role: appRoleSchema,
   roles: z.array(appRoleSchema).min(1),
   active: z.literal(true),
