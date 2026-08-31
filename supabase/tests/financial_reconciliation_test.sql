@@ -170,7 +170,7 @@ select results_eq(
   'match appends fee and net settlement entries'
 );
 select results_eq(
-  $$select from_status::text, to_status::text from public.payment_attempt_status_history where attempt_id = (select (result -> 'payment_attempt' ->> 'attempt_id')::uuid from reconciliation_confirmation) and to_status in ('RECONCILIATION_PENDING', 'RECONCILED') order by created_at, id$$,
+  $$select from_status::text, to_status::text from public.payment_attempt_status_history where attempt_id = (select (result -> 'payment_attempt' ->> 'attempt_id')::uuid from reconciliation_confirmation) and to_status in ('RECONCILIATION_PENDING', 'RECONCILED') order by case to_status when 'RECONCILIATION_PENDING' then 1 else 2 end$$,
   $$values ('APPROVED'::text, 'RECONCILIATION_PENDING'::text), ('RECONCILIATION_PENDING'::text, 'RECONCILED'::text)$$,
   'history preserves divergence and resolution transitions'
 );

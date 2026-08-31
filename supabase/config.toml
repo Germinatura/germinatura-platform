@@ -44,8 +44,12 @@ otp_length = 6
 otp_expiry = 600
 
 [auth.email.template.magic_link]
-subject = "Seu código de acesso Germinatura"
+subject = "Seu código de verificação Germinatura"
 content_path = "./supabase/templates/institutional-otp.html"
+
+[auth.email.template.recovery]
+subject = "Seu código de recuperação Germinatura"
+content_path = "./supabase/templates/password-recovery-otp.html"
 
 [analytics]
 enabled = false

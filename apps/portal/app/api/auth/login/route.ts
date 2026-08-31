@@ -1,31 +1,63 @@
-import { createApiError, institutionalEmailSchema } from "@germinatura/contracts";
+import { createApiError, credentialLoginRequestSchema } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { AuthorizationError, loginLocalFixture } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { resolveLoginIdentifier } from "@/lib/credential-auth";
+import { consumeInstitutionalRateLimit } from "@/lib/institutional-auth";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const localLoginSchema = z.object({
-  email: institutionalEmailSchema,
-  password: z.string().min(1).max(128),
-}).strict();
+const genericMessage = "Usuário/e-mail ou senha inválidos";
 
-/** Local fixture compatibility only. Production always returns 404 and uses institutional OTP. */
 export async function POST(request: Request) {
   const requestId = createRequestId(request.headers);
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json(createApiError("NOT_FOUND", "Rota não encontrada", requestId), { status: 404 });
-  }
-  const parsed = localLoginSchema.safeParse(await request.json().catch(() => null));
+  const parsed = credentialLoginRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json(createApiError("VALIDATION_ERROR", "Credenciais locais inválidas", requestId), { status: 422 });
+    return NextResponse.json(createApiError("INVALID_CREDENTIALS", genericMessage, requestId), {
+      status: 422,
+      headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+    });
   }
   try {
-    const session = await loginLocalFixture(parsed.data);
+    const resolved = await resolveLoginIdentifier(parsed.data.identifier);
+    const client = await createSupabaseServerClient();
+    const email = resolved?.email ?? `invalid.${crypto.randomUUID()}@institutojef.org.br`;
+    const { error } = await client.auth.signInWithPassword({ email, password: parsed.data.password });
+    if (error || !resolved?.active || !resolved.onboarding_completed) {
+      await client.auth.signOut();
+      const allowed = await consumeInstitutionalRateLimit(client, "LOGIN", parsed.data.identifier, request);
+      if (!allowed) {
+        return NextResponse.json(createApiError("RATE_LIMITED", "Muitas tentativas. Aguarde antes de tentar novamente.", requestId), {
+          status: 429,
+          headers: { "Cache-Control": "no-store", "Retry-After": "900", "x-request-id": requestId },
+        });
+      }
+      return NextResponse.json(createApiError("INVALID_CREDENTIALS", genericMessage, requestId), {
+        status: 401,
+        headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+      });
+    }
+    const session = await getSession();
+    if (!session?.user.onboardingCompleted) {
+      await client.auth.signOut();
+      const allowed = await consumeInstitutionalRateLimit(client, "LOGIN", parsed.data.identifier, request);
+      if (!allowed) {
+        return NextResponse.json(createApiError("RATE_LIMITED", "Muitas tentativas. Aguarde antes de tentar novamente.", requestId), {
+          status: 429,
+          headers: { "Cache-Control": "no-store", "Retry-After": "900", "x-request-id": requestId },
+        });
+      }
+      return NextResponse.json(createApiError("INVALID_CREDENTIALS", genericMessage, requestId), {
+        status: 401,
+        headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+      });
+    }
     return NextResponse.json({ user: session.user, request_id: requestId }, {
       headers: { "Cache-Control": "no-store", "x-request-id": requestId },
     });
-  } catch (error) {
-    const status = error instanceof AuthorizationError ? error.status : 500;
-    return NextResponse.json(createApiError("LOCAL_LOGIN_REJECTED", "Credenciais locais inválidas", requestId), { status });
+  } catch {
+    return NextResponse.json(createApiError("AUTH_UNAVAILABLE", "Autenticação temporariamente indisponível", requestId), {
+      status: 503,
+      headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+    });
   }
 }

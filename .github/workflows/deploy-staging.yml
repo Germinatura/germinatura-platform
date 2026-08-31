@@ -26,6 +26,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
@@ -45,6 +46,12 @@ jobs:
       - run: node tools/configure-supabase-auth.mjs
       - run: pnpm exec supabase db push --dry-run
       - run: pnpm exec supabase db push
+      - name: Configure Portal server secret
+        working-directory: apps/portal
+        run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
+      - name: Configure PDV server secret
+        working-directory: apps/pdv
+        run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
       - working-directory: apps/portal
         run: pnpm exec vinext-cloudflare deploy --env staging
       - working-directory: apps/pdv

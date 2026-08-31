@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type InstitutionalRateLimitScope = "OTP_REQUEST" | "OTP_VERIFY";
+export type InstitutionalRateLimitScope = "SIGNUP_REQUEST" | "SIGNUP_VERIFY" | "RECOVERY_VERIFY" | "LOGIN";
 
 function requestIp(request: Request): string {
   return request.headers.get("cf-connecting-ip")
@@ -8,10 +8,14 @@ function requestIp(request: Request): string {
     ?? "unknown";
 }
 
-async function sha256(value: string): Promise<string> {
+export async function sha256(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export async function anonymousSubjectHash(scope: string, identifier: string, request: Request): Promise<string> {
+  return sha256(`${scope}:${identifier.trim().toLowerCase()}:${requestIp(request)}`);
 }
 
 export async function consumeInstitutionalRateLimit(

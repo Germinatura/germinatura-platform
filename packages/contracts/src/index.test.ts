@@ -3,6 +3,7 @@ import {
   apiErrorSchema,
   catalogProductFlagsSchema,
   catalogSlugSchema,
+  credentialLoginRequestSchema,
   createApiClient,
   idempotencyKeySchema,
   idempotencyStatusSchema,
@@ -13,6 +14,8 @@ import {
   moneyCentsSchema,
   paymentReconciliationRequestSchema,
   paymentReconciliationResponseSchema,
+  passwordRecoveryRequestSchema,
+  passwordRecoveryUnlockSchema,
   productSkuSchema,
   pricingQuoteRequestSchema,
   pricingQuoteResponseSchema,
@@ -24,10 +27,13 @@ import {
   salesCheckoutRequestSchema,
   salesCheckoutResponseSchema,
   sessionUserSchema,
+  signupCompleteSchema,
+  signupRequestSchema,
   stockMovementTypeSchema,
   stockReservationItemSchema,
   stockReservationStatusSchema,
   userAccessUpdateSchema,
+  usernameSchema,
 } from "./index";
 
 describe("shared contracts", () => {
@@ -53,6 +59,39 @@ describe("shared contracts", () => {
       email: "pessoa@institutojef.org.br",
       token: "1234567",
     }).success).toBe(false);
+  });
+
+  it("separates credential login, verified signup and bounded recovery contracts", () => {
+    expect(usernameSchema.parse(" Pessoa.Teste ")).toBe("pessoa.teste");
+    expect(credentialLoginRequestSchema.parse({
+      identifier: "Pessoa.Teste",
+      password: "qualquer-valor",
+    })).toEqual({ identifier: "pessoa.teste", password: "qualquer-valor" });
+    expect(credentialLoginRequestSchema.parse({
+      identifier: "Pessoa@InstitutoJef.org.br",
+      password: "qualquer-valor",
+    }).identifier).toBe("pessoa@institutojef.org.br");
+    expect(credentialLoginRequestSchema.safeParse({
+      identifier: "pessoa@example.org",
+      password: "qualquer-valor",
+    }).success).toBe(false);
+
+    expect(signupRequestSchema.safeParse({ email: "pessoa@institutojef.org.br" }).success).toBe(true);
+    expect(signupCompleteSchema.parse({
+      displayName: "Pessoa Teste",
+      username: "pessoa.teste",
+      password: "Pessoa123!",
+    })).toMatchObject({ username: "pessoa.teste", avatarPath: null });
+    expect(signupCompleteSchema.safeParse({
+      displayName: "Pessoa Teste",
+      username: "pessoa.teste",
+      password: "sem-complexidade",
+    }).success).toBe(false);
+
+    expect(passwordRecoveryRequestSchema.parse({ identifier: "pessoa.teste" }))
+      .toEqual({ identifier: "pessoa.teste" });
+    expect(passwordRecoveryUnlockSchema.safeParse({ reason: "ok" }).success).toBe(false);
+    expect(passwordRecoveryUnlockSchema.safeParse({ reason: "Identidade validada pelo administrador" }).success).toBe(true);
   });
 
   it("validates cumulative user access updates", () => {

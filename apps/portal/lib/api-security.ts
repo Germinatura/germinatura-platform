@@ -16,8 +16,16 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/payments/:id/reconciliations", methods: ["POST"], access: "finance" },
   { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/signup/request", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/signup/verify", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/signup/complete", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/password-recovery/request", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/password-recovery/verify", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/password-recovery/complete", methods: ["POST"], access: "public" },
   { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/admin/users", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },
+  { path: "/api/v1/admin/users/:id/password-recovery", methods: ["POST"], access: "admin" },
   { path: "/api/auth/login", methods: ["POST"], access: "public" },
   { path: "/api/auth/logout", methods: ["POST"], access: "authenticated" },
   { path: "/api/auth/me", methods: ["GET"], access: "authenticated" },
@@ -30,6 +38,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     if (rule.path === path) return true;
     if (rule.path === "/api/v1/admin/users/:id/roles") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/users/:id/password-recovery") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/password-recovery$/i.test(path);
     }
     if (rule.path === "/api/v1/sales/:id/cancel") {
       return /^\/api\/v1\/sales\/[0-9a-f-]+\/cancel$/i.test(path);

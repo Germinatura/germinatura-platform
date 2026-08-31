@@ -11,7 +11,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    if (pathname === "/login" || pathname.startsWith("/pdv") || pathname === "/trocar-senha") {
+    if (
+      pathname === "/login"
+      || pathname.startsWith("/cadastro")
+      || pathname === "/esqueci-senha"
+      || pathname === "/recuperar-senha"
+      || pathname.startsWith("/pdv")
+      || pathname === "/trocar-senha"
+    ) {
         return <>{children}</>;
     }
 
