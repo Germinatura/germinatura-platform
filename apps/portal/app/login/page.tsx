@@ -1,14 +1,14 @@
 "use client";
 
-import { institutionalEmailSchema } from "@germinatura/contracts";
-import { Loader2, Mail, ShieldCheck } from "lucide-react";
+import { credentialLoginRequestSchema } from "@germinatura/contracts";
+import { Loader2, LockKeyhole, UserRound } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
-  const [codeRequested, setCodeRequested] = useState(false);
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { showToast } = useToast();
@@ -18,24 +18,16 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const parsedEmail = institutionalEmailSchema.safeParse(email);
-      if (!parsedEmail.success) throw new Error("Use seu email @institutojef.org.br");
-      const response = await fetch(codeRequested ? "/api/v1/auth/otp/verify" : "/api/v1/auth/otp/request", {
+      const parsed = credentialLoginRequestSchema.safeParse({ identifier, password });
+      if (!parsed.success) throw new Error("Informe seu usuário/e-mail e senha");
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(codeRequested ? { email: parsedEmail.data, token } : { email: parsedEmail.data }),
+        body: JSON.stringify(parsed.data),
       });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.message ?? "Não foi possível autenticar");
-      if (!codeRequested) {
-        setEmail(parsedEmail.data);
-        setCodeRequested(true);
-        showToast("Código enviado ao email institucional", "success");
-        return;
-      }
-      const roles: string[] = body.user?.roles ?? [];
-      const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
-      window.location.assign(roles.includes("VENDEDOR") && !roles.includes("ADMIN") ? pdvUrl : "/");
+      if (!response.ok) throw new Error(body.message ?? "Usuário/e-mail ou senha inválidos");
+      window.location.assign("/");
     } catch (loginError) {
       const message = loginError instanceof Error ? loginError.message : "Erro ao conectar com o servidor";
       setError(message);
@@ -54,30 +46,30 @@ export default function LoginPage() {
           <p className="mt-2 font-medium text-slate-500">Acesso da comunidade Germinare</p>
         </header>
         <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl shadow-slate-200/50">
-          <form onSubmit={submit} className="space-y-6 p-8">
+          <form onSubmit={submit} className="space-y-5 p-8">
             {error && <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</p>}
-            <div className="space-y-2">
-              <label htmlFor="institutional-email" className="ml-1 text-sm font-bold text-slate-700">Email institucional</label>
-              <div className="relative">
-                <Mail aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-                <input id="institutional-email" required disabled={codeRequested || loading} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nome@institutojef.org.br" className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary disabled:opacity-70" />
-              </div>
+            <label className="block space-y-2 text-sm font-bold text-slate-700">
+              Usuário ou e-mail
+              <span className="relative block">
+                <UserRound aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                <input required autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="seu.usuario ou email@institutojef.org.br" className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary" />
+              </span>
+            </label>
+            <label className="block space-y-2 text-sm font-bold text-slate-700">
+              Senha
+              <span className="relative block">
+                <LockKeyhole aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                <input required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary" />
+              </span>
+            </label>
+            <div className="flex items-center justify-between gap-4 text-sm font-semibold">
+              <Link href="/cadastro" className="text-primary hover:underline">Criar conta</Link>
+              <Link href="/esqueci-senha" className="text-slate-600 hover:underline">Esqueci minha senha</Link>
             </div>
-            {codeRequested && (
-              <div className="space-y-2">
-                <label htmlFor="otp-code" className="ml-1 text-sm font-bold text-slate-700">Código de 6 dígitos</label>
-                <div className="relative">
-                  <ShieldCheck aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
-                  <input id="otp-code" required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={token} onChange={(event) => setToken(event.target.value.replace(/\D/g, ""))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 text-center text-xl font-bold tracking-[0.35em] outline-none focus:border-primary focus:ring-2 focus:ring-primary" />
-                </div>
-              </div>
-            )}
-            <button disabled={loading} type="submit" className="flex w-full items-center justify-center gap-3 rounded-2xl bg-primary py-4 text-lg font-bold text-white shadow-lg shadow-primary/30 transition hover:bg-primary/90 disabled:opacity-50">
-              {loading ? <Loader2 aria-label="Aguarde" className="size-6 animate-spin" /> : codeRequested ? "Confirmar código" : "Receber código"}
+            <button disabled={loading} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-primary py-4 text-lg font-bold text-white disabled:opacity-50">
+              {loading ? <Loader2 aria-label="Aguarde" className="size-6 animate-spin" /> : "Entrar"}
             </button>
-            {codeRequested && <button type="button" onClick={() => { setCodeRequested(false); setToken(""); setError(""); }} className="w-full text-sm font-semibold text-slate-600 hover:underline">Usar outro email</button>}
           </form>
-          <p className="border-t border-slate-100 bg-slate-50 p-6 text-center text-sm font-medium text-slate-500">Nenhuma senha é solicitada ou armazenada pela Germinatura.</p>
         </section>
       </div>
     </main>
