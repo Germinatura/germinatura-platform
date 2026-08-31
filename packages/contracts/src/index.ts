@@ -271,6 +271,46 @@ export const manualPaymentConfirmationResponseSchema = z.object({
 }).strict();
 export type ManualPaymentConfirmationResponse = z.infer<typeof manualPaymentConfirmationResponseSchema>;
 
+export const paymentReconciliationRequestSchema = z.object({
+  observedAmountCents: moneyCentsSchema.refine((value) => value > 0, "Observed amount must be positive"),
+  feeAmountCents: moneyCentsSchema,
+  externalReference: z.string().min(4).max(128)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
+    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
+}).strict().superRefine(({ observedAmountCents, feeAmountCents }, context) => {
+  if (feeAmountCents >= observedAmountCents) {
+    context.addIssue({
+      code: "custom",
+      path: ["feeAmountCents"],
+      message: "Fee must be lower than the observed amount",
+    });
+  }
+});
+export type PaymentReconciliationRequest = z.infer<typeof paymentReconciliationRequestSchema>;
+
+export const paymentReconciliationResponseSchema = z.object({
+  data: z.object({
+    reconciliationId: z.uuid(),
+    attemptId: z.uuid(),
+    paymentStatus: z.enum(["RECONCILIATION_PENDING", "RECONCILED"]),
+    outcome: z.enum(["DIVERGENT", "MATCHED"]),
+    expectedAmountCents: moneyCentsSchema,
+    observedAmountCents: moneyCentsSchema,
+    feeAmountCents: moneyCentsSchema,
+    netAmountCents: moneyCentsSchema,
+    source: z.literal("MANUAL"),
+    externalReference: z.string().min(4).max(128),
+    ledger: z.object({
+      feeEntryId: z.uuid().nullable(),
+      settlementEntryId: z.uuid().nullable(),
+      divergenceEntryId: z.uuid().nullable(),
+    }).strict(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type PaymentReconciliationResponse = z.infer<typeof paymentReconciliationResponseSchema>;
+
 export const stockMovementTypeSchema = z.enum([
   "SALDO_INICIAL",
   "ENTRADA_COMPRA",

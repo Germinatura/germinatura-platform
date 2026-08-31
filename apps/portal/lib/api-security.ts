@@ -1,4 +1,4 @@
-export type ApiAccessLevel = "public" | "authenticated" | "seller" | "admin";
+export type ApiAccessLevel = "public" | "authenticated" | "seller" | "finance" | "admin";
 
 interface ApiAccessRule {
   path: string;
@@ -13,6 +13,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/sales/checkout", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/payments/:id/reconciliations", methods: ["POST"], access: "finance" },
   { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
@@ -36,6 +37,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     if (rule.path === "/api/v1/sales/:id/payments/manual-confirmation") {
       return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/manual-confirmation$/i.test(path);
     }
+    if (rule.path === "/api/v1/payments/:id/reconciliations") {
+      return /^\/api\/v1\/payments\/[0-9a-f-]+\/reconciliations$/i.test(path);
+    }
     return false;
   });
 }
@@ -43,6 +47,7 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
 export function rolesSatisfyAccess(roles: readonly string[], access: ApiAccessLevel): boolean {
   if (access === "public" || access === "authenticated") return true;
   if (access === "admin") return roles.includes("ADMIN");
+  if (access === "finance") return roles.includes("ADMIN") || roles.includes("FINANCEIRO");
   return roles.includes("ADMIN") || roles.includes("VENDEDOR");
 }
 
