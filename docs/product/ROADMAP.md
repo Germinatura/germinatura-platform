@@ -66,7 +66,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Portal de compra/reservas/rifas | TODO | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Fluxos concorrentes e financeiros testados |
+| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Backend de reservas/rifas e concorrência real entregues; telas, expiração e pagamento ainda pendentes |
 | Campanhas, links e notificações | TODO | P2 | Outbox/Portal | GROW-001, NOTIF-001 | Falha assíncrona não afeta transação |
 
 ## Fase 7 — Comunidade
