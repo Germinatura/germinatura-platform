@@ -11,6 +11,8 @@ import {
   manualPaymentConfirmationRequestSchema,
   manualPaymentConfirmationResponseSchema,
   moneyCentsSchema,
+  paymentReconciliationRequestSchema,
+  paymentReconciliationResponseSchema,
   productSkuSchema,
   pricingQuoteRequestSchema,
   pricingQuoteResponseSchema,
@@ -361,5 +363,45 @@ describe("shared contracts", () => {
       },
       request_id: "request-manual-confirmation",
     }).data.paymentAttempt.confirmationSource).toBe("MANUAL");
+  });
+
+  it("validates non-sensitive reconciliation observations and immutable result shapes", () => {
+    expect(paymentReconciliationRequestSchema.parse({
+      observedAmountCents: 3000,
+      feeAmountCents: 60,
+      externalReference: "SETTLEMENT-TEST-0001",
+    }).feeAmountCents).toBe(60);
+    expect(paymentReconciliationRequestSchema.safeParse({
+      observedAmountCents: 3000,
+      feeAmountCents: 3000,
+      externalReference: "SETTLEMENT-TEST-0002",
+    }).success).toBe(false);
+    expect(paymentReconciliationRequestSchema.safeParse({
+      observedAmountCents: 3000,
+      feeAmountCents: 60,
+      externalReference: "4111111111111111",
+    }).success).toBe(false);
+
+    expect(paymentReconciliationResponseSchema.parse({
+      data: {
+        reconciliationId: "78000000-0000-4000-8000-000000000001",
+        attemptId: "76000000-0000-4000-8000-000000000001",
+        paymentStatus: "RECONCILED",
+        outcome: "MATCHED",
+        expectedAmountCents: 3000,
+        observedAmountCents: 3000,
+        feeAmountCents: 60,
+        netAmountCents: 2940,
+        source: "MANUAL",
+        externalReference: "SETTLEMENT-TEST-0001",
+        ledger: {
+          feeEntryId: "79000000-0000-4000-8000-000000000001",
+          settlementEntryId: "79000000-0000-4000-8000-000000000002",
+          divergenceEntryId: null,
+        },
+        correlationId: "72000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-reconciliation",
+    }).data.outcome).toBe("MATCHED");
   });
 });

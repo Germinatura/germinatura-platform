@@ -313,6 +313,64 @@ test("Manual PicPay confirmation is explicit, idempotent and consumes stock once
   expect(replay.status()).toBe(200);
   await expect(replay.json()).resolves.toMatchObject({ data: confirmedBody.data });
 
+  const attemptId = confirmedBody.data.paymentAttempt.attemptId as string;
+  const divergentKey = `${checkoutKey}-reconcile-divergent`;
+  const divergentPayload = {
+    observedAmountCents: 2500,
+    feeAmountCents: 50,
+    externalReference: `SETTLEMENT-DIVERGENT-${Date.now().toString(36)}`,
+  };
+  const divergent = await page.request.post(`/api/v1/payments/${attemptId}/reconciliations`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": divergentKey },
+    data: divergentPayload,
+  });
+  expect(divergent.status()).toBe(200);
+  const divergentBody = await divergent.json();
+  expect(divergentBody).toMatchObject({
+    data: {
+      attemptId,
+      paymentStatus: "RECONCILIATION_PENDING",
+      outcome: "DIVERGENT",
+      expectedAmountCents: 2590,
+      observedAmountCents: 2500,
+      feeAmountCents: 50,
+      netAmountCents: 2450,
+      source: "MANUAL",
+    },
+  });
+  expect(divergentBody.data.ledger.divergenceEntryId).toBeTruthy();
+  expect(divergentBody.data.ledger.feeEntryId).toBeNull();
+  expect(divergentBody.data.ledger.settlementEntryId).toBeNull();
+
+  const divergentReplay = await page.request.post(`/api/v1/payments/${attemptId}/reconciliations`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": divergentKey },
+    data: divergentPayload,
+  });
+  expect(divergentReplay.status()).toBe(200);
+  await expect(divergentReplay.json()).resolves.toMatchObject({ data: divergentBody.data });
+
+  const matched = await page.request.post(`/api/v1/payments/${attemptId}/reconciliations`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-reconcile-matched` },
+    data: {
+      observedAmountCents: 2590,
+      feeAmountCents: 59,
+      externalReference: `SETTLEMENT-MATCHED-${Date.now().toString(36)}`,
+    },
+  });
+  expect(matched.status()).toBe(200);
+  await expect(matched.json()).resolves.toMatchObject({
+    data: {
+      attemptId,
+      paymentStatus: "RECONCILED",
+      outcome: "MATCHED",
+      expectedAmountCents: 2590,
+      observedAmountCents: 2590,
+      feeAmountCents: 59,
+      netAmountCents: 2531,
+      source: "MANUAL",
+    },
+  });
+
   const cancelled = await page.request.post(`/api/v1/sales/${saleId}/cancel`, {
     headers: { Origin: portalUrl, "Idempotency-Key": `${checkoutKey}-cancel-confirmed` },
   });
@@ -377,6 +435,19 @@ test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ pag
   await login(page, "vendedor.teste@institutojef.org.br", "Vendedor123!");
   await expect(page).toHaveURL(`${pdvUrl}/`);
   await expect(page.getByText("Acesso autorizado")).toBeVisible();
+
+  const reconciliation = await page.request.post(
+    "/api/v1/payments/76000000-0000-4000-8000-000000000001/reconciliations",
+    {
+      headers: { Origin: portalUrl, "Idempotency-Key": "seller-reconciliation-denied" },
+      data: {
+        observedAmountCents: 2590,
+        feeAmountCents: 59,
+        externalReference: "SETTLEMENT-SELLER-DENIED",
+      },
+    },
+  );
+  expect(reconciliation.status()).toBe(403);
 
   await page.goto(`${portalUrl}/`);
   await expect(page).toHaveURL(`${portalUrl}/`);
