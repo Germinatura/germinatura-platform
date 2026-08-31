@@ -311,6 +311,78 @@ export const paymentReconciliationResponseSchema = z.object({
 }).strict();
 export type PaymentReconciliationResponse = z.infer<typeof paymentReconciliationResponseSchema>;
 
+export const sellerCloseoutRequestSchema = z.object({
+  periodStart: z.iso.datetime({ offset: true }),
+  periodEnd: z.iso.datetime({ offset: true }),
+  stockCounts: z.array(z.object({
+    productId: z.uuid(),
+    countedQuantity: z.number().int().nonnegative().refine(Number.isSafeInteger, "Quantity must be a safe integer"),
+  }).strict()).min(1).max(500),
+  justification: z.string().trim().min(4).max(500).nullable().default(null),
+}).strict().superRefine(({ periodStart, periodEnd, stockCounts }, context) => {
+  if (new Date(periodStart).getTime() >= new Date(periodEnd).getTime()) {
+    context.addIssue({ code: "custom", path: ["periodEnd"], message: "Period end must be after start" });
+  }
+  const seen = new Set<string>();
+  for (const [index, item] of stockCounts.entries()) {
+    if (seen.has(item.productId)) context.addIssue({ code: "custom", path: ["stockCounts", index, "productId"], message: "Duplicate product" });
+    seen.add(item.productId);
+  }
+});
+export type SellerCloseoutRequest = z.infer<typeof sellerCloseoutRequestSchema>;
+
+const sellerCloseoutPaymentSummarySchema = z.object({
+  integrationChannel: paymentIntegrationChannelSchema,
+  paymentCount: z.number().int().nonnegative(),
+  totalCents: moneyCentsSchema,
+}).strict();
+
+const sellerCloseoutStockCountSchema = z.object({
+  productId: z.uuid(),
+  expectedQuantity: z.number().int().nonnegative(),
+  countedQuantity: z.number().int().nonnegative(),
+  differenceQuantity: z.number().int(),
+}).strict();
+
+export const sellerCloseoutResponseSchema = z.object({
+  data: z.object({
+    closeoutId: z.uuid(),
+    sellerId: z.uuid(),
+    locationId: z.uuid(),
+    status: z.literal("CLOSED"),
+    periodStart: z.iso.datetime({ offset: true }),
+    periodEnd: z.iso.datetime({ offset: true }),
+    confirmedSalesCount: z.number().int().nonnegative(),
+    confirmedSalesTotalCents: moneyCentsSchema,
+    paymentCount: z.number().int().nonnegative(),
+    paymentTotalCents: moneyCentsSchema,
+    paymentDifferenceCents: z.number().int().refine(Number.isSafeInteger),
+    stockDifferenceUnits: z.number().int().nonnegative(),
+    justification: z.string().min(4).max(500).nullable(),
+    paymentSummaries: z.array(sellerCloseoutPaymentSummarySchema),
+    stockCounts: z.array(sellerCloseoutStockCountSchema),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type SellerCloseoutResponse = z.infer<typeof sellerCloseoutResponseSchema>;
+
+export const reopenSellerCloseoutRequestSchema = z.object({
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+
+export const reopenSellerCloseoutResponseSchema = z.object({
+  data: z.object({
+    closeoutId: z.uuid(),
+    status: z.literal("REOPENED"),
+    reopenedAt: z.iso.datetime({ offset: true }),
+    reopenedBy: z.uuid(),
+    reopenReason: z.string().min(4).max(500),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+
 export const stockMovementTypeSchema = z.enum([
   "SALDO_INICIAL",
   "ENTRADA_COMPRA",
@@ -456,6 +528,8 @@ export const permissionSchema = z.enum([
   "raffles.manage",
   "users.manage",
   "finance.manage",
+  "closeouts.create",
+  "closeouts.manage",
   "communications.manage",
   "community.moderate",
 ]);

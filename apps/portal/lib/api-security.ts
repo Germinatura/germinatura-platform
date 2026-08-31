@@ -14,6 +14,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
   { path: "/api/v1/payments/:id/reconciliations", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/closeouts", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/closeouts/:id/reopen", methods: ["POST"], access: "finance" },
   { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/signup/request", methods: ["POST"], access: "public" },
@@ -50,6 +52,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/payments/:id/reconciliations") {
       return /^\/api\/v1\/payments\/[0-9a-f-]+\/reconciliations$/i.test(path);
+    }
+    if (rule.path === "/api/v1/closeouts/:id/reopen") {
+      return /^\/api\/v1\/closeouts\/[0-9a-f-]+\/reopen$/i.test(path);
     }
     return false;
   });

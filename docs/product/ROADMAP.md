@@ -41,7 +41,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | --- | --- | --- | --- | --- | --- |
 | Pricing e promoções server-side | DONE | P0 | Catálogo | PRICE-002, PROMO-001/002 | `86238e1` promoveu a cotação autoritativa para `PORTAL`/`PDV`; staging/produção e rejeição de total adulterado foram validados |
 | Checkout/venda/cancelamento | DONE | P0 | Pricing/ledger/outbox | SALE-001/002/003 | RPC e API recalculam preço, congelam snapshots, reservam estoque e criam tentativa em uma transação; replay/conflito, concorrência real e cancelamento pendente com liberação única são testados. Venda confirmada permanece fail-closed até reversões financeira e de estoque |
-| PWA/estoque vendedor/fechamento | TODO | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Offline read-only e fechamento auditado |
+| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Fechamento transacional e auditado implementado em `feat/seller-closeout`; PWA e interface operacional seguem na fatia de UI |
 
 ## Fase 4 — PicPay
 
@@ -60,7 +60,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Lançamentos/taxas/conciliação | DONE | P1 | Venda/pagamento/outbox | FIN-001/002/003 | Recebível, divergência, taxa e liquidação são append-only; Admin/Financeiro conciliam por referência única, mismatch vira pendência e replay não duplica efeitos |
 | Reembolso/reversão confirmada | TODO | P0 | Venda/estoque/financeiro | SALE-002, FIN-002 | Cancelamento confirmado exige reversões de estoque e financeiro, nunca exclusão |
 | Compras/fornecedores/custo | TODO | P2 | Catálogo/ledger | PROC-001 | Recebimento parcial gera lote/movimento/despesa |
-| Fechamentos e dashboards | TODO | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Indicadores reconciliados e reabertura auditada |
+| Fechamentos e dashboards | IN PROGRESS | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Snapshot de vendas/pagamentos/estoque e reabertura motivada implementados; dashboard visual segue pendente |
 
 ## Fase 6 — Venda online e crescimento
 
