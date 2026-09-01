@@ -25,10 +25,7 @@ export default async function FoundationDashboard() {
     <main className="min-h-full bg-slate-50 p-6 md:p-10">
       <div className="mx-auto max-w-6xl space-y-8">
         <header className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm md:p-10">
-          <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-widest text-emerald-700">
-            Germinatura v2.2
-          </span>
-          <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+          <h1 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
             Olá, {user.name}
           </h1>
           <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
