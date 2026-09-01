@@ -18,6 +18,7 @@ import {
   paymentReconciliationRequestSchema,
   paymentReconciliationResponseSchema,
   passwordRecoveryRequestSchema,
+  passwordRecoveryVerifySchema,
   passwordRecoveryUnlockSchema,
   productSkuSchema,
   pricingQuoteRequestSchema,
@@ -66,7 +67,21 @@ describe("shared contracts", () => {
     }).success).toBe(true);
     expect(institutionalOtpVerifySchema.safeParse({
       email: "pessoa@institutojef.org.br",
-      token: "1234567",
+      token: "1234567890",
+    }).success).toBe(true);
+    for (const token of ["12345", "12345678901", "12345a"]) {
+      expect(institutionalOtpVerifySchema.safeParse({
+        email: "pessoa@institutojef.org.br",
+        token,
+      }).success).toBe(false);
+    }
+    expect(passwordRecoveryVerifySchema.safeParse({
+      identifier: "pessoa@institutojef.org.br",
+      token: "1234567890",
+    }).success).toBe(true);
+    expect(passwordRecoveryVerifySchema.safeParse({
+      identifier: "pessoa@institutojef.org.br",
+      token: "12345678901",
     }).success).toBe(false);
   });
 

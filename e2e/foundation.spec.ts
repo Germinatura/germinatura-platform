@@ -124,7 +124,7 @@ test("Portal signup verifies institutional email, completes the profile and enab
   await page.getByRole("button", { name: "Enviar código" }).click();
   expect((await requested).status()).toBe(202);
 
-  await page.getByLabel("Código de 6 dígitos").fill(await latestEmailCode(request, email));
+  await page.getByLabel("Código de 6 a 10 dígitos").fill(await latestEmailCode(request, email));
   const verified = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/signup/verify");
   await page.getByRole("button", { name: "Confirmar código" }).click();
   expect((await verified).status()).toBe(200);
@@ -190,7 +190,7 @@ test("Password recovery changes the password and the third request requires an a
   await page.goto("/esqueci-senha");
   await page.getByLabel("Usuário ou e-mail").fill(username);
   await page.getByRole("button", { name: "Enviar código" }).click();
-  await page.getByLabel("Código de 6 dígitos").fill(await latestEmailCode(request, email));
+  await page.getByLabel("Código de 6 a 10 dígitos").fill(await latestEmailCode(request, email));
   await page.getByRole("button", { name: "Confirmar código" }).click();
   await expect(page).toHaveURL(`${portalUrl}/recuperar-senha`);
   await page.getByLabel("Nova senha", { exact: true }).fill("Consumidor456!");

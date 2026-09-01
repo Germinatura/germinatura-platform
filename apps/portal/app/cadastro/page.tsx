@@ -29,7 +29,7 @@ export default function CadastroPage() {
     try {
       const schema = codeSent ? signupVerifySchema : signupRequestSchema;
       const parsed = schema.safeParse(codeSent ? { email, token } : { email });
-      if (!parsed.success) throw new Error(codeSent ? "Informe o código de 6 dígitos" : "Use seu e-mail @institutojef.org.br");
+      if (!parsed.success) throw new Error(codeSent ? "Informe o código de 6 a 10 dígitos" : "Use seu e-mail @institutojef.org.br");
       const response = await fetch(codeSent ? "/api/v1/auth/signup/verify" : "/api/v1/auth/signup/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -63,7 +63,7 @@ export default function CadastroPage() {
           {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</p>}
           {existingAccount && <Link href="/login" className="block rounded-xl border border-primary px-4 py-3 text-center text-sm font-bold text-primary hover:bg-primary/5">Ir para o login</Link>}
           <label className="block space-y-2 font-bold text-slate-700">E-mail institucional<input required disabled={codeSent} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 disabled:opacity-70" /></label>
-          {codeSent && <label className="block space-y-2 font-bold text-slate-700">Código de 6 dígitos<input required inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={token} onChange={(event) => setToken(event.target.value.replace(/\D/g, ""))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-xl tracking-[.3em]" /></label>}
+          {codeSent && <label className="block space-y-2 font-bold text-slate-700">Código de 6 a 10 dígitos<input required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={10} value={token} onChange={(event) => setToken(event.target.value.replace(/\D/g, ""))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-xl tracking-[.3em]" /></label>}
           <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary p-4 font-bold text-white disabled:opacity-50">{loading ? <Loader2 className="size-5 animate-spin" /> : codeSent ? "Confirmar código" : "Enviar código"}</button>
         </form>
         <Link href="/login" className="mt-5 block text-center text-sm font-semibold text-slate-600 hover:underline">Já tenho uma conta</Link>
