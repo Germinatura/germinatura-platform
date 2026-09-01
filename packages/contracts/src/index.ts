@@ -565,7 +565,7 @@ export type InstitutionalOtpRequest = z.infer<typeof institutionalOtpRequestSche
 
 export const institutionalOtpVerifySchema = z.object({
   email: institutionalEmailSchema,
-  token: z.string().regex(/^\d{6}$/),
+  token: z.string().regex(/^\d{6,10}$/),
 }).strict();
 export type InstitutionalOtpVerify = z.infer<typeof institutionalOtpVerifySchema>;
 
@@ -609,7 +609,7 @@ export type SignupComplete = z.infer<typeof signupCompleteSchema>;
 export const passwordRecoveryRequestSchema = z.object({ identifier: loginIdentifierSchema }).strict();
 export const passwordRecoveryVerifySchema = z.object({
   identifier: loginIdentifierSchema,
-  token: z.string().regex(/^\d{6}$/),
+  token: z.string().regex(/^\d{6,10}$/),
 }).strict();
 export const passwordRecoveryCompleteSchema = z.object({ password: accountPasswordSchema }).strict();
 export const passwordRecoveryUnlockSchema = z.object({ reason: z.string().trim().min(4).max(500) }).strict();
