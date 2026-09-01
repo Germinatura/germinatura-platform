@@ -23,7 +23,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Money compartilhado | DONE | P0 | Contratos | PRICE-001 | `a769f50` em `main`; CI pós-merge `33094580327` verde |
 | Idempotência persistente | DONE | P0 | Money | IDEM-001 | `62ae97c` em `main`; 61 testes SQL e CI pós-merge `33097920723` verde. Consumo por mutações permanece incremental |
 | Erros e cursor comuns | IN PROGRESS | P1 | Contratos | ARCH-002 | `084ebda` adiciona primeiro consumidor real com erro e cursor compartilhados; generalização segue incremental |
-| Audit log e transactional outbox | IN PROGRESS | P0 | Migration | AUD-001, OBS-001 | Persistência e claim/ack/retry em `3db74fc`; consumidor e monitoramento continuam pendentes |
+| Audit log e transactional outbox | DONE | P0 | Migration/worker | AUD-001, OBS-001 | Claim concorrente, lease, ack, retry exponencial, dead-letter lógico e métricas são consumidos pelo worker agendado; falhas assíncronas não revertem a transação principal |
 
 ## Fase 2 — Estoque confiável
 
@@ -66,8 +66,8 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Backend de reservas/rifas e concorrência real entregues; telas, expiração e pagamento ainda pendentes |
-| Campanhas, links e notificações | TODO | P2 | Outbox/Portal | GROW-001, NOTIF-001 | Falha assíncrona não afeta transação |
+| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Backend de reservas/rifas, concorrência e expiração pelo worker entregues; telas aguardam o gate visual obrigatório |
+| Campanhas, links e notificações | IN PROGRESS | P2 | Outbox/Portal | GROW-001, NOTIF-001 | Notificações in-app listáveis/marcáveis e materialização idempotente entregues; e-mail, push e campanhas seguem pós-MVP |
 
 ## Fase 7 — Comunidade
 
@@ -83,6 +83,6 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Open Finance para conciliação | BLOCKED | P3 | Caso real/consentimento | FIN-004 | Nunca autoriza venda; ADR revisado |
 | Web Push, app nativo, chat, analytics | TODO | P3 | Evidência de uso | NOTIF-001, COMM-001 | Decisão própria e métricas |
 
-## Próxima fatia recomendada
+## Próximo gate obrigatório
 
-Iniciar `feat/seller-closeout` somente depois de concluir a reversão auditada de venda confirmada. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
+Interromper a implementação antes de `feat/mvp-operations-ui` e aprovar com o usuário o inventário de telas, navegação por papel, tokens visuais, responsividade, estados e wireframes das jornadas críticas. Nenhuma interface operacional deve ser inferida da tela atual. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
