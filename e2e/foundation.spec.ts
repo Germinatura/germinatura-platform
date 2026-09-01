@@ -583,7 +583,18 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await page.goto("/login");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
-  await expect(page.getByText("Germinatura v2.2")).toBeVisible();
+  await expect(page.getByText("Germinatura v2.2")).toHaveCount(0);
+
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 768, height: 700 }, { width: 390, height: 700 }]) {
+    await page.setViewportSize(viewport);
+    await page.reload();
+    const scrollContainer = page.getByTestId("dashboard-scroll-container");
+    await expect(scrollContainer).toHaveCSS("overflow-y", "auto");
+    await scrollContainer.hover();
+    await page.mouse.wheel(0, 1200);
+    await expect(page.getByRole("heading", { name: "Fundação do PDV" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Abrir PDV" }).last()).toBeVisible();
+  }
 
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();

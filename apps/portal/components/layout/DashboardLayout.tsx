@@ -68,7 +68,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     </div>
                 </header>
 
-                <main className="flex-1 min-h-0 overflow-hidden">
+                <main data-testid="dashboard-scroll-container" className="flex-1 min-h-0 overflow-y-auto">
                     {children}
                 </main>
             </div>
