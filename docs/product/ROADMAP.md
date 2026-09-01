@@ -8,7 +8,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | --- | --- | --- | --- | --- | --- |
 | Auth Supabase, RBAC/RLS e baseline web | DONE | P0 | — | AUTH-001/002, SEC-001 | Migration, testes SQL/E2E e CI em `b58f93e` |
 | Fonte v2.2, PRD, gaps e ADRs | DONE | P0 | PR | GOV-001 | `0640c11` em `main`, CI `32852994966` verde e v2.1 marcada histórica |
-| Cadastro verificado e login por credenciais | IN PROGRESS | P0 | Supabase Auth, SMTP, segredo server-side, rate limit | AUTH-003/006, SEC-002 | `fix/credential-auth-flow` implementa código apenas no cadastro/recuperação, perfil e login por e-mail/username; gates locais verdes, aguardando PR e staging |
+| Cadastro verificado e login por credenciais | IN PROGRESS | P0 | Supabase Auth, SMTP, segredo server-side, rate limit | AUTH-003/006, SEC-002 | Backend e telas base em staging; código de 6–10 dígitos, um reenvio após 90s, troca de e-mail e desbloqueios auditados prontos; falta homologação visual/SMTP pelo operador |
 | Papel base e provisionamento de vendedor | IN PROGRESS | P0 | Cadastro institucional, RBAC, auditoria | AUTH-004, PDV-001, AUD-001 | `fix/credential-auth-flow` preserva `CONSUMIDOR`, provisiona conta auditada e restringe PDV a credenciais; gestão administrativa completa segue pendente |
 | Bootstrap do primeiro administrador | IN PROGRESS | P0 | Acesso institucional, procedimento seguro de bootstrap | AUTH-005, AUD-001 | RPC e interface locais aceitam somente a identidade verificada definida no ADR 0009, são idempotentes e fecham após sucesso; bootstrap real continua operacionalmente pendente |
 | Granularidade futura de autorização | TODO | P0 | Cada domínio | AUTH-002 | Rota + permission + RLS + teste de abuso |
