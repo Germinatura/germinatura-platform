@@ -68,4 +68,4 @@ jobs:
         run: pnpm exec wrangler deploy --env production --var SUPABASE_URL:$NEXT_PUBLIC_SUPABASE_URL
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PORTAL_URL}/api/v1/health"
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/health"
-      - run: curl --fail --silent --show-error "${JOBS_URL}/health"
+      - run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "${JOBS_URL}/health"
