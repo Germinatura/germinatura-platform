@@ -613,6 +613,7 @@ export const passwordRecoveryVerifySchema = z.object({
 }).strict();
 export const passwordRecoveryCompleteSchema = z.object({ password: accountPasswordSchema }).strict();
 export const passwordRecoveryUnlockSchema = z.object({ reason: z.string().trim().min(4).max(500) }).strict();
+export const signupCodeUnlockSchema = passwordRecoveryUnlockSchema;
 
 export const adminProvisionUserSchema = z.object({
   email: institutionalEmailSchema,
