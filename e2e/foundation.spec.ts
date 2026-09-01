@@ -85,6 +85,15 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
     expect(protectedDomainMutation.status()).toBe(401);
   }
 
+  for (const path of ["/api/v1/notifications", "/api/v1/feature-flags"]) {
+    expect((await request.get(path)).status()).toBe(401);
+  }
+
+  const protectedFlagMutation = await request.patch("/api/v1/admin/feature-flags/reservations", {
+    headers: { Origin: portalUrl }, data: { enabled: false, reason: "Teste sem sessão" },
+  });
+  expect(protectedFlagMutation.status()).toBe(401);
+
   for (let attempt = 1; attempt <= 10; attempt += 1) {
     const invalid = await request.post("/api/auth/login", {
       headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },

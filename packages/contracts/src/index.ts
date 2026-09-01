@@ -655,6 +655,82 @@ export const permissionSchema = z.enum([
 ]);
 export type Permission = z.infer<typeof permissionSchema>;
 
+export const notificationKindSchema = z.enum([
+  "ACCOUNT_UPDATED",
+  "RESERVATION_CREATED",
+  "RESERVATION_CONVERTED",
+  "RESERVATION_EXPIRED",
+  "PAYMENT_CONFIRMED",
+  "CLOSEOUT_REOPENED",
+  "RAFFLE_RESERVED",
+  "RAFFLE_RESERVATION_EXPIRED",
+  "RAFFLE_DRAWN",
+]);
+
+export const notificationsQuerySchema = z.object({
+  cursor: z.uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  unreadOnly: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+});
+
+export const notificationSchema = z.object({
+  id: z.uuid(),
+  kind: notificationKindSchema,
+  title: z.string().min(1).max(160),
+  body: z.string().min(1).max(1000),
+  data: z.record(z.string(), z.unknown()),
+  readAt: z.iso.datetime({ offset: true }).nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+}).strict();
+
+export const notificationsResponseSchema = z.object({
+  data: z.array(notificationSchema),
+  nextCursor: z.uuid().nullable(),
+  request_id: z.string().min(1),
+}).strict();
+
+export const notificationReadResponseSchema = z.object({
+  data: notificationSchema.pick({ id: true, readAt: true }),
+  request_id: z.string().min(1),
+}).strict();
+
+export const featureFlagKeySchema = z.enum([
+  "reservations",
+  "raffles",
+  "notifications",
+  "card_present",
+  "pix_area_manual",
+  "online_checkout",
+  "picpay_checkout",
+  "picpay_tap",
+  "meal_voucher",
+  "community",
+  "comments",
+]);
+
+export const featureFlagSchema = z.object({
+  key: featureFlagKeySchema,
+  description: z.string().min(1).max(500),
+  enabled: z.boolean(),
+  updatedAt: z.iso.datetime({ offset: true }),
+  updatedBy: z.uuid().nullable(),
+}).strict();
+
+export const featureFlagsResponseSchema = z.object({
+  data: z.array(featureFlagSchema),
+  request_id: z.string().min(1),
+}).strict();
+
+export const featureFlagUpdateRequestSchema = z.object({
+  enabled: z.boolean(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+
+export const featureFlagUpdateResponseSchema = z.object({
+  data: featureFlagSchema,
+  request_id: z.string().min(1),
+}).strict();
+
 export const sessionUserSchema = z.object({
   id: z.string().min(1),
   authId: z.uuid(),
