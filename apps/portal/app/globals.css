@@ -1,13 +1,14 @@
 @import "tailwindcss";
+@import "@germinatura/ui/tokens.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: var(--g-surface-canvas);
+  --foreground: var(--g-text-primary);
 }
 
 @theme inline {
-  --color-primary: #001ec5;
-  --color-background-light: #f6f6f8;
+  --color-primary: var(--g-brand-primary);
+  --color-background-light: var(--g-surface-canvas);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: "Segoe UI", Arial, sans-serif;
@@ -23,5 +24,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Segoe UI", Arial, sans-serif;
+  font-family: var(--g-font-sans);
 }
