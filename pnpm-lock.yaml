@@ -60,6 +60,9 @@ importers:
       '@germinatura/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@germinatura/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@supabase/ssr':
         specifier: ^0.7.0
         version: 0.7.0(@supabase/supabase-js@2.112.3)
@@ -151,6 +154,9 @@ importers:
       '@germinatura/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@germinatura/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@supabase/ssr':
         specifier: ^0.7.0
         version: 0.7.0(@supabase/supabase-js@2.112.3)
