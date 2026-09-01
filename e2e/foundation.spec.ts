@@ -76,6 +76,7 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
     "/api/v1/reservations",
     "/api/v1/raffles/94000000-0000-4000-8000-000000000001/numbers/reserve",
     "/api/v1/admin/raffles",
+    "/api/v1/admin/users/10000000-0000-4000-8000-000000000003/signup-code",
   ]) {
     const protectedDomainMutation = await request.post(path, {
       headers: { Origin: portalUrl, "Idempotency-Key": `e2e-unauth-${path}` },
@@ -161,6 +162,20 @@ test("Portal signup verifies institutional email, completes the profile and enab
   expect((await existingRequest).status()).toBe(409);
   await expect(page.locator('p[role="alert"]')).toContainText("Já existe uma conta");
   await expect(page.getByRole("link", { name: "Ir para o login" })).toBeVisible();
+});
+
+test("Signup exposes one delayed resend and can switch email without leaving", async ({ page }) => {
+  const email = `troca.${Date.now()}@institutojef.org.br`;
+  await page.goto("/cadastro");
+  await page.getByLabel("E-mail institucional").fill(email);
+  const requested = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/v1/auth/signup/request");
+  await page.getByRole("button", { name: "Enviar código" }).click();
+  expect((await requested).status()).toBe(202);
+  await expect(page.getByRole("button", { name: /Reenviar em 8\d+s/ })).toBeDisabled();
+  await page.getByRole("button", { name: "Usar outro e-mail" }).click();
+  await expect(page.getByLabel("E-mail institucional")).toBeEditable();
+  await expect(page.getByLabel("E-mail institucional")).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Enviar código" })).toBeVisible();
 });
 
 test("Password recovery changes the password and the third request requires an audited admin unlock", async ({ page, request }) => {
