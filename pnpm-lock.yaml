@@ -40,6 +40,18 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@10.2.2)(terser@5.51.2)
 
+  apps/jobs:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@10.2.2)(terser@5.51.2)
+      wrangler:
+        specifier: ^4.127.1
+        version: 4.127.1
+
   apps/pdv:
     dependencies:
       '@germinatura/auth':

@@ -8,6 +8,8 @@ import {
   commercialReservationCreateRequestSchema,
   credentialLoginRequestSchema,
   createApiClient,
+  featureFlagUpdateRequestSchema,
+  featureFlagsResponseSchema,
   idempotencyKeySchema,
   idempotencyStatusSchema,
   institutionalEmailSchema,
@@ -15,6 +17,8 @@ import {
   manualPaymentConfirmationRequestSchema,
   manualPaymentConfirmationResponseSchema,
   moneyCentsSchema,
+  notificationsQuerySchema,
+  notificationsResponseSchema,
   paymentReconciliationRequestSchema,
   paymentReconciliationResponseSchema,
   passwordRecoveryRequestSchema,
@@ -555,5 +559,24 @@ describe("shared contracts", () => {
       randomMaterial: "a".repeat(64), auditHash: "b".repeat(64), winnerIndex: 2,
       winnerNumber: 7, correlationId: "95000000-0000-4000-8000-000000000001",
     }, request_id: "request-raffle-draw" }).data.winnerNumber).toBe(7);
+  });
+
+  it("validates notification pagination and feature flag changes", () => {
+    expect(notificationsQuerySchema.parse({ limit: "10", unreadOnly: "true" })).toEqual({ limit: 10, unreadOnly: true });
+    expect(notificationsQuerySchema.safeParse({ limit: "51" }).success).toBe(false);
+    expect(notificationsResponseSchema.parse({
+      data: [{
+        id: "96000000-0000-4000-8000-000000000001", kind: "RESERVATION_EXPIRED",
+        title: "Reserva expirada", body: "O estoque foi liberado.", data: {}, readAt: null,
+        createdAt: "2026-09-01T12:00:00.000Z",
+      }], nextCursor: null, request_id: "request-notifications",
+    }).data).toHaveLength(1);
+    expect(featureFlagUpdateRequestSchema.safeParse({ enabled: true, reason: "x" }).success).toBe(false);
+    expect(featureFlagsResponseSchema.parse({
+      data: [{
+        key: "reservations", description: "Reservas comerciais", enabled: true,
+        updatedAt: "2026-09-01T12:00:00.000Z", updatedBy: null,
+      }], request_id: "request-flags",
+    }).data[0]?.key).toBe("reservations");
   });
 });

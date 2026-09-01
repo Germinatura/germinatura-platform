@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "germinatura-jobs",
+  "account_id": "ac1e415bccca201b80f8313dd5ffeec8",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-28",
+  "workers_dev": true,
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": { "SUPABASE_URL": "http://127.0.0.1:54321" },
+  "env": {
+    "staging": { "name": "germinatura-jobs-staging", "workers_dev": true },
+    "production": { "name": "germinatura-jobs-production", "workers_dev": true }
+  }
+}

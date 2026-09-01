@@ -32,6 +32,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       NEXT_PUBLIC_PORTAL_URL: ${{ vars.NEXT_PUBLIC_PORTAL_URL }}
       NEXT_PUBLIC_PDV_URL: ${{ vars.NEXT_PUBLIC_PDV_URL }}
+      JOBS_URL: https://germinatura-jobs-staging.germinatura.workers.dev
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -52,9 +53,15 @@ jobs:
       - name: Configure PDV server secret
         working-directory: apps/pdv
         run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
+      - name: Configure Jobs server secret
+        working-directory: apps/jobs
+        run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
       - working-directory: apps/portal
         run: pnpm exec vinext-cloudflare deploy --env staging
       - working-directory: apps/pdv
         run: pnpm exec vinext-cloudflare deploy --env staging
+      - working-directory: apps/jobs
+        run: pnpm exec wrangler deploy --env staging --var SUPABASE_URL:$NEXT_PUBLIC_SUPABASE_URL
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PORTAL_URL}/api/v1/health"
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/health"
+      - run: curl --fail --silent --show-error "${JOBS_URL}/health"
