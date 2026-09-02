@@ -603,6 +603,7 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await expect(usersResponse.json()).resolves.toMatchObject({ data: expect.arrayContaining([expect.objectContaining({ email: "admin.teste@institutojef.org.br", active: true })]) });
 
   await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.getByText("Admin Local", { exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Recolher sidebar" }).click();
   await expect(page.getByRole("button", { name: "Expandir sidebar" })).toBeVisible();
 
@@ -619,7 +620,11 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await page.getByRole("button", { name: "Abrir navegação" }).click();
-  await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+  const mobileNavigation = page.getByRole("navigation", { name: "Navegação principal" });
+  const mobileSidebar = page.getByTestId("mobile-sidebar");
+  await expect(mobileNavigation).toBeVisible();
+  await expect(mobileSidebar.getByText("Admin Local", { exact: true })).toHaveCount(0);
+  await expect(mobileSidebar.getByRole("button", { name: "Sair da conta" })).toHaveCount(0);
   await page.getByRole("button", { name: "Fechar navegação" }).last().click();
   await page.getByRole("button", { name: "Notificações" }).click();
   await expect(page.getByText("Tudo em dia")).toBeVisible();

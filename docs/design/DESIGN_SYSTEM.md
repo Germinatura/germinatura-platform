@@ -17,6 +17,7 @@ Este documento é normativo para novas interfaces. Regras de domínio, permissõ
 5. Estado honesto: não sugerir pagamento automático quando a confirmação é manual.
 6. Acessibilidade por padrão: foco visível, contraste WCAG, labels persistentes, teclado e alvos mínimos de 44px.
 7. Interface sem metadados técnicos: versões, sprint, build, MVP e termos como “fundação” pertencem à documentação e observabilidade.
+8. Assets de marca são únicos: Portal e PDV reutilizam o `BrandMark` compartilhado de `packages/ui`; não redesenhar, duplicar ou substituir a marca por ícone genérico dentro dos apps.
 
 ## Identidade e temas
 
@@ -164,6 +165,8 @@ Referências implementadas no Portal:
 - ações críticas permanecem visíveis e alcançáveis sem cobrir conteúdo.
 
 O comportamento deve ser testado pelo menos em 390×844, tablet e desktop.
+
+Identidade do usuário, avatar e saída pertencem ao menu de conta da topbar. A sidebar contém somente marca, navegação e controle de recolhimento; não repetir o perfil nas duas regiões.
 
 ## Checklist de revisão
 
