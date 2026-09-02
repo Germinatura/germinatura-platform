@@ -29,9 +29,9 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Catálogo/preços base | DONE | P0 | Fundação | CAT-001, PRICE-001 | `4898755` em `main`; schema/RLS/histórico e CI pós-merge `33099929575` verdes |
+| Catálogo/preços base | DONE | P0 | Fundação | CAT-001, PRICE-001 | Schema/RLS/histórico permanecem protegidos; a interface administrativa responsiva consulta produtos, publicação, canais, categorias e preço aberto com falha explícita. Escrita continua bloqueada até uma RPC auditada própria |
 | API pública de produtos | DONE | P1 | Catálogo/RLS/contratos | CAT-002, AUTH-002 | `1abd440` em `main`; GET v1 limitado e paginado consulta sempre como anon; CI pós-merge `33193987691` verde |
-| Localizações e saldos protegidos | DONE | P0 | Catálogo | INV-002 | `77f7fc2` em `main`; constraints/RLS e CI pós-merge `33102680002` verdes |
+| Localizações e saldos protegidos | DONE | P0 | Catálogo | INV-002 | Constraints/RLS protegem os saldos; Admin e Estoque possuem visão responsiva de físico, reservado, disponível, localizações e movimentos imutáveis, sem edição direta |
 | Ledger imutável | DONE | P0 | Localizações/outbox | INV-001 | `3db74fc` em `main`; ajuste, transferência e reversão atômicos; CI pós-merge `33173021796` verde |
 | Reserva/concorrência/inventário | DONE | P0 | Ledger | INV-003/004, CONC-001 | `4cb84c8` em `main`; reserva/liberação/expiração idempotentes; 218 SQL + teste concorrente real da última unidade e reserva x transferência |
 
