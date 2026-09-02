@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, UserRoundCog, X } from "lucide-react";
+import { Boxes, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, UserRoundCog, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; }
@@ -19,6 +19,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
   const canAccessPdv = user?.roles.some((role) => role === "ADMIN" || role === "VENDEDOR") ?? false;
   const isAdmin = user?.roles.includes("ADMIN") ?? false;
   const canInspectInventory = user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false;
+  const canBrowseCatalog = !isAdmin && (user?.roles.some((role) => role === "CONSUMIDOR" || role === "VENDEDOR" || role === "ESTOQUE") ?? false);
   const itemClass = (active: boolean) => [
     "group relative flex min-h-11 items-center rounded-[var(--g-radius-control)] text-sm font-semibold transition-colors",
     collapsed ? "justify-center px-2" : "gap-3 px-3",
@@ -41,6 +42,12 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
           {pathname === "/" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
           <LayoutDashboard className="size-5 shrink-0" />{!collapsed && <span>{isAdmin ? "Visão geral" : "Início"}</span>}
         </Link>
+        {canBrowseCatalog && (
+          <Link href="/catalogo" onClick={onNavigate} className={itemClass(pathname === "/catalogo")} title={collapsed ? "Catálogo" : undefined}>
+            {pathname === "/catalogo" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+            <ShoppingBag className="size-5 shrink-0" />{!collapsed && <span>Catálogo</span>}
+          </Link>
+        )}
         {isAdmin && (
           <Link href="/admin/usuarios" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/usuarios"))} title={collapsed ? "Usuários e vendedores" : undefined}>
             {pathname.startsWith("/admin/usuarios") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}

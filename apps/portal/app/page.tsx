@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Bell, ShieldCheck, Store, UserRound } from "lucide-react";
+import { ArrowRight, Bell, ShieldCheck, ShoppingBag, Store, UserRound } from "lucide-react";
 import { Badge, Card } from "@germinatura/ui";
 import { requireSession } from "@/lib/auth";
 import { BootstrapAdminCard } from "@/components/auth/BootstrapAdminCard";
@@ -37,6 +37,13 @@ export default async function HomePage() {
         <section aria-labelledby="quick-actions-title">
           <div className="mb-4"><h3 id="quick-actions-title" className="text-xl font-bold text-[var(--g-text-primary)]">Comece por aqui</h3><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Atalhos disponíveis para a sua conta.</p></div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Card className="group relative overflow-hidden p-6 transition-transform hover:-translate-y-0.5">
+              <span className="absolute inset-y-0 right-0 w-1 bg-[var(--g-brand-primary)]" />
+              <span className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]"><ShoppingBag className="size-5" /></span>
+              <h4 className="mt-5 text-lg font-semibold text-[var(--g-text-primary)]">Catálogo</h4>
+              <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Consulte os produtos publicados, preços atuais e opções que aceitam reserva.</p>
+              <Link href="/catalogo" className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--g-brand-primary)]">Ver catálogo <ArrowRight className="size-4" /></Link>
+            </Card>
             <Card className="group relative overflow-hidden p-6 transition-transform hover:-translate-y-0.5">
               <span className="absolute inset-y-0 right-0 w-1 bg-[var(--g-brand-primary)]" />
               <span className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]"><UserRound className="size-5" /></span>
