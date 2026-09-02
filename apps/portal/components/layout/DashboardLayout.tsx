@@ -48,12 +48,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-[var(--g-surface-canvas)] text-[var(--g-text-primary)]">
       <aside className={`sticky top-0 hidden h-screen shrink-0 transition-[width] duration-200 lg:flex ${isCollapsed ? "w-[var(--g-sidebar-collapsed)]" : "w-[var(--g-sidebar-expanded)]"}`}>
-        <Sidebar user={user} loading={loading} collapsed={isCollapsed} onToggleCollapsed={() => setIsCollapsed(!isCollapsed)} onLogout={handleLogout} />
+        <Sidebar user={user} collapsed={isCollapsed} onToggleCollapsed={() => setIsCollapsed(!isCollapsed)} />
       </aside>
 
       {isSidebarOpen && <button type="button" className="fixed inset-0 z-40 bg-[var(--g-surface-overlay)] lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Fechar navegação" />}
-      <div className={`fixed inset-y-0 left-0 z-50 w-[min(var(--g-sidebar-expanded),calc(100vw-3rem))] transform bg-[var(--g-surface-default)] transition-transform duration-200 lg:hidden ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <Sidebar user={user} loading={loading} onNavigate={() => setIsSidebarOpen(false)} onLogout={handleLogout} />
+      <div data-testid="mobile-sidebar" className={`fixed inset-y-0 left-0 z-50 w-[min(var(--g-sidebar-expanded),calc(100vw-3rem))] transform bg-[var(--g-surface-default)] transition-transform duration-200 lg:hidden ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <Sidebar user={user} onNavigate={() => setIsSidebarOpen(false)} />
       </div>
 
       <div className="flex h-screen min-w-0 flex-1 flex-col">

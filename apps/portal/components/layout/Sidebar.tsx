@@ -2,20 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, LayoutDashboard, LogOut, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, UserRoundCog, X } from "lucide-react";
+import { Boxes, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, UserRoundCog, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; }
 interface SidebarProps {
   user: SidebarUser | null;
-  loading: boolean;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
-  onLogout: () => Promise<void>;
 }
 
-export function Sidebar({ user, loading, collapsed = false, onToggleCollapsed, onNavigate, onLogout }: SidebarProps) {
+export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user?.roles.some((role) => role === "ADMIN" || role === "VENDEDOR") ?? false;
@@ -75,20 +73,13 @@ export function Sidebar({ user, loading, collapsed = false, onToggleCollapsed, o
         )}
       </nav>
 
-      <div className="border-t border-[var(--g-border-subtle)] p-3">
-        {!loading && (
-          <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3 px-2 py-2"}`}>
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--g-brand-primary-soft)] text-sm font-semibold text-[var(--g-brand-primary)]">{user?.nome?.[0]?.toUpperCase() ?? "U"}</span>
-            {!collapsed && <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[var(--g-text-primary)]">{user?.nome ?? "Usuário"}</p><p className="truncate text-xs text-[var(--g-text-muted)]">{user?.perfil ?? "Acesso"}</p></div>}
-            {!collapsed && <button type="button" onClick={() => void onLogout()} className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)] hover:text-[var(--g-status-danger)]" aria-label="Sair da conta"><LogOut className="size-5" /></button>}
-          </div>
-        )}
-        {onToggleCollapsed && (
-          <button type="button" onClick={onToggleCollapsed} className={`mt-2 flex min-h-11 w-full items-center rounded-[var(--g-radius-control)] text-sm font-semibold text-[var(--g-text-secondary)] hover:bg-[var(--g-surface-hover)] ${collapsed ? "justify-center" : "gap-3 px-3"}`} aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}>
+      {onToggleCollapsed && (
+        <div className="border-t border-[var(--g-border-subtle)] p-3">
+          <button type="button" onClick={onToggleCollapsed} className={`flex min-h-11 w-full items-center rounded-[var(--g-radius-control)] text-sm font-semibold text-[var(--g-text-secondary)] hover:bg-[var(--g-surface-hover)] ${collapsed ? "justify-center" : "gap-3 px-3"}`} aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}>
             {collapsed ? <PanelLeftOpen className="size-5" /> : <><PanelLeftClose className="size-5" /><span>Recolher menu</span></>}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
