@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Badge, Button, Card, Input } from "./index";
+import { Badge, BrandMark, Button, Card, Input } from "./index";
 
 describe("shared UI primitives", () => {
   it("applies semantic button variants and loading state", () => {
@@ -18,5 +18,11 @@ describe("shared UI primitives", () => {
     expect(Card({ tone: "selected" })).toMatchObject({ props: { className: "g-card g-card--selected" } });
     expect(Badge({ tone: "warning" })).toMatchObject({ props: { className: "g-badge g-badge--warning" } });
     expect(Input({ id: "email" })).toMatchObject({ props: { className: "g-input" } });
+  });
+
+  it("shares one accessible brand mark across applications", () => {
+    expect(BrandMark({ title: "Germinatura" })).toMatchObject({
+      props: { role: "img", "aria-label": "Germinatura" },
+    });
   });
 });

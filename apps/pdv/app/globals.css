@@ -14,7 +14,6 @@
   --font-sans: "Segoe UI", Arial, sans-serif;
   --font-mono: var(--font-geist-mono);
   
-  /* Reduzindo o peso visual dos negritos */
   --font-weight-semibold: 500;
   --font-weight-bold: 600;
   --font-weight-extrabold: 700;
@@ -25,4 +24,17 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--g-font-sans);
+}
+
+button, a, input, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--g-brand-primary) 55%, transparent);
+  color: var(--g-text-primary);
+}
+
+.g-input--with-icon {
+  padding-left: 3rem;
 }
