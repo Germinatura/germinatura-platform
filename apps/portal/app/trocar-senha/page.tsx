@@ -1,168 +1,102 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Lock, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Button, Card } from "@germinatura/ui";
 import { useToast } from "@/components/ui/Toast";
-import { Suspense } from "react";
-
-function TrocarSenhaForm() {
-    const [novaSenha, setNovaSenha] = useState("");
-    const [confirmarSenha, setConfirmarSenha] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const router = useRouter();
-    const { showToast } = useToast();
-
-    const handleReset = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        setError("");
-
-        if (novaSenha !== confirmarSenha) {
-            setError("As senhas não coincidem");
-            setLoading(false);
-            return;
-        }
-
-        if (novaSenha.length < 8) {
-            setError("A nova senha deve ter pelo menos 8 caracteres");
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const res = await fetch("/api/auth/reset-password", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ novaSenha }),
-            });
-
-            if (res.ok) {
-                showToast("Senha alterada com sucesso!", "success");
-                router.push("/");
-            } else {
-                const data = await res.json();
-                showToast(data.message || "Erro ao alterar senha", "error");
-                setError(data.message || "Erro ao alterar senha");
-            }
-        } catch {
-            showToast("Erro ao conectar com o servidor", "error");
-            setError("Erro ao conectar com o servidor");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans relative overflow-hidden">
-            {/* Background design elements */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full mix-blend-screen" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-rose-500/20 blur-[100px] rounded-full mix-blend-screen" />
-            </div>
-
-            <div className="w-full max-w-md relative z-10">
-                {/* Header */}
-                <div className="text-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-rose-500 shadow-lg shadow-rose-500/20 text-white mb-4">
-                        <ShieldAlert className="size-8" />
-                    </div>
-                    <h1 className="text-3xl font-black tracking-tight text-white mb-2">Alterar senha</h1>
-                    <p className="text-slate-400 font-medium">Defina uma nova senha para a sua conta do Supabase Auth.</p>
-                </div>
-
-                {/* Reset Card */}
-                <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-500">
-                    <div className="p-8">
-                        <form onSubmit={handleReset} className="space-y-6">
-                            {error && (
-                                <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl text-sm font-semibold animate-in shake duration-300">
-                                    {error}
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-bold text-slate-700 ml-1">Nova Senha</label>
-                                <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        required
-                                        minLength={8}
-                                        type={showPassword ? "text" : "password"}
-                                        value={novaSenha}
-                                        onChange={(e) => setNovaSenha(e.target.value)}
-                                        placeholder="Mínimo 8 caracteres"
-                                        className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-slate-400 font-medium"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-bold text-slate-700 ml-1">Confirmar Nova Senha</label>
-                                <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        required
-                                        minLength={8}
-                                        type={showConfirmPassword ? "text" : "password"}
-                                        value={confirmarSenha}
-                                        onChange={(e) => setConfirmarSenha(e.target.value)}
-                                        placeholder="Repita a nova senha"
-                                        className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-slate-400 font-medium"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button
-                                disabled={loading || !novaSenha || !confirmarSenha}
-                                type="submit"
-                                className="w-full py-4 bg-slate-900 text-white text-lg font-bold rounded-2xl shadow-lg hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100"
-                            >
-                                {loading ? (
-                                    <Loader2 className="size-6 animate-spin" />
-                                ) : (
-                                    <>Salvar Nova Senha</>
-                                )}
-                            </button>
-                        </form>
-                    </div>
-
-                    <div className="p-5 bg-slate-50 border-t border-slate-100 text-center">
-                        <p className="text-xs text-slate-500 font-medium max-w-xs mx-auto">
-                            Sua nova senha é criptografada e não pode ser acessada por administradores.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 export default function TrocarSenhaPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-                <Loader2 className="size-8 animate-spin text-white" />
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const router = useRouter();
+  const { showToast } = useToast();
+
+  async function handleReset(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+
+    if (novaSenha !== confirmarSenha) {
+      setError("As senhas não coincidem.");
+      setLoading(false);
+      return;
+    }
+    if (novaSenha.length < 8) {
+      setError("A nova senha deve ter pelo menos 8 caracteres.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ novaSenha }),
+      });
+      const body = await response.json().catch(() => null) as { message?: string } | null;
+      if (!response.ok) throw new Error(body?.message ?? "Não foi possível alterar a senha.");
+      showToast("Senha alterada com sucesso.", "success");
+      router.push("/");
+    } catch (resetError) {
+      const message = resetError instanceof Error ? resetError.message : "Não foi possível conectar ao servidor.";
+      setError(message);
+      showToast(message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="mx-auto max-w-3xl">
+        <header>
+          <p className="text-sm font-semibold text-[var(--g-brand-primary)]">Segurança da conta</p>
+          <h2 className="mt-1 text-3xl font-bold tracking-tight text-[var(--g-text-primary)]">Alterar senha</h2>
+          <p className="mt-2 max-w-2xl text-base leading-6 text-[var(--g-text-secondary)]">Escolha uma senha nova com pelo menos 8 caracteres.</p>
+        </header>
+
+        <Card className="mt-8 overflow-hidden">
+          <div className="border-b border-[var(--g-border-subtle)] p-6 sm:p-8">
+            <div className="flex items-start gap-4">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]"><ShieldCheck className="size-5" /></span>
+              <div><h3 className="text-lg font-semibold text-[var(--g-text-primary)]">Proteja seu acesso</h3><p className="mt-1 text-sm leading-6 text-[var(--g-text-secondary)]">Sua senha é protegida e não pode ser consultada por administradores.</p></div>
             </div>
-        }>
-            <TrocarSenhaForm />
-        </Suspense>
-    );
+          </div>
+
+          <form onSubmit={handleReset} className="space-y-6 p-6 sm:p-8">
+            {error && <p role="alert" className="rounded-[var(--g-radius-control)] border border-[var(--g-status-danger)] bg-[var(--g-status-danger-soft)] px-4 py-3 text-sm font-medium text-[var(--g-status-danger-foreground)]">{error}</p>}
+
+            <div className="space-y-2">
+              <label htmlFor="new-password" className="block text-sm font-semibold text-[var(--g-text-primary)]">Nova senha</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" aria-hidden="true" />
+                <input id="new-password" required minLength={8} autoComplete="new-password" type={showPassword ? "text" : "password"} value={novaSenha} onChange={(event) => setNovaSenha(event.target.value)} className="g-input pl-12 pr-12" aria-describedby="password-help" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-[var(--g-radius-control)] text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)]" aria-label={showPassword ? "Ocultar nova senha" : "Mostrar nova senha"}>{showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
+              </div>
+              <p id="password-help" className="text-xs text-[var(--g-text-muted)]">Use pelo menos 8 caracteres e evite senhas utilizadas em outros serviços.</p>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="confirm-password" className="block text-sm font-semibold text-[var(--g-text-primary)]">Confirmar nova senha</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" aria-hidden="true" />
+                <input id="confirm-password" required minLength={8} autoComplete="new-password" type={showConfirmPassword ? "text" : "password"} value={confirmarSenha} onChange={(event) => setConfirmarSenha(event.target.value)} className="g-input pl-12 pr-12" />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-[var(--g-radius-control)] text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)]" aria-label={showConfirmPassword ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}>{showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-[var(--g-border-subtle)] pt-6 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={() => router.push("/")}>Cancelar</Button>
+              <Button type="submit" loading={loading} disabled={!novaSenha || !confirmarSenha}>Salvar nova senha</Button>
+            </div>
+          </form>
+        </Card>
+      </div>
+    </div>
+  );
 }
