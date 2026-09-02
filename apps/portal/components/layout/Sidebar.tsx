@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, UserRoundCog, X } from "lucide-react";
+import { Boxes, LayoutDashboard, LogOut, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, UserRoundCog, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; }
@@ -20,6 +20,7 @@ export function Sidebar({ user, loading, collapsed = false, onToggleCollapsed, o
   const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user?.roles.some((role) => role === "ADMIN" || role === "VENDEDOR") ?? false;
   const isAdmin = user?.roles.includes("ADMIN") ?? false;
+  const canInspectInventory = user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false;
   const itemClass = (active: boolean) => [
     "group relative flex min-h-11 items-center rounded-[var(--g-radius-control)] text-sm font-semibold transition-colors",
     collapsed ? "justify-center px-2" : "gap-3 px-3",
@@ -47,6 +48,19 @@ export function Sidebar({ user, loading, collapsed = false, onToggleCollapsed, o
             {pathname.startsWith("/admin/usuarios") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
             <UserRoundCog className="size-5 shrink-0" />{!collapsed && <span>Usuários e vendedores</span>}
           </Link>
+        )}
+        {(isAdmin || canInspectInventory) && (
+          <>
+            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Catálogo e estoque</p>}
+            {isAdmin && <Link href="/admin/catalogo" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/catalogo"))} title={collapsed ? "Catálogo" : undefined}>
+              {pathname.startsWith("/admin/catalogo") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <PackageSearch className="size-5 shrink-0" />{!collapsed && <span>Catálogo</span>}
+            </Link>}
+            {canInspectInventory && <Link href="/admin/estoque" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/estoque"))} title={collapsed ? "Estoque" : undefined}>
+              {pathname.startsWith("/admin/estoque") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <Boxes className="size-5 shrink-0" />{!collapsed && <span>Estoque</span>}
+            </Link>}
+          </>
         )}
         {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Conta</p>}
         <Link href="/trocar-senha" onClick={onNavigate} className={itemClass(pathname === "/trocar-senha")} title={collapsed ? "Perfil e segurança" : undefined}>

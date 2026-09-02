@@ -10,6 +10,8 @@ const publicPaths = ["/login", "/esqueci-senha", "/recuperar-senha"];
 function pageTitle(pathname: string, user: SidebarUser | null) {
   if (pathname === "/") return user?.roles.includes("ADMIN") ? "Visão geral" : "Início";
   if (pathname.startsWith("/admin/usuarios")) return "Usuários e vendedores";
+  if (pathname.startsWith("/admin/catalogo")) return "Catálogo";
+  if (pathname.startsWith("/admin/estoque")) return "Estoque";
   if (pathname === "/trocar-senha") return "Perfil e segurança";
   if (pathname.startsWith("/notificacoes")) return "Notificações";
   return "Germinatura";
