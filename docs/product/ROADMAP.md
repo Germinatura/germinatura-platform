@@ -41,7 +41,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | --- | --- | --- | --- | --- | --- |
 | Pricing e promoções server-side | DONE | P0 | Catálogo | PRICE-002, PROMO-001/002 | `86238e1` promoveu a cotação autoritativa para `PORTAL`/`PDV`; staging/produção e rejeição de total adulterado foram validados |
 | Checkout/venda/cancelamento | DONE | P0 | Pricing/ledger/outbox | SALE-001/002/003 | RPC e API recalculam preço, congelam snapshots, reservam estoque e criam tentativa em uma transação; replay/conflito, concorrência real e cancelamento pendente com liberação única são testados. Venda confirmada permanece fail-closed até reversões financeira e de estoque |
-| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | Fechamento transacional e auditado implementado em `feat/seller-closeout`; PWA e interface operacional seguem na fatia de UI |
+| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | A interface do PDV consome catálogo/saldo via RLS e executa cotação, checkout, confirmação manual e cancelamento pelos contratos transacionais; fechamento visual e cache PWA seguem pendentes |
 
 ## Fase 4 — PicPay
 
@@ -66,7 +66,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Backend de reservas/rifas, concorrência e expiração pelo worker entregues; telas aguardam o gate visual obrigatório |
+| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Backend de reservas/rifas, concorrência e expiração pelo worker entregues; padrão visual foi aprovado e documentado, telas de consumidor seguem na próxima fatia |
 | Campanhas, links e notificações | IN PROGRESS | P2 | Outbox/Portal | GROW-001, NOTIF-001 | Notificações in-app listáveis/marcáveis e materialização idempotente entregues; e-mail, push e campanhas seguem pós-MVP |
 
 ## Fase 7 — Comunidade
@@ -83,6 +83,6 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Open Finance para conciliação | BLOCKED | P3 | Caso real/consentimento | FIN-004 | Nunca autoriza venda; ADR revisado |
 | Web Push, app nativo, chat, analytics | TODO | P3 | Evidência de uso | NOTIF-001, COMM-001 | Decisão própria e métricas |
 
-## Próximo gate obrigatório
+## Direção visual aprovada e próxima fatia
 
-Interromper a implementação antes de `feat/mvp-operations-ui` e aprovar com o usuário o inventário de telas, navegação por papel, tokens visuais, responsividade, estados e wireframes das jornadas críticas. Nenhuma interface operacional deve ser inferida da tela atual. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
+O gate visual foi aprovado em 01/09/2026. Tokens, componentes-base e regras normativas estão em `docs/design/DESIGN_SYSTEM.md`; o Portal autenticado já usa o shell claro e o PDV usa a linguagem escura operacional. A próxima fatia deve implementar as telas administrativas e, depois, as jornadas de consumidor sem alterar regras de domínio. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.

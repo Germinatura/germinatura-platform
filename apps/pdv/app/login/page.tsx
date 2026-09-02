@@ -1,7 +1,8 @@
 "use client";
 
 import { credentialLoginRequestSchema } from "@germinatura/contracts";
-import { Loader2, LockKeyhole, UserRound } from "lucide-react";
+import { BrandMark, Button, Card, Field, Input } from "@germinatura/ui";
+import { LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 
@@ -38,21 +39,23 @@ export default function LoginPage() {
 
   const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background-light p-4 font-sans">
-      <section className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl">
-        <header className="p-8 text-center">
-          <img src="https://i.imgur.com/EnMI9CP.png" alt="Germinatura" className="mx-auto mb-4 size-16 rounded-2xl" />
-          <h1 className="text-3xl font-black text-slate-900">PDV Germinatura</h1>
-          <p className="mt-2 font-medium text-slate-500">Acesso exclusivo para vendedores ativos</p>
+    <main className="grid min-h-screen place-items-center bg-[var(--g-surface-canvas)] p-4 font-sans">
+      <Card className="w-full max-w-md overflow-hidden shadow-[var(--g-shadow-raised)]">
+        <div className="h-1 bg-[var(--g-brand-primary)]" />
+        <header className="px-6 pb-5 pt-8 text-center sm:px-8">
+          <BrandMark title="Germinatura" className="mx-auto mb-5 size-14" />
+          <h1 className="text-2xl font-bold tracking-tight">Acessar o PDV</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Entre com a conta operacional criada por um administrador.</p>
         </header>
-        <form onSubmit={submit} className="space-y-5 px-8 pb-8">
-          {error && <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</p>}
-          <label className="block space-y-2 text-sm font-bold text-slate-700">Usuário ou e-mail<span className="relative block"><UserRound aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" /><input required autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary" /></span></label>
-          <label className="block space-y-2 text-sm font-bold text-slate-700">Senha<span className="relative block"><LockKeyhole aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" /><input required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-primary" /></span></label>
-          <button disabled={loading} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-primary py-4 text-lg font-bold text-white disabled:opacity-50">{loading ? <Loader2 aria-label="Aguarde" className="size-6 animate-spin" /> : "Entrar"}</button>
-          <a href={`${portalUrl}/esqueci-senha`} className="block text-center text-sm font-semibold text-slate-600 hover:underline">Esqueci minha senha</a>
+        <form onSubmit={submit} className="space-y-5 px-6 pb-8 sm:px-8">
+          {error && <p role="alert" className="rounded-[var(--g-radius-control)] border border-[var(--g-status-danger)]/50 bg-[var(--g-surface-subtle)] px-4 py-3 text-sm font-semibold text-[var(--g-status-danger)]">{error}</p>}
+          <Field id="pdv-identifier" label="Usuário ou e-mail"><div className="relative"><UserRound aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input id="pdv-identifier" required autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="g-input--with-icon" /></div></Field>
+          <Field id="pdv-password" label="Senha"><div className="relative"><LockKeyhole aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input id="pdv-password" required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="g-input--with-icon" /></div></Field>
+          <Button type="submit" variant="brand" size="lg" className="w-full" loading={loading}>Entrar</Button>
+          <a href={`${portalUrl}/esqueci-senha`} className="block min-h-11 py-3 text-center text-sm font-semibold text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)] hover:underline">Esqueci minha senha</a>
         </form>
-      </section>
+        <div className="flex items-center justify-center gap-2 border-t border-[var(--g-border-subtle)] bg-[var(--g-surface-subtle)] px-6 py-4 text-xs text-[var(--g-text-muted)]"><ShieldCheck className="size-4" /> Acesso restrito a vendedores ativos</div>
+      </Card>
     </main>
   );
 }
