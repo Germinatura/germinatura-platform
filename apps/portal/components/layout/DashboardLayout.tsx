@@ -7,8 +7,9 @@ import { Topbar } from "./Topbar";
 
 const publicPaths = ["/login", "/esqueci-senha", "/recuperar-senha"];
 
-function pageTitle(pathname: string) {
-  if (pathname === "/") return "Início";
+function pageTitle(pathname: string, user: SidebarUser | null) {
+  if (pathname === "/") return user?.roles.includes("ADMIN") ? "Visão geral" : "Início";
+  if (pathname.startsWith("/admin/usuarios")) return "Usuários e vendedores";
   if (pathname === "/trocar-senha") return "Perfil e segurança";
   if (pathname.startsWith("/notificacoes")) return "Notificações";
   return "Germinatura";
@@ -54,7 +55,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="flex h-screen min-w-0 flex-1 flex-col">
-        <Topbar title={pageTitle(pathname)} user={user} loading={loading} onOpenMenu={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
+        <Topbar title={pageTitle(pathname, user)} user={user} loading={loading} onOpenMenu={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
         <main data-testid="dashboard-scroll-container" className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

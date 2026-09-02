@@ -631,6 +631,22 @@ export const userAccessUpdateSchema = z.object({
 }).strict();
 export type UserAccessUpdate = z.infer<typeof userAccessUpdateSchema>;
 
+export const adminUserSchema = z.object({
+  id: z.string().uuid(),
+  email: institutionalEmailSchema,
+  displayName: z.string().nullable(),
+  username: z.string().nullable(),
+  active: z.boolean(),
+  onboardingCompleted: z.boolean(),
+  roles: z.array(appRoleSchema),
+}).strict();
+export type AdminUser = z.infer<typeof adminUserSchema>;
+
+export const adminUsersResponseSchema = z.object({
+  data: z.array(adminUserSchema),
+  request_id: z.string().uuid(),
+}).strict();
+
 export const permissionSchema = z.enum([
   "portal.access",
   "admin.access",
