@@ -691,6 +691,11 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   await expect(portalPage.getByRole("heading", { name: "Produtos disponíveis" })).toBeVisible();
   await expect(portalPage.getByRole("heading", { name: "Item público A" })).toBeVisible();
   await expect(portalPage.getByRole("heading", { name: "Item não publicado" })).toHaveCount(0);
+  await portalPage.getByRole("link", { name: "Minhas reservas" }).click();
+  await expect(portalPage).toHaveURL(`${portalUrl}/reservas`);
+  await expect(portalPage.getByTestId("dashboard-scroll-container").getByRole("heading", { name: "Minhas reservas" })).toBeVisible();
+  await expect(portalPage.getByRole("heading", { name: "Você ainda não tem reservas" })).toBeVisible();
+  await expect(portalPage.getByRole("link", { name: "Ver catálogo" })).toBeVisible();
   await portalPage.goto(`${portalUrl}/admin/usuarios`);
   await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await expect(portalPage.getByRole("link", { name: "Usuários e vendedores" })).toHaveCount(0);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, UserRoundCog, X } from "lucide-react";
+import { Boxes, CalendarClock, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, UserRoundCog, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; }
@@ -20,6 +20,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
   const isAdmin = user?.roles.includes("ADMIN") ?? false;
   const canInspectInventory = user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false;
   const canBrowseCatalog = !isAdmin && (user?.roles.some((role) => role === "CONSUMIDOR" || role === "VENDEDOR" || role === "ESTOQUE") ?? false);
+  const canManageOwnReservations = !isAdmin && (user?.roles.some((role) => role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
   const itemClass = (active: boolean) => [
     "group relative flex min-h-11 items-center rounded-[var(--g-radius-control)] text-sm font-semibold transition-colors",
     collapsed ? "justify-center px-2" : "gap-3 px-3",
@@ -46,6 +47,12 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
           <Link href="/catalogo" onClick={onNavigate} className={itemClass(pathname === "/catalogo")} title={collapsed ? "Catálogo" : undefined}>
             {pathname === "/catalogo" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
             <ShoppingBag className="size-5 shrink-0" />{!collapsed && <span>Catálogo</span>}
+          </Link>
+        )}
+        {canManageOwnReservations && (
+          <Link href="/reservas" onClick={onNavigate} className={itemClass(pathname === "/reservas")} title={collapsed ? "Minhas reservas" : undefined}>
+            {pathname === "/reservas" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+            <CalendarClock className="size-5 shrink-0" />{!collapsed && <span>Minhas reservas</span>}
           </Link>
         )}
         {isAdmin && (

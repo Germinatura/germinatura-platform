@@ -169,6 +169,8 @@ O comportamento deve ser testado pelo menos em 390×844, tablet e desktop.
 
 Identidade do usuário, avatar e saída pertencem ao menu de conta da topbar. A sidebar contém somente marca, navegação e controle de recolhimento; não repetir o perfil nas duas regiões.
 
+Itens de jornada ainda incompleta não recebem ações aparentes. Estados vazios podem orientar para o catálogo, mas criação, conversão e pagamento só aparecem quando o próximo passo existir e estiver autorizado.
+
 ## Checklist de revisão
 
 - usa tokens semânticos e componentes compartilhados;
