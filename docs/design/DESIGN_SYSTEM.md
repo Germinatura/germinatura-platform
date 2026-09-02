@@ -153,6 +153,7 @@ Referências implementadas no Portal:
 - Visão Geral administrativa: quatro KPIs decisórios, alertas e atividade recente, sempre derivados de dados reais e com erro explícito;
 - Usuários e vendedores: filtro acima da tabela, tabela no desktop, cards no mobile e formulário complexo em sheet/dialog responsivo;
 - Catálogo: resumo decisório, busca por nome/SKU/categoria e comparação de publicação, canais e preço; a ausência de comando de escrita deve ser explícita enquanto não existir RPC auditada;
+- Catálogo consumidor: grid leve de `Product Card`, preço em destaque, categoria e capacidade de reserva como informação; não expor CTA de compra/reserva antes de a jornada correspondente estar funcional;
 - Estoque: KPIs de físico/reservado/disponível, saldos por localização e movimentos imutáveis; tabelas viram cards no mobile sem perder produto, SKU ou localização;
 - estado de acesso e papéis usam texto e badges; desativar uma conta explica a revogação imediata no Portal e no PDV;
 - falha de consulta nunca deve ser apresentada como valor zero.

@@ -686,11 +686,16 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   await login(portalPage, "consumidor.teste@institutojef.org.br", "Consumidor123!");
   await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await expect(portalPage.getByText("Consumidor", { exact: true })).toBeVisible();
+  await portalPage.getByRole("link", { name: "Catálogo" }).click();
+  await expect(portalPage).toHaveURL(`${portalUrl}/catalogo`);
+  await expect(portalPage.getByRole("heading", { name: "Produtos disponíveis" })).toBeVisible();
+  await expect(portalPage.getByRole("heading", { name: "Item público A" })).toBeVisible();
+  await expect(portalPage.getByRole("heading", { name: "Item não publicado" })).toHaveCount(0);
   await portalPage.goto(`${portalUrl}/admin/usuarios`);
   await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await expect(portalPage.getByRole("link", { name: "Usuários e vendedores" })).toHaveCount(0);
-  await expect(portalPage.getByRole("link", { name: "Catálogo" })).toHaveCount(0);
-  await expect(portalPage.getByRole("link", { name: "Estoque" })).toHaveCount(0);
+  await expect(portalPage.locator('a[href="/admin/catalogo"]')).toHaveCount(0);
+  await expect(portalPage.locator('a[href="/admin/estoque"]')).toHaveCount(0);
   await portalContext.close();
 
   const pdvContext = await browser.newContext();
