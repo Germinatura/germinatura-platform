@@ -630,6 +630,16 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await expect(page.getByText("admin.teste@institutojef.org.br", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Adicionar usuário" })).toBeVisible();
 
+  await page.goto(`${portalUrl}/admin/catalogo`);
+  await expect(page.getByTestId("dashboard-scroll-container").getByRole("heading", { name: "Produtos e publicação" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Item público A" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Item não publicado" })).toBeVisible();
+
+  await page.goto(`${portalUrl}/admin/estoque`);
+  const inventoryContent = page.getByTestId("dashboard-scroll-container");
+  await expect(inventoryContent.getByRole("heading", { name: "Saldos por localização" })).toBeVisible();
+  await expect(inventoryContent.getByText(/PUBLIC-ITEM-A · Estoque central/)).toBeVisible();
+
   await page.goto(`${portalUrl}/trocar-senha`);
   await expect(page.getByRole("heading", { name: "Alterar senha" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Perfil e segurança" })).toBeVisible();
@@ -674,6 +684,8 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   await portalPage.goto(`${portalUrl}/admin/usuarios`);
   await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await expect(portalPage.getByRole("link", { name: "Usuários e vendedores" })).toHaveCount(0);
+  await expect(portalPage.getByRole("link", { name: "Catálogo" })).toHaveCount(0);
+  await expect(portalPage.getByRole("link", { name: "Estoque" })).toHaveCount(0);
   await portalContext.close();
 
   const pdvContext = await browser.newContext();
