@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, ChevronDown, Menu } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 interface TopbarUser { nome: string; perfil: string; }
@@ -29,6 +30,16 @@ export function Topbar({ title, user, loading, onOpenMenu, onLogout }: TopbarPro
     }
     document.addEventListener("mousedown", closeMenus);
     return () => document.removeEventListener("mousedown", closeMenus);
+  }, []);
+
+  useEffect(() => {
+    function updateReadState(event: Event) {
+      const detail = (event as CustomEvent<{ id: string; readAt: string }>).detail;
+      if (!detail?.id || !detail.readAt) return;
+      setNotifications((current) => current.map((item) => item.id === detail.id ? { ...item, readAt: detail.readAt } : item));
+    }
+    window.addEventListener("germinatura:notification-read", updateReadState);
+    return () => window.removeEventListener("germinatura:notification-read", updateReadState);
   }, []);
 
   async function toggleNotifications() {
@@ -84,6 +95,7 @@ export function Topbar({ title, user, loading, onOpenMenu, onLogout }: TopbarPro
                     ))}
                   </ul>
                 )}
+                <div className="border-t border-[var(--g-border-subtle)] p-2"><Link href="/notificacoes" onClick={() => setNotificationsOpen(false)} className="flex min-h-11 items-center justify-center rounded-[var(--g-radius-control)] text-sm font-semibold text-[var(--g-brand-primary)] hover:bg-[var(--g-brand-primary-soft)]">Ver todas as notificações</Link></div>
               </div>
             )}
           </div>
