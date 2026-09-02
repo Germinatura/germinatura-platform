@@ -28,6 +28,7 @@ Este documento é normativo para novas interfaces. Regras de domínio, permissõ
 - `brand.primary-soft`: `#EEF1FF`
 - `brand.primary-dark`: `#071A4D`
 - `accent.aqua`: `#00AFA8`
+- `accent.aqua-foreground`: `#087A75`
 - `accent.aqua-soft`: `#DFFAF7`
 
 O azul representa marca, navegação, foco e ações comuns como salvar, editar e continuar. O aqua é apenas um acento: indicador de item ativo ou detalhe visual discreto.

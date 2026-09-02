@@ -3,6 +3,7 @@
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@germinatura/ui";
 
 export function BootstrapAdminCard() {
   const [loading, setLoading] = useState(false);
@@ -23,15 +24,15 @@ export function BootstrapAdminCard() {
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-3xl border border-amber-200 bg-amber-50 p-7 md:flex-row md:items-center md:justify-between">
+    <section className="flex flex-col gap-4 rounded-[var(--g-radius-card)] border border-[var(--g-status-warning)] bg-[var(--g-status-warning-soft)] p-6 md:flex-row md:items-center md:justify-between">
       <div>
-        <h2 className="flex items-center gap-2 text-xl font-black text-amber-950"><ShieldCheck className="size-5" aria-hidden="true" />Ativar primeiro administrador</h2>
-        <p className="mt-1 text-sm text-amber-900">Esta operação é única, idempotente e será registrada na auditoria.</p>
+        <h2 className="flex items-center gap-2 text-lg font-semibold text-[var(--g-status-warning-foreground)]"><ShieldCheck className="size-5" aria-hidden="true" />Ativar primeiro administrador</h2>
+        <p className="mt-1 text-sm text-[var(--g-status-warning-foreground)]">Esta operação é única, idempotente e será registrada na auditoria.</p>
       </div>
-      <button type="button" disabled={loading} onClick={bootstrap} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-900 px-5 py-3 font-black text-white disabled:opacity-60">
+      <Button type="button" variant="secondary" disabled={loading} onClick={bootstrap}>
         {loading && <Loader2 aria-hidden="true" className="size-5 animate-spin" />}
         Ativar administração
-      </button>
+      </Button>
     </section>
   );
 }

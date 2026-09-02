@@ -1,79 +1,69 @@
 import Link from "next/link";
-import { Database, ShieldCheck, Store, Wrench } from "lucide-react";
+import { ArrowRight, Bell, ShieldCheck, Store, UserRound } from "lucide-react";
+import { Badge, Card } from "@germinatura/ui";
 import { requireSession } from "@/lib/auth";
 import { BootstrapAdminCard } from "@/components/auth/BootstrapAdminCard";
 
 export const dynamic = "force-dynamic";
 
 const roleLabels: Record<string, string> = {
-  ADMIN: "Administrador",
-  VENDEDOR: "Vendedor",
-  ESTOQUE: "Estoque",
-  FINANCEIRO: "Financeiro",
-  COMUNICACAO: "Comunicação",
-  MODERADOR: "Moderador",
-  CONSUMIDOR: "Consumidor",
+  ADMIN: "Administrador", VENDEDOR: "Vendedor", ESTOQUE: "Estoque", FINANCEIRO: "Financeiro",
+  COMUNICACAO: "Comunicação", MODERADOR: "Moderador", CONSUMIDOR: "Consumidor",
 };
 
-export default async function FoundationDashboard() {
+export default async function HomePage() {
   const user = await requireSession();
   const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user.roles.some((role) => role === "ADMIN" || role === "VENDEDOR");
   const canBootstrap = user.email === "theo.martins@institutojef.org.br" && !user.roles.includes("ADMIN");
 
   return (
-    <main className="min-h-full bg-slate-50 p-6 md:p-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <header className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm md:p-10">
-          <h1 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-            Olá, {user.name}
-          </h1>
-          <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600">
-            Sua identidade institucional foi verificada pelo Supabase Auth. Papéis cumulativos e
-            permissões no servidor determinam quais operações estão disponíveis.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-2" aria-label="Papéis do usuário">
-            {user.roles.map((role) => (
-              <span key={role} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">
-                {roleLabels[role] ?? role}
-              </span>
-            ))}
+    <div className="px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="mx-auto max-w-[var(--g-content-standard)] space-y-8">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[var(--g-brand-primary)]">Sua conta</p>
+            <h2 className="mt-1 text-3xl font-bold tracking-tight text-[var(--g-text-primary)]">Olá, {user.name}</h2>
+            <p className="mt-2 max-w-2xl text-base leading-6 text-[var(--g-text-secondary)]">Acesse os recursos disponíveis para o seu perfil e acompanhe as atividades importantes.</p>
           </div>
+          <div className="flex flex-wrap gap-2" aria-label="Papéis do usuário">{user.roles.map((role) => <Badge key={role} tone="info">{roleLabels[role] ?? role}</Badge>)}</div>
         </header>
 
         {canBootstrap && <BootstrapAdminCard />}
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <article className="rounded-3xl border border-slate-200 bg-white p-6">
-            <Database className="size-7 text-emerald-600" aria-hidden="true" />
-            <h2 className="mt-5 text-lg font-black text-slate-900">Persistência única</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Supabase local, migrations versionadas e nenhuma dependência do banco legado.</p>
-          </article>
-          <article className="rounded-3xl border border-slate-200 bg-white p-6">
-            <ShieldCheck className="size-7 text-emerald-600" aria-hidden="true" />
-            <h2 className="mt-5 text-lg font-black text-slate-900">Identidade central</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Papéis e permissões vivem no Supabase, protegidos por RLS e verificados no servidor.</p>
-          </article>
-          <article className="rounded-3xl border border-slate-200 bg-white p-6">
-            <Wrench className="size-7 text-amber-600" aria-hidden="true" />
-            <h2 className="mt-5 text-lg font-black text-slate-900">Evolução incremental</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Catálogo, preço e estoque já possuem fundações transacionais; vendas e operação seguem em fatias auditáveis.</p>
-          </article>
+        <section aria-labelledby="quick-actions-title">
+          <div className="mb-4"><h3 id="quick-actions-title" className="text-xl font-bold text-[var(--g-text-primary)]">Comece por aqui</h3><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Atalhos disponíveis para a sua conta.</p></div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Card className="group relative overflow-hidden p-6 transition-transform hover:-translate-y-0.5">
+              <span className="absolute inset-y-0 right-0 w-1 bg-[var(--g-brand-primary)]" />
+              <span className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]"><UserRound className="size-5" /></span>
+              <h4 className="mt-5 text-lg font-semibold text-[var(--g-text-primary)]">Perfil e segurança</h4>
+              <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Mantenha sua senha protegida e revise os dados da sua conta.</p>
+              <Link href="/trocar-senha" className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--g-brand-primary)]">Acessar segurança <ArrowRight className="size-4" /></Link>
+            </Card>
+            <Card className="relative overflow-hidden p-6">
+              <span className="absolute inset-y-0 right-0 w-1 bg-[var(--g-accent-aqua)]" />
+              <span className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-accent-aqua-soft)] text-[var(--g-accent-aqua-foreground)]"><Bell className="size-5" /></span>
+              <h4 className="mt-5 text-lg font-semibold text-[var(--g-text-primary)]">Notificações</h4>
+              <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">As atualizações recentes ficam disponíveis no sino da barra superior.</p>
+            </Card>
+            {canAccessPdv && (
+              <Card className="group relative overflow-hidden p-6 transition-transform hover:-translate-y-0.5">
+                <span className="absolute inset-y-0 right-0 w-1 bg-[var(--g-operation-primary)]" />
+                <span className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-status-success-soft)] text-[var(--g-status-success-foreground)]"><Store className="size-5" /></span>
+                <h4 className="mt-5 text-lg font-semibold text-[var(--g-text-primary)]">Ponto de venda</h4>
+                <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Entre no ambiente operacional para realizar vendas autorizadas.</p>
+                <Link href={pdvUrl} className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--g-brand-primary)]">Abrir PDV <ArrowRight className="size-4" /></Link>
+              </Card>
+            )}
+          </div>
         </section>
 
-        {canAccessPdv && (
-          <section className="flex flex-col gap-4 rounded-3xl bg-slate-950 p-7 text-white md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-xl font-black">Fundação do PDV</h2>
-              <p className="mt-1 text-sm text-slate-300">A aplicação separada está disponível para validar autenticação e autorização.</p>
-            </div>
-            <Link href={pdvUrl} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-black text-slate-950 transition hover:bg-emerald-400">
-              <Store className="size-5" aria-hidden="true" />
-              Abrir PDV
-            </Link>
-          </section>
-        )}
+        <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]" aria-label="Informações da conta">
+          <Card className="p-6"><div className="flex items-start gap-4"><span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]"><ShieldCheck className="size-5" /></span><div><h3 className="text-lg font-semibold text-[var(--g-text-primary)]">Acesso protegido</h3><p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">As funcionalidades exibidas respeitam as permissões e ativações vinculadas à sua conta.</p></div></div></Card>
+          <Card tone="subtle" className="p-6"><p className="text-sm font-semibold text-[var(--g-text-primary)]">Precisa de ajuda?</p><p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Se um acesso esperado não aparecer, entre em contato com um administrador.</p></Card>
+        </section>
       </div>
-    </main>
+    </div>
   );
 }

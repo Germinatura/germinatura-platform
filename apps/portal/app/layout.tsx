@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Germinatura",
-  description: "Fundação greenfield da plataforma Germinatura v2.1",
+  description: "Portal institucional da comunidade Germinatura",
 };
 
 import { ToastProvider } from "@/components/ui/Toast";
@@ -17,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className="font-sans antialiased bg-background-light text-slate-900">
+      <body className="bg-background-light font-sans text-[var(--g-text-primary)] antialiased">
         <ToastProvider>
           <DashboardLayout>
             {children}
