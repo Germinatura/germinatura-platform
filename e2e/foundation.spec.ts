@@ -634,6 +634,7 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   expect(sessionText).not.toContain("refresh_token");
 
   await page.goto(`${pdvUrl}/`);
+  await page.getByRole("button", { name: "Abrir menu da conta" }).click();
   await page.getByTitle("Voltar ao Painel").click();
   await expect(page).toHaveURL(`${portalUrl}/`);
 });
@@ -644,6 +645,7 @@ test("Administrator leaving the PDV can log back into the Portal", async ({ page
   await expect(page).toHaveURL(`${portalUrl}/`);
 
   await page.goto(`${pdvUrl}/`);
+  await page.getByRole("button", { name: "Abrir menu da conta" }).click();
   await page.getByRole("button", { name: "Sair do PDV" }).click();
   await expect(page).toHaveURL(`${portalUrl}/login`);
   expect((await page.request.get("/api/v1/auth/session")).status()).toBe(401);
@@ -679,6 +681,15 @@ test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ pag
   await login(page, "vendedor.teste", "Vendedor123!");
   await expect(page).toHaveURL(`${pdvUrl}/`);
   await expect(page.getByText("Acesso autorizado")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nova venda" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Item público A" })).toBeVisible();
+  await expect(page.getByText("Fundação v2.1")).toHaveCount(0);
+  await expect(page.getByText("Germinatura v2.2")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toBeVisible();
+  await page.getByRole("button", { name: "Abrir menu da conta" }).click();
+  await expect(page.getByRole("button", { name: "Sair do PDV" })).toBeVisible();
 
   const reconciliation = await page.request.post(
     "/api/v1/payments/76000000-0000-4000-8000-000000000001/reconciliations",
