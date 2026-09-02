@@ -173,6 +173,8 @@ Ações globais já presentes na topbar não são repetidas na sidebar. Notifica
 
 Itens de jornada ainda incompleta não recebem ações aparentes. Estados vazios podem orientar para o catálogo, mas criação, conversão e pagamento só aparecem quando o próximo passo existir e estiver autorizado.
 
+Rifas seguem a mesma regra: campanhas, números próprios e prova do sorteio podem ser consultados quando a flag estiver ligada; selecionar ou reservar números não recebe CTA enquanto o pagamento do consumidor não tiver uma continuidade funcional. Números `RESERVED` devem ser descritos como aguardando pagamento e somente `PAID` como elegíveis.
+
 ## Checklist de revisão
 
 - usa tokens semânticos e componentes compartilhados;

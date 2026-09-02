@@ -66,7 +66,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Catálogo consumidor responsivo consome somente a API pública anônima; “Minhas reservas” lista o histórico próprio via RLS e cancela reservas ativas pelo comando idempotente existente. Criação no catálogo, conversão/pagamento e telas de rifas seguem em fatias próprias |
+| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Catálogo e “Minhas reservas” usam dados reais; Rifas consulta campanhas, números próprios e resultado auditável conforme permissão/flag. Novas reservas e compra de números permanecem sem CTA até existir continuidade de pagamento do consumidor |
 | Campanhas, links e notificações | IN PROGRESS | P2 | Outbox/Portal | GROW-001, NOTIF-001 | Notificações in-app materializadas de forma idempotente agora possuem central paginada, filtro de não lidas e leitura sincronizada com o sino único da topbar; e-mail, push e campanhas seguem pós-MVP |
 
 ## Fase 7 — Comunidade

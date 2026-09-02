@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, CalendarClock, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, UserRoundCog, X } from "lucide-react";
+import { Boxes, CalendarClock, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, UserRoundCog, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; }
@@ -11,9 +11,10 @@ interface SidebarProps {
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
+  enabledFeatures?: string[];
 }
 
-export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate }: SidebarProps) {
+export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate, enabledFeatures = [] }: SidebarProps) {
   const pathname = usePathname();
   const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user?.roles.some((role) => role === "ADMIN" || role === "VENDEDOR") ?? false;
@@ -21,6 +22,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
   const canInspectInventory = user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false;
   const canBrowseCatalog = !isAdmin && (user?.roles.some((role) => role === "CONSUMIDOR" || role === "VENDEDOR" || role === "ESTOQUE") ?? false);
   const canManageOwnReservations = !isAdmin && (user?.roles.some((role) => role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
+  const canBrowseRaffles = !isAdmin && enabledFeatures.includes("raffles") && (user?.roles.includes("CONSUMIDOR") ?? false);
   const itemClass = (active: boolean) => [
     "group relative flex min-h-11 items-center rounded-[var(--g-radius-control)] text-sm font-semibold transition-colors",
     collapsed ? "justify-center px-2" : "gap-3 px-3",
@@ -53,6 +55,12 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
           <Link href="/reservas" onClick={onNavigate} className={itemClass(pathname === "/reservas")} title={collapsed ? "Minhas reservas" : undefined}>
             {pathname === "/reservas" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
             <CalendarClock className="size-5 shrink-0" />{!collapsed && <span>Minhas reservas</span>}
+          </Link>
+        )}
+        {canBrowseRaffles && (
+          <Link href="/rifas" onClick={onNavigate} className={itemClass(pathname === "/rifas")} title={collapsed ? "Rifas" : undefined}>
+            {pathname === "/rifas" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+            <Ticket className="size-5 shrink-0" />{!collapsed && <span>Rifas</span>}
           </Link>
         )}
         {isAdmin && (

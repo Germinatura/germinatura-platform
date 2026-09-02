@@ -702,6 +702,10 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   await expect(portalPage).toHaveURL(`${portalUrl}/notificacoes`);
   await expect(portalPage.getByTestId("dashboard-scroll-container").getByRole("heading", { name: "Notificações" })).toBeVisible();
   await expect(portalPage.getByRole("heading", { name: "Tudo em dia" })).toBeVisible();
+  await portalPage.getByRole("link", { name: "Rifas" }).click();
+  await expect(portalPage).toHaveURL(`${portalUrl}/rifas`);
+  await expect(portalPage.getByTestId("dashboard-scroll-container").getByRole("heading", { name: "Campanhas e meus números" })).toBeVisible();
+  await expect(portalPage.getByRole("button", { name: /reservar|comprar|pagar/i })).toHaveCount(0);
   await portalPage.goto(`${portalUrl}/admin/usuarios`);
   await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await expect(portalPage.getByRole("link", { name: "Usuários e vendedores" })).toHaveCount(0);
