@@ -147,6 +147,13 @@ Tabelas usam cabeçalho discreto, linhas com respiro, hover suave, badges textua
 
 Formulários usam label persistente, campo confortável, focus ring azul, erro logo abaixo e descrição auxiliar somente quando necessária. Placeholder nunca substitui label. Formulários longos são divididos por assunto.
 
+Referências implementadas no Portal:
+
+- Visão Geral administrativa: quatro KPIs decisórios, alertas e atividade recente, sempre derivados de dados reais e com erro explícito;
+- Usuários e vendedores: filtro acima da tabela, tabela no desktop, cards no mobile e formulário complexo em sheet/dialog responsivo;
+- estado de acesso e papéis usam texto e badges; desativar uma conta explica a revogação imediata no Portal e no PDV;
+- falha de consulta nunca deve ser apresentada como valor zero.
+
 ## Responsividade
 
 - desktop grande: sidebar expandida, container limitado e tabela completa;

@@ -60,7 +60,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Lançamentos/taxas/conciliação | DONE | P1 | Venda/pagamento/outbox | FIN-001/002/003 | Recebível, divergência, taxa e liquidação são append-only; Admin/Financeiro conciliam por referência única, mismatch vira pendência e replay não duplica efeitos |
 | Reembolso/reversão confirmada | TODO | P0 | Venda/estoque/financeiro | SALE-002, FIN-002 | Cancelamento confirmado exige reversões de estoque e financeiro, nunca exclusão |
 | Compras/fornecedores/custo | TODO | P2 | Catálogo/ledger | PROC-001 | Recebimento parcial gera lote/movimento/despesa |
-| Fechamentos e dashboards | IN PROGRESS | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Snapshot de vendas/pagamentos/estoque e reabertura motivada implementados; dashboard visual segue pendente |
+| Fechamentos e dashboards | IN PROGRESS | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Visão Geral administrativa usa vendas, pendências de pagamento, conciliações e fechamentos reais; tela operacional de fechamento segue pendente |
 
 ## Fase 6 — Venda online e crescimento
 

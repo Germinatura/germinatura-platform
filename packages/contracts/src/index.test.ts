@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   apiErrorSchema,
+  adminUsersResponseSchema,
   catalogProductFlagsSchema,
   catalogSlugSchema,
   commercialReservationCancelResponseSchema,
@@ -51,6 +52,23 @@ import {
 } from "./index";
 
 describe("shared contracts", () => {
+  it("validates the administrative user listing without credentials", () => {
+    const parsed = adminUsersResponseSchema.parse({
+      data: [{
+        id: "10000000-0000-4000-8000-000000000001",
+        email: "admin.teste@institutojef.org.br",
+        displayName: "Admin Local",
+        username: "admin.teste",
+        active: true,
+        onboardingCompleted: true,
+        roles: ["ADMIN", "CONSUMIDOR"],
+      }],
+      request_id: "20000000-0000-4000-8000-000000000001",
+    });
+    expect(parsed.data[0]?.roles).toEqual(["ADMIN", "CONSUMIDOR"]);
+    expect(JSON.stringify(parsed)).not.toContain("password");
+  });
+
   it("rejects an invalid session identity", () => {
     expect(() => sessionUserSchema.parse({ id: "1" })).toThrow();
   });

@@ -85,7 +85,7 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
     expect(protectedDomainMutation.status()).toBe(401);
   }
 
-  for (const path of ["/api/v1/notifications", "/api/v1/feature-flags"]) {
+  for (const path of ["/api/v1/notifications", "/api/v1/feature-flags", "/api/v1/admin/users"]) {
     expect((await request.get(path)).status()).toBe(401);
   }
 
@@ -594,8 +594,13 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await expect(page).toHaveURL(`${portalUrl}/`);
   await expect(page.getByText("Germinatura v2.2")).toHaveCount(0);
   await expect(page.getByText("Fundação v2.1")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Comece por aqui" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Olá, Admin Local" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Alertas e divergências" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toContainText("Admin Local");
+
+  const usersResponse = await page.request.get("/api/v1/admin/users");
+  await expect(usersResponse).toBeOK();
+  await expect(usersResponse.json()).resolves.toMatchObject({ data: expect.arrayContaining([expect.objectContaining({ email: "admin.teste@institutojef.org.br", active: true })]) });
 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByRole("button", { name: "Recolher sidebar" }).click();
@@ -608,8 +613,7 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
     await expect(scrollContainer).toHaveCSS("overflow-y", "auto");
     await scrollContainer.hover();
     await page.mouse.wheel(0, 1200);
-    await expect(page.getByRole("heading", { name: "Ponto de venda" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Abrir PDV" }).last()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Atividade recente" })).toBeVisible();
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -620,6 +624,11 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await page.getByRole("button", { name: "Notificações" }).click();
   await expect(page.getByText("Tudo em dia")).toBeVisible();
   await page.getByRole("button", { name: "Notificações" }).click();
+
+  await page.goto(`${portalUrl}/admin/usuarios`);
+  await expect(page.getByTestId("dashboard-scroll-container").getByRole("heading", { name: "Usuários e vendedores" })).toBeVisible();
+  await expect(page.getByText("admin.teste@institutojef.org.br", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Adicionar usuário" })).toBeVisible();
 
   await page.goto(`${portalUrl}/trocar-senha`);
   await expect(page.getByRole("heading", { name: "Alterar senha" })).toBeVisible();
@@ -662,6 +671,9 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   await login(portalPage, "consumidor.teste@institutojef.org.br", "Consumidor123!");
   await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await expect(portalPage.getByText("Consumidor", { exact: true })).toBeVisible();
+  await portalPage.goto(`${portalUrl}/admin/usuarios`);
+  await expect(portalPage).toHaveURL(`${portalUrl}/`);
+  await expect(portalPage.getByRole("link", { name: "Usuários e vendedores" })).toHaveCount(0);
   await portalContext.close();
 
   const pdvContext = await browser.newContext();
