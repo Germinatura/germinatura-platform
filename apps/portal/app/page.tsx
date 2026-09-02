@@ -3,6 +3,7 @@ import { ArrowRight, Bell, ShieldCheck, Store, UserRound } from "lucide-react";
 import { Badge, Card } from "@germinatura/ui";
 import { requireSession } from "@/lib/auth";
 import { BootstrapAdminCard } from "@/components/auth/BootstrapAdminCard";
+import { AdminOverview } from "@/components/admin/AdminOverview";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ export default async function HomePage() {
   const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user.roles.some((role) => role === "ADMIN" || role === "VENDEDOR");
   const canBootstrap = user.email === "theo.martins@institutojef.org.br" && !user.roles.includes("ADMIN");
+
+  if (user.roles.includes("ADMIN")) return <AdminOverview name={user.name} />;
 
   return (
     <div className="px-4 py-8 sm:px-6 lg:px-8 lg:py-10">

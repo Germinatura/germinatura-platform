@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, X } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, UserRoundCog, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; }
@@ -19,6 +19,7 @@ export function Sidebar({ user, loading, collapsed = false, onToggleCollapsed, o
   const pathname = usePathname();
   const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user?.roles.some((role) => role === "ADMIN" || role === "VENDEDOR") ?? false;
+  const isAdmin = user?.roles.includes("ADMIN") ?? false;
   const itemClass = (active: boolean) => [
     "group relative flex min-h-11 items-center rounded-[var(--g-radius-control)] text-sm font-semibold transition-colors",
     collapsed ? "justify-center px-2" : "gap-3 px-3",
@@ -36,18 +37,25 @@ export function Sidebar({ user, loading, collapsed = false, onToggleCollapsed, o
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Navegação principal">
-        {!collapsed && <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Conta</p>}
+        {!collapsed && <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">{isAdmin ? "Operação" : "Conta"}</p>}
         <Link href="/" onClick={onNavigate} className={itemClass(pathname === "/")} title={collapsed ? "Início" : undefined}>
           {pathname === "/" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-          <Home className="size-5 shrink-0" />{!collapsed && <span>Início</span>}
+          <LayoutDashboard className="size-5 shrink-0" />{!collapsed && <span>{isAdmin ? "Visão geral" : "Início"}</span>}
         </Link>
+        {isAdmin && (
+          <Link href="/admin/usuarios" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/usuarios"))} title={collapsed ? "Usuários e vendedores" : undefined}>
+            {pathname.startsWith("/admin/usuarios") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+            <UserRoundCog className="size-5 shrink-0" />{!collapsed && <span>Usuários e vendedores</span>}
+          </Link>
+        )}
+        {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Conta</p>}
         <Link href="/trocar-senha" onClick={onNavigate} className={itemClass(pathname === "/trocar-senha")} title={collapsed ? "Perfil e segurança" : undefined}>
           {pathname === "/trocar-senha" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
           <ShieldCheck className="size-5 shrink-0" />{!collapsed && <span>Perfil e segurança</span>}
         </Link>
         {canAccessPdv && (
           <>
-            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Operação</p>}
+            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">PDV</p>}
             <Link href={pdvUrl} className={itemClass(false)} title={collapsed ? "Abrir PDV" : undefined}><Store className="size-5 shrink-0" />{!collapsed && <span>Abrir PDV</span>}</Link>
           </>
         )}

@@ -37,7 +37,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/auth/password-recovery/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/password-recovery/complete", methods: ["POST"], access: "public" },
   { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
-  { path: "/api/v1/admin/users", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },
   { path: "/api/v1/admin/users/:id/password-recovery", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/signup-code", methods: ["POST"], access: "admin" },
