@@ -1,77 +1,62 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
-import { Sidebar } from "./Sidebar";
-import { Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Sidebar, type SidebarUser } from "./Sidebar";
+import { Topbar } from "./Topbar";
+
+const publicPaths = ["/login", "/esqueci-senha", "/recuperar-senha"];
+
+function pageTitle(pathname: string) {
+  if (pathname === "/") return "Início";
+  if (pathname === "/trocar-senha") return "Perfil e segurança";
+  if (pathname.startsWith("/notificacoes")) return "Notificações";
+  return "Germinatura";
+}
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [user, setUser] = useState<SidebarUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const isPublic = publicPaths.includes(pathname) || pathname.startsWith("/cadastro") || pathname.startsWith("/pdv");
 
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  useEffect(() => {
+    if (isPublic) return;
+    let active = true;
+    fetch("/api/auth/me")
+      .then(async (response) => response.ok ? response.json() as Promise<{ user: SidebarUser }> : null)
+      .then((data) => { if (active) setUser(data?.user ?? null); })
+      .catch(() => { if (active) setUser(null); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [isPublic, pathname]);
 
-    if (
-      pathname === "/login"
-      || pathname.startsWith("/cadastro")
-      || pathname === "/esqueci-senha"
-      || pathname === "/recuperar-senha"
-      || pathname.startsWith("/pdv")
-      || pathname === "/trocar-senha"
-    ) {
-        return <>{children}</>;
-    }
+  if (isPublic) return <>{children}</>;
 
-    return (
-        <div className="flex min-h-screen">
-            {/* Sidebar - Desktop */}
-            <div className="hidden lg:flex w-64 sticky top-0 h-screen">
-                <Sidebar />
-            </div>
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
-            {/* Sidebar - Mobile Overlay */}
-            {isSidebarOpen && (
-                <div
-                    className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
-                    onClick={toggleSidebar}
-                />
-            )}
+  return (
+    <div className="flex min-h-screen bg-[var(--g-surface-canvas)] text-[var(--g-text-primary)]">
+      <aside className={`sticky top-0 hidden h-screen shrink-0 transition-[width] duration-200 lg:flex ${isCollapsed ? "w-[var(--g-sidebar-collapsed)]" : "w-[var(--g-sidebar-expanded)]"}`}>
+        <Sidebar user={user} loading={loading} collapsed={isCollapsed} onToggleCollapsed={() => setIsCollapsed(!isCollapsed)} onLogout={handleLogout} />
+      </aside>
 
-            {/* Sidebar - Mobile Drawer */}
-            <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out lg:hidden
-        ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      `}>
-                <div className="absolute top-4 right-4 lg:hidden">
-                    <button onClick={toggleSidebar} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
-                        <X className="size-6" />
-                    </button>
-                </div>
-                <Sidebar />
-            </div>
+      {isSidebarOpen && <button type="button" className="fixed inset-0 z-40 bg-[var(--g-surface-overlay)] lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Fechar navegação" />}
+      <div className={`fixed inset-y-0 left-0 z-50 w-[min(var(--g-sidebar-expanded),calc(100vw-3rem))] transform bg-[var(--g-surface-default)] transition-transform duration-200 lg:hidden ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <Sidebar user={user} loading={loading} onNavigate={() => setIsSidebarOpen(false)} onLogout={handleLogout} />
+      </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col h-screen min-w-0">
-                {/* Mobile Header */}
-                <header className="lg:hidden h-16 border-b border-slate-200 bg-white flex items-center justify-between px-4 shrink-0 z-30">
-                    <div className="flex items-center gap-3">
-                        <button onClick={toggleSidebar} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg">
-                            <Menu className="size-6" />
-                        </button>
-                        <div className="flex items-center gap-2">
-                            <div className="size-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                                {/* <GraduationCap className="size-5" /> */}
-                                <img src="https://i.imgur.com/EnMI9CP.png" alt="G" className="rounded-lg" />
-                            </div>
-                            <h1 className="font-bold text-sm">Germinatura</h1>
-                        </div>
-                    </div>
-                </header>
-
-                <main data-testid="dashboard-scroll-container" className="flex-1 min-h-0 overflow-y-auto">
-                    {children}
-                </main>
-            </div>
-        </div>
-    );
+      <div className="flex h-screen min-w-0 flex-1 flex-col">
+        <Topbar title={pageTitle(pathname)} user={user} loading={loading} onOpenMenu={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
+        <main data-testid="dashboard-scroll-container" className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+      </div>
+    </div>
+  );
 }

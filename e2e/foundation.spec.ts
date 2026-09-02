@@ -593,6 +593,13 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
   await expect(page.getByText("Germinatura v2.2")).toHaveCount(0);
+  await expect(page.getByText("Fundação v2.1")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Comece por aqui" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toContainText("Admin Local");
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.getByRole("button", { name: "Recolher sidebar" }).click();
+  await expect(page.getByRole("button", { name: "Expandir sidebar" })).toBeVisible();
 
   for (const viewport of [{ width: 1280, height: 720 }, { width: 768, height: 700 }, { width: 390, height: 700 }]) {
     await page.setViewportSize(viewport);
@@ -601,9 +608,22 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
     await expect(scrollContainer).toHaveCSS("overflow-y", "auto");
     await scrollContainer.hover();
     await page.mouse.wheel(0, 1200);
-    await expect(page.getByRole("heading", { name: "Fundação do PDV" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Ponto de venda" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Abrir PDV" }).last()).toBeVisible();
   }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await page.getByRole("button", { name: "Abrir navegação" }).click();
+  await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeVisible();
+  await page.getByRole("button", { name: "Fechar navegação" }).last().click();
+  await page.getByRole("button", { name: "Notificações" }).click();
+  await expect(page.getByText("Tudo em dia")).toBeVisible();
+  await page.getByRole("button", { name: "Notificações" }).click();
+
+  await page.goto(`${portalUrl}/trocar-senha`);
+  await expect(page.getByRole("heading", { name: "Alterar senha" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Perfil e segurança" })).toBeVisible();
 
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();
