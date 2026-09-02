@@ -66,7 +66,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 
 | Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
 | --- | --- | --- | --- | --- | --- |
-| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Backend de reservas/rifas, concorrência e expiração pelo worker entregues; padrão visual foi aprovado e documentado, telas de consumidor seguem na próxima fatia |
+| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Catálogo consumidor responsivo consome somente a API pública anônima, com busca local, paginação e estados explícitos; backend de reservas/rifas e expiração pelo worker está entregue, mas suas telas e ações seguem em fatias próprias |
 | Campanhas, links e notificações | IN PROGRESS | P2 | Outbox/Portal | GROW-001, NOTIF-001 | Notificações in-app listáveis/marcáveis e materialização idempotente entregues; e-mail, push e campanhas seguem pós-MVP |
 
 ## Fase 7 — Comunidade
