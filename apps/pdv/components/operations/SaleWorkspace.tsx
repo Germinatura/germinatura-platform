@@ -158,7 +158,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
       <header className="sticky top-0 z-40 border-b border-[var(--g-border-subtle)] bg-[var(--g-surface-canvas)]/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[var(--g-content-wide)] items-center justify-between gap-3 px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <BrandMark className="size-10 shrink-0" title="Germinatura" />
+            <BrandMark className="size-10 shrink-0 text-white" title="Germinatura" tone="inverse" />
             <div className="min-w-0"><p className="truncate font-bold">Germinatura PDV</p><p className="truncate text-xs text-[var(--g-text-muted)]">{selectedLocation?.name ?? "Localização indisponível"}</p></div>
           </div>
           <div className="relative">

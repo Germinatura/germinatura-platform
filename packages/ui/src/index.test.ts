@@ -21,8 +21,16 @@ describe("shared UI primitives", () => {
   });
 
   it("shares one accessible brand mark across applications", () => {
-    expect(BrandMark({ title: "Germinatura" })).toMatchObject({
-      props: { role: "img", "aria-label": "Germinatura" },
+    const mark = BrandMark({ title: "Germinatura" });
+    expect(mark).toMatchObject({
+      props: {
+        role: "img",
+        "aria-label": "Germinatura",
+        children: { props: { fill: "#0E208E" } },
+      },
+    });
+    expect(BrandMark({ tone: "inverse" })).toMatchObject({
+      props: { children: { props: { fill: "currentColor" } } },
     });
   });
 });
