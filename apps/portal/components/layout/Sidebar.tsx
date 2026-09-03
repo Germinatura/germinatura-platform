@@ -64,6 +64,12 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
             <Ticket className="size-5 shrink-0" />{!collapsed && <span>Rifas</span>}
           </Link>
         )}
+        {isAdmin && enabledFeatures.includes("raffles") && (
+          <Link href="/admin/rifas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/rifas"))} title={collapsed ? "Gestão de rifas" : undefined}>
+            {pathname.startsWith("/admin/rifas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+            <Ticket className="size-5 shrink-0" />{!collapsed && <span>Gestão de rifas</span>}
+          </Link>
+        )}
         {isAdmin && (
           <Link href="/admin/usuarios" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/usuarios"))} title={collapsed ? "Usuários e vendedores" : undefined}>
             {pathname.startsWith("/admin/usuarios") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
