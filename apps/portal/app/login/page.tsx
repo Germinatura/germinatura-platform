@@ -1,6 +1,7 @@
 "use client";
 
 import { credentialLoginRequestSchema, signupRequestSchema } from "@germinatura/contracts";
+import { BrandMark } from "@germinatura/ui";
 import { Loader2, LockKeyhole, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -47,7 +48,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-background-light p-4 font-sans">
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
-          <img src="https://i.imgur.com/EnMI9CP.png" alt="Germinatura" className="mx-auto mb-4 size-16 rounded-2xl shadow-lg" />
+          <BrandMark title="Germinatura" className="mx-auto mb-4 size-16" />
           <h1 className="text-3xl font-black tracking-tight text-slate-900">Germinatura</h1>
           <p className="mt-2 font-medium text-slate-500">Acesso da comunidade Germinare</p>
         </header>

@@ -23,6 +23,17 @@ Este documento é normativo para novas interfaces. Regras de domínio, permissõ
 
 ### Marca
 
+O `BrandMark` é a implementação canônica da geometria vetorial fornecida no pacote institucional `germinatura-svg-pack`. Sua forma não pode ser redesenhada nos apps:
+
+- em superfícies claras, usar `tone="brand"` (padrão), com o azul original do SVG `#0E208E`;
+- em superfícies escuras, usar `tone="inverse"` e uma cor de primeiro plano com contraste WCAG, normalmente branco;
+- não aplicar fundo, recorte arredondado, sombra ou acento sobre o símbolo;
+- manter proporção quadrada, área de respiro e tamanho legível; nunca distorcer a geometria;
+- usar uma única ocorrência da marca no contexto. O nome ao lado ou abaixo pode complementar o símbolo, mas não repetir outro avatar/logotipo;
+- os SVGs de módulos do pacote são ilustrações opcionais para cards e estados vazios. Ícones pequenos de navegação e ação continuam exclusivamente em Lucide.
+
+O login do Portal, a sidebar e o PDV consomem esse mesmo componente. Imagens remotas não podem substituir a marca institucional.
+
 - `brand.primary`: `#001EC5`
 - `brand.primary-hover`: `#0018A8`
 - `brand.primary-active`: `#00158F`

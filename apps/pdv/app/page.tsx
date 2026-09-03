@@ -30,7 +30,7 @@ export default function PdvHome() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[var(--g-surface-canvas)]">
         <div className="grid justify-items-center gap-4 text-[var(--g-text-secondary)]">
-          <BrandMark className="size-12" title="Germinatura" />
+          <BrandMark className="size-12 text-white" title="Germinatura" tone="inverse" />
           <Loader2 aria-label="Carregando o PDV" className="size-7 animate-spin text-[var(--g-operation-primary)]" />
         </div>
       </main>

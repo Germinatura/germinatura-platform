@@ -622,6 +622,9 @@ test("Seller closeout endpoints enforce role, complete counts and managed reopen
 
 test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {
   await page.goto("/login");
+  const portalBrand = page.getByRole("img", { name: "Germinatura" });
+  await expect(portalBrand).toBeVisible();
+  await expect(portalBrand.locator("g")).toHaveAttribute("fill", "#0E208E");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
   await expect(page.getByText("Germinatura v2.2")).toHaveCount(0);
@@ -629,6 +632,7 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await expect(page.getByRole("heading", { name: "Olá, Admin Local" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Alertas e divergências" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toContainText("Admin Local");
+  await expect(page.getByRole("link", { name: "Germinatura — Início" }).locator("svg")).toHaveCount(1);
 
   const usersResponse = await page.request.get("/api/v1/admin/users");
   await expect(usersResponse).toBeOK();
@@ -703,6 +707,9 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
 
 test("Administrator leaving the PDV can log back into the Portal", async ({ page }) => {
   await page.goto(`${pdvUrl}/login`);
+  const pdvBrand = page.getByRole("img", { name: "Germinatura" });
+  await expect(pdvBrand).toBeVisible();
+  await expect(pdvBrand.locator("g")).toHaveAttribute("fill", "currentColor");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
   await expect(page).toHaveURL(`${portalUrl}/`);
 

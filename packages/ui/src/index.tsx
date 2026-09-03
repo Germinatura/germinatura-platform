@@ -8,21 +8,33 @@ import type {
 interface BrandMarkProps {
   className?: string;
   title?: string;
+  tone?: "brand" | "inverse";
 }
 
-export function BrandMark({ className = "size-10", title }: BrandMarkProps) {
+/**
+ * Official Germinatura mark supplied in the institutional SVG pack.
+ * Keep this geometry centralized: applications choose only the surface tone.
+ */
+export function BrandMark({ className = "size-10", title, tone = "brand" }: BrandMarkProps) {
   return (
     <svg
       className={className}
-      viewBox="0 0 48 48"
+      viewBox="0 0 200 200"
       role={title ? "img" : undefined}
       aria-hidden={title ? undefined : true}
       aria-label={title}
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="48" height="48" rx="12" fill="var(--g-brand-primary)" />
-      <path d="M14 13h8v22h-8zM25 13h9l-9 9zM25 25l9-9v9zM25 28h9l-9 9z" fill="white" />
-      <circle cx="38" cy="10" r="3" fill="var(--g-accent-aqua)" />
+      <g fill={tone === "inverse" ? "currentColor" : "#0E208E"}>
+        <path d="M50 38 108 24 170 51 143 59 C132 51 118 46 103 43 C91 41 82 43 75 48 L74 56 Z" />
+        <path d="M78 50 C94 43 119 47 140 59 L140 78 C124 70 110 65 99 64 H74 C74 58 75 53 78 50 Z" />
+        <path d="M58 82 H94 V118 H58 Z" />
+        <path d="M103 82 H139 V116 Z" />
+        <path d="M58 127 H94 C94 143 85 154 75 159 C69 162 64 163 58 163 Z" />
+        <path d="M157 56 H158 V79 H157 Z" />
+        <circle cx="157.5" cy="81.5" r="2.8" />
+        <path d="M157 84 C156.5 89 155.2 93 154 97 C154.6 100 160.4 100 161 97 C159.8 93 158.5 89 158 84 Z" />
+      </g>
     </svg>
   );
 }
