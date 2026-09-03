@@ -8,6 +8,7 @@ describe("payment state transitions", () => {
     expect(canTransitionPayment("AWAITING_EXTERNAL_CONFIRMATION", "APPROVED")).toBe(true);
     expect(canTransitionPayment("APPROVED", "RECONCILIATION_PENDING")).toBe(true);
     expect(canTransitionPayment("RECONCILIATION_PENDING", "RECONCILED")).toBe(true);
+    expect(canTransitionPayment("RECONCILED", "REFUNDED")).toBe(true);
   });
   it("accepts idempotent repetition", () => expect(canTransitionPayment("APPROVED", "APPROVED")).toBe(true));
   it("types only the enabled manual MVP channels", () => {

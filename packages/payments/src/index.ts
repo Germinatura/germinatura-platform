@@ -51,7 +51,7 @@ const allowedTransitions: Readonly<Record<PaymentStatus, readonly PaymentStatus[
   APPROVED: ["REFUNDED", "RECONCILIATION_PENDING", "RECONCILED"],
   DECLINED: [], CANCELLED: [], EXPIRED: [],
   REFUNDED: ["RECONCILIATION_PENDING", "RECONCILED"],
-  RECONCILIATION_PENDING: ["RECONCILED"], RECONCILED: [],
+  RECONCILIATION_PENDING: ["REFUNDED", "RECONCILED"], RECONCILED: ["REFUNDED"],
 };
 
 export function canTransitionPayment(from: PaymentStatus, to: PaymentStatus): boolean {
