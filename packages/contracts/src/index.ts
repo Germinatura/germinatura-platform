@@ -219,8 +219,16 @@ export const salesCheckoutResponseSchema = z.object({
 }).strict();
 export type SalesCheckoutResponse = z.infer<typeof salesCheckoutResponseSchema>;
 
+export const confirmedSaleReversalRequestSchema = z.object({
+  reason: z.string().trim().min(8).max(500),
+  refundReference: z.string().trim().min(4).max(128)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
+    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
+}).strict();
+export type ConfirmedSaleReversalRequest = z.infer<typeof confirmedSaleReversalRequestSchema>;
+
 export const salesCancelResponseSchema = z.object({
-  data: z.object({
+  data: z.union([z.object({
     saleId: z.uuid(),
     status: z.literal("CANCELLED"),
     reservation: z.object({
@@ -233,7 +241,21 @@ export const salesCancelResponseSchema = z.object({
       status: z.literal("CANCELLED"),
     }).strict(),
     correlationId: z.uuid(),
-  }).strict(),
+  }).strict(), z.object({
+    saleId: z.uuid(),
+    status: z.literal("CANCELLED"),
+    paymentAttempt: z.object({
+      attemptId: z.uuid(),
+      status: z.literal("REFUNDED"),
+    }).strict(),
+    reversal: z.object({
+      stockMovementId: z.uuid(),
+      refundEntryId: z.uuid(),
+      amountCents: moneyCentsSchema,
+      refundReference: z.string().min(4).max(128),
+    }).strict(),
+    correlationId: z.uuid(),
+  }).strict()]),
   request_id: z.string().min(1),
 }).strict();
 export type SalesCancelResponse = z.infer<typeof salesCancelResponseSchema>;

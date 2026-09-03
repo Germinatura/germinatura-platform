@@ -558,6 +558,38 @@ test("Manual PicPay confirmation is explicit, idempotent and consumes stock once
   });
   expect(cancelled.status()).toBe(409);
   await expect(cancelled.json()).resolves.toMatchObject({ code: "CONFIRMED_SALE_REVERSAL_REQUIRED" });
+
+  const reversalKey = `${checkoutKey}-reverse-confirmed`;
+  const reversalPayload = {
+    reason: "Cliente solicitou estorno integral",
+    refundReference: `ESTORNO-E2E-${Date.now().toString(36)}`,
+  };
+  const reversed = await page.request.post(`/api/v1/sales/${saleId}/cancel`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": reversalKey },
+    data: reversalPayload,
+  });
+  const reversedBody = await reversed.json();
+  expect(reversed.status(), JSON.stringify(reversedBody)).toBe(200);
+  expect(reversedBody).toMatchObject({
+    data: {
+      saleId,
+      status: "CANCELLED",
+      paymentAttempt: { attemptId, status: "REFUNDED" },
+      reversal: {
+        amountCents: 2590,
+        refundReference: reversalPayload.refundReference,
+      },
+    },
+  });
+  expect(reversedBody.data.reversal.stockMovementId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(reversedBody.data.reversal.refundEntryId).toMatch(/^[0-9a-f-]{36}$/);
+
+  const reversalReplay = await page.request.post(`/api/v1/sales/${saleId}/cancel`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": reversalKey },
+    data: reversalPayload,
+  });
+  expect(reversalReplay.status()).toBe(200);
+  await expect(reversalReplay.json()).resolves.toMatchObject({ data: reversedBody.data });
 });
 
 test("Seller closeout endpoints enforce role, complete counts and managed reopen", async ({ page }) => {

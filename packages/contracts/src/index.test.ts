@@ -7,6 +7,7 @@ import {
   commercialReservationCancelResponseSchema,
   commercialReservationConvertResponseSchema,
   commercialReservationCreateRequestSchema,
+  confirmedSaleReversalRequestSchema,
   credentialLoginRequestSchema,
   createApiClient,
   featureFlagUpdateRequestSchema,
@@ -158,6 +159,17 @@ describe("shared contracts", () => {
     for (const invalid of [-1, 12.9, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
       expect(moneyCentsSchema.safeParse(invalid).success).toBe(false);
     }
+  });
+
+  it("requires a reason and non-sensitive reference for confirmed sale reversal", () => {
+    expect(confirmedSaleReversalRequestSchema.parse({
+      reason: "Cliente solicitou o estorno integral",
+      refundReference: "ESTORNO-TESTE-0001",
+    })).toMatchObject({ refundReference: "ESTORNO-TESTE-0001" });
+    expect(confirmedSaleReversalRequestSchema.safeParse({
+      reason: "curto",
+      refundReference: "4111111111111111",
+    }).success).toBe(false);
   });
 
   it("validates portable idempotency keys and persisted statuses", () => {

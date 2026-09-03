@@ -204,12 +204,36 @@ describe("checkout transacional real", () => {
       .toHaveLength(1);
     expect(await rows<{ id: string }>(current, accessToken, `financial_ledger_entries?select=id&sale_id=eq.${saleId}`))
       .toHaveLength(3);
+    const reversalKey = `confirmed-reversal-${randomUUID()}`;
+    const refundReference = `REFUND-${randomUUID()}`;
+    const reversalParameters = () => ({
+      p_sale_id: saleId,
+      p_reason: "Cliente solicitou estorno integral",
+      p_refund_reference: refundReference,
+      p_idempotency_key: reversalKey,
+      p_correlation_id: randomUUID(),
+    });
+    const reversals = await Promise.all([
+      rpc(current, accessToken, "reverse_confirmed_sale", reversalParameters()),
+      rpc(current, accessToken, "reverse_confirmed_sale", reversalParameters()),
+    ]);
+    expect(reversals.every((result) => result.ok)).toBe(true);
+    expect(new Set(reversals.map((result) => String(
+      ((result as Extract<Outcome, { ok: true }>).data.reversal as { refund_entry_id: string }).refund_entry_id,
+    ))).size).toBe(1);
+    expect(await rows<{ status: string }>(current, accessToken, `sales?select=status&id=eq.${saleId}`))
+      .toEqual([{ status: "CANCELLED" }]);
+    expect(await rows<{ status: string }>(current, accessToken, `payment_attempts?select=status&id=eq.${attemptIds[0]}`))
+      .toEqual([{ status: "REFUNDED" }]);
+    expect(await rows<{ id: string }>(current, accessToken, `stock_movements?select=id&source_type=eq.sale_reversal&source_id=eq.${saleId}`))
+      .toHaveLength(1);
+    expect(await rows<{ id: string }>(current, accessToken, `financial_ledger_entries?select=id&sale_id=eq.${saleId}&entry_type=eq.REFUND`))
+      .toHaveLength(1);
     const [balance] = await rows<{ on_hand_quantity: number; reserved_quantity: number }>(
       current,
       accessToken,
       `inventory_balances?select=on_hand_quantity,reserved_quantity&location_id=eq.${CENTRAL_LOCATION_ID}&product_id=eq.${PRODUCT_ID}`,
     );
-    expect(balance).toEqual({ on_hand_quantity: 0, reserved_quantity: 0 });
-    await setStock(current, accessToken, 1);
+    expect(balance).toEqual({ on_hand_quantity: 1, reserved_quantity: 0 });
   });
 });
