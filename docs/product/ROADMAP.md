@@ -60,7 +60,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Lançamentos/taxas/conciliação | DONE | P1 | Venda/pagamento/outbox | FIN-001/002/003 | Recebível, divergência, taxa e liquidação são append-only; Admin/Financeiro conciliam por referência única, mismatch vira pendência e replay não duplica efeitos |
 | Reembolso/reversão confirmada | DONE | P0 | Venda/estoque/financeiro | SALE-002, FIN-002 | Admin/Financeiro registram referência manual não sensível; a transação restaura estoque por movimento compensatório, adiciona `REFUND` negativo, muda pagamento para `REFUNDED` e cancela a venda sem editar históricos. Replay e concorrência não duplicam efeitos; rifa paga segue bloqueada |
 | Compras/fornecedores/custo | TODO | P2 | Catálogo/ledger | PROC-001 | Recebimento parcial gera lote/movimento/despesa |
-| Fechamentos e dashboards | IN PROGRESS | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Visão Geral usa dados reais; vendedor registra fechamento completo no PDV e divergência exige justificativa. A RPC de reabertura é exclusiva de Admin/Financeiro, mas sua tela administrativa segue pendente |
+| Fechamentos e dashboards | DONE | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Visão Geral usa dados reais; vendedor registra fechamento completo no PDV e divergência exige justificativa. Admin/Financeiro consultam snapshots e reabrem com motivo por operação idempotente e auditada |
 
 ## Fase 6 — Venda online e crescimento
 

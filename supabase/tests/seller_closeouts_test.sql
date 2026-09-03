@@ -1,5 +1,5 @@
 begin;
-select plan(34);
+select plan(37);
 
 select has_table('public', 'seller_closeouts', 'seller closeouts table exists');
 select has_table('public', 'seller_closeout_payment_summaries', 'payment summaries table exists');
@@ -14,6 +14,10 @@ select has_function(
   'public', 'reopen_seller_closeout',
   array['uuid', 'text', 'text', 'uuid'],
   'reopen closeout RPC exists'
+);
+select has_function(
+  'public', 'list_managed_seller_closeouts', array['integer'],
+  'managed closeout list RPC exists'
 );
 select ok((select relrowsecurity from pg_class where oid = 'public.seller_closeouts'::regclass), 'closeouts have RLS');
 select results_eq(
@@ -101,6 +105,10 @@ select throws_ok(
   $$select public.reopen_seller_closeout((select (result ->> 'closeout_id')::uuid from first_closeout), 'Tentativa do vendedor', 'closeout-reopen-seller-1', '83000000-0000-4000-8000-000000000007')$$,
   '42501', 'CLOSEOUT_MANAGE_REQUIRED', 'seller cannot reopen a closeout'
 );
+select throws_ok(
+  $$select public.list_managed_seller_closeouts(100)$$,
+  '42501', 'CLOSEOUT_MANAGE_REQUIRED', 'seller cannot list managed closeouts'
+);
 reset role;
 
 set local role authenticated;
@@ -114,6 +122,11 @@ reset role;
 
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
+select results_eq(
+  $$select item ->> 'seller_name', item ->> 'location_name' from jsonb_array_elements(public.list_managed_seller_closeouts(100)) item$$,
+  $$values ('Vendedor Local'::text, 'Estoque do vendedor local'::text)$$,
+  'manager list resolves seller and location labels without weakening table RLS'
+);
 create temp table reopened_closeout as
 select public.reopen_seller_closeout(
   (select (result ->> 'closeout_id')::uuid from first_closeout),
