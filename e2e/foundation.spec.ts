@@ -677,6 +677,12 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   await expect(inventoryContent.getByRole("heading", { name: "Saldos por localização" })).toBeVisible();
   await expect(inventoryContent.getByText(/PUBLIC-ITEM-A · Estoque central/)).toBeVisible();
 
+  await page.goto(`${portalUrl}/admin/fechamentos`);
+  const closeoutsContent = page.getByTestId("dashboard-scroll-container");
+  await expect(closeoutsContent.getByRole("heading", { name: "Fechamentos", exact: true })).toBeVisible();
+  await expect(closeoutsContent.getByRole("heading", { name: "Ainda não há fechamentos" })).toBeVisible();
+  await expect(closeoutsContent.getByRole("button", { name: /reabrir/i })).toHaveCount(0);
+
   await page.goto(`${portalUrl}/trocar-senha`);
   await expect(page.getByRole("heading", { name: "Alterar senha" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Perfil e segurança" })).toBeVisible();
@@ -743,6 +749,9 @@ test("Consumer enters only the Portal foundation and is rejected by the PDV", as
   await expect(portalPage.getByRole("link", { name: "Usuários e vendedores" })).toHaveCount(0);
   await expect(portalPage.locator('a[href="/admin/catalogo"]')).toHaveCount(0);
   await expect(portalPage.locator('a[href="/admin/estoque"]')).toHaveCount(0);
+  await expect(portalPage.locator('a[href="/admin/fechamentos"]')).toHaveCount(0);
+  await portalPage.goto(`${portalUrl}/admin/fechamentos`);
+  await expect(portalPage).toHaveURL(`${portalUrl}/`);
   await portalContext.close();
 
   const pdvContext = await browser.newContext();

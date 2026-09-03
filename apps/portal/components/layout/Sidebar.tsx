@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, CalendarClock, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, UserRoundCog, X } from "lucide-react";
+import { Boxes, CalendarClock, ClipboardCheck, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, UserRoundCog, X } from "lucide-react";
 import { BrandMark } from "@/components/brand/BrandMark";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; }
@@ -20,6 +20,7 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
   const canAccessPdv = user?.roles.some((role) => role === "ADMIN" || role === "VENDEDOR") ?? false;
   const isAdmin = user?.roles.includes("ADMIN") ?? false;
   const canInspectInventory = user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false;
+  const canManageCloseouts = user?.roles.some((role) => role === "ADMIN" || role === "FINANCEIRO") ?? false;
   const canBrowseCatalog = !isAdmin && (user?.roles.some((role) => role === "CONSUMIDOR" || role === "VENDEDOR" || role === "ESTOQUE") ?? false);
   const canManageOwnReservations = !isAdmin && (user?.roles.some((role) => role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
   const canBrowseRaffles = !isAdmin && enabledFeatures.includes("raffles") && (user?.roles.includes("CONSUMIDOR") ?? false);
@@ -80,6 +81,15 @@ export function Sidebar({ user, collapsed = false, onToggleCollapsed, onNavigate
               {pathname.startsWith("/admin/estoque") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <Boxes className="size-5 shrink-0" />{!collapsed && <span>Estoque</span>}
             </Link>}
+          </>
+        )}
+        {canManageCloseouts && (
+          <>
+            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Financeiro</p>}
+            <Link href="/admin/fechamentos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/fechamentos"))} title={collapsed ? "Fechamentos" : undefined}>
+              {pathname.startsWith("/admin/fechamentos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <ClipboardCheck className="size-5 shrink-0" />{!collapsed && <span>Fechamentos</span>}
+            </Link>
           </>
         )}
         {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Conta</p>}
