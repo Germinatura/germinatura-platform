@@ -767,7 +767,14 @@ test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ pag
   await expect(page.getByText("Fundação v2.1")).toHaveCount(0);
   await expect(page.getByText("Germinatura v2.2")).toHaveCount(0);
 
+  await page.getByRole("button", { name: "Fechamento" }).click();
+  await expect(page.getByRole("heading", { name: "Fechamento" })).toBeVisible();
+  await expect(page.getByText("Nenhum item para contar")).toBeVisible();
+  await page.getByRole("button", { name: "Operação" }).click();
+  await expect(page.getByRole("heading", { name: "Nova venda" })).toBeVisible();
+
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("button", { name: "Fechamento" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir menu da conta" })).toBeVisible();
   await page.getByRole("button", { name: "Abrir menu da conta" }).click();
   await expect(page.getByRole("button", { name: "Sair do PDV" })).toBeVisible();

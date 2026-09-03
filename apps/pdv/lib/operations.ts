@@ -2,12 +2,14 @@ import {
   manualPaymentConfirmationResponseSchema,
   pricingQuoteResponseSchema,
   publicCatalogProductsResponseSchema,
+  sellerCloseoutResponseSchema,
   salesCancelResponseSchema,
   salesCheckoutResponseSchema,
   type ManualPaymentConfirmationResponse,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
   type PublicCatalogProduct,
+  type SellerCloseoutResponse,
   type SalesCheckoutResponse,
 } from "@germinatura/contracts";
 import { apiFetch } from "@/lib/api";
@@ -25,12 +27,14 @@ export interface StockLocation {
 export interface InventoryContext {
   locations: StockLocation[];
   availableByLocationAndProduct: Record<string, number>;
+  onHandByLocationAndProduct: Record<string, number>;
 }
 
 interface InventoryBalance {
   locationId: string;
   productId: string;
   available: number;
+  onHand: number;
 }
 
 export interface CartItem {
@@ -62,6 +66,7 @@ function parseBalance(value: unknown): InventoryBalance | null {
     locationId: row.location_id,
     productId: row.product_id,
     available: Math.max(0, row.on_hand_quantity - row.reserved_quantity),
+    onHand: row.on_hand_quantity,
   };
 }
 
@@ -97,7 +102,28 @@ export async function loadInventoryContext(): Promise<InventoryContext> {
     availableByLocationAndProduct: Object.fromEntries(
       balances.map((balance) => [`${balance.locationId}:${balance.productId}`, balance.available]),
     ),
+    onHandByLocationAndProduct: Object.fromEntries(
+      balances.map((balance) => [`${balance.locationId}:${balance.productId}`, balance.onHand]),
+    ),
   };
+}
+
+export async function createSellerCloseout(
+  periodStart: string,
+  periodEnd: string,
+  stockCounts: Array<{ productId: string; countedQuantity: number }>,
+  justification: string | null,
+  idempotencyKey: string,
+): Promise<SellerCloseoutResponse["data"]> {
+  const response = await apiFetch("/api/v1/closeouts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ periodStart, periodEnd, stockCounts, justification }),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível concluir o fechamento."));
+  const parsed = sellerCloseoutResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O fechamento retornou dados inválidos.");
+  return parsed.data.data;
 }
 
 export async function loadCatalog(): Promise<PublicCatalogProduct[]> {
