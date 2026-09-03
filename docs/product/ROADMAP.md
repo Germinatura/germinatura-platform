@@ -86,3 +86,5 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 ## Direção visual aprovada e próxima fatia
 
 O gate visual foi aprovado em 01/09/2026. Tokens, componentes-base e regras normativas estão em `docs/design/DESIGN_SYSTEM.md`; o Portal autenticado já usa o shell claro e o PDV usa a linguagem escura operacional. A próxima fatia deve implementar as telas administrativas e, depois, as jornadas de consumidor sem alterar regras de domínio. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
+
+Em 03/09/2026, a marca compartilhada passou a usar a geometria do SVG institucional fornecido: azul original no Portal e variante inversa no PDV. A imagem remota do login foi removida. Símbolos opcionais e a sprint de refinamento visual permanecem separados, sem impacto no cronograma funcional.
