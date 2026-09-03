@@ -41,7 +41,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | --- | --- | --- | --- | --- | --- |
 | Pricing e promoções server-side | DONE | P0 | Catálogo | PRICE-002, PROMO-001/002 | `86238e1` promoveu a cotação autoritativa para `PORTAL`/`PDV`; staging/produção e rejeição de total adulterado foram validados |
 | Checkout/venda/cancelamento | DONE | P0 | Pricing/ledger/outbox | SALE-001/002/003 | RPC e API recalculam preço, congelam snapshots, reservam estoque e criam tentativa em uma transação; replay/conflito, concorrência real e cancelamento pendente com liberação única são testados. Venda confirmada comum usa reversão manual auditada; venda de rifa paga permanece fail-closed para uma operação específica |
-| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | A interface do PDV consome catálogo/saldo via RLS e executa cotação, checkout, confirmação manual e cancelamento pelos contratos transacionais; fechamento visual e cache PWA seguem pendentes |
+| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | O PDV executa venda e fechamento pelos contratos transacionais: período, contagem integral, justificativa de divergência e resumo imutável. Reabertura segue exclusiva de Admin/Financeiro; cache PWA continua pendente |
 
 ## Fase 4 — PicPay
 
@@ -60,7 +60,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Lançamentos/taxas/conciliação | DONE | P1 | Venda/pagamento/outbox | FIN-001/002/003 | Recebível, divergência, taxa e liquidação são append-only; Admin/Financeiro conciliam por referência única, mismatch vira pendência e replay não duplica efeitos |
 | Reembolso/reversão confirmada | DONE | P0 | Venda/estoque/financeiro | SALE-002, FIN-002 | Admin/Financeiro registram referência manual não sensível; a transação restaura estoque por movimento compensatório, adiciona `REFUND` negativo, muda pagamento para `REFUNDED` e cancela a venda sem editar históricos. Replay e concorrência não duplicam efeitos; rifa paga segue bloqueada |
 | Compras/fornecedores/custo | TODO | P2 | Catálogo/ledger | PROC-001 | Recebimento parcial gera lote/movimento/despesa |
-| Fechamentos e dashboards | IN PROGRESS | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Visão Geral administrativa usa vendas, pendências de pagamento, conciliações e fechamentos reais; tela operacional de fechamento segue pendente |
+| Fechamentos e dashboards | IN PROGRESS | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Visão Geral usa dados reais; vendedor registra fechamento completo no PDV e divergência exige justificativa. A RPC de reabertura é exclusiva de Admin/Financeiro, mas sua tela administrativa segue pendente |
 
 ## Fase 6 — Venda online e crescimento
 
