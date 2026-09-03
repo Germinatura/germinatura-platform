@@ -826,6 +826,40 @@ test("Logout and an expired bearer session are rejected", async ({ page, request
   expect(expired.status()).toBe(401);
 });
 
+test("Admin manages raffle campaigns and cannot draw unpaid numbers", async ({ page }) => {
+  await page.goto("/login");
+  await login(page, "admin.teste", "Admin123!");
+  await page.getByRole("link", { name: "Gestão de rifas" }).click();
+  const content = page.getByTestId("dashboard-scroll-container");
+  await expect(content.getByRole("heading", { name: "Gestão de rifas" })).toBeVisible();
+  await content.getByText("Nova campanha", { exact: true }).click();
+  const name = `Campanha E2E ${Date.now()}`;
+  await page.getByLabel("Nome da campanha").fill(name);
+  await page.getByLabel("Quantidade de números").fill("10");
+  await page.getByLabel("Produto vinculado").selectOption({ label: "Item público A" });
+  await page.getByLabel("Localização central").selectOption({ label: "Estoque central" });
+  await page.getByLabel("Início (horário deste dispositivo)").fill("2030-09-01T10:00");
+  await page.getByLabel("Encerramento (horário deste dispositivo)").fill("2030-09-02T10:00");
+  await page.getByRole("button", { name: "Criar campanha" }).click();
+  await expect(page.getByRole("status")).toHaveText("Campanha criada e auditada.");
+  await page.getByLabel("Buscar campanha").fill(name);
+  await expect(content.getByRole("heading", { name })).toHaveCount(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Encerrar reservas" }).click();
+  await page.getByRole("button", { name: "Confirmar encerramento" }).click();
+  await expect(page.getByRole("status")).toHaveText("Campanha encerrada. Novas reservas estão bloqueadas.");
+  await page.getByRole("button", { name: "Preparar sorteio" }).click();
+  await page.getByRole("button", { name: "Confirmar sorteio único" }).click();
+  await expect(content.getByRole("alert")).toHaveText("Não há números pagos elegíveis");
+  await expect(page.getByRole("button", { name: "Preparar sorteio" })).toBeVisible();
+  await page.screenshot({ path: "test-results/admin-raffles-mobile.png", fullPage: true });
+  await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
+  await login(page, "consumidor.teste", "Consumidor123!");
+  await expect(page.getByRole("link", { name: "Gestão de rifas" })).toHaveCount(0);
+  await page.goto("/admin/rifas");
+  await expect(page).toHaveURL(`${portalUrl}/`);
+});
+
 test("Removed legacy domains are not exposed as functional APIs", async ({ page }) => {
   await page.goto("/login");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");

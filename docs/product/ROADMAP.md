@@ -83,6 +83,10 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | Open Finance para conciliação | BLOCKED | P3 | Caso real/consentimento | FIN-004 | Nunca autoriza venda; ADR revisado |
 | Web Push, app nativo, chat, analytics | TODO | P3 | Evidência de uso | NOTIF-001, COMM-001 | Decisão própria e métricas |
 
+## Incremento de rifas administrativas — 03/09/2026
+
+Interface de gestão com criação de campanha, encerramento com confirmação, sorteio único pelo servidor e consulta do conjunto elegível/material/hash/índice. Acesso exige `raffles.manage`; navegação e ações respeitam a flag. Consultas mostram até 50 campanhas recentes e 200 opções por seletor, sem apresentar a amostra como total global. Compra de números pelo consumidor e integração Payment Link continuam pendentes; este incremento não habilita pagamentos.
+
 ## Direção visual aprovada e próxima fatia
 
 O gate visual foi aprovado em 01/09/2026. Tokens, componentes-base e regras normativas estão em `docs/design/DESIGN_SYSTEM.md`; o Portal autenticado já usa o shell claro e o PDV usa a linguagem escura operacional. A próxima fatia deve implementar as telas administrativas e, depois, as jornadas de consumidor sem alterar regras de domínio. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
