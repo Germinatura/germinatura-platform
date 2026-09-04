@@ -23,6 +23,10 @@ Requisitos: PWA-001 e ADR 0007. Incremento de 04/09/2026, somente staging até p
 
 ## Atualização e reversão
 
+No Cloudflare, APIs do PDV (exceto login e health locais) usam `PORTAL_API`, binding explícito para o Portal do mesmo ambiente. `workers.dev` não permite o encaminhamento comum entre esses Workers; o smoke inicial de 04/09 encontrou 404 nesse caminho, embora a API direta do Portal respondesse 200. O adaptador transporta método, corpo, Origin, credenciais e chave idempotente uma única vez, não segue redirects e não adiciona credenciais a consultas anônimas. Auth/CSRF/RLS continuam no Portal. Sem binding, falha fechada 503. Next local mantém o rewrite HTTP entre portas; validar ambos os runtimes.
+
+O deploy de staging deve conferir também catálogo público via PDV e sessão anônima 401; health isolado não valida comunicação entre apps. Referência: [Cloudflare — chamadas entre Workers](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/) e [HTTP service bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/http/).
+
 Ao alterar o shell/cache, versionar os nomes `germinatura-pdv-shell-*` e, se o formato mudar, `germinatura-pdv-catalog-*` em conjunto com leitor e testes. A ativação limpa somente caches antigos com prefixo Germinatura PDV, nunca caches de outros produtos.
 
 Uma reversão de Git sozinha não remove service workers já instalados. Em incidente, publicar pela governança normal um `/sw.js` de desativação que limpe somente esses caches e execute `registration.unregister()`; manter a URL até clientes online receberem a atualização. Alternativa controlada no dispositivo: remover dados deste site/service worker nas configurações do navegador. Isso não altera vendas, estoque nem ledgers no servidor.
