@@ -4,7 +4,7 @@
   "account_id": "ac1e415bccca201b80f8313dd5ffeec8",
   "compatibility_date": "2026-08-29",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "vinext/server/fetch-handler",
+  "main": "worker.ts",
   "assets": {
     "directory": "dist/client",
     "not_found_handling": "none",
@@ -14,6 +14,7 @@
   "env": {
     "staging": {
       "name": "germinatura-pdv-staging",
+      "services": [{ "binding": "PORTAL_API", "service": "germinatura-portal-staging" }],
       "workers_dev": true,
       "images": { "binding": "IMAGES" },
       "kv_namespaces": [
@@ -22,6 +23,7 @@
     },
     "production": {
       "name": "germinatura-pdv-production",
+      "services": [{ "binding": "PORTAL_API", "service": "germinatura-portal-production" }],
       "workers_dev": true,
       "images": { "binding": "IMAGES" },
       "kv_namespaces": [
