@@ -41,7 +41,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 | --- | --- | --- | --- | --- | --- |
 | Pricing e promoções server-side | DONE | P0 | Catálogo | PRICE-002, PROMO-001/002 | `86238e1` promoveu a cotação autoritativa para `PORTAL`/`PDV`; staging/produção e rejeição de total adulterado foram validados |
 | Checkout/venda/cancelamento | DONE | P0 | Pricing/ledger/outbox | SALE-001/002/003 | RPC e API recalculam preço, congelam snapshots, reservam estoque e criam tentativa em uma transação; replay/conflito, concorrência real e cancelamento pendente com liberação única são testados. Venda confirmada comum usa reversão manual auditada; venda de rifa paga permanece fail-closed para uma operação específica |
-| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | O PDV executa venda e fechamento pelos contratos transacionais: período, contagem integral, justificativa de divergência e resumo imutável. Reabertura segue exclusiva de Admin/Financeiro; cache PWA continua pendente |
+| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | O PDV executa venda e fechamento transacionais. Shell offline público e cópia datada do catálogo, sem sessão/saldos/filas, implementados; homologação de instalação nos dispositivos-alvo permanece pendente. Reabertura segue exclusiva de Admin/Financeiro |
 
 ## Fase 4 — PicPay
 
@@ -88,6 +88,12 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi audi
 Interface de gestão com criação de campanha, encerramento com confirmação, sorteio único pelo servidor e consulta do conjunto elegível/material/hash/índice. Acesso exige `raffles.manage`; navegação e ações respeitam a flag. Consultas mostram até 50 campanhas recentes e 200 opções por seletor, sem apresentar a amostra como total global. Compra de números pelo consumidor e integração Payment Link continuam pendentes; este incremento não habilita pagamentos.
 
 ## Direção visual aprovada e próxima fatia
+
+### Incremento PWA read-only — 04/09/2026
+
+Manifest e service worker com allowlist de shell público; falha de navegação abre `/offline`, nunca HTML autenticado. A cópia anônima guarda somente nome/preço base de produtos PDV da primeira página (até 50), indica paginação parcial, data e validade de 24h. Não contém estoque, promoções, sessão ou dados financeiros; preço final depende de cotação online. Sem sincronização de mutações, pagamento offline ou cache de API. Instalação e comportamento nos dispositivos reais continuam sujeitos à homologação do runbook `docs/operations/pdv-offline-runbook.md`.
+
+O congelamento em 10/09 e a promoção consolidada em 11/09 permanecem previstos, sujeitos aos critérios de lançamento. A próxima fatia funcional deve tratar a administração transacional do catálogo; pagamentos do consumidor continuam bloqueados até existir continuidade homologada.
 
 O gate visual foi aprovado em 01/09/2026. Tokens, componentes-base e regras normativas estão em `docs/design/DESIGN_SYSTEM.md`; o Portal autenticado já usa o shell claro e o PDV usa a linguagem escura operacional. A próxima fatia deve implementar as telas administrativas e, depois, as jornadas de consumidor sem alterar regras de domínio. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
 

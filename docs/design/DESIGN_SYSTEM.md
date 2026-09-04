@@ -186,6 +186,12 @@ Itens de jornada ainda incompleta não recebem ações aparentes. Estados vazios
 
 Rifas seguem a mesma regra: campanhas, números próprios e prova do sorteio podem ser consultados quando a flag estiver ligada; selecionar ou reservar números não recebe CTA enquanto o pagamento do consumidor não tiver uma continuidade funcional. Números `RESERVED` devem ser descritos como aguardando pagamento e somente `PAID` como elegíveis.
 
+## Shell de consulta offline do PDV
+
+O shell público é propositalmente independente do framework para não cachear HTML autenticado nem chunks operacionais. Usa a paleta escura, Segoe UI, espaçamentos, raios e alvos de 44px deste guia; `apps/pdv/public/offline.css` é sua representação mínima, que deve ser revisada junto dos tokens quando o padrão mudar. A geometria oficial da marca permanece única em `packages/ui/src/brand.ts`, consumida pelo `BrandMark` e pelo ícone SVG do PWA, azul sobre superfície branca.
+
+Exibir “Consulta offline”, data da cópia, validade e aviso de preços sujeitos à atualização. Não exibir avatar, papel, saldo ou confirmação de acesso; a cópia pública não equivale a sessão autenticada. Não oferecer carrinho, reserva ou pagamento. Erro/expiração orientam a reconectar; o usuário pode apagar a cópia neste dispositivo.
+
 ## Checklist de revisão
 
 - usa tokens semânticos e componentes compartilhados;
