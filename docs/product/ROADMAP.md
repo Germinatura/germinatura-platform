@@ -95,6 +95,8 @@ Manifest e service worker com allowlist de shell público; falha de navegação 
 
 O congelamento em 10/09 e a promoção consolidada em 11/09 permanecem previstos, sujeitos aos critérios de lançamento. A próxima fatia funcional deve tratar a administração transacional do catálogo; pagamentos do consumidor continuam bloqueados até existir continuidade homologada.
 
+O smoke externo do PR #50 detectou um 404 no transporte PDV → Portal em `workers.dev`, não coberto pelo health. Correção complementar usa binding entre serviços, sem alterar domínios ou permissões, e adiciona smoke de catálogo/sessão ao deploy. Considerar a fatia homologada em staging somente após a cópia pública ser efetivamente salva e lida offline.
+
 O gate visual foi aprovado em 01/09/2026. Tokens, componentes-base e regras normativas estão em `docs/design/DESIGN_SYSTEM.md`; o Portal autenticado já usa o shell claro e o PDV usa a linguagem escura operacional. A próxima fatia deve implementar as telas administrativas e, depois, as jornadas de consumidor sem alterar regras de domínio. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
 
 Em 03/09/2026, a marca compartilhada passou a usar a geometria do SVG institucional fornecido: azul original no Portal e variante inversa no PDV. A imagem remota do login foi removida. Símbolos opcionais e a sprint de refinamento visual permanecem separados, sem impacto no cronograma funcional.

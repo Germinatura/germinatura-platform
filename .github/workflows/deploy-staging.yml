@@ -64,4 +64,8 @@ jobs:
         run: pnpm exec wrangler deploy --env staging --var SUPABASE_URL:$NEXT_PUBLIC_SUPABASE_URL
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PORTAL_URL}/api/v1/health"
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/health"
+      - name: Smoke PDV to Portal service binding
+        run: |
+          curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/catalog/products?limit=1"
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${NEXT_PUBLIC_PDV_URL}/api/v1/auth/session")" = "401"
       - run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "${JOBS_URL}/health"
