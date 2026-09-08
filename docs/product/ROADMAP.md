@@ -1,102 +1,46 @@
-# Roadmap oficial — Germinatura v2.2
+# Roadmap oficial — conclusão Germinatura v2.2
 
-Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. Evidência de `main` foi auditada até `9f618fd`; documentação histórica não prova implementação.
+Replanejado em 07/09/2026 pelo plano aprovado. Substitui congelamento em 10/09 e promoção em 11/09 por marcos de aceite, sem nova promessa de data. Fonte: especificação v2.2, PRD e ADRs 0001–0010. A matriz em [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md) distingue backend, interface, testes, staging e produção.
 
-## Fase 0 — Auditoria e segurança
+Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, testes e homologação do marco. Um backend integrado não torna o módulo inteiro concluído. Integração indisponível não conta como implementação.
 
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Auth Supabase, RBAC/RLS e baseline web | DONE | P0 | — | AUTH-001/002, SEC-001 | Migration, testes SQL/E2E e CI em `b58f93e` |
-| Fonte v2.2, PRD, gaps e ADRs | DONE | P0 | PR | GOV-001 | `0640c11` em `main`, CI `32852994966` verde e v2.1 marcada histórica |
-| Cadastro verificado e login por credenciais | IN PROGRESS | P0 | Supabase Auth, SMTP, segredo server-side, rate limit | AUTH-003/006, SEC-002 | Backend e telas base em staging; código de 6–10 dígitos, um reenvio após 90s, troca de e-mail e desbloqueios auditados prontos; falta homologação visual/SMTP pelo operador |
-| Papel base e provisionamento de vendedor | IN PROGRESS | P0 | Cadastro institucional, RBAC, auditoria | AUTH-004, PDV-001, AUD-001 | `fix/credential-auth-flow` preserva `CONSUMIDOR`, provisiona conta auditada e restringe PDV a credenciais; gestão administrativa completa segue pendente |
-| Bootstrap do primeiro administrador | IN PROGRESS | P0 | Acesso institucional, procedimento seguro de bootstrap | AUTH-005, AUD-001 | RPC e interface locais aceitam somente a identidade verificada definida no ADR 0009, são idempotentes e fecham após sucesso; bootstrap real continua operacionalmente pendente |
-| Granularidade futura de autorização | TODO | P0 | Cada domínio | AUTH-002 | Rota + permission + RLS + teste de abuso |
-| Staging segregado | DONE | P1 | Supabase/Cloudflare/GitHub Environment/domínios | SEC-001, OBS-001 | Deploy `33294264656`, CI `33294264662` e smokes remotos verdes em `develop`; domínios próprios permanecem dívida operacional aceita |
+## Base auditada
 
-## Fase 1 — Fundação
+`main` em `95c4209`: fundação, catálogo público, ledger, reserva técnica e pricing. `develop` em `8e11422`: vendas, confirmação manual, financeiro básico, autenticação atual, fechamentos, reservas/rifas, interfaces e PWA read-only. São 2/33 commits exclusivos e 13 migrations adicionais em develop, não 33 features faltantes em produção. Quality `34171066032` e Deploy Staging `34171066091` verdes nessa revisão; não houve acesso a produção.
 
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Monorepo Portal/PDV/packages | DONE | P1 | — | ARCH-001/002 | Builds/apps/packages em CI |
-| Contratos de pagamentos auditáveis | DONE | P0 | ADR 0005/0006 | PAY-001/002/003/008 | `fdd4425`: estados/transições e adapter indisponível; 5 testes + lint/typecheck |
-| Money compartilhado | DONE | P0 | Contratos | PRICE-001 | `a769f50` em `main`; CI pós-merge `33094580327` verde |
-| Idempotência persistente | DONE | P0 | Money | IDEM-001 | `62ae97c` em `main`; 61 testes SQL e CI pós-merge `33097920723` verde. Consumo por mutações permanece incremental |
-| Erros e cursor comuns | IN PROGRESS | P1 | Contratos | ARCH-002 | `084ebda` adiciona primeiro consumidor real com erro e cursor compartilhados; generalização segue incremental |
-| Audit log e transactional outbox | DONE | P0 | Migration/worker | AUD-001, OBS-001 | Claim concorrente, lease, ack, retry exponencial, dead-letter lógico e métricas são consumidos pelo worker agendado; falhas assíncronas não revertem a transação principal |
+## Marcos de entrega
 
-## Fase 2 — Estoque confiável
+| Etapa | Estado | Dependências | Entregas e aceite |
+| --- | --- | --- | --- |
+| 0 — Reconciliação | IN PROGRESS | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
+| 1 — Catálogo administrável | TODO | 0 | Produtos/categorias, SKU automático, imagens Storage, canais, reserva/lote e preços auditados por RPC; snapshots preservados |
+| 2 — Operação de estoque | TODO | 1 | Distribuição, solicitação/aceite de transferência entre vendedores, devolução, perda, inventário e ajustes aprovados; nenhum saldo direto |
+| 3 — Compras e custos | TODO | 1, 2 | Fornecedor, pedidos, custos/frete, recebimento parcial, lotes/validade e obrigação financeira sem duplicação; custo rastreável |
+| 4 — Promoções completas | TODO | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
+| 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
+| 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões, contas/categorias, despesas, taxas, recebíveis, conciliação, importação validada por arquivo oficial e CSV real |
+| 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
+| 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Carrinho/pedido/pagamento; preparar/retirar reserva; compra de números e rifa no PDV; publicação/pausa/cancelamento e reembolso seguro |
+| 9 — Gestão e indicadores | IN PROGRESS | 3, 6, 8 | Auditoria, configurações, desbloqueios, conta/sessões, Portal→PDV e indicadores completos por período; meta pública configurável |
+| 10 — Campanhas e comunidade | TODO | 8, 9 | Vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me, segmentação, mural, sugestões, enquetes e moderação |
+| 11 — Homologação e release | TODO | 1–10 | Jornada por papel, carga/acessibilidade, backup restaurado, alertas, runbooks, migrations revisadas e promoção autorizada |
 
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Catálogo/preços base | DONE | P0 | Fundação | CAT-001, PRICE-001 | Schema/RLS/histórico permanecem protegidos; a interface administrativa responsiva consulta produtos, publicação, canais, categorias e preço aberto com falha explícita. Escrita continua bloqueada até uma RPC auditada própria |
-| API pública de produtos | DONE | P1 | Catálogo/RLS/contratos | CAT-002, AUTH-002 | `1abd440` em `main`; GET v1 limitado e paginado consulta sempre como anon; CI pós-merge `33193987691` verde |
-| Localizações e saldos protegidos | DONE | P0 | Catálogo | INV-002 | Constraints/RLS protegem os saldos; Admin e Estoque possuem visão responsiva de físico, reservado, disponível, localizações e movimentos imutáveis, sem edição direta |
-| Ledger imutável | DONE | P0 | Localizações/outbox | INV-001 | `3db74fc` em `main`; ajuste, transferência e reversão atômicos; CI pós-merge `33173021796` verde |
-| Reserva/concorrência/inventário | DONE | P0 | Ledger | INV-003/004, CONC-001 | `4cb84c8` em `main`; reserva/liberação/expiração idempotentes; 218 SQL + teste concorrente real da última unidade e reserva x transferência |
+## Execução incremental
 
-## Fase 3 — PDV
+Cada etapa comporta PRs pequenos e completos. Começar pela administração transacional do catálogo, sem antecipar integrações financeiras. Preservar Next.js/monorepo, contratos Zod, banco transacional e design system aprovado. Investigar contrato e acesso ao sandbox desde a etapa 0; o avanço independente do catálogo não depende de credenciais PicPay.
 
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Pricing e promoções server-side | DONE | P0 | Catálogo | PRICE-002, PROMO-001/002 | `86238e1` promoveu a cotação autoritativa para `PORTAL`/`PDV`; staging/produção e rejeição de total adulterado foram validados |
-| Checkout/venda/cancelamento | DONE | P0 | Pricing/ledger/outbox | SALE-001/002/003 | RPC e API recalculam preço, congelam snapshots, reservam estoque e criam tentativa em uma transação; replay/conflito, concorrência real e cancelamento pendente com liberação única são testados. Venda confirmada comum usa reversão manual auditada; venda de rifa paga permanece fail-closed para uma operação específica |
-| PWA/estoque vendedor/fechamento | IN PROGRESS | P1 | Venda/transferência | PDV-001, PWA-001, CLOSE-001 | O PDV executa venda e fechamento transacionais. Shell offline público e cópia datada do catálogo, sem sessão/saldos/filas, implementados; homologação de instalação nos dispositivos-alvo permanece pendente. Reabertura segue exclusiva de Admin/Financeiro |
+Por mutação: permission + rota/allowlist + RLS + RPC + idempotência + interface + teste de abuso. Preço é do servidor, histórico é imutável e tarefas secundárias usam outbox. Se a cotação mudar antes de cobrar, confirmar novamente; a reserva comercial conserva o snapshot.
 
-## Fase 4 — PicPay
+O PWA já integrado permite somente shell/catálogo público datado, primeira página até 50 produtos, TTL 24h e indicação de parcialidade. Nunca cachear sessão, saldo, carrinho ou pagamentos; nenhuma fila offline. O service binding PDV→Portal foi integrado no PR #51, com smoke de catálogo/sessão; instalação real continua pendente.
 
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Tentativa e confirmação manual controlada | DONE | P0 | Venda/permissões | PAY-002/003/005 | `MAQUININHA` e `PIX_AREA` confirmam somente venda própria no valor exato, com origem `MANUAL`, referência não sensível, idempotência, estoque e recebível atômicos |
-| Área Pix PicPay operacional | IN PROGRESS | P1 | Conta/política homologadas | PAY-003/005 | Contrato manual está implementado sem chamada remota; procedimento humano de homologação ainda é necessário |
-| Checkout/API e webhook | BLOCKED | P1 | Habilitação, docs e credenciais oficiais | PAY-004/007 | Sandbox, assinatura, dedupe, consulta e E2E |
-| Maquininha/Tap | BLOCKED | P1 | Terminal/operador/processo | PAY-005/008 | Maquininha manual existe sem iniciação remota; Tap e integrações privadas seguem indisponíveis |
-| V.A./V.R. | BLOCKED | P1 | Credenciamento Alelo/Ticket | PAY-006 | Flag + elegibilidade e operação aprovadas |
+## Gates e lançamento
 
-## Fase 5 — Financeiro
+Aplicar lint, typecheck, unitários, SQL, integração concorrente, E2E Chromium, builds Next/Vinext e scan conforme a mudança. Exigir CI verde, revisão e smoke funcional em staging, além de homologação humana onde indicada na matriz. Alteração documental requer integridade e QA visual do DOCX, links e coerência; não exige recriar runtime.
 
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Lançamentos/taxas/conciliação | DONE | P1 | Venda/pagamento/outbox | FIN-001/002/003 | Recebível, divergência, taxa e liquidação são append-only; Admin/Financeiro conciliam por referência única, mismatch vira pendência e replay não duplica efeitos |
-| Reembolso/reversão confirmada | DONE | P0 | Venda/estoque/financeiro | SALE-002, FIN-002 | Admin/Financeiro registram referência manual não sensível; a transação restaura estoque por movimento compensatório, adiciona `REFUND` negativo, muda pagamento para `REFUNDED` e cancela a venda sem editar históricos. Replay e concorrência não duplicam efeitos; rifa paga segue bloqueada |
-| Compras/fornecedores/custo | TODO | P2 | Catálogo/ledger | PROC-001 | Recebimento parcial gera lote/movimento/despesa |
-| Fechamentos e dashboards | DONE | P2 | Estoque/venda/financeiro | CLOSE-001, ADMIN-001 | Visão Geral usa dados reais; vendedor registra fechamento completo no PDV e divergência exige justificativa. Admin/Financeiro consultam snapshots e reabrem com motivo por operação idempotente e auditada |
+Casos transversais: última unidade/número, limites promocionais, duplo checkout/recebimento/confirmação/cancelamento, webhook duplicado/fora de ordem, timeout e pagamento tardio, reembolso parcial, dinheiro/troco, retirada, OTP/revogação/último admin, PWA seguro e relatórios além de 100 registros em intervalos fechado-abertos de São Paulo.
 
-## Fase 6 — Venda online e crescimento
+Branches curtas de develop, Conventional Commits, PR e squash; nunca force push. Merge automático em develop somente após revisão e CI verde, seguido de CI/deploy/smokes. Promoção consolidada develop→main exige autorização explícita após CI/revisão; a mesma autorização cobre deploy governado e smokes. Nenhum acesso antecipado a produção. A data final depende dos marcos e da homologação Payment Link.
 
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Portal de compra/reservas/rifas | IN PROGRESS | P2 | Checkout PicPay/estoque | PORTAL-001, RES-001, RAF-001 | Catálogo e “Minhas reservas” usam dados reais; Rifas consulta campanhas, números próprios e resultado auditável conforme permissão/flag. Novas reservas e compra de números permanecem sem CTA até existir continuidade de pagamento do consumidor |
-| Campanhas, links e notificações | IN PROGRESS | P2 | Outbox/Portal | GROW-001, NOTIF-001 | Notificações in-app materializadas de forma idempotente agora possuem central paginada, filtro de não lidas e leitura sincronizada com o sino único da topbar; e-mail, push e campanhas seguem pós-MVP |
+## Evoluções condicionais
 
-## Fase 7 — Comunidade
-
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| Rede Social Germinare / mural moderado | TODO | P3 | Auth/auditoria/moderação | COMM-001 | Acesso institucional verificado, XSS, denúncia e permissões testados |
-
-## Fase 8 — Evoluções opcionais
-
-| Item | Status | Prioridade | Dependências | PRD | Critério de conclusão |
-| --- | --- | --- | --- | --- | --- |
-| SFTP/integração privada/TEF/SDK PicPay | BLOCKED | P3 | Oferta oficial | PAY-008 | Adapter homologado sem mudar domínio |
-| Open Finance para conciliação | BLOCKED | P3 | Caso real/consentimento | FIN-004 | Nunca autoriza venda; ADR revisado |
-| Web Push, app nativo, chat, analytics | TODO | P3 | Evidência de uso | NOTIF-001, COMM-001 | Decisão própria e métricas |
-
-## Incremento de rifas administrativas — 03/09/2026
-
-Interface de gestão com criação de campanha, encerramento com confirmação, sorteio único pelo servidor e consulta do conjunto elegível/material/hash/índice. Acesso exige `raffles.manage`; navegação e ações respeitam a flag. Consultas mostram até 50 campanhas recentes e 200 opções por seletor, sem apresentar a amostra como total global. Compra de números pelo consumidor e integração Payment Link continuam pendentes; este incremento não habilita pagamentos.
-
-## Direção visual aprovada e próxima fatia
-
-### Incremento PWA read-only — 04/09/2026
-
-Manifest e service worker com allowlist de shell público; falha de navegação abre `/offline`, nunca HTML autenticado. A cópia anônima guarda somente nome/preço base de produtos PDV da primeira página (até 50), indica paginação parcial, data e validade de 24h. Não contém estoque, promoções, sessão ou dados financeiros; preço final depende de cotação online. Sem sincronização de mutações, pagamento offline ou cache de API. Instalação e comportamento nos dispositivos reais continuam sujeitos à homologação do runbook `docs/operations/pdv-offline-runbook.md`.
-
-O congelamento em 10/09 e a promoção consolidada em 11/09 permanecem previstos, sujeitos aos critérios de lançamento. A próxima fatia funcional deve tratar a administração transacional do catálogo; pagamentos do consumidor continuam bloqueados até existir continuidade homologada.
-
-O smoke externo do PR #50 detectou um 404 no transporte PDV → Portal em `workers.dev`, não coberto pelo health. Correção complementar usa binding entre serviços, sem alterar domínios ou permissões, e adiciona smoke de catálogo/sessão ao deploy. Considerar a fatia homologada em staging somente após a cópia pública ser efetivamente salva e lida offline.
-
-O gate visual foi aprovado em 01/09/2026. Tokens, componentes-base e regras normativas estão em `docs/design/DESIGN_SYSTEM.md`; o Portal autenticado já usa o shell claro e o PDV usa a linguagem escura operacional. A próxima fatia deve implementar as telas administrativas e, depois, as jornadas de consumidor sem alterar regras de domínio. Checkout/API, webhook, Tap remoto e demais integrações privadas continuam fail-closed.
-
-Em 03/09/2026, a marca compartilhada passou a usar a geometria do SVG institucional fornecido: azul original no Portal e variante inversa no PDV. A imagem remota do login foi removida. Símbolos opcionais e a sprint de refinamento visual permanecem separados, sem impacto no cronograma funcional.
+App nativo, chat privado, cards automáticos, Web Push, SFTP, Open Finance e integração remota de terminal não bloqueiam o lançamento não opcional. Tap/V.A./V.R. exigem habilitação e processo próprios; permanecem indisponíveis até comprovação. Notificações in-app, campanhas e mural moderado fazem parte deste lançamento. Dinheiro físico foi aprovado com conta/controle próprios (ADR 0010).
