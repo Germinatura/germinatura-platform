@@ -1,6 +1,8 @@
 import { moneyFromCents } from "@germinatura/domain";
 import { z } from "zod";
 
+export * from "./catalog-categories";
+
 export const moneyCentsSchema = z.number()
   .int()
   .nonnegative()
