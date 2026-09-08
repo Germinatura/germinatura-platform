@@ -32,6 +32,7 @@ export default async function ReservationsPage() {
   const client = await createSupabaseServerClient();
   const result = await client.from("commercial_reservations")
     .select("id,status,quote_snapshot,original_total_cents,discount_total_cents,total_cents,expires_at,created_at")
+    .eq("customer_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50);
   const parsed = reservationRowsSchema.safeParse(result.data);

@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PdvSessionUser } from "@/app/page";
-import { CloseoutWorkspace } from "@/components/operations/CloseoutWorkspace";
+import dynamic from "next/dynamic";
+const CloseoutWorkspace = dynamic(() => import("@/components/operations/CloseoutWorkspace").then((module) => module.CloseoutWorkspace), { loading: () => <p role="status" className="p-6">Carregando fechamento…</p> });
 import { useToast } from "@/components/ui/Toast";
 import {
   cancelPendingSale, checkoutCart, confirmManualPayment, formatMoney, loadCatalog,
@@ -161,6 +162,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
             <BrandMark className="size-10 shrink-0 text-white" title="Germinatura" tone="inverse" />
             <div className="min-w-0"><p className="truncate font-bold">Germinatura PDV</p><p className="truncate text-xs text-[var(--g-text-muted)]">{selectedLocation?.name ?? "Localização indisponível"}</p></div>
           </div>
+          <a href={portalUrl} aria-label="Voltar ao Portal" className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /><span className="hidden sm:inline">Portal</span></a>
           <div className="relative">
             <button type="button" onClick={() => setAccountOpen((open) => !open)} aria-expanded={accountOpen} aria-label="Abrir menu da conta" className="flex min-h-11 items-center gap-2 rounded-[var(--g-radius-control)] px-2 text-left hover:bg-[var(--g-surface-hover)] focus-visible:outline-3 focus-visible:outline-[var(--g-focus-ring)]">
               <span className="grid size-9 place-items-center rounded-full bg-[var(--g-surface-selected)] text-sm font-bold">{initials(user.nome)}</span>
@@ -168,7 +170,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
             </button>
             {accountOpen && <Card className="absolute right-0 mt-2 w-64 p-2 shadow-[var(--g-shadow-raised)]">
               <div className="border-b border-[var(--g-border-subtle)] px-3 py-3"><p className="truncate text-sm font-semibold">{user.nome}</p><p className="truncate text-xs text-[var(--g-text-muted)]">{user.email}</p></div>
-              {user.perfil === "ADMIN" && <button type="button" title="Voltar ao Painel" onClick={() => window.location.assign(portalUrl)} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /> Voltar ao Portal</button>}
+              {<button type="button" title="Voltar ao Painel" onClick={() => window.location.assign(portalUrl)} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /> Voltar ao Portal</button>}
               <button type="button" onClick={logout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-[var(--g-status-danger)] hover:bg-[var(--g-surface-hover)]"><LogOut className="size-4" /> Sair do PDV</button>
             </Card>}
           </div>
