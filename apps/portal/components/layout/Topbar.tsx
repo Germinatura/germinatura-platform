@@ -2,9 +2,10 @@
 
 import { Bell, ChevronDown, Menu } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-interface TopbarUser { nome: string; perfil: string; }
+interface TopbarUser { nome: string; perfil: string; avatarUrl?: string | null; }
 interface NotificationItem { id: string; title: string; body: string; readAt: string | null; }
 interface TopbarProps {
   title: string;
@@ -102,12 +103,13 @@ export function Topbar({ title, user, loading, onOpenMenu, onLogout }: TopbarPro
 
           <div className="relative" ref={accountRef}>
             <button type="button" onClick={() => { setAccountOpen(!accountOpen); setNotificationsOpen(false); }} className="flex min-h-11 items-center gap-3 rounded-[var(--g-radius-control)] px-2 text-left hover:bg-[var(--g-surface-hover)]" aria-label="Abrir menu da conta" aria-expanded={accountOpen}>
-              <span className="flex size-9 items-center justify-center rounded-full bg-[var(--g-brand-primary-soft)] text-sm font-semibold text-[var(--g-brand-primary)]">{loading ? "…" : user?.nome?.[0]?.toUpperCase() ?? "U"}</span>
+              {user?.avatarUrl ? <Image unoptimized src={user.avatarUrl} alt="" width={36} height={36} className="size-9 rounded-full object-cover" /> : <span className="flex size-9 items-center justify-center rounded-full bg-[var(--g-brand-primary-soft)] text-sm font-semibold text-[var(--g-brand-primary)]">{loading ? "…" : user?.nome?.[0]?.toUpperCase() ?? "U"}</span>}
               <span className="hidden min-w-0 sm:block"><span className="block max-w-40 truncate text-sm font-semibold text-[var(--g-text-primary)]">{user?.nome ?? "Usuário"}</span><span className="block text-xs text-[var(--g-text-muted)]">{user?.perfil ?? "Acesso"}</span></span>
               <ChevronDown className="hidden size-4 text-[var(--g-text-muted)] sm:block" />
             </button>
             {accountOpen && (
               <div className="absolute right-0 top-12 w-52 rounded-[var(--g-radius-card)] border border-[var(--g-border-subtle)] bg-[var(--g-surface-raised)] p-2 shadow-[var(--g-shadow-raised)]">
+                <Link href="/perfil" onClick={() => setAccountOpen(false)} className="flex min-h-11 items-center rounded-[var(--g-radius-control)] px-3 text-sm font-semibold hover:bg-[var(--g-surface-hover)]">Perfil</Link>
                 <button type="button" onClick={() => void onLogout()} className="flex min-h-11 w-full items-center rounded-[var(--g-radius-control)] px-3 text-sm font-semibold text-[var(--g-text-secondary)] hover:bg-[var(--g-surface-hover)] hover:text-[var(--g-text-primary)]">Sair da conta</button>
               </div>
             )}

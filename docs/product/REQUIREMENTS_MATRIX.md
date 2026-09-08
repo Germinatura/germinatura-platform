@@ -42,4 +42,8 @@ Snapshot auditado: 07/09/2026, `main=95c4209`, `develop=8e11422`. Inspeção est
 ## Incrementos posteriores ao snapshot
 
 - PR #52 / `6030b14`: reconciliação documental integrada; Quality `34175115950` e Deploy Staging `34175115940` verdes. Produção não alterada.
-- CAT-001, categorias: RPC/API/interface implementadas nesta branch; `supabase/tests/catalog_category_commands_test.sql`, `integration/catalog-category-concurrency.test.ts` e `e2e/catalog-categories.spec.ts` verificam autorização, replay, revisão concorrente e UI. Produtos/preços/imagens continuam sem escrita administrativa. Publicação desta fatia ainda depende dos gates do PR.
+- CAT-001, categorias: RPC/API/interface integradas pelo PR #53 em `248a6f9`; `supabase/tests/catalog_category_commands_test.sql`, `integration/catalog-category-concurrency.test.ts` e `e2e/catalog-categories.spec.ts` verificam autorização, replay, revisão concorrente e UI. Produtos/preços/imagens continuam sem escrita administrativa. Quality pós-merge `34216532964` e Deploy Staging `34216532958` verdes; smoke independente PWA confirmou cache público e retorno ao login. Produção não alterada.
+
+### Perfil e navegação — incremento de 08/09/2026
+
+AUTH/UX: perfil próprio com edição por RPC auditada/idempotente, revisão otimista, foto privada em Storage e preferências opcionais com RLS exclusiva do titular. UI em `/perfil` e entrada consumidor em `/inicio`; alternância de menu não altera RBAC. PDV oferece retorno ao Portal e importação sob demanda do fechamento. Evidências locais: `private_profile_test.sql`, `profile-navigation.spec.ts`. Staging/produção não presumidos; aguardar CI, integração e smoke desta revisão. Publicação social/recomendações seguem pendentes na etapa 10.
