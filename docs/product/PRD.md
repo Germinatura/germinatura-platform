@@ -19,7 +19,7 @@ Não objetivos do MVP: microserviços, app nativo, chat privado, Open Finance co
 - Admin: configuração e exceções auditadas, sem substituir controles do provedor.
 - Uma única identidade pode acumular papéis. O acesso institucional concede somente o papel base `CONSUMIDOR`; o papel `VENDEDOR` e o acesso ao PDV exigem ativação explícita por administrador.
 
-Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo.
+Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo. Pagamentos e caixa: ADR 0010 — Payment Link e dinheiro físico (07/09/2026).
 
 ## Requisitos funcionais
 
@@ -74,11 +74,13 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 - **PAY-001** — O domínio usa interfaces neutras `PaymentProvider` e `CardPresentProvider`; produção configura somente PicPay.
 - **PAY-002** — Tentativas distinguem `CREATED`, `PENDING`, `AWAITING_EXTERNAL_CONFIRMATION`, `APPROVED`, `DECLINED`, `CANCELLED`, `EXPIRED`, `REFUNDED`, `RECONCILIATION_PENDING` e `RECONCILED` conforme transições válidas.
 - **PAY-003** — Toda tentativa registra valor em centavos, chave idempotente, canal, operador e origem de confirmação; confirmação manual nunca se apresenta como webhook/consulta.
-- **PAY-004** — PicPay Checkout/E-commerce atende online somente quando habilitado e confirmado por webhook autenticado ou consulta oficial.
+- **PAY-004** — PicPay Payment Link é o primeiro canal online (ADR 0010), habilitado somente após homologação de sandbox/conta e confirmado por webhook autenticado ou consulta oficial. Documentação pública não comprova integração ou credenciais válidas.
 - **PAY-005** — Maquininha é o canal presencial principal; Tap é complementar e restrito. O MVP não pressupõe iniciação remota.
 - **PAY-006** — V.A./V.R. fica desligado até credenciamento; rede é método dentro de PicPay e nunca é mascarada como crédito.
-- **PAY-007** — Webhooks persistem receipt, validam autenticidade, deduplicam e permitem replay controlado.
+- **PAY-007** — Webhooks persistem receipt, validam autenticidade, deduplicam e permitem replay controlado. Payment Link usa API Key no header authorization conforme contrato oficial, sem presumir HMAC; pagamento tardio, valor divergente e resultado incerto entram em recuperação/conciliação sem duplicar efeitos.
 - **PAY-008** — Adapter privado/TEF/SDK futuro substitui somente a borda de integração, sem reescrever venda, estoque ou financeiro.
+
+- **PAY-009** — Dinheiro físico é método interno com conta própria, recebimento e troco em centavos, autoria/idempotência e conferência por turno. Não identificar caixa físico como provider PicPay. Somente papéis autorizados registram e corrigem movimentos por reversão.
 
 ### Financeiro e conciliação
 
@@ -114,7 +116,9 @@ Bloqueados externamente: conta/KYC e representante legal; termos e habilitação
 
 MVP: fundação segura; cadastro institucional verificado e login por e-mail/username + senha; recuperação limitada e desbloqueio administrativo; bootstrap controlado do primeiro administrador; papéis cumulativos com provisionamento/ativação administrativa do vendedor; catálogo; centavos/pricing; ledger/localizações/reservas; checkout/venda; tentativa PicPay; PIX manual controlado e Maquininha manual auditada; idempotência/outbox; financeiro/conciliação básica; fechamento; reservas/rifas essenciais; notificações in-app.
 
-Pós-MVP: Checkout online quando habilitado; automação SFTP; Web Push; cards; comunidade avançada; integração presencial privada oficial; Open Finance somente se conciliação justificar; app nativo/chat apenas com evidência de necessidade.
+Lançamento v2.2 replanejado: incluir Payment Link homologado, dinheiro físico, todas as jornadas administrativas/comerciais, compras/custos, campanhas e mural moderado. As datas anteriores de 10/09 e 11/09 foram substituídas por marcos no ROADMAP. O recorte MVP acima descreve a base histórica, não o escopo final do lançamento.
+
+Evoluções condicionais: automação SFTP, Web Push, cards automáticos, comunidade avançada, integração presencial privada oficial, Open Finance somente se conciliação justificar e app nativo/chat apenas com evidência de necessidade.
 
 ## Critérios de aceite transversais
 
