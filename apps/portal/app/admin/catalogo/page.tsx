@@ -2,6 +2,7 @@ import { hasPermission } from "@germinatura/auth";
 import { Badge, Card, Input } from "@germinatura/ui";
 import { Boxes, PackageCheck, PackageSearch, Store } from "lucide-react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -37,8 +38,9 @@ export default async function CatalogAdminPage({ searchParams }: { searchParams:
   const filtered = products.filter((product) => !query || `${product.name} ${product.sku} ${categoryById.get(product.category_id)?.name ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
 
   return <div className="px-4 py-8 sm:px-6 lg:px-8 lg:py-10"><div className="mx-auto max-w-[var(--g-content-standard)] space-y-6">
-    <header><p className="text-sm font-semibold text-[var(--g-brand-primary)]">Catálogo</p><h1 className="mt-1 text-3xl font-bold tracking-tight">Produtos e publicação</h1><p className="mt-2 max-w-2xl text-base text-[var(--g-text-secondary)]">Consulte preços, categorias e disponibilidade nos canais. Alterações permanecem bloqueadas até a escrita transacional ser homologada.</p></header>
+    <header><p className="text-sm font-semibold text-[var(--g-brand-primary)]">Catálogo</p><h1 className="mt-1 text-3xl font-bold tracking-tight">Produtos e publicação</h1><p className="mt-2 max-w-2xl text-base text-[var(--g-text-secondary)]">Consulte produtos, preços e disponibilidade nos canais. Use a gestão de categorias para organizar o catálogo.</p></header>
     {unavailable && <div role="alert" className="rounded-[var(--g-radius-control)] bg-[var(--g-status-danger-soft)] p-4 text-sm text-[var(--g-status-danger-foreground)]">Não foi possível consultar o catálogo. Atualize a página antes de tomar uma decisão operacional.</div>}
+    <Link href="/admin/catalogo/categorias" className="inline-flex min-h-11 items-center rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary)] px-4 font-semibold text-white">Gerenciar categorias</Link>
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do catálogo">
       <Summary icon={PackageSearch} label="Produtos" value={products.length} />
       <Summary icon={PackageCheck} label="Publicados" value={products.filter((product) => product.published && product.active).length} />

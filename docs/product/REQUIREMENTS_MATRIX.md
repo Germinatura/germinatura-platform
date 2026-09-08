@@ -38,3 +38,8 @@ Snapshot auditado: 07/09/2026, `main=95c4209`, `develop=8e11422`. Inspeção est
 | CONC-001 IDEM-001 | Concorrência e idempotência | Implementado nos domínios atuais | Chaves usadas por mutações atuais | supabase/tests/idempotency_foundation_test.sql; integration/*-concurrency.test.ts | Integrado | Fundação/estoque | Transversal | Ampliar para promoções, recebimentos, dinheiro e webhook |
 | OBS-001 | Logs, outbox e observabilidade | Worker com lease/retry/ack/expiração e métricas | Health; console de auditoria ausente | apps/jobs/src/index.test.ts; supabase/tests/outbox_notifications_flags_test.sql | Jobs integrado | Audit/outbox foundation | 9, 11 | Alertas, retenção, correlação e restore ensaiado |
 | PERF-001 ACC-001 DATA-001 | Performance, acessibilidade e datas | Baseline/UTC e outbox | Design system responsivo, datas São Paulo | e2e/foundation.spec.ts; testes de domínio | Baseline integrado | Baseline parcial | Transversal, 11 | Carga dirigida, teclado/contraste e relatórios completos [início,fim) |
+
+## Incrementos posteriores ao snapshot
+
+- PR #52 / `6030b14`: reconciliação documental integrada; Quality `34175115950` e Deploy Staging `34175115940` verdes. Produção não alterada.
+- CAT-001, categorias: RPC/API/interface implementadas nesta branch; `supabase/tests/catalog_category_commands_test.sql`, `integration/catalog-category-concurrency.test.ts` e `e2e/catalog-categories.spec.ts` verificam autorização, replay, revisão concorrente e UI. Produtos/preços/imagens continuam sem escrita administrativa. Publicação desta fatia ainda depende dos gates do PR.
