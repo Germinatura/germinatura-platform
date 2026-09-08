@@ -1,18 +1,15 @@
 import Link from "next/link";
 import { ArrowRight, Bell, ShieldCheck, ShoppingBag, Store, UserRound } from "lucide-react";
 import { Badge, Card } from "@germinatura/ui";
-import { requireSession } from "@/lib/auth";
+import type { SessionUser } from "@germinatura/contracts";
 import { BootstrapAdminCard } from "@/components/auth/BootstrapAdminCard";
-
-export const dynamic = "force-dynamic";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador", VENDEDOR: "Vendedor", ESTOQUE: "Estoque", FINANCEIRO: "Financeiro",
   COMUNICACAO: "Comunicação", MODERADOR: "Moderador", CONSUMIDOR: "Consumidor",
 };
 
-export async function ConsumerHome() {
-  const user = await requireSession();
+export function ConsumerHome({ user }: { user: SessionUser }) {
   const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user.roles.some((role) => role === "ADMIN" || role === "VENDEDOR");
   const canBootstrap = user.email === "theo.martins@institutojef.org.br" && !user.roles.includes("ADMIN");
