@@ -58,3 +58,9 @@ Evidência local específica: 19 pgTAP novos e teste de concorrência real para 
 Etapa 9 em implementação: perfil editável com nome/foto e apresentação, turma e preferências opcionais privadas; acesso compartilhado por papel sem mudança de privilégios. Shell com scroll independente e seletor de visão ADMIN/consumidor. Etapa 5: retorno visível ao Portal no PDV e fechamento carregado sob demanda. A possibilidade de separar Workers está descrita em [PORTAL_EXPERIENCES.md](PORTAL_EXPERIENCES.md), sem decisão de infraestrutura. Implementação local aguardando gates e staging; mural, recomendador e demais jornadas continuam pendentes.
 
 Categorias integradas no PR #53 (`248a6f9`), CI e staging verdes em 08/09. A etapa 1 continua aberta para produtos, preços, imagens, canais e demais configurações.
+
+## Incremento de produtos — 09/09/2026
+
+Segunda fatia da etapa 1: produtos têm criação, edição e inativação por `save_catalog_product` e `POST /api/v1/admin/catalog/products`, sempre com `catalog.manage`, motivo, chave idempotente e revisão otimista. O banco gera o SKU canônico no primeiro salvamento e ele permanece imutável; a auditoria preserva antes/depois. Categoria precisa estar ativa. Portal e PDV só podem ser habilitados quando já houver preço vigente, evitando publicar uma oferta sem cotação autoritativa.
+
+A interface `/admin/catalogo` permite configurar categoria, identificador, descrição, atividade, canais, reserva e controle de lote em tela responsiva. Gestão de preço, histórico visível e imagens Storage continuam como próximos incrementos da etapa 1. A evidência local cobre SQL, corrida real, contratos e E2E; integração de staging será anotada após PR/CI/smoke. Produção permanece intacta.
