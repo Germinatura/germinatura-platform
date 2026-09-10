@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export * from "./catalog-categories";
 export * from "./catalog-products";
+export * from "./catalog-product-images";
 export * from "./catalog-product-prices";
 
 export const moneyCentsSchema = z.number()
@@ -58,6 +59,12 @@ export const publicCatalogProductSchema = z.object({
   }),
   sellablePdv: z.boolean(),
   reservable: z.boolean(),
+  images: z.array(z.object({
+    id: z.uuid(),
+    altText: z.string().trim().min(1).max(180),
+    sortOrder: z.number().int().min(0).max(5),
+    publicUrl: z.url(),
+  })).max(6),
 });
 export type PublicCatalogProduct = z.infer<typeof publicCatalogProductSchema>;
 

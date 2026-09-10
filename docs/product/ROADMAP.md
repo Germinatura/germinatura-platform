@@ -6,9 +6,9 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `3c429ce` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos e preços. Os históricos têm 2 commits exclusivos em `main` e 39 em `develop`, 225 arquivos diferentes e 17 migrations adicionais em `develop`. Isso mede divergência de conteúdo, não quantidade de features nem prontidão de produção.
+Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `ebc3948` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos e preços. Os históricos têm 2 commits exclusivos em `main` e 40 em `develop`; a divergência mede conteúdo, não quantidade de features nem prontidão de produção.
 
-O PR #55 de produtos e o PR #57 de preços foram integrados em `develop`. Para preços, Quality pós-merge `34479342406` e Deploy Staging `34479342414` concluíram verdes; o deploy aplicou a migration, publicou Portal/PDV/Jobs e passou health e service binding. O smoke autenticado específico da oferta completa ainda deve ser registrado antes de fechar a etapa 1. Produção não foi acessada. `feat/catalog-images` está alinhada a esse HEAD e ainda não contém incremento próprio.
+O PR #55 de produtos e o PR #57 de preços foram integrados em `develop`. Para preços, Quality pós-merge `34479342406` e Deploy Staging `34479342414` concluíram verdes. A branch `feat/catalog-images` completa localmente o ciclo de imagens e a oferta integrada; PR, CI e staging ainda precisam confirmar essa revisão antes de fechar a etapa 1. Produção não foi acessada.
 
 ## Visualização do andamento
 
@@ -54,7 +54,7 @@ flowchart LR
 | Etapa | Estado | Dependências | Entregas e aceite |
 | --- | --- | --- | --- |
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
-| 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU automático, imagens Storage, canais, reserva/lote e preços auditados por RPC; snapshots preservados |
+| 1 — Catálogo administrável | IN REVIEW | 0 | Implementação local completa para produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados; aguarda PR, CI e smoke staging |
 | 2 — Operação de estoque | TODO | 1 | Distribuição, solicitação/aceite de transferência entre vendedores, devolução, perda, inventário e ajustes aprovados; nenhum saldo direto |
 | 3 — Compras e custos | TODO | 1, 2 | Fornecedor, pedidos, custos/frete, recebimento parcial, lotes/validade e obrigação financeira sem duplicação; custo rastreável |
 | 4 — Promoções completas | TODO | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
@@ -78,7 +78,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: implementar imagens a partir do novo `develop`; integrar metadados e ciclo seguro no Storage; executar o smoke autenticado da oferta completa; fechar a etapa 1 e iniciar a operação de estoque. Produtos e preços já foram transplantados, revalidados e integrados sem carregar commits pré-squash.
+Sequência imediata: concluir PR/CI/staging das imagens, executar o smoke autenticado da oferta completa, fechar a etapa 1 e iniciar a operação de estoque. Produtos e preços já estão integrados sem carregar commits pré-squash.
 
 | Onda | PRs coesos em ordem | Saída da onda |
 | --- | --- | --- |
@@ -140,3 +140,9 @@ A interface `/admin/catalogo` permite configurar categoria, identificador, descr
 Terceira fatia da etapa 1: `set_catalog_product_price` recebe centavos inteiros, motivo, chave idempotente e a revisão atual do produto. A operação bloqueia o produto, fecha somente a vigência aberta, inclui uma nova faixa e incrementa a revisão. Valor e intervalo anteriores nunca são reescritos. Quando já existe um preço futuro, a nova faixa termina no início desse agendamento, mantendo-o preservado.
 
 `POST /api/v1/admin/catalog/product-prices` e `GET /api/v1/admin/catalog/products/:id/prices` exigem `catalog.manage`; a leitura usa cursor por vigência e mostra apenas o histórico do produto autorizado. A interface de `/admin/catalogo` permite informar o valor em reais, consultar histórico paginado e identificar preço vigente, agendado ou encerrado. O PR #57 foi integrado em `develop` (`3c429ce`); Quality pós-merge `34479342406` e Deploy Staging `34479342414` passaram. Imagens Storage e o smoke autenticado da oferta completa continuam pendentes nesta etapa.
+
+## Incremento de imagens — 10/09/2026
+
+A branch `feat/catalog-images` adiciona até seis imagens por produto com descrição acessível, ordenação e capa. Objetos usam caminhos imutáveis no bucket público, sem listagem ou sobrescrita; metadados ativos são expostos pela visão anônima somente quando produto e categoria estão publicados. Uploads validam tamanho, MIME e assinatura do arquivo. A remoção oculta primeiro o metadado, exclui pelo Storage API e mantém tombstone auditável, podendo retomar uma limpeza física interrompida.
+
+Portal e PDV mostram a capa sem bloquear o carregamento do catálogo. O service worker do PDV salva apenas a capa pública junto da cópia read-only e mantém vendas/mutações fora do cache. Evidência local: 80 unitários, 858 pgTAP, oito testes de integração concorrente e a jornada E2E de imagem passaram; na suíte completa, 24 jornadas passaram e dois workers falharam antes da execução ao consultar simultaneamente o status local, seguidos por retestes verdes dos dois arquivos. PR, CI e staging ainda não são evidência concluída.

@@ -10,6 +10,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/catalog/categories", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/catalog/products", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/catalog/product-prices", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/catalog/product-images", methods: ["POST", "PUT"], access: "admin" },
+  { path: "/api/v1/admin/catalog/product-images/:id", methods: ["DELETE"], access: "admin" },
   { path: "/api/v1/admin/catalog/products/:id/prices", methods: ["GET"], access: "admin" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
@@ -61,6 +63,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/catalog/products/:id/prices") {
       return /^\/api\/v1\/admin\/catalog\/products\/[0-9a-f-]+\/prices$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/catalog/product-images/:id") {
+      return /^\/api\/v1\/admin\/catalog\/product-images\/[0-9a-f-]+$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/users/:id/password-recovery") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/password-recovery$/i.test(path);

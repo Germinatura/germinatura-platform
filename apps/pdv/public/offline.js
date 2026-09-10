@@ -20,6 +20,13 @@ function render() {
     const card = document.createElement("article");
     const title = document.createElement("h2");
     title.textContent = product.name;
+    if (product.imageUrl) {
+      const image = document.createElement("img");
+      image.src = product.imageUrl;
+      image.alt = product.imageAlt;
+      image.loading = "lazy";
+      card.append(image);
+    }
     const price = document.createElement("p");
     price.className = "money";
     price.textContent = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(product.amountCents / 100);
@@ -34,7 +41,9 @@ async function load() {
     const response = await (await caches.open(cacheName)).match(snapshotPath);
     const data = response ? await response.json() : null;
     if (!data || !Number.isSafeInteger(data.savedAt) || !Array.isArray(data.products) || data.products.length > 50
-      || data.products.some((p) => typeof p.name !== "string" || p.name.length > 160 || !Number.isSafeInteger(p.amountCents) || p.amountCents < 0)) throw new Error("Invalid snapshot");
+      || data.products.some((p) => typeof p.name !== "string" || p.name.length > 160 || !Number.isSafeInteger(p.amountCents) || p.amountCents < 0
+        || (p.imageUrl !== undefined && (typeof p.imageUrl !== "string" || !/^https:\/\/|^http:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(p.imageUrl)))
+        || (p.imageAlt !== undefined && (typeof p.imageAlt !== "string" || p.imageAlt.length < 1 || p.imageAlt.length > 180)))) throw new Error("Invalid snapshot");
     products = data.products;
     savedAt = data.savedAt;
     search.disabled = false;

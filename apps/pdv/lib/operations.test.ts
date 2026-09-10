@@ -16,6 +16,7 @@ const product = publicCatalogProductSchema.parse({
   price: { amountCents: 2590, currency: "BRL" },
   sellablePdv: true,
   reservable: true,
+  images: [],
 });
 
 describe("PDV operation helpers", () => {

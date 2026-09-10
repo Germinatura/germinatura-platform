@@ -22,6 +22,7 @@ const databaseProductSchema = z.object({
     name: z.string(),
   }),
   prices: z.array(z.object({ amount_cents: z.number().int().nonnegative() })).length(1),
+  images: z.array(z.object({ id: z.uuid(), object_path: z.string(), alt_text: z.string(), sort_order: z.number().int() })),
 });
 
 function errorResponse(code: string, message: string, requestId: string, status: number, details?: unknown) {
@@ -56,7 +57,8 @@ export async function GET(request: Request) {
       sellable_pdv,
       reservable,
       category:categories!inner(id, slug, name),
-      prices:product_prices!inner(amount_cents)
+      prices:product_prices!inner(amount_cents),
+      images:product_images(id, object_path, alt_text, sort_order)
     `)
     .eq("active", true)
     .eq("published", true)
@@ -75,6 +77,7 @@ export async function GET(request: Request) {
 
   const hasMore = parsedRows.data.length > limit;
   const rows = parsedRows.data.slice(0, limit);
+  const storage = supabase.storage.from("product-images");
   const response = publicCatalogProductsResponseSchema.parse({
     data: rows.map((row) => ({
       id: row.id,
@@ -86,6 +89,10 @@ export async function GET(request: Request) {
       price: { amountCents: row.prices[0].amount_cents, currency: "BRL" },
       sellablePdv: row.sellable_pdv,
       reservable: row.reservable,
+      images: row.images.sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id)).map((image) => ({
+        id: image.id, altText: image.alt_text, sortOrder: image.sort_order,
+        publicUrl: storage.getPublicUrl(image.object_path).data.publicUrl,
+      })),
     })),
     nextCursor: hasMore ? rows.at(-1)?.id ?? null : null,
     request_id: requestId,
