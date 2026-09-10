@@ -30,7 +30,7 @@ O PDV expõe publicamente apenas seu próprio `/api/v1/health`. Demais chamadas 
 
 Todas as tabelas públicas da fundação têm RLS. Usuários autenticados podem ler apenas o próprio perfil e vínculos de papel; não existe policy de escrita direta em RBAC. Elevação de privilégio exige uma operação administrativa futura e auditada.
 
-O bucket `product-images` limita tamanho e MIME. Escritas exigem `catalog.manage`, caminho sob o UUID do ator e nome UUID com extensão permitida. Não há uploader ativo na aplicação.
+O bucket público `product-images` limita arquivos a 5 MB e aceita JPG, PNG e WebP. Uploads exigem `catalog.manage`, assinatura compatível com o MIME e caminho imutável `products/<produto>/<imagem>.<extensão>`; não há policy de listagem nem de sobrescrita. A API pública só enumera metadados ativos ligados a produto e categoria publicados. A remoção oculta o metadado antes de excluir o objeto pelo Storage API e preserva tombstone e auditoria para recuperação segura.
 
 ## Headers e logs
 
