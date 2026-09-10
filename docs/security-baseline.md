@@ -12,8 +12,9 @@ A allowlist executável está em `apps/portal/lib/api-security.ts`. Qualquer API
 | `/api/auth/me` | GET | authenticated | Retorna somente perfil da própria sessão. |
 | `/api/auth/reset-password` | POST | authenticated | Atualiza apenas a própria identidade Supabase Auth. |
 | `/api/v1/auth/session` | GET | authenticated | Retorna identidade, papel primário e papéis da própria sessão. |
+| `/api/v1/admin/inventory/distributions` | POST | inventory | Exige Admin ou Estoque no proxy e `inventory.manage` no handler/RPC; somente central ativa para vendedor ativo. |
 
-Não há endpoints `seller-only` ou `admin-only` ativos nesta fundação. As classes existem no enforcement server-side e devem ser usadas quando novos domínios forem introduzidos; menu oculto nunca substitui RBAC.
+As classes por domínio são verificadas no proxy e repetidas por permissão no handler e no banco. Menu oculto nunca substitui RBAC.
 
 O PDV expõe publicamente apenas seu próprio `/api/v1/health`. Demais chamadas `/api/*` são reescritas para o Portal e passam pela mesma classificação server-side.
 

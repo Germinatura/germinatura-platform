@@ -6,22 +6,22 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `ebc3948` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos e preços. Os históricos têm 2 commits exclusivos em `main` e 40 em `develop`; a divergência mede conteúdo, não quantidade de features nem prontidão de produção.
+Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `dc9007c` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos, preços e imagens. A divergência mede conteúdo, não quantidade de features nem prontidão de produção.
 
-O PR #55 de produtos e o PR #57 de preços foram integrados em `develop`. Para preços, Quality pós-merge `34479342406` e Deploy Staging `34479342414` concluíram verdes. A branch `feat/catalog-images` completa localmente o ciclo de imagens e a oferta integrada; PR, CI e staging ainda precisam confirmar essa revisão antes de fechar a etapa 1. Produção não foi acessada.
+O PR #59 de imagens foi integrado em `develop` depois do PR #55 de produtos e do PR #57 de preços. Quality pós-merge `34515563525` e Deploy Staging `34515563962` concluíram verdes; health, catálogo via Service Binding e bloqueio anônimo do upload foram confirmados. O catálogo de staging está vazio e a fixture local não autentica nesse ambiente, então a oferta completa ainda requer uma conta de homologação para o smoke autenticado. Produção não foi acessada.
 
 ## Visualização do andamento
 
 | Situação | Etapas | Leitura operacional |
 | --- | --- | --- |
 | `DONE` | 0 | Planejamento, matriz, ADR de Payment Link/dinheiro e regras de release reconciliados |
-| `IN PROGRESS` | 1, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
-| `TODO` | 2, 3, 4, 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
+| `IN PROGRESS` | 1, 2, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
+| `TODO` | 3, 4, 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
 
 ```mermaid
 flowchart LR
     E0["0 · Planejamento<br/>DONE"] --> E1["1 · Catálogo<br/>IN PROGRESS"]
-    E1 --> E2["2 · Estoque<br/>TODO"]
+    E1 --> E2["2 · Estoque<br/>IN PROGRESS"]
     E1 --> E4["4 · Promoções<br/>TODO"]
     E2 --> E3["3 · Compras e custos<br/>TODO"]
     E2 --> E5["5 · PDV e caixa<br/>IN PROGRESS"]
@@ -44,8 +44,8 @@ flowchart LR
     classDef todo fill:#e5e7eb,stroke:#4b5563,color:#111827;
     classDef external fill:#ede9fe,stroke:#6d28d9,color:#4c1d95;
     class E0 done;
-    class E1,E5,E6,E8,E9 progress;
-    class E2,E3,E4,E7,E10,E11 todo;
+    class E1,E2,E5,E6,E8,E9 progress;
+    class E3,E4,E7,E10,E11 todo;
     class S external;
 ```
 
@@ -54,8 +54,8 @@ flowchart LR
 | Etapa | Estado | Dependências | Entregas e aceite |
 | --- | --- | --- | --- |
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
-| 1 — Catálogo administrável | IN REVIEW | 0 | Implementação local completa para produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados; aguarda PR, CI e smoke staging |
-| 2 — Operação de estoque | TODO | 1 | Distribuição, solicitação/aceite de transferência entre vendedores, devolução, perda, inventário e ajustes aprovados; nenhum saldo direto |
+| 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
+| 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição central→vendedor em implementação; ainda faltam solicitação/aceite entre vendedores, devolução, perda, inventário e ajustes aprovados; nenhum saldo direto |
 | 3 — Compras e custos | TODO | 1, 2 | Fornecedor, pedidos, custos/frete, recebimento parcial, lotes/validade e obrigação financeira sem duplicação; custo rastreável |
 | 4 — Promoções completas | TODO | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
@@ -78,7 +78,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: concluir PR/CI/staging das imagens, executar o smoke autenticado da oferta completa, fechar a etapa 1 e iniciar a operação de estoque. Produtos e preços já estão integrados sem carregar commits pré-squash.
+Sequência imediata: obter uma conta de homologação para o smoke autenticado da oferta completa sem bloquear o trabalho independente; integrar a distribuição central→vendedor e seguir com transferência solicitada/aceita. Produtos, preços e imagens já estão integrados sem carregar commits pré-squash.
 
 | Onda | PRs coesos em ordem | Saída da onda |
 | --- | --- | --- |
@@ -143,6 +143,12 @@ Terceira fatia da etapa 1: `set_catalog_product_price` recebe centavos inteiros,
 
 ## Incremento de imagens — 10/09/2026
 
-A branch `feat/catalog-images` adiciona até seis imagens por produto com descrição acessível, ordenação e capa. Objetos usam caminhos imutáveis no bucket público, sem listagem ou sobrescrita; metadados ativos são expostos pela visão anônima somente quando produto e categoria estão publicados. Uploads validam tamanho, MIME e assinatura do arquivo. A remoção oculta primeiro o metadado, exclui pelo Storage API e mantém tombstone auditável, podendo retomar uma limpeza física interrompida.
+O PR #59 adiciona até seis imagens por produto com descrição acessível, ordenação e capa. Objetos usam caminhos imutáveis no bucket público, sem listagem ou sobrescrita; metadados ativos são expostos pela visão anônima somente quando produto e categoria estão publicados. Uploads validam tamanho, MIME e assinatura do arquivo. A remoção oculta primeiro o metadado, exclui pelo Storage API e mantém tombstone auditável, podendo retomar uma limpeza física interrompida.
 
-Portal e PDV mostram a capa sem bloquear o carregamento do catálogo. O service worker do PDV salva apenas a capa pública junto da cópia read-only e mantém vendas/mutações fora do cache. Evidência local: 80 unitários, 858 pgTAP, oito testes de integração concorrente e a jornada E2E de imagem passaram; na suíte completa, 24 jornadas passaram e dois workers falharam antes da execução ao consultar simultaneamente o status local, seguidos por retestes verdes dos dois arquivos. PR, CI e staging ainda não são evidência concluída.
+Portal e PDV mostram a capa sem bloquear o carregamento do catálogo. O service worker do PDV salva apenas a capa pública junto da cópia read-only e mantém vendas/mutações fora do cache. Evidência local: 80 unitários, 858 pgTAP, oito testes de integração concorrente e a jornada E2E de imagem passaram; na suíte completa, 24 jornadas passaram e dois workers falharam antes da execução ao consultar simultaneamente o status local, seguidos por retestes verdes dos dois arquivos. O PR #59 foi integrado em `dc9007c`; Quality `34515563525` e Deploy Staging `34515563962` passaram. O smoke externo confirmou serviços, Service Binding e autorização anônima fechada; a jornada autenticada permanece pendente por falta de conta de homologação no ambiente.
+
+## Incremento de distribuição de estoque — 10/09/2026
+
+Primeira fatia da etapa 2: `distribute_stock` restringe a origem à central ativa e o destino a uma localização ativa de vendedor, então chama a transferência existente sob o mesmo lock, ledger e idempotência. O retorno usa a correlação persistida do movimento, inclusive em replay. `POST /api/v1/admin/inventory/distributions` exige `inventory.manage`; a allowlist aceita Admin ou Estoque e bloqueia Vendedor/Consumidor antes da rota.
+
+A interface `/admin/estoque` lista apenas produtos ativos com saldo disponível na central e exige destino, quantidade inteira e motivo. Ela não altera projeções diretamente e orienta atualização em conflito. Evidência local atual: 81 unitários, 871 pgTAP, oito testes de integração com corrida entre reserva e distribuição e 27/27 E2E Chromium, incluindo bloqueio do consumidor e reversão da preparação do teste. Lint, typecheck, builds Next/Vinext e scan também passaram. O lint do banco repete apenas a pendência histórica de `private.expire_due_generic_stock_reservations`; PR, CI e staging desta fatia ainda estão pendentes.
