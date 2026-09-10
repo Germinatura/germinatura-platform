@@ -15,6 +15,9 @@ const productRowsSchema = z.array(z.object({
   published: z.boolean(), sellable_pdv: z.boolean(), reservable: z.boolean(), tracks_lots: z.boolean(),
 }));
 const categoryRowsSchema = z.array(z.object({ id: z.uuid(), name: z.string(), active: z.boolean() }));
+const productImageRowsSchema = z.array(z.object({
+  id: z.uuid(), product_id: z.uuid(), object_path: z.string(), alt_text: z.string(), sort_order: z.number().int(),
+}));
 
 export default async function CatalogAdminPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const user = await requireSession();
@@ -22,13 +25,15 @@ export default async function CatalogAdminPage({ searchParams }: { searchParams:
   const params = await searchParams;
   const query = params.q?.trim().toLocaleLowerCase("pt-BR") ?? "";
   const client = await createSupabaseServerClient();
-  const [productsResult, categoriesResult] = await Promise.all([
+  const [productsResult, categoriesResult, imagesResult] = await Promise.all([
     client.from("products").select("id,category_id,sku,slug,name,description,revision,active,published,sellable_pdv,reservable,tracks_lots").order("name"),
     client.from("categories").select("id,name,active").order("sort_order"),
+    client.from("product_images").select("id,product_id,object_path,alt_text,sort_order").eq("status", "ACTIVE").order("sort_order"),
   ]);
   const parsedProducts = productRowsSchema.safeParse(productsResult.data);
   const parsedCategories = categoryRowsSchema.safeParse(categoriesResult.data);
-  const unavailable = Boolean(productsResult.error || categoriesResult.error || !parsedProducts.success || !parsedCategories.success);
+  const parsedImages = productImageRowsSchema.safeParse(imagesResult.data);
+  const unavailable = Boolean(productsResult.error || categoriesResult.error || imagesResult.error || !parsedProducts.success || !parsedCategories.success || !parsedImages.success);
   const products = parsedProducts.success ? parsedProducts.data : [];
   const categoryById = new Map((parsedCategories.success ? parsedCategories.data : []).map((category) => [category.id, category]));
   const filtered = products.filter((product) => !query || `${product.name} ${product.sku} ${categoryById.get(product.category_id)?.name ?? ""}`.toLocaleLowerCase("pt-BR").includes(query));
@@ -36,6 +41,10 @@ export default async function CatalogAdminPage({ searchParams }: { searchParams:
     id: product.id, categoryId: product.category_id, sku: product.sku, slug: product.slug, name: product.name,
     description: product.description, revision: product.revision, active: product.active, published: product.published,
     sellablePdv: product.sellable_pdv, reservable: product.reservable, tracksLots: product.tracks_lots,
+    images: (parsedImages.success ? parsedImages.data : []).filter((image) => image.product_id === product.id).map((image) => ({
+      id: image.id, productId: image.product_id, objectPath: image.object_path, altText: image.alt_text,
+      sortOrder: image.sort_order, publicUrl: client.storage.from("product-images").getPublicUrl(image.object_path).data.publicUrl,
+    })),
   }));
   const productCategories = parsedCategories.success ? parsedCategories.data : [];
 

@@ -59,11 +59,15 @@ describe("PDV offline cache boundary", () => {
 
   it("projects only public fields and retains the previous snapshot on failure", async () => {
     const w = worker();
-    w.fetcher.mockResolvedValueOnce(Response.json({ data: [{ name: "Produto", sellablePdv: true, price: { amountCents: 1250, currency: "BRL" }, balance: 10, user: "private" }], nextCursor: "more", request_id: "not-cached" }));
+    const imageUrl = "https://storage.test/product.webp";
+    w.fetcher
+      .mockResolvedValueOnce(Response.json({ data: [{ name: "Produto", sellablePdv: true, price: { amountCents: 1250, currency: "BRL" }, images: [{ sortOrder: 0, publicUrl: imageUrl, altText: "Produto embalado" }], balance: 10, user: "private" }], nextCursor: "more", request_id: "not-cached" }))
+      .mockResolvedValueOnce(new Response("image", { headers: { "Content-Type": "image/webp" } }));
     const message = { data: { type: "REFRESH_PUBLIC_CATALOG" }, source: { url: "https://pdv.test/login" } };
     await w.lifecycle("message", message);
     const snapshot = w.stores.get("germinatura-pdv-catalog-v1")?.get("/offline/catalog-snapshot");
-    expect(await snapshot?.clone().json()).toEqual({ savedAt: expect.any(Number), partial: true, products: [{ name: "Produto", amountCents: 1250 }] });
+    expect(await snapshot?.clone().json()).toEqual({ savedAt: expect.any(Number), partial: true, products: [{ name: "Produto", amountCents: 1250, imageUrl, imageAlt: "Produto embalado" }] });
+    expect(w.stores.get("germinatura-pdv-catalog-v1")?.has(imageUrl)).toBe(true);
     expect(w.fetcher).toHaveBeenCalledWith("/api/v1/catalog/products?limit=50", { credentials: "omit", cache: "no-store", redirect: "error" });
     w.fetcher.mockRejectedValueOnce(new Error("offline"));
     await w.lifecycle("message", message);

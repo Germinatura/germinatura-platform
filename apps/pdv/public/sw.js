@@ -28,8 +28,14 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  // No API, auth, image, framework-chunk, mutation or third-party response cache.
-  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  if (request.method !== "GET") return;
+  const isPublicProductImage = url.pathname.startsWith("/storage/v1/object/public/product-images/products/");
+  if (request.destination === "image" && isPublicProductImage) {
+    event.respondWith((async () => (await (await caches.open(CATALOG)).match(request)) || fetch(request))());
+    return;
+  }
+  // No API, auth, framework-chunk, mutation or other third-party response cache.
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
   if (ASSETS.includes(url.pathname) && !url.search) {
     event.respondWith((async () => (await (await caches.open(SHELL)).match(url.pathname)) || fetch(request))());
   } else if (request.mode === "navigate") {
@@ -60,9 +66,22 @@ async function refreshCatalog() {
       if (typeof product.name !== "string" || !product.name.length || product.name.length > 160
         || !Number.isSafeInteger(product.price?.amountCents) || product.price.amountCents < 0 || product.price.currency !== "BRL") return;
       // Explicit public projection: never retain request IDs, session, balances or payload extras.
-      products.push({ name: product.name, amountCents: product.price.amountCents });
+      const cover = Array.isArray(product.images) ? product.images.find((image) => image?.sortOrder === 0) : null;
+      if (cover && (typeof cover.publicUrl !== "string" || typeof cover.altText !== "string" || cover.altText.length > 180)) return;
+      const snapshotProduct = { name: product.name, amountCents: product.price.amountCents };
+      if (cover) { snapshotProduct.imageUrl = cover.publicUrl; snapshotProduct.imageAlt = cover.altText; }
+      products.push(snapshotProduct);
     }
     const cache = await caches.open(CATALOG);
+    for (let start = 0; start < products.length; start += 4) {
+      await Promise.all(products.slice(start, start + 4).map(async (product) => {
+        if (!product.imageUrl) return;
+        try {
+          const image = await fetch(product.imageUrl, { credentials: "omit", cache: "reload", redirect: "error" });
+          if (image.ok && image.headers.get("content-type")?.startsWith("image/")) await cache.put(product.imageUrl, image);
+        } catch { /* The text snapshot remains useful when a public image is unavailable. */ }
+      }));
+    }
     await cache.put(SNAPSHOT, new Response(JSON.stringify({ savedAt: Date.now(), partial: body.nextCursor != null, products }), { headers: { "Content-Type": "application/json" } }));
   } catch {
     // Keep the last valid, dated snapshot; the viewer refuses it after 24 hours.

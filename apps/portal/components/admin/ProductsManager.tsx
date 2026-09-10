@@ -8,11 +8,17 @@ import {
   setCatalogProductPriceResponseSchema,
   setCatalogProductPriceSchema,
   type CatalogProduct,
+  type CatalogProductImage,
+  catalogProductImageMutationResponseSchema,
+  removeCatalogProductImageResponseSchema,
+  reorderCatalogProductImagesResponseSchema,
   type CatalogProductPrice,
   saveCatalogProductResponseSchema,
   saveCatalogProductSchema,
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+
+type ManagedCatalogProduct = CatalogProduct & { images: CatalogProductImage[] };
 
 interface CatalogCategoryOption {
   id: string;
@@ -20,10 +26,10 @@ interface CatalogCategoryOption {
   active: boolean;
 }
 
-export function ProductsManager({ products, categories }: { products: CatalogProduct[]; categories: CatalogCategoryOption[] }) {
+export function ProductsManager({ products, categories }: { products: ManagedCatalogProduct[]; categories: CatalogCategoryOption[] }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"product" | "price">("product");
+  const [panel, setPanel] = useState<"product" | "price" | "images">("product");
   const [notice, setNotice] = useState("");
   const [formGeneration, setFormGeneration] = useState(0);
   const product = products.find((item) => item.id === selected);
@@ -47,10 +53,12 @@ export function ProductsManager({ products, categories }: { products: CatalogPro
               {item.tracksLots && <Badge tone="neutral">Controla lote</Badge>}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" aria-label={`Editar preço de ${item.name}`} onClick={() => { setSelected(item.id); setPanel("price"); setNotice(""); }}>Preço</Button><Button type="button" variant="secondary" aria-label={`Editar produto ${item.name}`} onClick={() => { setSelected(item.id); setPanel("product"); setNotice(""); }}>Editar</Button></div>
+          <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" aria-label={`Editar imagens de ${item.name}`} onClick={() => { setSelected(item.id); setPanel("images"); setNotice(""); }}>Imagens</Button><Button type="button" variant="secondary" aria-label={`Editar preço de ${item.name}`} onClick={() => { setSelected(item.id); setPanel("price"); setNotice(""); }}>Preço</Button><Button type="button" variant="secondary" aria-label={`Editar produto ${item.name}`} onClick={() => { setSelected(item.id); setPanel("product"); setNotice(""); }}>Editar</Button></div>
         </li>)}</ul>}
     </Card>
-    {panel === "price" && product ? <ProductPricePanel key={`${product.id}:${product.revision}:${formGeneration}`} product={product}
+    {panel === "images" && product ? <ProductImagesPanel key={`${product.id}:${product.revision}:${formGeneration}`} product={product}
+      onBack={() => { setPanel("product"); setNotice(""); }}
+      onSaved={(message) => { setNotice(message); router.refresh(); }} /> : panel === "price" && product ? <ProductPricePanel key={`${product.id}:${product.revision}:${formGeneration}`} product={product}
       onBack={() => { setPanel("product"); setNotice(""); }}
       onSaved={() => { setFormGeneration((value) => value + 1); setNotice("Preço definido. A vigência anterior e a nova foram registradas na auditoria."); router.refresh(); }} /> :
       <ProductForm key={`${product?.id ?? "new"}:${product?.revision ?? 0}:${formGeneration}`} product={product} categories={categories}
@@ -138,6 +146,99 @@ function ProductForm({ product, categories, onNew, onManagePrice, onSaved }: { p
       {activeCategories.length === 0 && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">Cadastre uma categoria ativa antes de criar produtos.</p>}
       {error && <div role="alert" className="space-y-2 text-sm text-[var(--g-status-danger-foreground)]"><p>{error}</p><a href="/admin/catalogo" className="inline-flex min-h-11 items-center underline">Atualizar catálogo</a></div>}
     </form>
+  </Card>;
+}
+
+function ProductImagesPanel({ product, onBack, onSaved }: {
+  product: ManagedCatalogProduct; onBack: () => void; onSaved: (message: string) => void;
+}) {
+  const [images, setImages] = useState(product.images);
+  const [revision, setRevision] = useState(product.revision);
+  const [file, setFile] = useState<File | null>(null);
+  const [altText, setAltText] = useState("");
+  const [reason, setReason] = useState("");
+  const [action, setAction] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const uploadKey = useRef<string | null>(null);
+  const uploadImageId = useRef<string | null>(null);
+
+  function resetUploadIdentity() { uploadKey.current = null; uploadImageId.current = null; setError(""); }
+
+  async function upload(event: React.FormEvent) {
+    event.preventDefault();
+    if (!file || images.length >= 6 || altText.trim().length < 1 || reason.trim().length < 4) {
+      setError("Escolha uma imagem e preencha a descrição acessível e o motivo."); return;
+    }
+    uploadKey.current ??= `product-image:add:${crypto.randomUUID()}`;
+    uploadImageId.current ??= crypto.randomUUID();
+    const body = new FormData();
+    body.set("file", file); body.set("imageId", uploadImageId.current); body.set("productId", product.id);
+    body.set("expectedRevision", String(revision)); body.set("altText", altText); body.set("reason", reason);
+    setAction("upload"); setError("");
+    try {
+      const response = await fetch("/api/v1/admin/catalog/product-images", { method: "POST", headers: { "Idempotency-Key": uploadKey.current }, body });
+      const payload: unknown = await response.json();
+      if (!response.ok) throw new Error(payload && typeof payload === "object" && "message" in payload ? String(payload.message) : "Não foi possível enviar a imagem.");
+      const parsed = catalogProductImageMutationResponseSchema.parse(payload);
+      setImages((current) => [...current, parsed.data].sort((left, right) => left.sortOrder - right.sortOrder));
+      setRevision(parsed.data.productRevision); setFile(null); setAltText(""); setReason(""); resetUploadIdentity();
+      onSaved("Imagem adicionada. A primeira imagem é usada como capa do produto.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha de conexão."); }
+    finally { setAction(null); }
+  }
+
+  async function persistOrder(next: CatalogProductImage[]) {
+    if (reason.trim().length < 4) { setError("Informe o motivo antes de alterar a capa ou a ordem."); return; }
+    const key = `product-image:order:${crypto.randomUUID()}`;
+    setAction("order"); setError("");
+    try {
+      const response = await fetch("/api/v1/admin/catalog/product-images", {
+        method: "PUT", headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({ productId: product.id, expectedRevision: revision, imageIds: next.map((image) => image.id), reason }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) throw new Error(payload && typeof payload === "object" && "message" in payload ? String(payload.message) : "Não foi possível ordenar as imagens.");
+      const parsed = reorderCatalogProductImagesResponseSchema.parse(payload);
+      setRevision(parsed.data.productRevision); setImages(next.map((image, index) => ({ ...image, sortOrder: index })));
+      onSaved("Ordem das imagens atualizada. A primeira imagem é a capa.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha de conexão."); }
+    finally { setAction(null); }
+  }
+
+  async function remove(image: CatalogProductImage) {
+    if (reason.trim().length < 4) { setError("Informe o motivo antes de remover a imagem."); return; }
+    setAction(image.id); setError("");
+    try {
+      const response = await fetch(`/api/v1/admin/catalog/product-images/${image.id}`, {
+        method: "DELETE", headers: { "Content-Type": "application/json", "Idempotency-Key": `product-image:remove:${crypto.randomUUID()}` },
+        body: JSON.stringify({ productId: product.id, expectedRevision: revision, reason }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) throw new Error(payload && typeof payload === "object" && "message" in payload ? String(payload.message) : "Não foi possível remover a imagem.");
+      const parsed = removeCatalogProductImageResponseSchema.parse(payload);
+      setRevision(parsed.data.productRevision);
+      setImages((current) => current.filter((item) => item.id !== image.id).map((item, index) => ({ ...item, sortOrder: index })));
+      onSaved("Imagem removida do catálogo e do armazenamento.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha de conexão."); }
+    finally { setAction(null); }
+  }
+
+  return <Card className="p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">Imagens de {product.name}</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Até seis imagens. A primeira da lista é a capa no Portal e no PDV.</p></div><Button type="button" variant="secondary" onClick={onBack}>Voltar ao produto</Button></div>
+    {images.length > 0 && <ol className="mt-5 space-y-3">{images.map((image, index) => <li key={image.id} className="flex flex-col gap-3 rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] p-3 sm:flex-row sm:items-center">
+      <div role="img" aria-label={image.altText} className="h-24 w-full shrink-0 rounded-lg bg-cover bg-center sm:w-28" style={{ backgroundImage: `url(${JSON.stringify(image.publicUrl)})` }} />
+      <div className="min-w-0 flex-1"><p className="font-semibold">{index === 0 ? "Capa" : `Imagem ${index + 1}`}</p><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{image.altText}</p></div>
+      <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={index === 0 || action !== null} onClick={() => void persistOrder([images[index], ...images.slice(0, index), ...images.slice(index + 1)])}>Usar como capa</Button><Button type="button" variant="secondary" disabled={index === 0 || action !== null} onClick={() => { const next = [...images]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void persistOrder(next); }}>Subir</Button><Button type="button" variant="secondary" disabled={index === images.length - 1 || action !== null} onClick={() => { const next = [...images]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; void persistOrder(next); }}>Descer</Button><Button type="button" variant="secondary" loading={action === image.id} disabled={action !== null} onClick={() => void remove(image)}>Remover</Button></div>
+    </li>)}</ol>}
+    {images.length === 0 && <p className="mt-5 rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)] p-4 text-sm text-[var(--g-text-secondary)]">Este produto ainda não tem imagem. O catálogo mostra o ícone padrão.</p>}
+    <Field id="image-action-reason" label="Motivo da alteração" description="Também é usado ao mudar capa, ordenar ou remover."><Input id="image-action-reason" className="mt-5" minLength={4} maxLength={500} value={reason} onChange={(event) => { setReason(event.target.value); setError(""); }} /></Field>
+    {images.length < 6 && <form onSubmit={upload} className="mt-5 space-y-4 border-t border-[var(--g-border-subtle)] pt-5">
+      <h3 className="font-semibold">Adicionar imagem</h3>
+      <Field id="product-image-file" label="Arquivo JPG, PNG ou WebP" description="Máximo de 5 MB."><Input id="product-image-file" type="file" required accept="image/jpeg,image/png,image/webp" onChange={(event) => { resetUploadIdentity(); setFile(event.target.files?.[0] ?? null); }} /></Field>
+      <Field id="product-image-alt" label="Descrição acessível" description="Descreva o produto para quem não consegue ver a foto."><Input id="product-image-alt" required minLength={1} maxLength={180} value={altText} onChange={(event) => { resetUploadIdentity(); setAltText(event.target.value); }} /></Field>
+      <Button type="submit" loading={action === "upload"} disabled={action !== null}>Enviar imagem</Button>
+    </form>}
+    {error && <p role="alert" className="mt-4 text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}
   </Card>;
 }
 

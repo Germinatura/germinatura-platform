@@ -274,6 +274,7 @@ describe("shared contracts", () => {
         price: { amountCents: 2590, currency: "BRL" },
         sellablePdv: true,
         reservable: true,
+        images: [{ id: "53f00000-0000-4000-8000-000000000001", altText: "Produto em embalagem azul", sortOrder: 0, publicUrl: "https://example.test/product.webp" }],
       }],
       nextCursor: null,
       request_id: "req-catalog",
