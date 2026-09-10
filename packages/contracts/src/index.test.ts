@@ -23,8 +23,12 @@ import {
   notificationsResponseSchema,
   paymentReconciliationRequestSchema,
   paymentReconciliationResponseSchema,
+  catalogProductPriceHistoryQuerySchema,
+  catalogProductPriceHistoryResponseSchema,
   saveCatalogProductSchema,
   saveCatalogProductResponseSchema,
+  setCatalogProductPriceResponseSchema,
+  setCatalogProductPriceSchema,
   passwordRecoveryRequestSchema,
   passwordRecoveryVerifySchema,
   passwordRecoveryUnlockSchema,
@@ -227,6 +231,26 @@ describe("shared contracts", () => {
       data: { ...request, id: "33f00000-0000-4000-8000-000000000001", revision: 1, sku: "PROD-000001", correlationId: "99000000-0000-4000-8000-000000000001" },
       request_id: "catalog-product-test",
     }).data.sku).toBe("PROD-000001");
+  });
+
+  it("validates audited product price commands and chronological history cursors", () => {
+    const productId = "33f00000-0000-4000-8000-000000000001";
+    const request = setCatalogProductPriceSchema.parse({ productId, expectedProductRevision: 2, amountCents: 2590, reason: "Atualização de preço" });
+    expect(request.amountCents).toBe(2590);
+    expect(setCatalogProductPriceSchema.safeParse({ ...request, amountCents: 25.9 }).success).toBe(false);
+    expect(setCatalogProductPriceSchema.safeParse({ ...request, totalCents: 2590 }).success).toBe(false);
+    expect(catalogProductPriceHistoryQuerySchema.parse({ cursor: "2026-09-09T12:00:00.000Z", limit: "50" })).toMatchObject({ limit: 50 });
+    expect(catalogProductPriceHistoryQuerySchema.safeParse({ cursor: "not-a-date" }).success).toBe(false);
+    expect(setCatalogProductPriceResponseSchema.parse({
+      data: { id: "43f00000-0000-4000-8000-000000000001", productId, amountCents: 2590,
+        validFrom: "2026-09-09T12:00:00.000Z", validTo: null, previousPriceId: null, productRevision: 2,
+        correlationId: "99000000-0000-4000-8000-000000000001" }, request_id: "price-command-test",
+    }).data.amountCents).toBe(2590);
+    expect(catalogProductPriceHistoryResponseSchema.parse({
+      data: [{ id: "43f00000-0000-4000-8000-000000000001", productId, amountCents: 2590,
+        validFrom: "2026-09-09T12:00:00.000Z", validTo: null, createdBy: null, createdAt: "2026-09-09T12:00:00.000Z" }],
+      nextCursor: null, request_id: "price-history-test",
+    }).data).toHaveLength(1);
   });
 
   it("bounds public catalog pagination and validates its response", () => {

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export * from "./catalog-categories";
 export * from "./catalog-products";
+export * from "./catalog-product-prices";
 
 export const moneyCentsSchema = z.number()
   .int()
