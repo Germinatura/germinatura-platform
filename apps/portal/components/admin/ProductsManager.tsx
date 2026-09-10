@@ -26,7 +26,7 @@ export function ProductsManager({ products, categories }: { products: CatalogPro
       {products.length === 0 ? <p className="mt-6 text-[var(--g-text-secondary)]">Nenhum produto corresponde à busca. Cadastre um produto pelo formulário.</p> :
         <ul className="mt-4 divide-y divide-[var(--g-border-subtle)]">{products.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div className="min-w-0 flex-1 break-words">
-            <p className="font-semibold">{item.name}</p>
+            <h3 className="font-semibold">{item.name}</h3>
             <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{item.sku} · {categoryById.get(item.categoryId) ?? "Categoria indisponível"}</p>
             <div className="mt-2 flex flex-wrap gap-1">
               <Badge tone={item.active ? "success" : "warning"}>{item.active ? "Ativo" : "Inativo"}</Badge>

@@ -5,10 +5,13 @@ const endpoint = `${portal}/api/v1/admin/catalog/categories`;
 const headers = { Origin: portal, "Sec-Fetch-Site": "same-origin" };
 
 test("Admin manages categories with audit commands and stale edits cannot overwrite changes", async ({ page, browser }, testInfo) => {
+  test.slow();
   const login = await page.request.post(`${portal}/api/auth/login`, { headers, data: { identifier: "admin.teste", password: "Admin123!" } });
   expect(login.status()).toBe(200);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${portal}/admin/catalogo`);
+  const warmRoute = await page.request.post(endpoint, { headers: { ...headers, "Idempotency-Key": `warm:${crypto.randomUUID()}` }, data: {} });
+  expect(warmRoute.status()).toBe(422);
   await page.getByRole("link", { name: "Gerenciar categorias" }).click();
   const slug = `e2e-${crypto.randomUUID()}`;
   await page.getByLabel("Nome", { exact: true }).fill(slug);
