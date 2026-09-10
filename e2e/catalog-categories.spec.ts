@@ -10,9 +10,13 @@ test("Admin manages categories with audit commands and stale edits cannot overwr
   expect(login.status()).toBe(200);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${portal}/admin/catalogo`);
+  await Promise.all([
+    page.waitForURL(`${portal}/admin/catalogo/categorias`),
+    page.getByRole("link", { name: "Gerenciar categorias" }).click(),
+  ]);
   const warmRoute = await page.request.post(endpoint, { headers: { ...headers, "Idempotency-Key": `warm:${crypto.randomUUID()}` }, data: {} });
   expect(warmRoute.status()).toBe(422);
-  await page.getByRole("link", { name: "Gerenciar categorias" }).click();
+  await expect(page.getByRole("heading", { name: "Categorias", exact: true })).toBeVisible();
   const slug = `e2e-${crypto.randomUUID()}`;
   await page.getByLabel("Nome", { exact: true }).fill(slug);
   await page.getByLabel("Identificador", { exact: true }).fill(slug);
