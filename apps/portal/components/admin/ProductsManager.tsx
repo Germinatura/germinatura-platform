@@ -154,23 +154,40 @@ function ProductPricePanel({ product, onBack, onSaved }: { product: CatalogProdu
   const idempotencyKey = useRef<string | null>(null);
   const submitted = useRef(false);
 
-  const loadHistory = useCallback(async (cursor?: string, append = false) => {
+  const fetchHistory = useCallback(async (cursor?: string) => {
+    const params = new URLSearchParams({ limit: "20" });
+    if (cursor) params.set("cursor", cursor);
+    const response = await fetch(`/api/v1/admin/catalog/products/${product.id}/prices?${params.toString()}`, { cache: "no-store" });
+    const body: unknown = await response.json();
+    if (!response.ok) throw new Error("Não foi possível carregar o histórico de preços.");
+    return catalogProductPriceHistoryResponseSchema.parse(body);
+  }, [product.id]);
+
+  useEffect(() => {
+    let active = true;
+    void fetchHistory().then((page) => {
+      if (!active) return;
+      setHistory(page.data);
+      setNextCursor(page.nextCursor);
+    }).catch(() => {
+      if (active) setHistoryError("Não foi possível carregar o histórico de preços. Atualize a página antes de decidir.");
+    }).finally(() => {
+      if (active) setLoadingHistory(false);
+    });
+    return () => { active = false; };
+  }, [fetchHistory]);
+
+  async function loadOlderHistory() {
+    if (!nextCursor) return;
     setLoadingHistory(true); setHistoryError("");
     try {
-      const params = new URLSearchParams({ limit: "20" });
-      if (cursor) params.set("cursor", cursor);
-      const response = await fetch(`/api/v1/admin/catalog/products/${product.id}/prices?${params.toString()}`, { cache: "no-store" });
-      const body: unknown = await response.json();
-      if (!response.ok) throw new Error("Não foi possível carregar o histórico de preços.");
-      const parsed = catalogProductPriceHistoryResponseSchema.parse(body);
-      setHistory((current) => append ? [...current, ...parsed.data] : parsed.data);
-      setNextCursor(parsed.nextCursor);
+      const page = await fetchHistory(nextCursor);
+      setHistory((current) => [...current, ...page.data]);
+      setNextCursor(page.nextCursor);
     } catch {
       setHistoryError("Não foi possível carregar o histórico de preços. Atualize a página antes de decidir.");
     } finally { setLoadingHistory(false); }
-  }, [product.id]);
-
-  useEffect(() => { void loadHistory(); }, [loadHistory]);
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -203,7 +220,7 @@ function ProductPricePanel({ product, onBack, onSaved }: { product: CatalogProdu
       <fieldset disabled={saving} className="space-y-4"><Field id="product-price" label="Novo preço" description="Informe em reais, por exemplo 25,90. O servidor recebe apenas centavos inteiros."><Input id="product-price" required inputMode="decimal" autoComplete="off" placeholder="25,90" value={price} onChange={(event) => { idempotencyKey.current = null; setError(""); setPrice(event.target.value); }} /></Field><Field id="product-price-reason" label="Motivo" description="A alteração e a vigência anterior ficam registradas na auditoria."><Input id="product-price-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { idempotencyKey.current = null; setError(""); setReason(event.target.value); }} /></Field><Button type="submit" loading={saving}>Definir preço</Button></fieldset>
       {error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}
     </form>
-    <section className="mt-8 border-t border-[var(--g-border-subtle)] pt-5" aria-label="Histórico de preços"><h3 className="text-base font-semibold">Histórico</h3>{loadingHistory && history.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Carregando histórico…</p> : historyError ? <p role="alert" className="mt-3 text-sm text-[var(--g-status-danger-foreground)]">{historyError}</p> : history.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Nenhum preço foi definido para este produto.</p> : <ul className="mt-3 divide-y divide-[var(--g-border-subtle)]">{history.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div><p className="font-semibold">{formatMoneyBrl(item.amountCents)}</p><p className="mt-1 text-xs text-[var(--g-text-secondary)]">Início: {formatDateTime(item.validFrom)}{item.validTo ? ` · término: ${formatDateTime(item.validTo)}` : " · vigente"}</p></div><Badge tone={isCurrentPrice(item) ? "success" : "neutral"}>{isCurrentPrice(item) ? "Vigente" : new Date(item.validFrom) > new Date() ? "Agendado" : "Encerrado"}</Badge></li>)}</ul>}{nextCursor && <Button type="button" variant="secondary" className="mt-4" loading={loadingHistory} onClick={() => void loadHistory(nextCursor, true)}>Carregar histórico anterior</Button>}</section>
+    <section className="mt-8 border-t border-[var(--g-border-subtle)] pt-5" aria-label="Histórico de preços"><h3 className="text-base font-semibold">Histórico</h3>{loadingHistory && history.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Carregando histórico…</p> : historyError ? <p role="alert" className="mt-3 text-sm text-[var(--g-status-danger-foreground)]">{historyError}</p> : history.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Nenhum preço foi definido para este produto.</p> : <ul className="mt-3 divide-y divide-[var(--g-border-subtle)]">{history.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div><p className="font-semibold">{formatMoneyBrl(item.amountCents)}</p><p className="mt-1 text-xs text-[var(--g-text-secondary)]">Início: {formatDateTime(item.validFrom)}{item.validTo ? ` · término: ${formatDateTime(item.validTo)}` : " · vigente"}</p></div><Badge tone={isCurrentPrice(item) ? "success" : "neutral"}>{isCurrentPrice(item) ? "Vigente" : new Date(item.validFrom) > new Date() ? "Agendado" : "Encerrado"}</Badge></li>)}</ul>}{nextCursor && <Button type="button" variant="secondary" className="mt-4" loading={loadingHistory} onClick={() => void loadOlderHistory()}>Carregar histórico anterior</Button>}</section>
   </Card>;
 }
 

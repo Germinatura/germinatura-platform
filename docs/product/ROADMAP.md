@@ -8,7 +8,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `8511389` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos. Os históricos têm 2 commits exclusivos em `main` e 37 em `develop`, 218 arquivos diferentes e 16 migrations adicionais em `develop`. Isso mede divergência de conteúdo, não quantidade de features nem prontidão de produção.
 
-O PR #55 passou pela Quality do PR e foi integrado em `develop`. Quality pós-merge `34474857272` e Deploy Staging `34474857241` concluíram verdes; o deploy aplicou a migration, publicou Portal/PDV/Jobs e passou health e service binding. O smoke autenticado específico da administração de produtos ainda deve ser registrado antes de fechar a etapa 1. Produção não foi acessada. A branch `feat/catalog-prices` contém o próximo incremento implementado e publicado, mas ainda precisa ser transplantada sobre o squash de produtos, revalidada e aberta em PR. `feat/catalog-images` não contém incremento próprio.
+O PR #55 passou pela Quality do PR e foi integrado em `develop`. Quality pós-merge `34474857272` e Deploy Staging `34474857241` concluíram verdes; o deploy aplicou a migration, publicou Portal/PDV/Jobs e passou health e service binding. O smoke autenticado específico da administração de produtos ainda deve ser registrado antes de fechar a etapa 1. Produção não foi acessada. A branch `feat/catalog-product-prices` contém o próximo incremento, transplantado sobre o squash de produtos e novamente validado antes do PR. `feat/catalog-images` não contém incremento próprio.
 
 ## Visualização do andamento
 
