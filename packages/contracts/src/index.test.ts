@@ -23,6 +23,8 @@ import {
   notificationsResponseSchema,
   paymentReconciliationRequestSchema,
   paymentReconciliationResponseSchema,
+  saveCatalogProductSchema,
+  saveCatalogProductResponseSchema,
   passwordRecoveryRequestSchema,
   passwordRecoveryVerifySchema,
   passwordRecoveryUnlockSchema,
@@ -201,6 +203,30 @@ describe("shared contracts", () => {
       reservable: true,
       tracksLots: false,
     })).toMatchObject({ active: true, published: false, sellablePdv: true });
+  });
+
+  it("validates product commands without accepting a client SKU", () => {
+    const request = saveCatalogProductSchema.parse({
+      id: null,
+      expectedRevision: null,
+      categoryId: "23f00000-0000-4000-8000-000000000001",
+      slug: "doce-teste",
+      name: "Doce teste",
+      description: null,
+      active: true,
+      published: false,
+      sellablePdv: false,
+      reservable: true,
+      tracksLots: false,
+      reason: "Cadastro inicial do produto",
+    });
+    expect(request.id).toBeNull();
+    expect(saveCatalogProductSchema.safeParse({ ...request, sku: "FORGED-SKU" }).success).toBe(false);
+    expect(saveCatalogProductSchema.safeParse({ ...request, id: "33f00000-0000-4000-8000-000000000001", expectedRevision: null }).success).toBe(false);
+    expect(saveCatalogProductResponseSchema.parse({
+      data: { ...request, id: "33f00000-0000-4000-8000-000000000001", revision: 1, sku: "PROD-000001", correlationId: "99000000-0000-4000-8000-000000000001" },
+      request_id: "catalog-product-test",
+    }).data.sku).toBe("PROD-000001");
   });
 
   it("bounds public catalog pagination and validates its response", () => {
