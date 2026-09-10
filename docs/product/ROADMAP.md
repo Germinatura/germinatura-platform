@@ -6,7 +6,48 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-`main` em `95c4209`: fundação, catálogo público, ledger, reserva técnica e pricing. `develop` em `8e11422`: vendas, confirmação manual, financeiro básico, autenticação atual, fechamentos, reservas/rifas, interfaces e PWA read-only. São 2/33 commits exclusivos e 13 migrations adicionais em develop, não 33 features faltantes em produção. Quality `34171066032` e Deploy Staging `34171066091` verdes nessa revisão; não houve acesso a produção.
+Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `8511389` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos. Os históricos têm 2 commits exclusivos em `main` e 37 em `develop`, 218 arquivos diferentes e 16 migrations adicionais em `develop`. Isso mede divergência de conteúdo, não quantidade de features nem prontidão de produção.
+
+O PR #55 passou pela Quality do PR e foi integrado em `develop`. Quality pós-merge `34474857272` e Deploy Staging `34474857241` concluíram verdes; o deploy aplicou a migration, publicou Portal/PDV/Jobs e passou health e service binding. O smoke autenticado específico da administração de produtos ainda deve ser registrado antes de fechar a etapa 1. Produção não foi acessada. A branch `feat/catalog-prices` contém o próximo incremento implementado e publicado, mas ainda precisa ser transplantada sobre o squash de produtos, revalidada e aberta em PR. `feat/catalog-images` não contém incremento próprio.
+
+## Visualização do andamento
+
+| Situação | Etapas | Leitura operacional |
+| --- | --- | --- |
+| `DONE` | 0 | Planejamento, matriz, ADR de Payment Link/dinheiro e regras de release reconciliados |
+| `IN PROGRESS` | 1, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
+| `TODO` | 2, 3, 4, 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
+
+```mermaid
+flowchart LR
+    E0["0 · Planejamento<br/>DONE"] --> E1["1 · Catálogo<br/>IN PROGRESS"]
+    E1 --> E2["2 · Estoque<br/>TODO"]
+    E1 --> E4["4 · Promoções<br/>TODO"]
+    E2 --> E3["3 · Compras e custos<br/>TODO"]
+    E2 --> E5["5 · PDV e caixa<br/>IN PROGRESS"]
+    E4 --> E5
+    E3 --> E6["6 · Comercial e financeiro<br/>IN PROGRESS"]
+    E5 --> E6
+    E6 --> E7["7 · Payment Link<br/>TODO"]
+    E4 --> E8["8 · Compra, reservas e rifas<br/>IN PROGRESS"]
+    E7 --> E8
+    E3 --> E9["9 · Gestão e indicadores<br/>IN PROGRESS"]
+    E6 --> E9
+    E8 --> E9
+    E8 --> E10["10 · Campanhas e comunidade<br/>TODO"]
+    E9 --> E10
+    E10 --> E11["11 · Homologação e release<br/>TODO"]
+    S["Sandbox/credenciais<br/>validação externa"] -. habilita .-> E7
+
+    classDef done fill:#d1fae5,stroke:#047857,color:#064e3b;
+    classDef progress fill:#fef3c7,stroke:#b45309,color:#78350f;
+    classDef todo fill:#e5e7eb,stroke:#4b5563,color:#111827;
+    classDef external fill:#ede9fe,stroke:#6d28d9,color:#4c1d95;
+    class E0 done;
+    class E1,E5,E6,E8,E9 progress;
+    class E2,E3,E4,E7,E10,E11 todo;
+    class S external;
+```
 
 ## Marcos de entrega
 
@@ -33,6 +74,35 @@ Por mutação: permission + rota/allowlist + RLS + RPC + idempotência + interfa
 
 O PWA já integrado permite somente shell/catálogo público datado, primeira página até 50 produtos, TTL 24h e indicação de parcialidade. Nunca cachear sessão, saldo, carrinho ou pagamentos; nenhuma fila offline. O service binding PDV→Portal foi integrado no PR #51, com smoke de catálogo/sessão; instalação real continua pendente.
 
+## Fila contínua de implementação
+
+O trabalho segue sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
+
+Sequência imediata: integrar este replanejamento; transplantar apenas o commit de preços sobre o novo `develop`; repetir gates e integrar preços; iniciar imagens a partir desse novo HEAD; executar o smoke autenticado da oferta completa. Isso evita carregar no histórico os commits pré-squash de produtos.
+
+| Onda | PRs coesos em ordem | Saída da onda |
+| --- | --- | --- |
+| A — Fechar catálogo | Administração/histórico de preços; imagens com metadados e ciclo seguro no Storage; smoke integrado e atualização da matriz | Etapa 1 `DONE`: administrador publica uma oferta completa e o catálogo anônimo respeita canal, preço e imagem |
+| B — Estoque operacional | Distribuição e localizações; transferência solicitada/aceita; devolução e perda; inventário/ajuste aprovado; “Meu estoque” no PDV | Etapa 2 `DONE`: toda correção é movimento rastreável e disputas não produzem saldo negativo |
+| C — Compras e custos | Fornecedores; pedido e itens; frete/rateio; recebimento parcial com lote/validade; obrigação financeira e custo rastreável | Etapa 3 `DONE`: um recebimento repetido não duplica estoque, custo nem obrigação |
+| D — Promoções | Administração e precedência; percentual/preço fixo; leve-pague/combo/escalonada; cupons e limites concorrentes; explicação de economia | Etapa 4 `DONE`: cotação é determinística, autoritativa e reserva/consome limites na mesma fronteira transacional |
+| E — PDV e caixa | Turno e histórico; pendências; dinheiro recebido/troco; conta de caixa e divergência; método/terminal; orçamento de desempenho e PWA em dispositivos | Etapa 5 `DONE`: vendedor conclui e presta contas por método sem aguardar tarefas secundárias |
+| F — Comercial e financeiro | Histórico unificado; cancelamento/reembolso parcial; contas/categorias/despesas; recebíveis/taxas/liquidações; importação com prévia/deduplicação; CSV | Etapa 6 `DONE`: totais paginados e por período reconciliam com os ledgers |
+| G — Payment Link | Contratos e intenção persistida; adapter OAuth backend; criação/consulta/inativação; receipt/webhook; recuperação; estorno; sandbox e falhas controladas | Etapa 7 `DONE`: cada pagamento ou estorno produz efeitos exatamente uma vez; flag só liga após homologação |
+| H — Compra, reservas e rifas | Carrinho/pedido; acompanhamento/pagamento; preparar/pronta/retirar; seleção e compra de números; rifa no PDV; ciclo editorial e reembolso | Etapa 8 `DONE`: consumidor e vendedor concluem as jornadas, inclusive concorrência e reversões antes/depois do sorteio |
+| I — Gestão | Auditoria pesquisável; configurações/desbloqueios; perfil/sessões; indicadores financeiros; meta pública | Etapa 9 `DONE`: cada papel consulta e executa suas responsabilidades com totais completos |
+| J — Crescimento e comunidade | Campanhas/eventos; links/QR/origem; textos/preferências/avise-me; segmentação; mural/posts/sugestões/enquetes; denúncias/moderação | Etapa 10 `DONE`: publicação e moderação funcionam de ponta a ponta, com privacidade e permissões testadas |
+| K — Release | Jornada por papel; carga/acessibilidade; backup restaurado; alertas/runbooks; revisão de migrations; PR `develop → main` | Etapa 11 `DONE`: revisão homologada pronta para autorização explícita de promoção |
+
+### Trilhas transversais
+
+- **Segurança e contrato:** cada mutação inclui Zod compartilhado, permissionamento por ação, allowlist, RLS, RPC, idempotência, auditoria e teste do papel indevido.
+- **Concorrência:** última unidade/número, transferência, limite promocional, recebimento, pagamento e estorno são exercitados contra PostgreSQL real, inclusive replay e ordem invertida.
+- **Desempenho do PDV:** registrar baseline antes de ampliar cada jornada, paginar consultas, carregar recursos secundários sob demanda e publicar tarefas após commit por outbox. A CI deve impedir regressões relevantes de bundle e tempo da jornada crítica com base no baseline medido.
+- **Fronteiras de implantação:** Portal administrativo, experiência do consumidor, PDV e Jobs compartilham contratos e banco, mas não importam runtime entre apps. APIs/eventos permanecem nas fronteiras para permitir Workers separados no futuro sem assumir custo ou topologia antes de haver medição.
+- **Payment Link:** capturar schemas e validar acesso ao sandbox durante as ondas A–F. O restante do projeto continua enquanto esse acesso não for necessário; a onda G não pode ser homologada sem credenciais configuradas diretamente no ambiente governado.
+- **Dívida técnica observada:** remover os oito warnings de lint atuais e atualizar as actions antes que a compatibilidade forçada de Node.js 24 deixe de ser tolerada. Essa limpeza deve ocorrer em PR próprio e não será misturada às regras financeiras.
+
 ## Gates e lançamento
 
 Aplicar lint, typecheck, unitários, SQL, integração concorrente, E2E Chromium, builds Next/Vinext e scan conforme a mudança. Exigir CI verde, revisão e smoke funcional em staging, além de homologação humana onde indicada na matriz. Alteração documental requer integridade e QA visual do DOCX, links e coerência; não exige recriar runtime.
@@ -55,7 +125,7 @@ Evidência local específica: 19 pgTAP novos e teste de concorrência real para 
 
 ## Incremento de navegação e perfil — 08/09/2026
 
-Etapa 9 em implementação: perfil editável com nome/foto e apresentação, turma e preferências opcionais privadas; acesso compartilhado por papel sem mudança de privilégios. Shell com scroll independente e seletor de visão ADMIN/consumidor. Etapa 5: retorno visível ao Portal no PDV e fechamento carregado sob demanda. A possibilidade de separar Workers está descrita em [PORTAL_EXPERIENCES.md](PORTAL_EXPERIENCES.md), sem decisão de infraestrutura. Implementação local aguardando gates e staging; mural, recomendador e demais jornadas continuam pendentes.
+Etapa 9 em implementação: perfil editável com nome/foto e apresentação, turma e preferências opcionais privadas; acesso compartilhado por papel sem mudança de privilégios. Shell com scroll independente e seletor de visão ADMIN/consumidor. Etapa 5: retorno visível ao Portal no PDV e fechamento carregado sob demanda. A possibilidade de separar Workers está descrita em [PORTAL_EXPERIENCES.md](PORTAL_EXPERIENCES.md), sem decisão de infraestrutura. O PR #54 foi integrado em `develop` (`8ecf543`) com Quality `34258353543` e Deploy Staging `34258353468` verdes; mural, recomendador e demais jornadas continuam pendentes.
 
 Categorias integradas no PR #53 (`248a6f9`), CI e staging verdes em 08/09. A etapa 1 continua aberta para produtos, preços, imagens, canais e demais configurações.
 
@@ -63,4 +133,4 @@ Categorias integradas no PR #53 (`248a6f9`), CI e staging verdes em 08/09. A eta
 
 Segunda fatia da etapa 1: produtos têm criação, edição e inativação por `save_catalog_product` e `POST /api/v1/admin/catalog/products`, sempre com `catalog.manage`, motivo, chave idempotente e revisão otimista. O banco gera o SKU canônico no primeiro salvamento e ele permanece imutável; a auditoria preserva antes/depois. Categoria precisa estar ativa. Portal e PDV só podem ser habilitados quando já houver preço vigente, evitando publicar uma oferta sem cotação autoritativa.
 
-A interface `/admin/catalogo` permite configurar categoria, identificador, descrição, atividade, canais, reserva e controle de lote em tela responsiva. Gestão de preço, histórico visível e imagens Storage continuam como próximos incrementos da etapa 1. A evidência local cobre SQL, corrida real, contratos e E2E; integração de staging será anotada após PR/CI/smoke. Produção permanece intacta.
+A interface `/admin/catalogo` permite configurar categoria, identificador, descrição, atividade, canais, reserva e controle de lote em tela responsiva. Gestão de preço, histórico visível e imagens Storage continuam como próximos incrementos da etapa 1. O PR #55 foi integrado em `develop` (`8511389`); Quality pós-merge `34474857272` e Deploy Staging `34474857241` passaram. O smoke autenticado específico do produto permanece pendente para fechar a evidência da jornada. Produção permanece intacta.
