@@ -6,9 +6,9 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `8511389` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos. Os históricos têm 2 commits exclusivos em `main` e 37 em `develop`, 218 arquivos diferentes e 16 migrations adicionais em `develop`. Isso mede divergência de conteúdo, não quantidade de features nem prontidão de produção.
+Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `3c429ce` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos e preços. Os históricos têm 2 commits exclusivos em `main` e 39 em `develop`, 225 arquivos diferentes e 17 migrations adicionais em `develop`. Isso mede divergência de conteúdo, não quantidade de features nem prontidão de produção.
 
-O PR #55 passou pela Quality do PR e foi integrado em `develop`. Quality pós-merge `34474857272` e Deploy Staging `34474857241` concluíram verdes; o deploy aplicou a migration, publicou Portal/PDV/Jobs e passou health e service binding. O smoke autenticado específico da administração de produtos ainda deve ser registrado antes de fechar a etapa 1. Produção não foi acessada. A branch `feat/catalog-product-prices` contém o próximo incremento, transplantado sobre o squash de produtos e novamente validado antes do PR. `feat/catalog-images` não contém incremento próprio.
+O PR #55 de produtos e o PR #57 de preços foram integrados em `develop`. Para preços, Quality pós-merge `34479342406` e Deploy Staging `34479342414` concluíram verdes; o deploy aplicou a migration, publicou Portal/PDV/Jobs e passou health e service binding. O smoke autenticado específico da oferta completa ainda deve ser registrado antes de fechar a etapa 1. Produção não foi acessada. `feat/catalog-images` está alinhada a esse HEAD e ainda não contém incremento próprio.
 
 ## Visualização do andamento
 
@@ -78,7 +78,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: integrar este replanejamento; transplantar apenas o commit de preços sobre o novo `develop`; repetir gates e integrar preços; iniciar imagens a partir desse novo HEAD; executar o smoke autenticado da oferta completa. Isso evita carregar no histórico os commits pré-squash de produtos.
+Sequência imediata: implementar imagens a partir do novo `develop`; integrar metadados e ciclo seguro no Storage; executar o smoke autenticado da oferta completa; fechar a etapa 1 e iniciar a operação de estoque. Produtos e preços já foram transplantados, revalidados e integrados sem carregar commits pré-squash.
 
 | Onda | PRs coesos em ordem | Saída da onda |
 | --- | --- | --- |
@@ -139,4 +139,4 @@ A interface `/admin/catalogo` permite configurar categoria, identificador, descr
 
 Terceira fatia da etapa 1: `set_catalog_product_price` recebe centavos inteiros, motivo, chave idempotente e a revisão atual do produto. A operação bloqueia o produto, fecha somente a vigência aberta, inclui uma nova faixa e incrementa a revisão. Valor e intervalo anteriores nunca são reescritos. Quando já existe um preço futuro, a nova faixa termina no início desse agendamento, mantendo-o preservado.
 
-`POST /api/v1/admin/catalog/product-prices` e `GET /api/v1/admin/catalog/products/:id/prices` exigem `catalog.manage`; a leitura usa cursor por vigência e mostra apenas o histórico do produto autorizado. A interface de `/admin/catalogo` permite informar o valor em reais, consultar histórico paginado e identificar preço vigente, agendado ou encerrado. SQL, contratos, corrida concorrente, interface responsiva e bloqueios de consumidor estão cobertos localmente; a integração de staging será registrada depois do PR e dos smokes. Imagens Storage continuam pendentes nesta etapa.
+`POST /api/v1/admin/catalog/product-prices` e `GET /api/v1/admin/catalog/products/:id/prices` exigem `catalog.manage`; a leitura usa cursor por vigência e mostra apenas o histórico do produto autorizado. A interface de `/admin/catalogo` permite informar o valor em reais, consultar histórico paginado e identificar preço vigente, agendado ou encerrado. O PR #57 foi integrado em `develop` (`3c429ce`); Quality pós-merge `34479342406` e Deploy Staging `34479342414` passaram. Imagens Storage e o smoke autenticado da oferta completa continuam pendentes nesta etapa.
