@@ -57,6 +57,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isPublic) return;
+    const previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => { document.documentElement.style.overflow = previousOverflow; };
+  }, [isPublic]);
+
+  useEffect(() => {
+    if (isPublic) return;
     let active = true;
     Promise.all([
       fetch("/api/auth/me").then(async (response) => response.ok ? response.json() as Promise<{ user: SidebarUser }> : null),
