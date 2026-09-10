@@ -1,4 +1,4 @@
-export type ApiAccessLevel = "public" | "authenticated" | "seller" | "finance" | "admin";
+export type ApiAccessLevel = "public" | "authenticated" | "seller" | "finance" | "inventory" | "admin";
 
 interface ApiAccessRule {
   path: string;
@@ -13,6 +13,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/catalog/product-images", methods: ["POST", "PUT"], access: "admin" },
   { path: "/api/v1/admin/catalog/product-images/:id", methods: ["DELETE"], access: "admin" },
   { path: "/api/v1/admin/catalog/products/:id/prices", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/inventory/distributions", methods: ["POST"], access: "inventory" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
@@ -117,6 +118,7 @@ export function rolesSatisfyAccess(roles: readonly string[], access: ApiAccessLe
   if (access === "public" || access === "authenticated") return true;
   if (access === "admin") return roles.includes("ADMIN");
   if (access === "finance") return roles.includes("ADMIN") || roles.includes("FINANCEIRO");
+  if (access === "inventory") return roles.includes("ADMIN") || roles.includes("ESTOQUE");
   return roles.includes("ADMIN") || roles.includes("VENDEDOR");
 }
 
