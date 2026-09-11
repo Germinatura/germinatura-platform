@@ -8,7 +8,7 @@ test("Admin switches experience and shell has independent scroll regions", async
   await page.goto("/admin/estoque");
   const sidebar = page.locator("aside");
   await expect(sidebar.getByRole("link", { name: "Visão do consumidor" })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).overflowY)).toBe("hidden");
   const nav = sidebar.getByTestId("sidebar-scroll-container");
   await nav.evaluate((element) => { element.scrollTop = 300; });
   expect(await nav.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -25,7 +25,9 @@ test("Admin switches experience and shell has independent scroll regions", async
   await content.evaluate((element) => { element.scrollTop = 400; });
   expect(await content.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
-  await sidebar.getByRole("link", { name: "Visão administrativa" }).click();
+  const adminExperienceLink = sidebar.getByRole("link", { name: "Visão administrativa" });
+  await adminExperienceLink.scrollIntoViewIfNeeded();
+  await adminExperienceLink.click();
   await expect(page).toHaveURL(origin + "/");
   await expect(sidebar.getByRole("link", { name: "Usuários e vendedores" })).toBeVisible();
 });

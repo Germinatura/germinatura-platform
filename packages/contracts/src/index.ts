@@ -5,6 +5,7 @@ export * from "./catalog-categories";
 export * from "./catalog-products";
 export * from "./catalog-product-images";
 export * from "./catalog-product-prices";
+export * from "./inventory-distribution";
 
 export const moneyCentsSchema = z.number()
   .int()

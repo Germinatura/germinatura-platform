@@ -243,7 +243,7 @@ describe("concorrencia real de reservas", () => {
         "reserve_stock",
         reservationParameters(`integration-reserve-${randomUUID()}`, raceOrigin),
       ),
-      rpc(config, accessToken, "transfer_stock", {
+      rpc(config, accessToken, "distribute_stock", {
         p_from_location_id: CENTRAL_LOCATION_ID,
         p_to_location_id: SELLER_LOCATION_ID,
         p_product_id: PRODUCT_ID,

@@ -7,6 +7,7 @@ import {
   commercialReservationCancelResponseSchema,
   commercialReservationConvertResponseSchema,
   commercialReservationCreateRequestSchema,
+  distributeStockSchema,
   confirmedSaleReversalRequestSchema,
   credentialLoginRequestSchema,
   createApiClient,
@@ -59,6 +60,24 @@ import {
 } from "./index";
 
 describe("shared contracts", () => {
+  it("validates a central stock distribution without accepting client balances", () => {
+    expect(distributeStockSchema.parse({
+      fromLocationId: "50000000-0000-4000-8000-000000000001",
+      toLocationId: "50000000-0000-4000-8000-000000000002",
+      productId: "33000000-0000-4000-8000-000000000001",
+      quantity: 3,
+      reason: "Distribuição para o vendedor",
+    }).quantity).toBe(3);
+    expect(distributeStockSchema.safeParse({
+      fromLocationId: "50000000-0000-4000-8000-000000000001",
+      toLocationId: "50000000-0000-4000-8000-000000000002",
+      productId: "33000000-0000-4000-8000-000000000001",
+      quantity: 3,
+      reason: "Distribuição para o vendedor",
+      availableQuantity: 999,
+    }).success).toBe(false);
+  });
+
   it("validates the administrative user listing without credentials", () => {
     const parsed = adminUsersResponseSchema.parse({
       data: [{
