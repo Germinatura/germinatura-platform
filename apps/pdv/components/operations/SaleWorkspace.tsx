@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PdvSessionUser } from "@/app/page";
 import dynamic from "next/dynamic";
 const CloseoutWorkspace = dynamic(() => import("@/components/operations/CloseoutWorkspace").then((module) => module.CloseoutWorkspace), { loading: () => <p role="status" className="p-6">Carregando fechamento…</p> });
+const StockTransferWorkspace = dynamic(() => import("@/components/operations/StockTransferWorkspace").then((module) => module.StockTransferWorkspace), { loading: () => <p role="status" className="p-6">Carregando transferências…</p> });
 import { useToast } from "@/components/ui/Toast";
 import {
   cancelPendingSale, checkoutCart, confirmManualPayment, formatMoney, loadCatalog,
@@ -36,7 +37,7 @@ const messageFrom = (error: unknown) => error instanceof Error ? error.message :
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
 export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
-  const [view, setView] = useState<"sale" | "closeout">("sale");
+  const [view, setView] = useState<"sale" | "transfers" | "closeout">("sale");
   const [catalog, setCatalog] = useState<PublicCatalogProduct[]>([]);
   const [inventory, setInventory] = useState<InventoryContext | null>(null);
   const [locationId, setLocationId] = useState("");
@@ -178,19 +179,20 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
       </header>
       {!online && <div role="status" className="border-b border-[var(--g-status-warning)]/40 bg-[var(--g-status-warning-soft)] px-4 py-3 text-center text-sm font-semibold text-[var(--g-status-warning-foreground)]"><WifiOff className="mr-2 inline size-4" /> Sem internet. O catálogo permanece visível, mas ações de venda estão bloqueadas.</div>}
 
-      {canCloseout && <nav aria-label="Operação do PDV" className="border-b border-[var(--g-border-subtle)] bg-[var(--g-surface-default)]"><div className="mx-auto flex max-w-[var(--g-content-wide)] gap-1 px-4 md:px-6"><button type="button" aria-current={view === "sale" ? "page" : undefined} onClick={() => setView("sale")} className={`min-h-12 border-b-2 px-4 text-sm font-semibold ${view === "sale" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Operação</button><button type="button" aria-current={view === "closeout" ? "page" : undefined} onClick={() => setView("closeout")} className={`min-h-12 border-b-2 px-4 text-sm font-semibold ${view === "closeout" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Fechamento</button></div></nav>}
+      {canCloseout && <nav aria-label="Operação do PDV" className="overflow-x-auto border-b border-[var(--g-border-subtle)] bg-[var(--g-surface-default)]"><div className="mx-auto flex max-w-[var(--g-content-wide)] gap-1 px-4 md:px-6"><button type="button" aria-current={view === "sale" ? "page" : undefined} onClick={() => setView("sale")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "sale" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Operação</button><button type="button" aria-current={view === "transfers" ? "page" : undefined} onClick={() => setView("transfers")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "transfers" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Transferências</button><button type="button" aria-current={view === "closeout" ? "page" : undefined} onClick={() => setView("closeout")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "closeout" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Fechamento</button></div></nav>}
 
       <div className="mx-auto max-w-[var(--g-content-wide)] px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div><Badge tone="success"><Check className="size-3.5" /> Acesso autorizado</Badge>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">{view === "closeout" ? "Fechamento" : { catalog: "Nova venda", review: "Revisar venda", payment: "Confirmar pagamento", success: "Venda concluída" }[step]}</h1>
-            <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{view === "closeout" ? "Confira o período, conte o estoque físico e registre divergências." : { catalog: "Selecione os produtos e quantidades para começar.", review: "Confira os valores recalculados pelo servidor antes de cobrar.", payment: "Registre somente depois de confirmar o recebimento fora do sistema.", success: "Pagamento, estoque e financeiro foram registrados juntos." }[step]}</p>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">{view === "closeout" ? "Fechamento" : view === "transfers" ? "Transferências entre vendedores" : { catalog: "Nova venda", review: "Revisar venda", payment: "Confirmar pagamento", success: "Venda concluída" }[step]}</h1>
+            <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{view === "closeout" ? "Confira o período, conte o estoque físico e registre divergências." : view === "transfers" ? "Solicite produtos e aceite apenas movimentações destinadas ao seu estoque." : { catalog: "Selecione os produtos e quantidades para começar.", review: "Confira os valores recalculados pelo servidor antes de cobrar.", payment: "Registre somente depois de confirmar o recebimento fora do sistema.", success: "Pagamento, estoque e financeiro foram registrados juntos." }[step]}</p>
           </div>
           {view === "sale" && step === "review" && <Button variant="ghost" onClick={() => setStep("catalog")} disabled={action !== null}><ArrowLeft className="size-4" /> <span className="hidden sm:inline">Voltar</span></Button>}
         </div>
         {view === "sale" && error && <div role="alert" className="mb-6 flex items-start gap-3 rounded-[var(--g-radius-card)] border border-[var(--g-status-danger)]/50 bg-[var(--g-surface-default)] p-4 text-sm"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-[var(--g-status-danger)]" /><div><p className="font-semibold">Não foi possível continuar</p><p className="mt-1 text-[var(--g-text-secondary)]">{error}</p></div></div>}
 
-        {view === "closeout" && inventory ? <CloseoutWorkspace catalog={catalog} inventory={inventory} online={online} />
+        {view === "transfers" ? <StockTransferWorkspace online={online} />
+          : view === "closeout" && inventory ? <CloseoutWorkspace catalog={catalog} inventory={inventory} online={online} />
           : inventory?.locations.length === 0 ? <EmptyState icon={Store} title="Nenhuma localização disponível" description="Peça a um administrador para ativar a localização deste PDV antes de iniciar vendas." onRetry={refreshData} />
           : step === "catalog" ? <CatalogStep catalog={filteredCatalog} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
           : step === "review" && quote ? <ReviewStep quote={quote} online={online} loading={action === "checkout"} onCheckout={startCheckout} />

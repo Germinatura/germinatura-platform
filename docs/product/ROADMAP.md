@@ -55,7 +55,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
-| 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição central→vendedor em implementação; ainda faltam solicitação/aceite entre vendedores, devolução, perda, inventário e ajustes aprovados; nenhum saldo direto |
+| 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição central→vendedor e solicitação/aceite entre vendedores implementadas; ainda faltam devolução, perda, inventário, ajustes aprovados e conclusão de “Meu estoque”; nenhum saldo direto |
 | 3 — Compras e custos | TODO | 1, 2 | Fornecedor, pedidos, custos/frete, recebimento parcial, lotes/validade e obrigação financeira sem duplicação; custo rastreável |
 | 4 — Promoções completas | TODO | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
@@ -78,7 +78,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: obter uma conta de homologação para o smoke autenticado da oferta completa sem bloquear o trabalho independente; integrar a distribuição central→vendedor e seguir com transferência solicitada/aceita. Produtos, preços e imagens já estão integrados sem carregar commits pré-squash.
+Sequência imediata: obter uma conta de homologação para o smoke autenticado da oferta completa sem bloquear o trabalho independente; concluir devoluções e perdas após distribuição central→vendedor e transferência solicitada/aceita. Produtos, preços e imagens já estão integrados sem carregar commits pré-squash.
 
 | Onda | PRs coesos em ordem | Saída da onda |
 | --- | --- | --- |
@@ -152,3 +152,9 @@ Portal e PDV mostram a capa sem bloquear o carregamento do catálogo. O service 
 Primeira fatia da etapa 2: `distribute_stock` restringe a origem à central ativa e o destino a uma localização ativa de vendedor, então chama a transferência existente sob o mesmo lock, ledger e idempotência. O retorno usa a correlação persistida do movimento, inclusive em replay. `POST /api/v1/admin/inventory/distributions` exige `inventory.manage`; a allowlist aceita Admin ou Estoque e bloqueia Vendedor/Consumidor antes da rota.
 
 A interface `/admin/estoque` lista apenas produtos ativos com saldo disponível na central e exige destino, quantidade inteira e motivo. Ela não altera projeções diretamente e orienta atualização em conflito. Evidência local atual: 81 unitários, 871 pgTAP, oito testes de integração com corrida entre reserva e distribuição e 27/27 E2E Chromium, incluindo bloqueio do consumidor e reversão da preparação do teste. Lint, typecheck, builds Next/Vinext e scan também passaram. O lint do banco repete apenas a pendência histórica de `private.expire_due_generic_stock_reservations`; PR, CI e staging desta fatia ainda estão pendentes.
+
+## Incremento de transferências entre vendedores — 11/09/2026
+
+O vendedor de destino solicita produto e quantidade a outra localização de vendedor. A solicitação não reserva nem movimenta saldo; o vendedor de origem pode aceitar ou recusar e o solicitante pode cancelar enquanto estiver pendente. O aceite revalida as localizações e o disponível dentro da mesma transação, trava os saldos em ordem estável e registra movimento imutável, auditoria, outbox e resultado idempotente. O histórico usa cursor e limite de até 50 registros.
+
+O PDV carrega a área de transferências somente quando a aba é aberta, bloqueia mutações offline e mantém chaves de idempotência durante retentativas incertas. Evidência local: 82 unitários, 897 pgTAP, nove testes de integração concorrente e a jornada Chromium em duas sessões de vendedor. Na bateria E2E ampla, 25 cenários passaram; três esperas em modo dev foram repetidas isoladamente e passaram, incluindo a adaptação do fechamento para uma posição de saldo zero criada por transferência e reversão. Lint, typecheck, builds Next e scan passaram. O advisor do banco repete somente a pendência histórica de `private.expire_due_generic_stock_reservations`.

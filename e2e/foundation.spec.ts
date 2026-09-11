@@ -785,7 +785,7 @@ test("Seller enters the PDV and cannot use a consumer-only bypass", async ({ pag
 
   await page.getByRole("button", { name: "Fechamento" }).click();
   await expect(page.getByRole("heading", { name: "Fechamento" })).toBeVisible();
-  await expect(page.getByText("Nenhum item para contar")).toBeVisible();
+  await expect(page.getByText(/Nenhum item para contar|saldo do sistema 0/).first()).toBeVisible();
   await page.getByRole("button", { name: "Operação" }).click();
   await expect(page.getByRole("heading", { name: "Nova venda" })).toBeVisible();
 

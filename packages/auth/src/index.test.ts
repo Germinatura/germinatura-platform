@@ -8,6 +8,9 @@ describe("RBAC", () => {
 
   it("supports the complete v2.1 role set", () => {
     expect(hasPermission({ roles: ["ESTOQUE"] }, "inventory.manage")).toBe(true);
+    expect(hasPermission({ roles: ["VENDEDOR"] }, "inventory.transfer.own")).toBe(true);
+    expect(hasPermission({ roles: ["ADMIN"] }, "inventory.transfer.own")).toBe(true);
+    expect(hasPermission({ roles: ["ESTOQUE"] }, "inventory.transfer.own")).toBe(false);
     expect(hasPermission({ roles: ["FINANCEIRO"] }, "finance.manage")).toBe(true);
     expect(hasPermission({ roles: ["FINANCEIRO"] }, "closeouts.manage")).toBe(true);
     expect(hasPermission({ roles: ["COMUNICACAO"] }, "communications.manage")).toBe(true);
