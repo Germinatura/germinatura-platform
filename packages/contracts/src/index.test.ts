@@ -49,6 +49,10 @@ import {
   sellerCloseoutRequestSchema,
   sellerCloseoutResponseSchema,
   reopenSellerCloseoutRequestSchema,
+  requestSellerStockTransferSchema,
+  resolveSellerStockTransferSchema,
+  sellerStockTransferContextResponseSchema,
+  sellerStockTransferQuerySchema,
   sessionUserSchema,
   signupCompleteSchema,
   signupRequestSchema,
@@ -60,6 +64,30 @@ import {
 } from "./index";
 
 describe("shared contracts", () => {
+  it("validates seller transfer requests, decisions and context", () => {
+    const source = "50000000-0000-4000-8000-000000000002";
+    const destination = "50000000-0000-4000-8000-000000000003";
+    const product = "33000000-0000-4000-8000-000000000001";
+    expect(requestSellerStockTransferSchema.parse({ fromLocationId: source, productId: product, quantity: 2, reason: "Reposição para venda" }).quantity).toBe(2);
+    expect(requestSellerStockTransferSchema.safeParse({ fromLocationId: source, productId: product, quantity: 1, reason: "ok", total: 10 }).success).toBe(false);
+    expect(resolveSellerStockTransferSchema.safeParse({ action: "APPROVE", reason: "Saldo conferido" }).success).toBe(false);
+    expect(sellerStockTransferQuerySchema.parse({ limit: "20" }).limit).toBe(20);
+    expect(sellerStockTransferQuerySchema.safeParse({ limit: "51" }).success).toBe(false);
+    expect(sellerStockTransferContextResponseSchema.parse({
+      data: {
+        ownLocationId: destination, nextCursor: null,
+        options: [{ fromLocationId: source, fromLocationName: "Vendedor origem", productId: product, productName: "Doce", productSku: "DOCE-1", availableQuantity: 3 }],
+        requests: [{
+          id: "63000000-0000-4000-8000-000000000001", fromLocationId: source, fromLocationName: "Vendedor origem",
+          toLocationId: destination, toLocationName: "Vendedor destino", productId: product, productName: "Doce", productSku: "DOCE-1",
+          quantity: 2, status: "REQUESTED", requestedBy: "10000000-0000-4000-8000-000000000004",
+          requestReason: "Reposição para venda", decisionReason: null, movementId: null,
+          createdAt: "2026-09-11T10:00:00.000Z", decidedAt: null,
+        }],
+      }, request_id: "request-transfer",
+    }).data.requests).toHaveLength(1);
+  });
+
   it("validates a central stock distribution without accepting client balances", () => {
     expect(distributeStockSchema.parse({
       fromLocationId: "50000000-0000-4000-8000-000000000001",

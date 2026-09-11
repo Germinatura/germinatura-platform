@@ -6,6 +6,7 @@ export * from "./catalog-products";
 export * from "./catalog-product-images";
 export * from "./catalog-product-prices";
 export * from "./inventory-distribution";
+export * from "./seller-stock-transfers";
 
 export const moneyCentsSchema = z.number()
   .int()
@@ -688,6 +689,7 @@ export const permissionSchema = z.enum([
   "catalog.manage",
   "inventory.read",
   "inventory.manage",
+  "inventory.transfer.own",
   "sales.create",
   "sales.read.own",
   "sales.read.all",

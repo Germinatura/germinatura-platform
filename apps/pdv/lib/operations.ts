@@ -5,12 +5,16 @@ import {
   sellerCloseoutResponseSchema,
   salesCancelResponseSchema,
   salesCheckoutResponseSchema,
+  sellerStockTransferContextResponseSchema,
+  sellerStockTransferMutationResponseSchema,
   type ManualPaymentConfirmationResponse,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
   type PublicCatalogProduct,
   type SellerCloseoutResponse,
   type SalesCheckoutResponse,
+  type SellerStockTransferContextResponse,
+  type SellerStockTransferMutationResponse,
 } from "@germinatura/contracts";
 import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -187,5 +191,45 @@ export async function cancelPendingSale(saleId: string, idempotencyKey: string) 
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível cancelar a venda pendente."));
   const parsed = salesCancelResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("O cancelamento retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function loadSellerStockTransfers(cursor?: string): Promise<SellerStockTransferContextResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/transfer-requests?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as transferências."));
+  const parsed = sellerStockTransferContextResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A consulta de transferências retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function requestSellerStockTransfer(
+  input: { fromLocationId: string; productId: string; quantity: number; reason: string },
+  idempotencyKey: string,
+): Promise<SellerStockTransferMutationResponse["data"]> {
+  const response = await apiFetch("/api/v1/inventory/transfer-requests", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível solicitar a transferência."));
+  const parsed = sellerStockTransferMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A solicitação de transferência retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function resolveSellerStockTransfer(
+  requestId: string,
+  action: "ACCEPT" | "REJECT" | "CANCEL",
+  reason: string,
+  idempotencyKey: string,
+): Promise<SellerStockTransferMutationResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/transfer-requests/${requestId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ action, reason }),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível decidir a transferência."));
+  const parsed = sellerStockTransferMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A decisão da transferência retornou dados inválidos.");
   return parsed.data.data;
 }
