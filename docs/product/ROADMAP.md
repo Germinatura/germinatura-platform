@@ -1,28 +1,28 @@
 # Roadmap oficial — conclusão Germinatura v2.2
 
-Replanejado em 07/09/2026 pelo plano aprovado. Substitui congelamento em 10/09 e promoção em 11/09 por marcos de aceite, sem nova promessa de data. Fonte: especificação v2.2, PRD e ADRs 0001–0010. A matriz em [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md) distingue backend, interface, testes, staging e produção.
+Replanejado em 11/09/2026 após a PR #61 para reduzir o caminho crítico por paralelismo, sem remover escopo, critérios de aceite ou gates. Substitui congelamento em 10/09 e promoção em 11/09 por marcos de aceite, sem nova promessa de data. Fonte: especificação v2.2, PRD e ADRs 0001–0010. A matriz em [REQUIREMENTS_MATRIX.md](REQUIREMENTS_MATRIX.md) distingue backend, interface, testes, staging e produção.
 
 Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, testes e homologação do marco. Um backend integrado não torna o módulo inteiro concluído. Integração indisponível não conta como implementação.
 
 ## Base auditada
 
-Snapshot de 10/09/2026: `main` permanece em `95c4209`; `develop` avançou para `dc9007c` com documentação reconciliada, categorias, perfil/navegação e administração transacional de produtos, preços e imagens. A divergência mede conteúdo, não quantidade de features nem prontidão de produção.
+Snapshot de 11/09/2026: `main` permanece em `95c4209`; `develop` está em `97c7c9d` após a PR #61. Categorias, produtos, preços, imagens, perfil/navegação, distribuição central→vendedor e transferências solicitadas/aceitas entre vendedores estão integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
 
-O PR #59 de imagens foi integrado em `develop` depois do PR #55 de produtos e do PR #57 de preços. Quality pós-merge `34515563525` e Deploy Staging `34515563962` concluíram verdes; health, catálogo via Service Binding e bloqueio anônimo do upload foram confirmados. O catálogo de staging está vazio e a fixture local não autentica nesse ambiente, então a oferta completa ainda requer uma conta de homologação para o smoke autenticado. Produção não foi acessada.
+Quality da PR #61 `34634498712`, Quality pós-merge `34635184281` e Deploy Staging `34635184315` concluíram verdes. O deploy aplicou a migration de transferências e passou health de Portal/PDV/Jobs e Service Binding. A oferta completa ainda requer smoke autenticado com conta institucional controlada; Payment Link continua desligado e sem credenciais de sandbox configuradas. Produção não foi acessada.
 
 ## Visualização do andamento
 
 | Situação | Etapas | Leitura operacional |
 | --- | --- | --- |
 | `DONE` | 0 | Planejamento, matriz, ADR de Payment Link/dinheiro e regras de release reconciliados |
-| `IN PROGRESS` | 1, 2, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
-| `TODO` | 3, 4, 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
+| `IN PROGRESS` | 1, 2, 4, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
+| `TODO` | 3, 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
 
 ```mermaid
 flowchart LR
     E0["0 · Planejamento<br/>DONE"] --> E1["1 · Catálogo<br/>IN PROGRESS"]
     E1 --> E2["2 · Estoque<br/>IN PROGRESS"]
-    E1 --> E4["4 · Promoções<br/>TODO"]
+    E1 --> E4["4 · Promoções<br/>IN PROGRESS"]
     E2 --> E3["3 · Compras e custos<br/>TODO"]
     E2 --> E5["5 · PDV e caixa<br/>IN PROGRESS"]
     E4 --> E5
@@ -44,8 +44,8 @@ flowchart LR
     classDef todo fill:#e5e7eb,stroke:#4b5563,color:#111827;
     classDef external fill:#ede9fe,stroke:#6d28d9,color:#4c1d95;
     class E0 done;
-    class E1,E2,E5,E6,E8,E9 progress;
-    class E3,E4,E7,E10,E11 todo;
+    class E1,E2,E4,E5,E6,E8,E9 progress;
+    class E3,E7,E10,E11 todo;
     class S external;
 ```
 
@@ -57,7 +57,7 @@ flowchart LR
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
 | 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição central→vendedor e solicitação/aceite entre vendedores implementadas; ainda faltam devolução, perda, inventário, ajustes aprovados e conclusão de “Meu estoque”; nenhum saldo direto |
 | 3 — Compras e custos | TODO | 1, 2 | Fornecedor, pedidos, custos/frete, recebimento parcial, lotes/validade e obrigação financeira sem duplicação; custo rastreável |
-| 4 — Promoções completas | TODO | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
+| 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
 | 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões, contas/categorias, despesas, taxas, recebíveis, conciliação, importação validada por arquivo oficial e CSV real |
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
@@ -66,9 +66,47 @@ flowchart LR
 | 10 — Campanhas e comunidade | TODO | 8, 9 | Vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me, segmentação, mural, sugestões, enquetes e moderação |
 | 11 — Homologação e release | TODO | 1–10 | Jornada por papel, carga/acessibilidade, backup restaurado, alertas, runbooks, migrations revisadas e promoção autorizada |
 
+## Plano paralelo de conclusão
+
+O caminho crítico foi dividido em braços que avançam simultaneamente e convergem na homologação integrada:
+
+| Onda | Trilhas paralelas | Saída objetiva | Esforço relativo |
+| --- | --- | --- | --- |
+| 0 — Controle e desbloqueios | Documentação/evidências; limpeza de CI; conta institucional; acesso sandbox e URL de webhook | Estado real registrado e gates externos com responsável, sem secrets no Git ou chat | P |
+| 1 — Fundações transacionais | Estoque; compras; promoções; intenção/receipt de pagamento; sessões/auditoria; contratos de campanhas/comunidade | Contratos, permissões e invariantes estáveis para as jornadas seguintes | GG |
+| 2 — Operação interna | Devolução/perda/inventário; recebimento/custo; promoções completas; turno/caixa; financeiro; campanhas | Operação interna completa e custos rastreáveis | GG |
+| 3 — Compra e pagamento | Carrinho/pedido; Payment Link; reservas; rifas; reembolsos; importação/CSV | Venda, estoque e financeiro refletem pagamento ou estorno exatamente uma vez | GG |
+| 4 — Gestão e comunidade | Indicadores; auditoria; conta/sessões; notificações; mural, enquetes e moderação | Cada papel conclui sua jornada e papéis indevidos são bloqueados também no banco | G |
+| 5 — Homologação contínua | Staging por PR; concorrência; acessibilidade; desempenho; dispositivos; migrations; restore e alertas | A homologação final contém somente integração cruzada e correções residuais | G |
+| 6 — Candidato e release | SHA congelado, gates completos, runbooks e PR `develop → main` | Revisão homologada pronta para autorização explícita | M |
+
+Dependências críticas: estoque→compras/custos→financeiro/margem; catálogo→promoções→carrinho/pedidos; intenção local + credenciais→Payment Link→reservas/rifas/reembolsos. Campanhas editoriais, mural, sessões, auditoria e notificações avançam sem esperar Payment Link. O adapter pode ser construído e testado com contratos oficiais e fixtures locais, mas sandbox e webhook real não serão declarados homologados sem credenciais configuradas no ambiente governado.
+
+### Fronteiras para trabalho paralelo
+
+- Estoque/compras concentra migrations e APIs de inventário/procurement e a área de estoque do PDV.
+- Pricing/promoções concentra `packages/domain`, contratos de cotação e migrations de promoção.
+- Pagamentos/financeiro concentra `packages/payments`, ledger financeiro, Jobs e integrações externas.
+- Portal consumidor/crescimento consome os contratos publicados por APIs/eventos e não importa runtimes administrativos.
+- Gestão/qualidade concentra auditoria, indicadores, sessões, smokes, acessibilidade e runbooks.
+- Cada migration recebe número reservado; uma migration já integrada nunca é editada. Mudanças em permissões, flags e barrels compartilhados entram antes em PR de contrato pequeno.
+
+### Bloqueios externos antecipados
+
+| Bloqueio | Necessário para | Trabalho independente permitido |
+| --- | --- | --- |
+| Conta institucional controlada em staging | Smoke autenticado, SMTP/bootstrap e autorização por papel | Desenvolvimento local e smokes anônimos |
+| `client_id`/`client_secret` de sandbox Payment Link | Chamadas reais ao sandbox | Intenção, adapter, receipt, replay e testes locais fail-closed |
+| URL HTTPS e API Key do webhook | Webhook real | Parser, deduplicação e ordem invertida por fixture |
+| Arquivos exportados pelo PicPay Empresas | Homologar importação/conciliação | Schema, prévia, validação e deduplicação por fixture |
+| Dispositivos, terminais e conferência humana | PWA, Maquininha e caixa físico | E2E browser, bundle e regras transacionais |
+| Ambiente de restore | Continuidade operacional | Scripts e runbooks |
+
+Não podem ser acelerados sem perda de qualidade: sandbox e habilitação reais, operação física de caixa/terminal, instalação PWA nos dispositivos-alvo, restore, carga integrada e autorização final para `main`.
+
 ## Execução incremental
 
-Cada etapa comporta PRs pequenos e completos. Começar pela administração transacional do catálogo, sem antecipar integrações financeiras. Preservar Next.js/monorepo, contratos Zod, banco transacional e design system aprovado. Investigar contrato e acesso ao sandbox desde a etapa 0; o avanço independente do catálogo não depende de credenciais PicPay.
+Cada etapa comporta PRs pequenos e completos. O catálogo transacional já está integrado; a próxima fatia é devolução de estoque, seguida por perda e inventário/ajuste aprovado. Em paralelo, as trilhas independentes iniciam contratos de compras, promoções, pagamentos e comunidade. Preservar Next.js/monorepo, contratos Zod, banco transacional e design system aprovado.
 
 Por mutação: permission + rota/allowlist + RLS + RPC + idempotência + interface + teste de abuso. Preço é do servidor, histórico é imutável e tarefas secundárias usam outbox. Se a cotação mudar antes de cobrar, confirmar novamente; a reserva comercial conserva o snapshot.
 
@@ -76,11 +114,11 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 ## Fila contínua de implementação
 
-O trabalho segue sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
+O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: obter uma conta de homologação para o smoke autenticado da oferta completa sem bloquear o trabalho independente; concluir devoluções e perdas após distribuição central→vendedor e transferência solicitada/aceita. Produtos, preços e imagens já estão integrados sem carregar commits pré-squash.
+Sequência imediata: concluir devoluções, perdas, inventário/ajuste aprovado e “Meu estoque”. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, distribuição e transferência solicitada/aceita já estão integrados.
 
-| Onda | PRs coesos em ordem | Saída da onda |
+| Trilha | PRs coesos em ordem interna | Saída da trilha |
 | --- | --- | --- |
 | A — Fechar catálogo | Administração/histórico de preços; imagens com metadados e ciclo seguro no Storage; smoke integrado e atualização da matriz | Etapa 1 `DONE`: administrador publica uma oferta completa e o catálogo anônimo respeita canal, preço e imagem |
 | B — Estoque operacional | Distribuição e localizações; transferência solicitada/aceita; devolução e perda; inventário/ajuste aprovado; “Meu estoque” no PDV | Etapa 2 `DONE`: toda correção é movimento rastreável e disputas não produzem saldo negativo |

@@ -1,14 +1,14 @@
 # Diagnóstico v2.2 — estado atual e conclusão
 
-Auditoria de 07/09/2026: main `95c4209`, develop `8e11422`, checkout limpo. Quality `34171066032` e Deploy Staging `34171066091` verificados verdes. Código, contratos, migrations e testes foram inspecionados; a bateria local não foi repetida nessa auditoria e produção não foi acessada.
+Auditoria atualizada em 11/09/2026: `main=95c4209`, `develop=97c7c9d`, checkout limpo. A PR #61, o Quality pós-merge `34635184281` e o Deploy Staging `34635184315` estão verdes. Código, contratos, 28 migrations e testes foram inspecionados; produção não foi acessada.
 
 A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 
 | Área | Evidência atual | Lacuna real | Marco |
 | --- | --- | --- | --- |
 | Identidade | Cadastro verificado, credenciais, papéis, revogação, bootstrap e recuperação; gestão de usuários em staging | Homologação SMTP/bootstrap; UI de desbloqueio, conta/sessões e handoff seguro Portal→PDV | 9, 11 |
-| Catálogo | Schema/RLS, histórico, GET anon e telas de consulta | Escrita auditada, imagens e gestão completa de categorias/produtos/preços | 1 |
-| Estoque | Ledger, saldo/localizações, reserva consumida pela venda, concorrência real | Distribuição, transferências com aceite, perdas/devoluções e inventário pela UI | 2 |
+| Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
+| Estoque | Ledger, saldo/localizações, reservas, distribuição e transferência com aceite integrados | Perdas, devoluções, inventário, ajustes aprovados e “Meu estoque” completo | 2 |
 | Pricing | QUANTIDADE_PRECO na cotação e checkout | Demais regras, gestão e consumo concorrente dos limites | 4 |
 | PDV | Checkout, confirmação Maquininha/Área Pix, fechamento e PWA read-only | Turno/histórico, caixa físico, método/terminal e dispositivos reais | 5 |
 | Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais | UI completa, contas/categorias/despesas/importação/CSV e custo real | 3, 6 |
@@ -28,8 +28,12 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 - Provider PicPay para todos os pagamentos → dinheiro físico aprovado: adquirência externa continua PicPay; caixa interno recebe identidade própria.
 - Congelamento 10/09 e lançamento 11/09 → plano aprovado de conclusão não opcional por marcos; sem nova data artificial.
 
+## Estratégia de redução do caminho crítico
+
+Estoque/compras, promoções, pagamentos/financeiro, Portal consumidor/crescimento e gestão/qualidade avançam em trilhas paralelas com contratos explícitos. Custos e promoções desbloqueiam mais jornadas e entram antes das telas dependentes. Intenção de pagamento, receipt, deduplicação e adapter fail-closed avançam antes das credenciais; sandbox real continua sendo gate externo. Homologação acompanha cada merge em staging para evitar concentrar concorrência, acessibilidade, performance, dispositivos e restore no final.
+
 ## Bloqueios e riscos
 
 Habilitação, credenciais e execução de sandbox ainda não foram comprovadas; não acessar segredos para produzir evidência documental. Confirmar schemas completos e comportamento de timeout/múltiplos pagamentos por link antes de ativar. Materiais públicos não autorizam integrações privadas de Tap/TEF/SDK, nem V.A./V.R. sem credenciamento.
 
-Treze migrations separam os snapshots auditados: promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
+Vinte e oito migrations formam o schema atual: promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
