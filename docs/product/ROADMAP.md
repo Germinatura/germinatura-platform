@@ -55,7 +55,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
-| 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição central→vendedor e solicitação/aceite entre vendedores implementadas; ainda faltam devolução, perda, inventário, ajustes aprovados e conclusão de “Meu estoque”; nenhum saldo direto |
+| 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição central→vendedor e solicitação/aceite entre vendedores integradas; devolução à central completa localmente e aguardando PR/CI/staging; ainda faltam perda, inventário, ajustes aprovados e conclusão de “Meu estoque”; nenhum saldo direto |
 | 3 — Compras e custos | TODO | 1, 2 | Fornecedor, pedidos, custos/frete, recebimento parcial, lotes/validade e obrigação financeira sem duplicação; custo rastreável |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
@@ -106,7 +106,7 @@ Não podem ser acelerados sem perda de qualidade: sandbox e habilitação reais,
 
 ## Execução incremental
 
-Cada etapa comporta PRs pequenos e completos. O catálogo transacional já está integrado; a próxima fatia é devolução de estoque, seguida por perda e inventário/ajuste aprovado. Em paralelo, as trilhas independentes iniciam contratos de compras, promoções, pagamentos e comunidade. Preservar Next.js/monorepo, contratos Zod, banco transacional e design system aprovado.
+Cada etapa comporta PRs pequenos e completos. O catálogo transacional já está integrado; a devolução de estoque está completa localmente e segue para integração, seguida por perda e inventário/ajuste aprovado. Em paralelo, as trilhas independentes iniciam contratos de compras, promoções, pagamentos e comunidade. Preservar Next.js/monorepo, contratos Zod, banco transacional e design system aprovado.
 
 Por mutação: permission + rota/allowlist + RLS + RPC + idempotência + interface + teste de abuso. Preço é do servidor, histórico é imutável e tarefas secundárias usam outbox. Se a cotação mudar antes de cobrar, confirmar novamente; a reserva comercial conserva o snapshot.
 
@@ -116,7 +116,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: concluir devoluções, perdas, inventário/ajuste aprovado e “Meu estoque”. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, distribuição e transferência solicitada/aceita já estão integrados.
+Sequência imediata: integrar devoluções e concluir perdas, inventário/ajuste aprovado e “Meu estoque”. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, distribuição e transferência solicitada/aceita já estão integrados. A devolução está implementada e validada localmente, sem presumir integração antes do PR e do staging.
 
 | Trilha | PRs coesos em ordem interna | Saída da trilha |
 | --- | --- | --- |
@@ -190,6 +190,12 @@ Portal e PDV mostram a capa sem bloquear o carregamento do catálogo. O service 
 Primeira fatia da etapa 2: `distribute_stock` restringe a origem à central ativa e o destino a uma localização ativa de vendedor, então chama a transferência existente sob o mesmo lock, ledger e idempotência. O retorno usa a correlação persistida do movimento, inclusive em replay. `POST /api/v1/admin/inventory/distributions` exige `inventory.manage`; a allowlist aceita Admin ou Estoque e bloqueia Vendedor/Consumidor antes da rota.
 
 A interface `/admin/estoque` lista apenas produtos ativos com saldo disponível na central e exige destino, quantidade inteira e motivo. Ela não altera projeções diretamente e orienta atualização em conflito. Evidência local atual: 81 unitários, 871 pgTAP, oito testes de integração com corrida entre reserva e distribuição e 27/27 E2E Chromium, incluindo bloqueio do consumidor e reversão da preparação do teste. Lint, typecheck, builds Next/Vinext e scan também passaram. O lint do banco repete apenas a pendência histórica de `private.expire_due_generic_stock_reservations`; PR, CI e staging desta fatia ainda estão pendentes.
+
+## Incremento de devolução de estoque — 11/09/2026
+
+O vendedor solicita a devolução do próprio saldo no PDV e pode cancelá-la enquanto pendente. A solicitação não movimenta estoque. Administração ou Estoque confere a entrega física no Portal e confirma ou recusa; somente a confirmação executa, sob locks estáveis, uma transferência imutável do vendedor para a central. Solicitação, decisão, movimento, auditoria, outbox e resposta idempotente permanecem correlacionados. A allowlist e o banco negam consumidores e impedem que o vendedor confirme o próprio recebimento.
+
+Evidência local: migration aplicada por reset limpo; 83 testes unitários, 925 pgTAP, dez testes de integração e 29 cenários E2E Chromium passaram na ordem governada, incluindo replay depois da mudança de saldo, corrida da última unidade e jornada móvel completa de devolução. Lint concluiu com zero erros e oito avisos históricos no Portal; typecheck, builds e scan passaram. O lint do banco repete apenas a pendência histórica de `private.expire_due_generic_stock_reservations`. PR, CI e staging desta fatia ainda estão pendentes, portanto o incremento permanece `IN PROGRESS`.
 
 ## Incremento de transferências entre vendedores — 11/09/2026
 

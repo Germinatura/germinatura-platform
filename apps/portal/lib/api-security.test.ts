@@ -13,6 +13,10 @@ describe("inventory API access", () => {
   it("allows sellers to use only the transfer request routes", () => {
     expect(apiAccessRule("/api/v1/inventory/transfer-requests")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/inventory/transfer-requests/63000000-0000-4000-8000-000000000001")?.access).toBe("seller");
+    expect(apiAccessRule("/api/v1/inventory/returns")?.access).toBe("seller");
+    expect(apiAccessRule("/api/v1/inventory/returns/63000000-0000-4000-8000-000000000001")?.access).toBe("seller");
+    expect(apiAccessRule("/api/v1/admin/inventory/returns")?.access).toBe("inventory");
+    expect(apiAccessRule("/api/v1/admin/inventory/returns/63000000-0000-4000-8000-000000000001")?.access).toBe("inventory");
     expect(rolesSatisfyAccess(["VENDEDOR"], "seller")).toBe(true);
     expect(rolesSatisfyAccess(["CONSUMIDOR"], "seller")).toBe(false);
   });

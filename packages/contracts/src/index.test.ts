@@ -59,11 +59,25 @@ import {
   stockMovementTypeSchema,
   stockReservationItemSchema,
   stockReservationStatusSchema,
+  requestStockReturnSchema,
+  resolveStockReturnSchema,
+  stockReturnContextResponseSchema,
   userAccessUpdateSchema,
   usernameSchema,
 } from "./index";
 
 describe("shared contracts", () => {
+  it("validates stock return requests, decisions and paginated context", () => {
+    const productId = "33000000-0000-4000-8000-000000000001";
+    expect(requestStockReturnSchema.parse({ productId, quantity: 2, reason: "Sobras do evento" }).quantity).toBe(2);
+    expect(requestStockReturnSchema.safeParse({ productId, quantity: 0, reason: "Sobras do evento" }).success).toBe(false);
+    expect(resolveStockReturnSchema.safeParse({ action: "APPROVE", reason: "Quantidade conferida" }).success).toBe(false);
+    expect(stockReturnContextResponseSchema.parse({ data: {
+      ownLocationId: "50000000-0000-4000-8000-000000000002", options: [{ productId, productName: "Doce", productSku: "DOCE-1", availableQuantity: 3 }],
+      requests: [{ id: "63000000-0000-4000-8000-000000000001", fromLocationId: "50000000-0000-4000-8000-000000000002", fromLocationName: "Vendedor", toLocationId: "50000000-0000-4000-8000-000000000001", toLocationName: "Central", productId, productName: "Doce", productSku: "DOCE-1", quantity: 2, status: "REQUESTED", requestedBy: "10000000-0000-4000-8000-000000000002", requestReason: "Sobras do evento", decisionReason: null, movementId: null, createdAt: "2026-09-11T12:00:00.000Z", decidedAt: null }], nextCursor: null,
+    }, request_id: "request-return" }).data.requests[0]?.status).toBe("REQUESTED");
+  });
+
   it("validates seller transfer requests, decisions and context", () => {
     const source = "50000000-0000-4000-8000-000000000002";
     const destination = "50000000-0000-4000-8000-000000000003";

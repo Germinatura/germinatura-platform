@@ -7,6 +7,8 @@ import {
   salesCheckoutResponseSchema,
   sellerStockTransferContextResponseSchema,
   sellerStockTransferMutationResponseSchema,
+  stockReturnContextResponseSchema,
+  stockReturnMutationResponseSchema,
   type ManualPaymentConfirmationResponse,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
@@ -15,6 +17,8 @@ import {
   type SalesCheckoutResponse,
   type SellerStockTransferContextResponse,
   type SellerStockTransferMutationResponse,
+  type StockReturnContextResponse,
+  type StockReturnMutationResponse,
 } from "@germinatura/contracts";
 import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -199,6 +203,41 @@ export async function loadSellerStockTransfers(cursor?: string): Promise<SellerS
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as transferências."));
   const parsed = sellerStockTransferContextResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("A consulta de transferências retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function loadStockReturns(cursor?: string): Promise<StockReturnContextResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/returns?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as devoluções."));
+  const parsed = stockReturnContextResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A consulta de devoluções retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function requestStockReturn(
+  input: { productId: string; quantity: number; reason: string },
+  idempotencyKey: string,
+): Promise<StockReturnMutationResponse["data"]> {
+  const response = await apiFetch("/api/v1/inventory/returns", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível solicitar a devolução."));
+  const parsed = stockReturnMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A solicitação de devolução retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function cancelStockReturn(requestId: string, reason: string, idempotencyKey: string): Promise<StockReturnMutationResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/returns/${requestId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ action: "CANCEL", reason }),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível cancelar a devolução."));
+  const parsed = stockReturnMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O cancelamento da devolução retornou dados inválidos.");
   return parsed.data.data;
 }
 
