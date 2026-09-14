@@ -16,6 +16,10 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/inventory/distributions", methods: ["POST"], access: "inventory" },
   { path: "/api/v1/inventory/transfer-requests", methods: ["GET", "POST"], access: "seller" },
   { path: "/api/v1/inventory/transfer-requests/:id", methods: ["PATCH"], access: "seller" },
+  { path: "/api/v1/inventory/returns", methods: ["GET", "POST"], access: "seller" },
+  { path: "/api/v1/inventory/returns/:id", methods: ["PATCH"], access: "seller" },
+  { path: "/api/v1/admin/inventory/returns", methods: ["GET"], access: "inventory" },
+  { path: "/api/v1/admin/inventory/returns/:id", methods: ["PATCH"], access: "inventory" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
@@ -72,6 +76,12 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/inventory/transfer-requests/:id") {
       return /^\/api\/v1\/inventory\/transfer-requests\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/inventory/returns/:id") {
+      return /^\/api\/v1\/inventory\/returns\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/inventory/returns/:id") {
+      return /^\/api\/v1\/admin\/inventory\/returns\/[0-9a-f-]+$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/users/:id/password-recovery") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/password-recovery$/i.test(path);
