@@ -17,6 +17,8 @@ import {
   idempotencyStatusSchema,
   institutionalEmailSchema,
   institutionalOtpVerifySchema,
+  inventoryCountQuerySchema,
+  submitInventoryCountSchema,
   manualPaymentConfirmationRequestSchema,
   manualPaymentConfirmationResponseSchema,
   moneyCentsSchema,
@@ -67,6 +69,13 @@ import {
 } from "./index";
 
 describe("shared contracts", () => {
+  it("validates physical inventory snapshots and rejects duplicate products", () => {
+    const item = { productId: "33f00000-0000-4000-8000-000000000001", expectedOnHandQuantity: 4, expectedReservedQuantity: 1, countedOnHandQuantity: 3 };
+    expect(submitInventoryCountSchema.parse({ observation: "Conferência física", items: [item] }).items[0]?.countedOnHandQuantity).toBe(3);
+    expect(submitInventoryCountSchema.safeParse({ observation: "Conferência física", items: [item, item] }).success).toBe(false);
+    expect(submitInventoryCountSchema.safeParse({ observation: "Conferência física", items: [{ ...item, expectedReservedQuantity: 5 }] }).success).toBe(false);
+    expect(inventoryCountQuerySchema.parse({})).toEqual({ limit: 20 });
+  });
   it("validates stock return requests, decisions and paginated context", () => {
     const productId = "33000000-0000-4000-8000-000000000001";
     expect(requestStockReturnSchema.parse({ productId, quantity: 2, reason: "Sobras do evento" }).quantity).toBe(2);

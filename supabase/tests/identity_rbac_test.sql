@@ -9,7 +9,7 @@ select has_table('public', 'role_permissions', 'role_permissions table exists');
 select has_function('public', 'has_permission', array['text'], 'permission function exists');
 select has_function('public', 'get_my_session', 'session function exists');
 select results_eq('select count(*)::bigint from public.roles', array[7::bigint], 'all v2.1 roles are seeded');
-select results_eq('select count(*)::bigint from public.permissions', array[23::bigint], 'permission catalog includes seller transfer, return and loss capabilities');
+select results_eq('select count(*)::bigint from public.permissions', array[24::bigint], 'permission catalog includes seller transfer, return, loss and count capabilities');
 select results_eq(
   $$select count(*)::bigint from public.profiles where id in (
     '10000000-0000-4000-8000-000000000001',
@@ -20,9 +20,9 @@ select results_eq(
   'local fixture users receive profiles'
 );
 
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ADMIN'$$, array[23::bigint], 'administrator receives every permission');
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'VENDEDOR'$$, array[12::bigint], 'seller permission matrix includes own transfer, return, loss and closeout operations');
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ESTOQUE'$$, array[4::bigint], 'inventory permission matrix is seeded');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ADMIN'$$, array[24::bigint], 'administrator receives every permission');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'VENDEDOR'$$, array[13::bigint], 'seller permission matrix includes own transfer, return, loss, count and closeout operations');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ESTOQUE'$$, array[5::bigint], 'inventory permission matrix includes physical counts');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'FINANCEIRO'$$, array[4::bigint], 'finance permission matrix includes closeout management');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'COMUNICACAO'$$, array[2::bigint], 'communications permission matrix is seeded');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'MODERADOR'$$, array[2::bigint], 'moderator permission matrix is seeded');

@@ -22,6 +22,12 @@ describe("inventory API access", () => {
     expect(apiAccessRule("/api/v1/admin/inventory/losses")?.access).toBe("inventory");
     expect(apiAccessRule("/api/v1/admin/inventory/losses/63000000-0000-4000-8000-000000000001")?.access).toBe("inventory");
     expect(apiAccessRule("/api/v1/admin/inventory/loss-settings")?.access).toBe("inventory");
+    expect(apiAccessRule("/api/v1/inventory/counts")?.access).toBe("stock");
+    expect(apiAccessRule("/api/v1/inventory/counts/63000000-0000-4000-8000-000000000001")?.access).toBe("stock");
+    expect(apiAccessRule("/api/v1/admin/inventory/counts/63000000-0000-4000-8000-000000000001")?.access).toBe("inventory");
+    expect(rolesSatisfyAccess(["ESTOQUE"], "stock")).toBe(true);
+    expect(rolesSatisfyAccess(["VENDEDOR"], "stock")).toBe(true);
+    expect(rolesSatisfyAccess(["CONSUMIDOR"], "stock")).toBe(false);
     expect(rolesSatisfyAccess(["VENDEDOR"], "seller")).toBe(true);
     expect(rolesSatisfyAccess(["CONSUMIDOR"], "seller")).toBe(false);
   });
