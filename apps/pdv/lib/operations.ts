@@ -9,6 +9,8 @@ import {
   sellerStockTransferMutationResponseSchema,
   stockReturnContextResponseSchema,
   stockReturnMutationResponseSchema,
+  stockLossContextResponseSchema,
+  stockLossMutationResponseSchema,
   type ManualPaymentConfirmationResponse,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
@@ -19,6 +21,8 @@ import {
   type SellerStockTransferMutationResponse,
   type StockReturnContextResponse,
   type StockReturnMutationResponse,
+  type StockLossContextResponse,
+  type StockLossMutationResponse,
 } from "@germinatura/contracts";
 import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -238,6 +242,30 @@ export async function cancelStockReturn(requestId: string, reason: string, idemp
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível cancelar a devolução."));
   const parsed = stockReturnMutationResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("O cancelamento da devolução retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function loadStockLosses(cursor?: string): Promise<StockLossContextResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/losses?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as perdas."));
+  const parsed = stockLossContextResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A consulta de perdas retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function reportStockLoss(input: { productId: string; quantity: number; reason: string; observation: string; photoPath?: string | null }, idempotencyKey: string): Promise<StockLossMutationResponse["data"]> {
+  const response = await apiFetch("/api/v1/inventory/losses", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify(input) });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível registrar a perda."));
+  const parsed = stockLossMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O registro da perda retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function cancelStockLoss(reportId: string, reason: string, idempotencyKey: string): Promise<StockLossMutationResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/losses/${reportId}`, { method: "PATCH", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ action: "CANCEL", reason }) });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível cancelar a perda."));
+  const parsed = stockLossMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O cancelamento retornou dados inválidos.");
   return parsed.data.data;
 }
 
