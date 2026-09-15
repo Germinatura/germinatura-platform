@@ -1,4 +1,4 @@
-export type ApiAccessLevel = "public" | "authenticated" | "seller" | "finance" | "inventory" | "admin";
+export type ApiAccessLevel = "public" | "authenticated" | "seller" | "stock" | "finance" | "inventory" | "admin";
 
 interface ApiAccessRule {
   path: string;
@@ -25,6 +25,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/inventory/losses", methods: ["GET"], access: "inventory" },
   { path: "/api/v1/admin/inventory/losses/:id", methods: ["PATCH"], access: "inventory" },
   { path: "/api/v1/admin/inventory/loss-settings", methods: ["PATCH"], access: "inventory" },
+  { path: "/api/v1/inventory/counts", methods: ["GET", "POST"], access: "stock" },
+  { path: "/api/v1/inventory/counts/:id", methods: ["PATCH"], access: "stock" },
+  { path: "/api/v1/admin/inventory/counts/:id", methods: ["PATCH"], access: "inventory" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
@@ -94,6 +97,12 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     if (rule.path === "/api/v1/admin/inventory/losses/:id") {
       return /^\/api\/v1\/admin\/inventory\/losses\/[0-9a-f-]+$/i.test(path);
     }
+    if (rule.path === "/api/v1/inventory/counts/:id") {
+      return /^\/api\/v1\/inventory\/counts\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/inventory/counts/:id") {
+      return /^\/api\/v1\/admin\/inventory\/counts\/[0-9a-f-]+$/i.test(path);
+    }
     if (rule.path === "/api/v1/admin/users/:id/password-recovery") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/password-recovery$/i.test(path);
     }
@@ -145,6 +154,7 @@ export function rolesSatisfyAccess(roles: readonly string[], access: ApiAccessLe
   if (access === "admin") return roles.includes("ADMIN");
   if (access === "finance") return roles.includes("ADMIN") || roles.includes("FINANCEIRO");
   if (access === "inventory") return roles.includes("ADMIN") || roles.includes("ESTOQUE");
+  if (access === "stock") return roles.includes("ADMIN") || roles.includes("VENDEDOR") || roles.includes("ESTOQUE");
   return roles.includes("ADMIN") || roles.includes("VENDEDOR");
 }
 

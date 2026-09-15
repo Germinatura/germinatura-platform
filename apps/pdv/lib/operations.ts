@@ -11,6 +11,8 @@ import {
   stockReturnMutationResponseSchema,
   stockLossContextResponseSchema,
   stockLossMutationResponseSchema,
+  inventoryCountContextResponseSchema,
+  inventoryCountMutationResponseSchema,
   type ManualPaymentConfirmationResponse,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
@@ -23,6 +25,8 @@ import {
   type StockReturnMutationResponse,
   type StockLossContextResponse,
   type StockLossMutationResponse,
+  type InventoryCountContextResponse,
+  type InventoryCountMutationResponse,
 } from "@germinatura/contracts";
 import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
@@ -265,6 +269,30 @@ export async function cancelStockLoss(reportId: string, reason: string, idempote
   const response = await apiFetch(`/api/v1/inventory/losses/${reportId}`, { method: "PATCH", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ action: "CANCEL", reason }) });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível cancelar a perda."));
   const parsed = stockLossMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O cancelamento retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function loadInventoryCounts(cursor?: string): Promise<InventoryCountContextResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/counts?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar o estoque."));
+  const parsed = inventoryCountContextResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A consulta de estoque retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function submitInventoryCount(input: { locationId?: string | null; observation: string; items: Array<{ productId: string; expectedOnHandQuantity: number; expectedReservedQuantity: number; countedOnHandQuantity: number }> }, idempotencyKey: string): Promise<InventoryCountMutationResponse["data"]> {
+  const response = await apiFetch("/api/v1/inventory/counts", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify(input) });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível enviar a contagem."));
+  const parsed = inventoryCountMutationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A contagem retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function cancelInventoryCount(countId: string, reason: string, idempotencyKey: string): Promise<InventoryCountMutationResponse["data"]> {
+  const response = await apiFetch(`/api/v1/inventory/counts/${countId}`, { method: "PATCH", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ action: "CANCEL", reason }) });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível cancelar a contagem."));
+  const parsed = inventoryCountMutationResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("O cancelamento retornou dados inválidos.");
   return parsed.data.data;
 }

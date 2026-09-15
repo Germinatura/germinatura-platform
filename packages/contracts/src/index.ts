@@ -9,6 +9,7 @@ export * from "./inventory-distribution";
 export * from "./seller-stock-transfers";
 export * from "./stock-returns";
 export * from "./stock-losses";
+export * from "./inventory-counts";
 
 export const moneyCentsSchema = z.number()
   .int()
@@ -694,6 +695,7 @@ export const permissionSchema = z.enum([
   "inventory.transfer.own",
   "inventory.return.own",
   "inventory.loss.own",
+  "inventory.count.own",
   "sales.create",
   "sales.read.own",
   "sales.read.all",

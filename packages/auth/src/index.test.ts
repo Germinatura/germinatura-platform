@@ -15,6 +15,8 @@ describe("RBAC", () => {
     expect(hasPermission({ roles: ["ADMIN"] }, "inventory.return.own")).toBe(true);
     expect(hasPermission({ roles: ["VENDEDOR"] }, "inventory.loss.own")).toBe(true);
     expect(hasPermission({ roles: ["ADMIN"] }, "inventory.loss.own")).toBe(true);
+    expect(hasPermission({ roles: ["VENDEDOR"] }, "inventory.count.own")).toBe(true);
+    expect(hasPermission({ roles: ["ESTOQUE"] }, "inventory.count.own")).toBe(true);
     expect(hasPermission({ roles: ["FINANCEIRO"] }, "finance.manage")).toBe(true);
     expect(hasPermission({ roles: ["FINANCEIRO"] }, "closeouts.manage")).toBe(true);
     expect(hasPermission({ roles: ["COMUNICACAO"] }, "communications.manage")).toBe(true);
