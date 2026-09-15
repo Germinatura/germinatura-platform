@@ -55,7 +55,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
-| 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição central→vendedor e solicitação/aceite entre vendedores integradas; devolução à central completa localmente e aguardando PR/CI/staging; ainda faltam perda, inventário, ajustes aprovados e conclusão de “Meu estoque”; nenhum saldo direto |
+| 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição, transferência solicitada/aceita e devolução à central integradas em staging; perdas completas localmente com foto privada, limite configurável, aprovação e bloqueio concorrente, aguardando PR/CI/staging; ainda faltam inventário, ajustes aprovados e conclusão de “Meu estoque”; nenhum saldo direto |
 | 3 — Compras e custos | TODO | 1, 2 | Fornecedor, pedidos, custos/frete, recebimento parcial, lotes/validade e obrigação financeira sem duplicação; custo rastreável |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
@@ -106,7 +106,7 @@ Não podem ser acelerados sem perda de qualidade: sandbox e habilitação reais,
 
 ## Execução incremental
 
-Cada etapa comporta PRs pequenos e completos. O catálogo transacional já está integrado; a devolução de estoque está completa localmente e segue para integração, seguida por perda e inventário/ajuste aprovado. Em paralelo, as trilhas independentes iniciam contratos de compras, promoções, pagamentos e comunidade. Preservar Next.js/monorepo, contratos Zod, banco transacional e design system aprovado.
+Cada etapa comporta PRs pequenos e completos. O catálogo transacional e a devolução de estoque já estão integrados; perdas seguem para integração, seguidas por inventário/ajuste aprovado. Em paralelo, as trilhas independentes iniciam contratos de compras, promoções, pagamentos e comunidade. Preservar Next.js/monorepo, contratos Zod, banco transacional e design system aprovado.
 
 Por mutação: permission + rota/allowlist + RLS + RPC + idempotência + interface + teste de abuso. Preço é do servidor, histórico é imutável e tarefas secundárias usam outbox. Se a cotação mudar antes de cobrar, confirmar novamente; a reserva comercial conserva o snapshot.
 
@@ -116,7 +116,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: integrar devoluções e concluir perdas, inventário/ajuste aprovado e “Meu estoque”. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, distribuição e transferência solicitada/aceita já estão integrados. A devolução está implementada e validada localmente, sem presumir integração antes do PR e do staging.
+Sequência imediata: integrar perdas e concluir inventário/ajuste aprovado e “Meu estoque”. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, distribuição, transferência solicitada/aceita e devolução já estão integrados em staging. Perdas estão implementadas e validadas localmente, sem presumir integração antes do PR e do staging.
 
 | Trilha | PRs coesos em ordem interna | Saída da trilha |
 | --- | --- | --- |

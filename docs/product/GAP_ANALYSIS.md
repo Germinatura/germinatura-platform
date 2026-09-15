@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual e conclusão
 
-Auditoria atualizada em 11/09/2026: `main=95c4209`, `develop=97c7c9d`, checkout limpo. A PR #61, o Quality pós-merge `34635184281` e o Deploy Staging `34635184315` estão verdes. Código, contratos, 28 migrations e testes foram inspecionados; produção não foi acessada.
+Auditoria atualizada em 14/09/2026: `main=95c4209`, `develop=1946889`, checkout limpo no início da fatia. A PR #63, o Quality pós-merge `34881831868` e o Deploy Staging `34881831884` estão verdes. Código, contratos, 29 migrations integradas e testes foram inspecionados; produção não foi acessada.
 
 A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 
@@ -8,7 +8,7 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | --- | --- | --- | --- |
 | Identidade | Cadastro verificado, credenciais, papéis, revogação, bootstrap e recuperação; gestão de usuários em staging | Homologação SMTP/bootstrap; UI de desbloqueio, conta/sessões e handoff seguro Portal→PDV | 9, 11 |
 | Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
-| Estoque | Ledger, saldo/localizações, reservas, distribuição e transferência com aceite integrados; devolução completa localmente e pendente de integração | Perdas, inventário, ajustes aprovados e “Meu estoque” completo | 2 |
+| Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite e devolução integrados; perdas completas localmente com aprovação, foto privada e concorrência | Integrar perdas; concluir inventário, ajustes aprovados e “Meu estoque” | 2 |
 | Pricing | QUANTIDADE_PRECO na cotação e checkout | Demais regras, gestão e consumo concorrente dos limites | 4 |
 | PDV | Checkout, confirmação Maquininha/Área Pix, fechamento e PWA read-only | Turno/histórico, caixa físico, método/terminal e dispositivos reais | 5 |
 | Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais | UI completa, contas/categorias/despesas/importação/CSV e custo real | 3, 6 |
