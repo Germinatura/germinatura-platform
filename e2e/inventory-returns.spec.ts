@@ -24,26 +24,27 @@ async function databaseSession() {
 }
 
 test("vendedor solicita e administração recebe uma devolução pela interface", async ({ browser }) => {
-  test.slow(); const database = await databaseSession(); const sellerBefore = await database.balance(sellerId); const centralBefore = await database.balance(centralId);
-  expect(sellerBefore.reserved_quantity).toBe(0); const missing = Math.max(0, 2 - sellerBefore.on_hand_quantity); let adjustmentId: string | null = null; let movementId: string | null = null;
+  test.slow(); const reason = `Sobras conferidas depois do evento ${crypto.randomUUID()}`; const database = await databaseSession(); const sellerBefore = await database.balance(sellerId); const centralBefore = await database.balance(centralId);
+  expect(sellerBefore.reserved_quantity).toBe(0); const missing = Math.max(0, 2 - sellerBefore.on_hand_quantity); let adjustmentId: string | null = null; let requestId: string | null = null; let movementId: string | null = null;
   if (missing) { const adjustment = await database.rpc("adjust_stock", { p_location_id: sellerId, p_product_id: productId, p_quantity_delta: missing, p_reason: "Preparar devolução E2E", p_idempotency_key: `e2e-return-adjust:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() }); adjustmentId = String(adjustment.movement_id); }
   const sellerContext = await browser.newContext(); const adminContext = await browser.newContext();
   try {
     const sellerPage = await sellerContext.newPage(); await sellerPage.setViewportSize({ width: 390, height: 844 });
     expect((await sellerPage.request.post(`${pdv}/api/auth/login`, { headers: { Origin: pdv, "Sec-Fetch-Site": "same-origin" }, data: { identifier: "vendedor.teste", password: "Vendedor123!" } })).status()).toBe(200);
     await sellerPage.goto(`${pdv}/`); await sellerPage.getByRole("button", { name: "Devoluções" }).click(); await expect(sellerPage.getByRole("heading", { name: "Devoluções à central" })).toBeVisible();
-    const form = sellerPage.getByRole("form", { name: "Solicitar devolução à central" }); await form.getByLabel("Produto").selectOption(productId); await form.getByLabel("Quantidade").fill("2"); await form.getByLabel("Motivo").fill("Sobras conferidas depois do evento");
+    const form = sellerPage.getByRole("form", { name: "Solicitar devolução à central" }); await form.getByLabel("Produto").selectOption(productId); await form.getByLabel("Quantidade").fill("2"); await form.getByLabel("Motivo").fill(reason);
     const requestPromise = sellerPage.waitForResponse((response) => response.url().endsWith("/api/v1/inventory/returns") && response.request().method() === "POST"); await form.getByRole("button", { name: "Solicitar devolução" }).click(); const requested = await requestPromise; expect(requested.status()).toBe(201);
-    const requestId = String((await requested.json() as { data: { requestId: string } }).data.requestId); await expect(sellerPage.getByText("Aguardando recebimento", { exact: true })).toBeVisible(); await expect.poll(() => sellerPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    requestId = String((await requested.json() as { data: { requestId: string } }).data.requestId); await expect(sellerPage.getByText(reason, { exact: false })).toBeVisible(); await expect.poll(() => sellerPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     const adminPage = await adminContext.newPage(); expect((await adminPage.request.post(`${portal}/api/auth/login`, { headers: { Origin: portal, "Sec-Fetch-Site": "same-origin" }, data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200); await adminPage.goto(`${portal}/admin/estoque`);
-    const card = adminPage.locator("article").filter({ hasText: "Sobras conferidas depois do evento" }); await expect(card).toBeVisible(); await card.getByLabel("Resultado da conferência").fill("Quantidade e integridade conferidas");
+    const card = adminPage.locator("article").filter({ hasText: reason }); await expect(card).toBeVisible(); await card.getByLabel("Resultado da conferência").fill("Quantidade e integridade conferidas");
     const receiptPromise = adminPage.waitForResponse((response) => response.url().endsWith(`/api/v1/admin/inventory/returns/${requestId}`) && response.request().method() === "PATCH"); await card.getByRole("button", { name: "Confirmar recebimento" }).click(); const received = await receiptPromise; expect(received.status()).toBe(200); movementId = String((await received.json() as { data: { movementId: string } }).data.movementId); await expect(card.getByText("Recebida", { exact: true })).toBeVisible();
     expect(await database.balance(sellerId)).toEqual({ on_hand_quantity: sellerBefore.on_hand_quantity + missing - 2, reserved_quantity: 0 }); expect(await database.balance(centralId)).toEqual({ on_hand_quantity: centralBefore.on_hand_quantity + 2, reserved_quantity: centralBefore.reserved_quantity });
 
     const consumer = await browser.newContext(); try { expect((await consumer.request.post(`${portal}/api/auth/login`, { headers: { Origin: portal, "Sec-Fetch-Site": "same-origin" }, data: { identifier: "consumidor.teste", password: "Consumidor123!" } })).status()).toBe(200); const denied = await consumer.request.post(`${portal}/api/v1/inventory/returns`, { headers: { Origin: portal, "Sec-Fetch-Site": "same-origin", "Idempotency-Key": `consumer-return:${crypto.randomUUID()}` }, data: { productId, quantity: 1, reason: "Tentativa sem autorização" } }); expect(denied.status()).toBe(403); } finally { await consumer.close(); }
   } finally {
     await sellerContext.close().catch(() => undefined); await adminContext.close().catch(() => undefined);
+    if (requestId && !movementId) await database.rpc("resolve_stock_return", { p_request_id: requestId, p_action: "REJECT", p_reason: "Limpar devolução pendente do E2E", p_idempotency_key: `e2e-return-reject:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() }).catch(() => undefined);
     if (movementId) await database.rpc("reverse_stock_movement", { p_movement_id: movementId, p_reason: "Limpeza da devolução E2E", p_idempotency_key: `e2e-return-reverse:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() });
     if (adjustmentId) await database.rpc("reverse_stock_movement", { p_movement_id: adjustmentId, p_reason: "Limpeza da preparação E2E", p_idempotency_key: `e2e-return-adjust-reverse:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() });
   }

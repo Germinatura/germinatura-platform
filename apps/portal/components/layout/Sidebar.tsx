@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, CalendarClock, ClipboardCheck, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, UserRoundCog, X } from "lucide-react";
+import { Boxes, CalendarClock, ClipboardCheck, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -24,6 +24,7 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
   const isAdmin = hasAdminRole && experience === "admin";
   const home = isAdmin ? "/" : "/inicio";
   const canInspectInventory = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false);
+  const canManageProcurement = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false);
   const canManageCloseouts = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "FINANCEIRO") ?? false);
   const canBrowseCatalog = !isAdmin && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR" || role === "ESTOQUE") ?? false);
   const canManageOwnReservations = !isAdmin && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
@@ -93,6 +94,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             {canInspectInventory && <Link href="/admin/estoque" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/estoque"))} title={collapsed ? "Estoque" : undefined}>
               {pathname.startsWith("/admin/estoque") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <Boxes className="size-5 shrink-0" />{!collapsed && <span>Estoque</span>}
+            </Link>}
+            {canManageProcurement && <Link href="/admin/compras" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/compras"))} title={collapsed ? "Compras e fornecedores" : undefined}>
+              {pathname.startsWith("/admin/compras") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <Truck className="size-5 shrink-0" />{!collapsed && <span>Compras e fornecedores</span>}
             </Link>}
           </>
         )}

@@ -44,6 +44,10 @@ const localServerEnvironment = process.env.PLAYWRIGHT_EXTERNAL_SERVERS
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  // The browser journeys intentionally share the seeded Supabase users and
+  // immutable ledgers. Running files concurrently lets password-recovery and
+  // inventory cleanup mutate those fixtures underneath another journey.
+  workers: 1,
   timeout: 60_000,
   retries: process.env.CI ? 2 : 0,
   expect: { timeout: 15_000 },
