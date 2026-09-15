@@ -696,6 +696,7 @@ export const permissionSchema = z.enum([
   "inventory.return.own",
   "inventory.loss.own",
   "inventory.count.own",
+  "procurement.manage",
   "sales.create",
   "sales.read.own",
   "sales.read.all",
@@ -835,3 +836,4 @@ export function createApiClient({ getAccessToken, fetchImpl = fetch }: ApiClient
   };
 }
 export * from "./profile";
+export * from "./suppliers";

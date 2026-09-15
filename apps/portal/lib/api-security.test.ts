@@ -32,3 +32,13 @@ describe("inventory API access", () => {
     expect(rolesSatisfyAccess(["CONSUMIDOR"], "seller")).toBe(false);
   });
 });
+
+describe("procurement API access", () => {
+  it("allows supplier management only to administrators and stock operators", () => {
+    expect(apiAccessRule("/api/v1/admin/procurement/suppliers")?.access).toBe("procurement");
+    expect(rolesSatisfyAccess(["ADMIN"], "procurement")).toBe(true);
+    expect(rolesSatisfyAccess(["ESTOQUE"], "procurement")).toBe(true);
+    expect(rolesSatisfyAccess(["FINANCEIRO"], "procurement")).toBe(false);
+    expect(rolesSatisfyAccess(["VENDEDOR"], "procurement")).toBe(false);
+  });
+});

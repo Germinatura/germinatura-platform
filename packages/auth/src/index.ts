@@ -12,6 +12,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "inventory.return.own",
     "inventory.loss.own",
     "inventory.count.own",
+    "procurement.manage",
     "sales.create",
     "sales.read.own",
     "sales.read.all",
@@ -48,6 +49,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "inventory.read",
     "inventory.manage",
     "inventory.count.own",
+    "procurement.manage",
   ],
   FINANCEIRO: [
     "portal.access",

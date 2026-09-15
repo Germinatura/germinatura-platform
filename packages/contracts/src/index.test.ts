@@ -30,6 +30,8 @@ import {
   catalogProductPriceHistoryResponseSchema,
   saveCatalogProductSchema,
   saveCatalogProductResponseSchema,
+  saveSupplierResponseSchema,
+  saveSupplierSchema,
   setCatalogProductPriceResponseSchema,
   setCatalogProductPriceSchema,
   passwordRecoveryRequestSchema,
@@ -729,5 +731,40 @@ describe("shared contracts", () => {
         updatedAt: "2026-09-01T12:00:00.000Z", updatedBy: null,
       }], request_id: "request-flags",
     }).data[0]?.key).toBe("reservations");
+  });
+
+  it("validates supplier contacts and optimistic revisions", () => {
+    const supplier = {
+      id: null,
+      expectedRevision: null,
+      name: "Doces Exemplo",
+      contactName: "Ana Compras",
+      email: "ana@example.com",
+      phone: null,
+      document: "12345678000190",
+      notes: null,
+      active: true,
+      reason: "Cadastrar fornecedor homologado",
+    };
+    expect(saveSupplierSchema.safeParse(supplier).success).toBe(true);
+    expect(saveSupplierSchema.safeParse({ ...supplier, contactName: null, email: null }).success).toBe(false);
+    expect(saveSupplierSchema.safeParse({ ...supplier, id: crypto.randomUUID() }).success).toBe(false);
+    expect(saveSupplierResponseSchema.parse({
+      data: {
+        id: "97000000-0000-4000-8000-000000000001",
+        name: supplier.name,
+        contactName: supplier.contactName,
+        email: supplier.email,
+        phone: supplier.phone,
+        document: supplier.document,
+        notes: supplier.notes,
+        active: supplier.active,
+        revision: 1,
+        createdAt: "2026-09-15T12:00:00.000Z",
+        updatedAt: "2026-09-15T12:00:00.000Z",
+        correlationId: "98000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-supplier",
+    }).data.revision).toBe(1);
   });
 });
