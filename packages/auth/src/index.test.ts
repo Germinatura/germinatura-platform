@@ -35,4 +35,11 @@ describe("RBAC", () => {
     expect(hasPermission(seller, "closeouts.manage")).toBe(false);
     expect(hasPermission(seller, "users.manage")).toBe(false);
   });
+
+  it("treats unknown roles as non-authorized without crashing", () => {
+    const unknownUser = { roles: ["ADMIN", "UNKNOWN_ROLE" as never] };
+    expect(hasPermission(unknownUser, "admin.access")).toBe(true);
+    expect(hasPermission(unknownUser, "users.manage")).toBe(true);
+    expect(hasPermission({ roles: ["UNKNOWN_ROLE" as never] }, "catalog.read")).toBe(false);
+  });
 });

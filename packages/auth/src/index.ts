@@ -92,5 +92,8 @@ export function hasPermission(
   user: { roles: readonly AppRole[] },
   permission: Permission,
 ): boolean {
-  return user.roles.some((role) => rolePermissions[role].includes(permission));
+  return user.roles.some((role) => {
+    const allowed = rolePermissions[role as AppRole];
+    return Boolean(allowed) && allowed.includes(permission);
+  });
 }
