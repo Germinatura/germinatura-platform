@@ -85,7 +85,8 @@ const rolePriority: Readonly<Record<AppRole, number>> = {
 };
 
 export function primaryRole(roles: readonly AppRole[]): AppRole {
-  return [...roles].sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
+  const validRoles = roles.filter((role) => role in rolePriority) as AppRole[];
+  return [...validRoles].sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
 }
 
 export function hasPermission(

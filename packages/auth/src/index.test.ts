@@ -42,4 +42,9 @@ describe("RBAC", () => {
     expect(hasPermission(unknownUser, "users.manage")).toBe(true);
     expect(hasPermission({ roles: ["UNKNOWN_ROLE" as never] }, "catalog.read")).toBe(false);
   });
+
+  it("falls back to consumer when all roles are unknown or empty", () => {
+    expect(primaryRole([])).toBe("CONSUMIDOR");
+    expect(primaryRole(["UNKNOWN_ROLE" as never])).toBe("CONSUMIDOR");
+  });
 });
