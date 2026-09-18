@@ -47,4 +47,10 @@ describe("RBAC", () => {
     expect(primaryRole([])).toBe("CONSUMIDOR");
     expect(primaryRole(["UNKNOWN_ROLE" as never])).toBe("CONSUMIDOR");
   });
+
+  it("handles malformed or missing role payloads safely", () => {
+    expect(primaryRole(undefined as never)).toBe("CONSUMIDOR");
+    expect(hasPermission({ roles: undefined as never }, "catalog.read")).toBe(false);
+    expect(hasPermission({ roles: [] }, "catalog.read")).toBe(false);
+  });
 });
