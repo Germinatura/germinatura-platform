@@ -6,17 +6,17 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 18/09/2026: `main` permanece em `95c4209`; `develop` está em `478d0b6` após a PR #66. Categorias, produtos, preços, imagens, perfil/navegação, distribuição central→vendedor, transferências solicitadas/aceitas, devoluções, perdas e inventário físico estão integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
+Snapshot de 18/09/2026: `main` permanece em `95c4209`; `develop` está em `b91a0ed` após a PR #67. Categorias, produtos, preços, imagens, perfil/navegação, distribuição central→vendedor, transferências solicitadas/aceitas, devoluções, perdas, inventário físico, fornecedores e pedidos de compra estão integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
 
-Quality pós-merge da PR #66 `35267603831` e Deploy Staging `35267603805` concluíram verdes. O deploy aplicou a migration de fornecedores e passou health de Portal/PDV/Jobs e Service Binding. A oferta completa ainda requer smoke autenticado com conta institucional controlada; Payment Link continua desligado e sem credenciais de sandbox configuradas. Produção não foi acessada.
+Quality pós-merge da PR #67 `35372545544` e Deploy Staging `35372545548` concluíram verdes. O deploy aplicou a migration de pedidos e passou health de Portal/PDV/Jobs e Service Binding. Um smoke externo confirmou health 200, catálogo via PDV 200 e pedidos administrativos sem sessão 401. A oferta completa ainda requer smoke autenticado com conta institucional controlada; Payment Link continua desligado e sem credenciais de sandbox configuradas. Produção não foi acessada.
 
 ## Visualização do andamento
 
 | Situação | Etapas | Leitura operacional |
 | --- | --- | --- |
 | `DONE` | 0 | Planejamento, matriz, ADR de Payment Link/dinheiro e regras de release reconciliados |
-| `IN PROGRESS` | 1, 2, 4, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
-| `TODO` | 3, 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
+| `IN PROGRESS` | 1, 2, 3, 4, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
+| `TODO` | 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
 
 ```mermaid
 flowchart LR
@@ -56,7 +56,7 @@ flowchart LR
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
 | 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição, transferência solicitada/aceita, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging; rastreabilidade por lote avança com compras; homologação física final pendente; nenhum saldo direto |
-| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores integrados em staging; pedidos e custos implementados localmente; recebimento parcial, lotes/validade, rateio e obrigação financeira ainda pendentes |
+| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores e pedidos integrados em staging; recebimento parcial, lotes/validade, rateio e obrigação financeira ainda pendentes |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
 | 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões, contas/categorias, despesas, taxas, recebíveis, conciliação, importação validada por arquivo oficial e CSV real |
@@ -116,7 +116,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: validar e integrar pedidos; implementar recebimentos parciais, lotes, rateio de custos e obrigação financeira. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens e todas as operações previstas de estoque já estão integrados em staging. Fornecedores estão integrados em staging pela PR #66. Pedidos ainda não têm CI ou staging.
+Sequência imediata: implementar recebimentos parciais, lotes, rateio de custos e obrigação financeira. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens e todas as operações previstas de estoque já estão integrados em staging. Fornecedores e pedidos estão integrados em staging pelas PRs #66 e #67.
 
 | Trilha | PRs coesos em ordem interna | Saída da trilha |
 | --- | --- | --- |
@@ -213,4 +213,4 @@ O PDV carrega a área de transferências somente quando a aba é aberta, bloquei
 
 ## Incremento de pedidos de compra — 18/09/2026
 
-Fatia em validação local: Administração/Estoque registra pedido com fornecedor ativo, itens, custo unitário em centavos, frete, outros custos, previsão, pagamento previsto e motivo. O banco calcula subtotal/total, congela SKU/nome e custo por item, exige idempotência e registra auditoria/outbox. Consulta paginada e cancelamento motivado preservam histórico; consumidores são bloqueados na página, API e RLS. O pedido não cria estoque nem obrigação financeira: ambos dependem de recebimento físico, que segue pendente. A etapa 3 não estará concluída até recebimento parcial, lote/validade, rateio e financeiro vinculados serem homologados.
+Administração/Estoque registra pedido com fornecedor ativo, itens, custo unitário em centavos, frete, outros custos, previsão, pagamento previsto e motivo. O banco calcula subtotal/total, congela SKU/nome e custo por item, exige idempotência e registra auditoria/outbox. Consulta paginada e cancelamento motivado preservam histórico; consumidores são bloqueados na página, API e RLS. PR #67 integrada em `b91a0ed`, com Quality `35372545544` e Deploy Staging `35372545548` verdes. O pedido não cria estoque nem obrigação financeira: ambos dependem de recebimento físico, que segue pendente. A etapa 3 não estará concluída até recebimento parcial, lote/validade, rateio e financeiro vinculados serem homologados.
