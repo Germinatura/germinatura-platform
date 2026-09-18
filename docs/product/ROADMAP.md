@@ -56,7 +56,7 @@ flowchart LR
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
 | 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição, transferência solicitada/aceita, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging; rastreabilidade por lote avança com compras; homologação física final pendente; nenhum saldo direto |
-| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores e pedidos integrados em staging; recebimento parcial, lotes/validade, rateio e obrigação financeira ainda pendentes |
+| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores e pedidos integrados em staging; recebimento parcial por item, lote, rateio e obrigação vinculada em validação local; rastreabilidade do lote até venda e homologação pendentes |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
 | 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões, contas/categorias, despesas, taxas, recebíveis, conciliação, importação validada por arquivo oficial e CSV real |
@@ -116,7 +116,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: implementar recebimentos parciais, lotes, rateio de custos e obrigação financeira. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens e todas as operações previstas de estoque já estão integrados em staging. Fornecedores e pedidos estão integrados em staging pelas PRs #66 e #67.
+Sequência imediata: validar e integrar recebimentos parciais, lotes, rateio de custos e obrigação financeira; depois rastrear consumo de lote até transferência/venda e completar contas a pagar. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens e todas as operações previstas de estoque já estão integrados em staging. Fornecedores e pedidos estão integrados em staging pelas PRs #66 e #67.
 
 | Trilha | PRs coesos em ordem interna | Saída da trilha |
 | --- | --- | --- |
@@ -214,3 +214,7 @@ O PDV carrega a área de transferências somente quando a aba é aberta, bloquei
 ## Incremento de pedidos de compra — 18/09/2026
 
 Administração/Estoque registra pedido com fornecedor ativo, itens, custo unitário em centavos, frete, outros custos, previsão, pagamento previsto e motivo. O banco calcula subtotal/total, congela SKU/nome e custo por item, exige idempotência e registra auditoria/outbox. Consulta paginada e cancelamento motivado preservam histórico; consumidores são bloqueados na página, API e RLS. PR #67 integrada em `b91a0ed`, com Quality `35372545544` e Deploy Staging `35372545548` verdes. O pedido não cria estoque nem obrigação financeira: ambos dependem de recebimento físico, que segue pendente. A etapa 3 não estará concluída até recebimento parcial, lote/validade, rateio e financeiro vinculados serem homologados.
+
+## Incremento de recebimentos parciais — 18/09/2026
+
+Em validação local: cada conferência de um item do pedido cria um `purchase_receipt` imutável, um lote com fabricação/validade opcionais, uma entrada `ENTRADA_COMPRA` na central e uma obrigação a pagar com custo base e parcela determinística de frete/outros custos. O pedido avança para parcial ou recebido; cancelar após primeira entrega é bloqueado. API/RLS exigem `procurement.manage`, a idempotência evita segunda entrada/obrigação e o histórico tem cursor e progresso calculado no banco. A interface registra entregas separadas por lote e mostra custo e vínculos. Ainda não existe consumo de lote por transferência/venda nem liquidação de obrigação; esses pontos permanecem abertos nos marcos 3 e 6. Evidência local: reset limpo, 31 SQL focalizados, 1.096 SQL totais, 14 integrações e E2E focal 2/2; CI/staging desta fatia pendentes.
