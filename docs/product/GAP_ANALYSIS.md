@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual e conclusão
 
-Auditoria atualizada em 18/09/2026: `main=95c4209`, `develop=478d0b6`, checkout limpo no início da fatia. A PR #66, o Quality pós-merge `35267603831` e o Deploy Staging `35267603805` estão verdes. Código, contratos, 32 migrations integradas e testes foram inspecionados; produção não foi acessada.
+Auditoria atualizada em 18/09/2026: `main=95c4209`, `develop=e901d5f`, checkout limpo no início da fatia. A documentação do produto registra a evidência atual do branch `develop` com a PR #68 e sem nova autorização de produção. Código, contratos, 32 migrations integradas e testes foram inspecionados; produção não foi acessada.
 
 A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 

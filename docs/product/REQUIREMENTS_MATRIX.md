@@ -1,6 +1,6 @@
 # Matriz de requisitos e evidências v2.2
 
-Snapshot revisado: 18/09/2026, `main=95c4209`, `develop=478d0b6`. A PR #66 integrou o cadastro de fornecedores após as operações de estoque. Quality pós-merge `35267603831` e Staging `35267603805` concluíram verdes; a migration foi aplicada e os smokes governados de Portal/PDV/Jobs e Service Binding passaram. O catálogo remoto ainda requer uma conta institucional controlada para o smoke autenticado da oferta completa. Payment Link segue desligado, sem credenciais ou sandbox homologado. Produção não foi acessada; a coluna Produção descreve apenas o conteúdo de `main`.
+Snapshot revisado: 18/09/2026, `main=95c4209`, `develop=e901d5f`. A documentação atual do produto registra a evidência do branch `develop` após a PR #68, sem assumir produção ou autorização de release. Os gates externos pendentes continuam explícitos: smoke autenticado com conta institucional controlada, sandbox Payment Link e validação do webhook. A coluna Produção descreve apenas o conteúdo de `main`.
 
 “Integrado” significa presente no snapshot; “parcial” não é DONE. Testes citados são evidência existente, não uma nova execução local nem cobertura de features ausentes. Os caminhos abreviados em uma célula compartilham o diretório do primeiro arquivo. Gates humanos pendentes estão explícitos. Atualizar esta matriz em cada incremento com PR/SHA e validação; não sobrescrever evidência histórica como se fosse do novo HEAD.
 
