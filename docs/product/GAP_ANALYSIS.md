@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual e conclusão
 
-Auditoria atualizada em 15/09/2026: `main=95c4209`, `develop=246c185`, checkout limpo no início da fatia. A PR #65, o Quality pós-merge `34997409999` e o Deploy Staging `34997410056` estão verdes. Código, contratos, 31 migrations integradas e testes foram inspecionados; produção não foi acessada.
+Auditoria atualizada em 18/09/2026: `main=95c4209`, `develop=478d0b6`, checkout limpo no início da fatia. A PR #66, o Quality pós-merge `35267603831` e o Deploy Staging `35267603805` estão verdes. Código, contratos, 32 migrations integradas e testes foram inspecionados; produção não foi acessada.
 
 A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 
@@ -9,7 +9,7 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | Identidade | Cadastro verificado, credenciais, papéis, revogação, bootstrap e recuperação; gestão de usuários em staging | Homologação SMTP/bootstrap; UI de desbloqueio, conta/sessões e handoff seguro Portal→PDV | 9, 11 |
 | Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
 | Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging | Rastreabilidade por lote e homologação física final | 2, 3, 11 |
-| Compras | Cadastro transacional de fornecedores completo localmente, incluindo interface, API, RLS, auditoria e inativação | Integrar fornecedores; pedidos, frete/custos, recebimento parcial, lote/validade e obrigação financeira | 3 |
+| Compras | Fornecedores integrados em staging; pedidos e custos implementados localmente, sem gerar estoque ou financeiro | Integrar pedidos; recebimento parcial, lote/validade, rateio de custo e obrigação financeira | 3 |
 | Pricing | QUANTIDADE_PRECO na cotação e checkout | Demais regras, gestão e consumo concorrente dos limites | 4 |
 | PDV | Checkout, confirmação Maquininha/Área Pix, fechamento e PWA read-only | Turno/histórico, caixa físico, método/terminal e dispositivos reais | 5 |
 | Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais | UI completa, contas/categorias/despesas/importação/CSV e custo real | 3, 6 |
@@ -37,4 +37,4 @@ Estoque/compras, promoções, pagamentos/financeiro, Portal consumidor/crescimen
 
 Habilitação, credenciais e execução de sandbox ainda não foram comprovadas; não acessar segredos para produzir evidência documental. Confirmar schemas completos e comportamento de timeout/múltiplos pagamentos por link antes de ativar. Materiais públicos não autorizam integrações privadas de Tap/TEF/SDK, nem V.A./V.R. sem credenciamento.
 
-Trinta e uma migrations formam o schema integrado atual; a migration local de fornecedores é a próxima candidata aditiva. Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
+Trinta e duas migrations formam o schema integrado atual; a migration local de pedidos é a próxima candidata aditiva. Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.

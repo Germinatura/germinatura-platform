@@ -29,6 +29,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/inventory/counts/:id", methods: ["PATCH"], access: "stock" },
   { path: "/api/v1/admin/inventory/counts/:id", methods: ["PATCH"], access: "inventory" },
   { path: "/api/v1/admin/procurement/suppliers", methods: ["GET", "POST"], access: "procurement" },
+  { path: "/api/v1/admin/procurement/orders", methods: ["GET", "POST"], access: "procurement" },
+  { path: "/api/v1/admin/procurement/orders/:id/cancel", methods: ["POST"], access: "procurement" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
@@ -74,6 +76,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
 export function apiAccessRule(path: string): ApiAccessRule | undefined {
   return apiAccessRules.find((rule) => {
     if (rule.path === path) return true;
+    if (rule.path === "/api/v1/admin/procurement/orders/:id/cancel") {
+      return /^\/api\/v1\/admin\/procurement\/orders\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
     if (rule.path === "/api/v1/admin/users/:id/roles") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
     }
