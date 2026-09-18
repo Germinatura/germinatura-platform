@@ -6,9 +6,9 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 18/09/2026: `main` permanece em `95c4209`; `develop` está em `b91a0ed` após a PR #67. Categorias, produtos, preços, imagens, perfil/navegação, distribuição central→vendedor, transferências solicitadas/aceitas, devoluções, perdas, inventário físico, fornecedores e pedidos de compra estão integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
+Snapshot de 18/09/2026: `main` permanece em `95c4209`; `develop` está em `e901d5f` após a documentação de evidência de staging de pedidos de compra com a PR #68. Categorias, produtos, preços, imagens, perfil/navegação, distribuição central→vendedor, transferências solicitadas/aceitas, devoluções, perdas, inventário físico, fornecedores e pedidos de compra continuam integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
 
-Quality pós-merge da PR #67 `35372545544` e Deploy Staging `35372545548` concluíram verdes. O deploy aplicou a migration de pedidos e passou health de Portal/PDV/Jobs e Service Binding. Um smoke externo confirmou health 200, catálogo via PDV 200 e pedidos administrativos sem sessão 401. A oferta completa ainda requer smoke autenticado com conta institucional controlada; Payment Link continua desligado e sem credenciais de sandbox configuradas. Produção não foi acessada.
+A evidência atual do branch `develop` foi registrada em documentação do produto e não substitui qualquer gate externo ou smoke autenticado. O status de staging continua condicionado à conta institucional controlada, à sandbox Payment Link e à homologação humana dos módulos pendentes. Produção não foi acessada.
 
 ## Visualização do andamento
 
