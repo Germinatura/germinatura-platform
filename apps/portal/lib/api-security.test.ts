@@ -37,6 +37,7 @@ describe("procurement API access", () => {
   it("allows supplier management only to administrators and stock operators", () => {
     expect(apiAccessRule("/api/v1/admin/procurement/suppliers")?.access).toBe("procurement");
     expect(apiAccessRule("/api/v1/admin/procurement/orders")?.access).toBe("procurement");
+    expect(apiAccessRule("/api/v1/admin/procurement/receipts")?.access).toBe("procurement");
     expect(apiAccessRule("/api/v1/admin/procurement/orders/63000000-0000-4000-8000-000000000001/cancel")?.access).toBe("procurement");
     expect(rolesSatisfyAccess(["ADMIN"], "procurement")).toBe(true);
     expect(rolesSatisfyAccess(["ESTOQUE"], "procurement")).toBe(true);
