@@ -9,7 +9,7 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | Identidade | Cadastro verificado, credenciais, papéis, revogação, bootstrap e recuperação; gestão de usuários em staging | Homologação SMTP/bootstrap; UI de desbloqueio, conta/sessões e handoff seguro Portal→PDV | 9, 11 |
 | Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
 | Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging | Rastreabilidade por lote e homologação física final | 2, 3, 11 |
-| Compras | Fornecedores integrados em staging; pedidos e custos implementados localmente, sem gerar estoque ou financeiro | Integrar pedidos; recebimento parcial, lote/validade, rateio de custo e obrigação financeira | 3 |
+| Compras | Fornecedores e pedidos integrados em staging, sem gerar estoque ou financeiro antes do recebimento | Recebimento parcial, lote/validade, rateio de custo e obrigação financeira | 3 |
 | Pricing | QUANTIDADE_PRECO na cotação e checkout | Demais regras, gestão e consumo concorrente dos limites | 4 |
 | PDV | Checkout, confirmação Maquininha/Área Pix, fechamento e PWA read-only | Turno/histórico, caixa físico, método/terminal e dispositivos reais | 5 |
 | Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais | UI completa, contas/categorias/despesas/importação/CSV e custo real | 3, 6 |
