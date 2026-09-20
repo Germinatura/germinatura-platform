@@ -23,11 +23,12 @@ export const createPurchaseOrderSchema = z.object({
 
 export const cancelPurchaseOrderSchema = z.object({ reason: z.string().trim().min(4).max(500) }).strict();
 export const purchaseOrderQuerySchema = z.object({
-  cursor: z.uuid().optional(), status: z.enum(["ALL", "OPEN", "CANCELLED"]).default("ALL"),
+  cursor: z.uuid().optional(), orderId: z.uuid().optional(),
+  status: z.enum(["ALL", "OPEN", "PARTIALLY_RECEIVED", "RECEIVED", "CANCELLED"]).default("ALL"),
 }).strict();
 
 export const purchaseOrderSchema = z.object({
-  id: z.uuid(), supplierId: z.uuid(), supplierName: z.string(), status: z.enum(["OPEN", "CANCELLED"]),
+  id: z.uuid(), supplierId: z.uuid(), supplierName: z.string(), status: z.enum(["OPEN", "PARTIALLY_RECEIVED", "RECEIVED", "CANCELLED"]),
   orderedOn: z.iso.date(), expectedOn: z.iso.date().nullable(),
   freightCents: cents, otherCostCents: cents, itemsSubtotalCents: cents, totalCents: cents,
   paymentMethod: z.string(), proofReference: z.string().nullable(), notes: z.string().nullable(),

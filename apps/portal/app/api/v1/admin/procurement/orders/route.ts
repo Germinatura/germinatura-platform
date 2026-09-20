@@ -6,7 +6,7 @@ import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
 
 const rowSchema = z.array(z.object({
-  id: z.uuid(), supplier_id: z.uuid(), status: z.enum(["OPEN", "CANCELLED"]),
+  id: z.uuid(), supplier_id: z.uuid(), status: z.enum(["OPEN", "PARTIALLY_RECEIVED", "RECEIVED", "CANCELLED"]),
   ordered_on: z.string(), expected_on: z.string().nullable(), freight_cents: z.number(),
   other_cost_cents: z.number(), items_subtotal_cents: z.number(), total_cents: z.number(),
   payment_method: z.string(), proof_reference: z.string().nullable(), notes: z.string().nullable(),
@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       .select("id,supplier_id,status,ordered_on,expected_on,freight_cents,other_cost_cents,items_subtotal_cents,total_cents,payment_method,proof_reference,notes,cancellation_reason,created_at,suppliers(name),purchase_order_items(id,product_id,product_name,product_sku,quantity,unit_cost_cents,line_total_cents)")
       .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(21);
     if (parsed.data.status !== "ALL") query = query.eq("status", parsed.data.status);
+    if (parsed.data.orderId) query = query.eq("id", parsed.data.orderId);
     if (parsed.data.cursor) {
       const cursor = await client.from("purchase_orders").select("created_at").eq("id", parsed.data.cursor).maybeSingle();
       if (cursor.error || !cursor.data) return fail(id, "INVALID_PURCHASE_CURSOR", "Cursor de pedidos inválido.", 422);
