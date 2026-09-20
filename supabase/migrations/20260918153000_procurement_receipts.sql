@@ -153,6 +153,7 @@ begin
   select * into v_order from public.purchase_orders where id=p_order_id for update;
   if not found then raise exception using errcode='P0002',message='PURCHASE_ORDER_NOT_FOUND'; end if;
   if v_order.status not in ('OPEN','PARTIALLY_RECEIVED') then raise exception using errcode='P0001',message='PURCHASE_ORDER_NOT_OPEN'; end if;
+  if p_received_on<v_order.ordered_on then raise exception using errcode='22023',message='INVALID_PURCHASE_RECEIPT'; end if;
   select * into v_item from public.purchase_order_items where id=p_order_item_id and order_id=p_order_id;
   if not found then raise exception using errcode='P0002',message='PURCHASE_ITEM_NOT_FOUND'; end if;
   select * into v_product from public.products where id=v_item.product_id for update;

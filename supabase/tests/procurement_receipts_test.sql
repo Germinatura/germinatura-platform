@@ -1,5 +1,5 @@
 begin;
-select plan(31);
+select plan(32);
 
 select ok(has_table_privilege('authenticated','public.purchase_receipts','SELECT'),'receipt reads pass through RLS');
 select ok(not has_table_privilege('authenticated','public.purchase_receipts','INSERT'),'direct receipt inserts denied');
@@ -18,6 +18,7 @@ create temp table receipt_order as select public.create_purchase_order(
   '[{"productId":"33000000-0000-4000-8000-000000000001","quantity":2,"unitCostCents":625}]'::jsonb,
   'Repor os doces','receipt-order',gen_random_uuid()) result;
 create temp table receipt_item as select id from public.purchase_order_items where order_id=(select (result->>'id')::uuid from receipt_order);
+select throws_ok($$select public.receive_purchase_order_item((select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,current_date-1,'LOTE-ANTERIOR',null,null,'Entrega anterior','receipt-before-order',gen_random_uuid())$$,'22023','INVALID_PURCHASE_RECEIPT','receipt cannot precede its order');
 create temp table receipt_balance_before as select on_hand_quantity from public.inventory_balances
   where product_id='33000000-0000-4000-8000-000000000001'
     and location_id=(select id from public.stock_locations where location_type='CENTRAL' and active);
