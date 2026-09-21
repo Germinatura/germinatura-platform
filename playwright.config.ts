@@ -64,12 +64,14 @@ export default defineConfig({
           url: "http://127.0.0.1:3000/api/v1/health",
           env: localServerEnvironment,
           reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
         },
         {
           command: "pnpm --filter @germinatura/pdv dev",
           url: "http://127.0.0.1:3001/api/v1/health",
           env: localServerEnvironment,
           reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
         },
       ],
 });

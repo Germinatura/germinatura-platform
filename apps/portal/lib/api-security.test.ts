@@ -45,3 +45,15 @@ describe("procurement API access", () => {
     expect(rolesSatisfyAccess(["VENDEDOR"], "procurement")).toBe(false);
   });
 });
+
+describe("purchase payable API access", () => {
+  it("allows only finance operators and administrators", () => {
+    expect(apiAccessRule("/api/v1/admin/finance/payables")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/payables/63000000-0000-4000-8000-000000000001/settlements")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/payables/settlements/63000000-0000-4000-8000-000000000001/reverse")?.access).toBe("finance");
+    expect(rolesSatisfyAccess(["ADMIN"], "finance")).toBe(true);
+    expect(rolesSatisfyAccess(["FINANCEIRO"], "finance")).toBe(true);
+    expect(rolesSatisfyAccess(["ESTOQUE"], "finance")).toBe(false);
+    expect(rolesSatisfyAccess(["CONSUMIDOR"], "finance")).toBe(false);
+  });
+});

@@ -6,7 +6,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 18/09/2026: `main` permanece em `95c4209`; `develop` está em `e901d5f` após a documentação de evidência de staging de pedidos de compra com a PR #68. Categorias, produtos, preços, imagens, perfil/navegação, distribuição central→vendedor, transferências solicitadas/aceitas, devoluções, perdas, inventário físico, fornecedores e pedidos de compra continuam integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
+Snapshot de 20/09/2026: `main` permanece em `95c4209`; `develop` está em `44fe013` após a integração dos recebimentos de compra pela PR #70. Categorias, produtos, preços, imagens, perfil/navegação, operações previstas de estoque, fornecedores, pedidos e recebimentos parciais continuam integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
 
 A evidência atual do branch `develop` foi registrada em documentação do produto e não substitui qualquer gate externo ou smoke autenticado. O status de staging continua condicionado à conta institucional controlada, à sandbox Payment Link e à homologação humana dos módulos pendentes. Produção não foi acessada.
 
@@ -44,8 +44,8 @@ flowchart LR
     classDef todo fill:#e5e7eb,stroke:#4b5563,color:#111827;
     classDef external fill:#ede9fe,stroke:#6d28d9,color:#4c1d95;
     class E0 done;
-    class E1,E2,E4,E5,E6,E8,E9 progress;
-    class E3,E7,E10,E11 todo;
+    class E1,E2,E3,E4,E5,E6,E8,E9 progress;
+    class E7,E10,E11 todo;
     class S external;
 ```
 
@@ -56,10 +56,10 @@ flowchart LR
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
 | 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição, transferência solicitada/aceita, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging; rastreabilidade por lote avança com compras; homologação física final pendente; nenhum saldo direto |
-| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores e pedidos integrados em staging; recebimento parcial por item, lote, rateio e obrigação vinculada em validação local; rastreabilidade do lote até venda e homologação pendentes |
+| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores, pedidos e recebimento parcial por item/lote com rateio e obrigação vinculada integrados em staging; liquidação/reversão de contas a pagar em validação local; rastreabilidade do lote até venda e homologação pendentes |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
-| 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões, contas/categorias, despesas, taxas, recebíveis, conciliação, importação validada por arquivo oficial e CSV real |
+| 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas e reversões comuns integradas; contas a pagar com liquidação parcial/reversão em validação local; faltam contas/categorias gerais, despesas, taxas, recebíveis, importação validada por arquivo oficial e CSV real |
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
 | 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Carrinho/pedido/pagamento; preparar/retirar reserva; compra de números e rifa no PDV; publicação/pausa/cancelamento e reembolso seguro |
 | 9 — Gestão e indicadores | IN PROGRESS | 3, 6, 8 | Auditoria, configurações, desbloqueios, conta/sessões, Portal→PDV e indicadores completos por período; meta pública configurável |
@@ -116,7 +116,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: validar e integrar recebimentos parciais, lotes, rateio de custos e obrigação financeira; depois rastrear consumo de lote até transferência/venda e completar contas a pagar. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens e todas as operações previstas de estoque já estão integrados em staging. Fornecedores e pedidos estão integrados em staging pelas PRs #66 e #67.
+Sequência imediata: validar e integrar a liquidação parcial/reversão das obrigações; depois rastrear consumo de lote até transferência/venda e avançar contas/categorias financeiras. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, operações previstas de estoque e recebimentos de compra já estão integrados em staging. Fornecedores, pedidos e recebimentos foram integrados pelas PRs #66, #67 e #70.
 
 | Trilha | PRs coesos em ordem interna | Saída da trilha |
 | --- | --- | --- |
@@ -217,4 +217,8 @@ Administração/Estoque registra pedido com fornecedor ativo, itens, custo unit�
 
 ## Incremento de recebimentos parciais — 18/09/2026
 
-Em validação local: cada conferência de um item do pedido cria um `purchase_receipt` imutável, um lote com fabricação/validade opcionais, uma entrada `ENTRADA_COMPRA` na central e uma obrigação a pagar com custo base e parcela determinística de frete/outros custos. O pedido avança para parcial ou recebido; cancelar após primeira entrega é bloqueado. API/RLS exigem `procurement.manage`, a idempotência evita segunda entrada/obrigação e o histórico tem cursor e progresso calculado no banco. A interface registra entregas separadas por lote e mostra custo e vínculos. Ainda não existe consumo de lote por transferência/venda nem liquidação de obrigação; esses pontos permanecem abertos nos marcos 3 e 6. Evidência local: reset limpo, 32 SQL focalizados, 1.097 SQL totais, 14 integrações e E2E focal 2/2; CI/staging desta fatia pendentes.
+Cada conferência de um item do pedido cria um `purchase_receipt` imutável, um lote com fabricação/validade opcionais, uma entrada `ENTRADA_COMPRA` na central e uma obrigação a pagar com custo base e parcela determinística de frete/outros custos. O pedido avança para parcial ou recebido; cancelar após primeira entrega é bloqueado. API/RLS exigem `procurement.manage`, a idempotência evita segunda entrada/obrigação e o histórico tem cursor e progresso calculado no banco. A interface registra entregas separadas por lote e mostra custo e vínculos. PR #70 integrada em `44fe013`; Quality `35530018135` e Deploy Staging `35530020199` verdes. Smokes externos retornaram 200 para Portal, PDV, Jobs e catálogo via Service Binding, e 401 para recebimentos sem sessão. O consumo de lote por transferência/venda permanece aberto no marco 3.
+
+## Incremento de liquidação de contas a pagar — 20/09/2026
+
+Em validação local: `/admin/financeiro/contas-a-pagar` consulta obrigações originadas exclusivamente por recebimentos, registra pagamentos parciais sob lock e calcula o saldo no banco. Correções criam uma reversão imutável vinculada ao pagamento, sem apagar custo ou histórico. API, RLS e allowlist exigem `finance.manage`; idempotência, auditoria e outbox cobrem liquidação e reversão. Evidência focal: 43 asserções SQL, uma integração PostgreSQL de corrida entre pagamentos/reversões e E2E Chromium 2/2. Contas/categorias gerais e rastreabilidade de lote continuam abertas; CI/staging desta fatia ainda não foram executados.

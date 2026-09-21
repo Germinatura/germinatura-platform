@@ -32,6 +32,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/procurement/orders", methods: ["GET", "POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/receipts", methods: ["GET", "POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/orders/:id/cancel", methods: ["POST"], access: "procurement" },
+  { path: "/api/v1/admin/finance/payables", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/payables/settlements/:id/reverse", methods: ["POST"], access: "finance" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
@@ -79,6 +82,12 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     if (rule.path === path) return true;
     if (rule.path === "/api/v1/admin/procurement/orders/:id/cancel") {
       return /^\/api\/v1\/admin\/procurement\/orders\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/payables/:id/settlements") {
+      return /^\/api\/v1\/admin\/finance\/payables\/[0-9a-f-]+\/settlements$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/payables/settlements/:id/reverse") {
+      return /^\/api\/v1\/admin\/finance\/payables\/settlements\/[0-9a-f-]+\/reverse$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/users/:id/roles") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);

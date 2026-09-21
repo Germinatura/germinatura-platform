@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, CalendarClock, ClipboardCheck, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, Boxes, CalendarClock, ClipboardCheck, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -107,6 +107,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Link href="/admin/fechamentos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/fechamentos"))} title={collapsed ? "Fechamentos" : undefined}>
               {pathname.startsWith("/admin/fechamentos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <ClipboardCheck className="size-5 shrink-0" />{!collapsed && <span>Fechamentos</span>}
+            </Link>
+            <Link href="/admin/financeiro/contas-a-pagar" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/contas-a-pagar"))} title={collapsed ? "Contas a pagar" : undefined}>
+              {pathname.startsWith("/admin/financeiro/contas-a-pagar") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <Banknote className="size-5 shrink-0" />{!collapsed && <span>Contas a pagar</span>}
             </Link>
           </>
         )}
