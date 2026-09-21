@@ -43,7 +43,10 @@ test("gestão acompanha compra por lote, custo e movimento; consumidor fica bloq
     await page.goto(`${portal}/admin/estoque/lotes`);
     await expect(page.getByRole("heading", { name: "Rastreabilidade por lote" })).toBeVisible();
     await page.getByPlaceholder("Lote, produto, SKU ou localização").fill(lotCode);
+    const searchResponse = page.waitForResponse((response) => response.url().includes(`/api/v1/admin/inventory/lots?query=${encodeURIComponent(lotCode)}`));
     await page.getByRole("button", { name: "Buscar" }).click();
+    expect((await searchResponse).status()).toBe(200);
+    await expect(page.getByRole("button", { name: "Ver histórico" })).toHaveCount(1);
     await expect(page.getByText(`lote ${lotCode}`)).toBeVisible();
     await page.getByRole("button", { name: "Ver histórico" }).click();
     await expect(page.getByRole("heading", { name: `Histórico do lote ${lotCode}` })).toBeVisible();
