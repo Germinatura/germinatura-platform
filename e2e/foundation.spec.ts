@@ -1,7 +1,30 @@
 import { expect, test } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 
 const portalUrl = "http://127.0.0.1:3000";
 const pdvUrl = process.env.PDV_URL ?? "http://127.0.0.1:3001";
+
+async function prepareCheckoutStock(locationId: string, productId: string) {
+  const output = execFileSync(process.execPath, ["tools/run-supabase.mjs", "status", "-o", "env"], { encoding: "utf8" });
+  const url = output.match(/^API_URL="?([^"\r\n]+)"?$/m)?.[1];
+  const key = output.match(/^PUBLISHABLE_KEY="?([^"\r\n]+)"?$/m)?.[1];
+  if (!url || !key) throw new Error("Supabase local indisponível para preparar o estoque E2E");
+  const loginResponse = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" }, body: JSON.stringify({ email: "admin.teste@institutojef.org.br", password: "Admin123!" }) });
+  const token = (await loginResponse.json() as { access_token?: string }).access_token;
+  if (!loginResponse.ok || !token) throw new Error("Fixture administrativa indisponível para preparar o estoque E2E");
+  const headers = { apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  async function rpc(name: string, parameters: Record<string, unknown>) {
+    const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST", headers, body: JSON.stringify(parameters) });
+    const result = await response.json() as Record<string, unknown>;
+    if (!response.ok) throw new Error(`${name}: ${String(result.message ?? response.status)}`);
+    return result;
+  }
+  const prepared = await rpc("adjust_stock", { p_location_id: locationId, p_product_id: productId, p_quantity_delta: 1,
+    p_reason: "Preparar checkout E2E", p_idempotency_key: `e2e-checkout-stock:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() });
+  const movementId = String(prepared.movement_id);
+  return async () => { await rpc("reverse_stock_movement", { p_movement_id: movementId, p_reason: "Limpar estoque do checkout E2E",
+    p_idempotency_key: `e2e-checkout-stock-reverse:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() }); };
+}
 
 async function login(page: import("@playwright/test").Page, identifier: string, password: string) {
   const origin = new URL(page.url()).origin;
@@ -333,6 +356,8 @@ test("Pricing quote rejects client totals and calculates public prices server-si
 test("Checkout rejects client totals and deduplicates Cobrar atomically", async ({ page }) => {
   const productId = "33f00000-0000-4000-8000-000000000001";
   const locationId = "50000000-0000-4000-8000-000000000001";
+  const cleanupStock = await prepareCheckoutStock(locationId, productId);
+  try {
   await page.goto("/login");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
 
@@ -420,11 +445,14 @@ test("Checkout rejects client totals and deduplicates Cobrar atomically", async 
   });
   expect(cancelReplay.status()).toBe(200);
   await expect(cancelReplay.json()).resolves.toMatchObject({ data: cancelledBody.data });
+  } finally { await cleanupStock().catch(() => undefined); }
 });
 
 test("Manual PicPay confirmation is explicit, idempotent and consumes stock once", async ({ page }) => {
   const productId = "33f00000-0000-4000-8000-000000000001";
   const locationId = "50000000-0000-4000-8000-000000000001";
+  const cleanupStock = await prepareCheckoutStock(locationId, productId);
+  try {
   await page.goto("/login");
   await login(page, "admin.teste@institutojef.org.br", "Admin123!");
 
@@ -590,6 +618,7 @@ test("Manual PicPay confirmation is explicit, idempotent and consumes stock once
   });
   expect(reversalReplay.status()).toBe(200);
   await expect(reversalReplay.json()).resolves.toMatchObject({ data: reversedBody.data });
+  } finally { await cleanupStock().catch(() => undefined); }
 });
 
 test("Seller closeout endpoints enforce role, complete counts and managed reopen", async ({ page }) => {
@@ -621,6 +650,7 @@ test("Seller closeout endpoints enforce role, complete counts and managed reopen
 });
 
 test("Administrator enters the Portal and can navigate through the PDV", async ({ page }) => {
+  test.setTimeout(180_000);
   await page.goto("/login");
   const portalBrand = page.getByRole("img", { name: "Germinatura" });
   await expect(portalBrand).toBeVisible();

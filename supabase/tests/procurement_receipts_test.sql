@@ -9,21 +9,21 @@ select ok(not has_function_privilege('anon','public.receive_purchase_order_item(
 
 set local role authenticated;
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000003';
-select throws_ok($$select public.receive_purchase_order_item(gen_random_uuid(),gen_random_uuid(),1,current_date,null,null,null,'Acesso indevido','receipt-consumer',gen_random_uuid())$$,'42501','PROCUREMENT_MANAGE_FORBIDDEN','consumer cannot receive');
+select throws_ok($$select public.receive_purchase_order_item(gen_random_uuid(),gen_random_uuid(),1,(now() at time zone 'America/Sao_Paulo')::date,null,null,null,'Acesso indevido','receipt-consumer',gen_random_uuid())$$,'42501','PROCUREMENT_MANAGE_FORBIDDEN','consumer cannot receive');
 
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
 create temp table receipt_supplier as select public.save_supplier(null,null,'Fornecedor de recebimentos','Ana',null,null,null,null,true,'Preparar recebimento','receipt-supplier',gen_random_uuid()) result;
 create temp table receipt_order as select public.create_purchase_order(
-  (select (result->>'id')::uuid from receipt_supplier),current_date,null,250,50,'PIX após entrega',null,null,
+  (select (result->>'id')::uuid from receipt_supplier),(now() at time zone 'America/Sao_Paulo')::date,null,250,50,'PIX após entrega',null,null,
   '[{"productId":"33000000-0000-4000-8000-000000000001","quantity":2,"unitCostCents":625}]'::jsonb,
   'Repor os doces','receipt-order',gen_random_uuid()) result;
 create temp table receipt_item as select id from public.purchase_order_items where order_id=(select (result->>'id')::uuid from receipt_order);
-select throws_ok($$select public.receive_purchase_order_item((select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,current_date-1,'LOTE-ANTERIOR',null,null,'Entrega anterior','receipt-before-order',gen_random_uuid())$$,'22023','INVALID_PURCHASE_RECEIPT','receipt cannot precede its order');
+select throws_ok($$select public.receive_purchase_order_item((select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,(now() at time zone 'America/Sao_Paulo')::date-1,'LOTE-ANTERIOR',null,null,'Entrega anterior','receipt-before-order',gen_random_uuid())$$,'22023','INVALID_PURCHASE_RECEIPT','receipt cannot precede its order');
 create temp table receipt_balance_before as select on_hand_quantity from public.inventory_balances
   where product_id='33000000-0000-4000-8000-000000000001'
     and location_id=(select id from public.stock_locations where location_type='CENTRAL' and active);
 create temp table first_receipt as select public.receive_purchase_order_item(
-  (select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,current_date,
+  (select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,(now() at time zone 'America/Sao_Paulo')::date,
   'LOTE-DOCE-01',null,null,'Primeira entrega','receipt-one',gen_random_uuid()) result;
 select is((select (result->>'quantity')::bigint from first_receipt),1::bigint,'partial receipt accepts one of two units');
 select is((select (result->>'baseCostCents')::bigint from first_receipt),625::bigint,'base cost uses order snapshot');
@@ -42,13 +42,13 @@ select is((select lot_code from public.inventory_lots where receipt_id=(select (
 select is((select amount_cents from public.purchase_payable_entries where receipt_id=(select (result->>'id')::uuid from first_receipt)),775::bigint,'one payable linked to receipt');
 select is((select status from public.purchase_orders where id=(select (result->>'id')::uuid from receipt_order)),'PARTIALLY_RECEIVED','first delivery marks order partial');
 select is((select received_quantity from public.purchase_order_item_progress where order_item_id=(select id from receipt_item)),1::bigint,'progress view reports partial receipt');
-select results_eq($$select public.receive_purchase_order_item((select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,current_date,'LOTE-DOCE-01',null,null,'Primeira entrega','receipt-one',gen_random_uuid())$$,
+select results_eq($$select public.receive_purchase_order_item((select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,(now() at time zone 'America/Sao_Paulo')::date,'LOTE-DOCE-01',null,null,'Primeira entrega','receipt-one',gen_random_uuid())$$,
   $$select result from first_receipt$$,'receipt replay returns original result');
 select is((select count(*)::integer from public.purchase_receipts where order_id=(select (result->>'id')::uuid from receipt_order)),1,'replay creates no second receipt');
 select throws_ok($$select public.cancel_purchase_order((select (result->>'id')::uuid from receipt_order),'Entrega já recebida','cancel-received',gen_random_uuid())$$,'P0001','PURCHASE_ORDER_NOT_OPEN','received order cannot be cancelled');
-select throws_ok($$select public.receive_purchase_order_item((select (result->>'id')::uuid from receipt_order),(select id from receipt_item),2,current_date,'LOTE-DOCE-02',null,null,'Entrega excedente','receipt-over',gen_random_uuid())$$,'P0001','PURCHASE_QUANTITY_EXCEEDED','overreceipt rejected');
+select throws_ok($$select public.receive_purchase_order_item((select (result->>'id')::uuid from receipt_order),(select id from receipt_item),2,(now() at time zone 'America/Sao_Paulo')::date,'LOTE-DOCE-02',null,null,'Entrega excedente','receipt-over',gen_random_uuid())$$,'P0001','PURCHASE_QUANTITY_EXCEEDED','overreceipt rejected');
 create temp table second_receipt as select public.receive_purchase_order_item(
-  (select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,current_date,
+  (select (result->>'id')::uuid from receipt_order),(select id from receipt_item),1,(now() at time zone 'America/Sao_Paulo')::date,
   'LOTE-DOCE-02',null,null,'Segunda entrega','receipt-two',gen_random_uuid()) result;
 select is((select sum(allocated_extra_cents)::bigint from public.purchase_receipts where order_id=(select (result->>'id')::uuid from receipt_order)),300::bigint,'all extras allocated exactly once after full receipt');
 select is((select sum(amount_cents)::bigint from public.purchase_payable_entries where receipt_id in
