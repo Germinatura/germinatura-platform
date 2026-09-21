@@ -840,3 +840,4 @@ export * from "./suppliers";
 export * from "./purchase-orders";
 export * from "./purchase-receipts";
 export * from "./purchase-payables";
+export * from "./inventory-lots";

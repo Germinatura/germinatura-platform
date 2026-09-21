@@ -6,7 +6,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 20/09/2026: `main` permanece em `95c4209`; `develop` está em `44fe013` após a integração dos recebimentos de compra pela PR #70. Categorias, produtos, preços, imagens, perfil/navegação, operações previstas de estoque, fornecedores, pedidos e recebimentos parciais continuam integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
+Snapshot de 21/09/2026: `main` permanece em `95c4209`; `develop` está em `aefed60` após a integração das PRs #71 e #72. Categorias, produtos, preços, imagens, perfil/navegação, operações previstas de estoque, fornecedores, pedidos, recebimentos parciais e liquidação de contas a pagar estão integrados em staging. Rastreabilidade por lote segue em desenvolvimento local. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
 
 A evidência atual do branch `develop` foi registrada em documentação do produto e não substitui qualquer gate externo ou smoke autenticado. O status de staging continua condicionado à conta institucional controlada, à sandbox Payment Link e à homologação humana dos módulos pendentes. Produção não foi acessada.
 
@@ -56,10 +56,10 @@ flowchart LR
 | 0 — Reconciliação | DONE | Aprovação do plano | Especificação, PRD, gaps, matriz e ADR Payment Link/dinheiro coerentes; revisão documental, PR e CI. Consulta oficial feita; acesso sandbox ainda não validado |
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
 | 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição, transferência solicitada/aceita, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging; rastreabilidade por lote avança com compras; homologação física final pendente; nenhum saldo direto |
-| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores, pedidos e recebimento parcial por item/lote com rateio e obrigação vinculada integrados em staging; liquidação/reversão de contas a pagar em validação local; rastreabilidade do lote até venda e homologação pendentes |
+| 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de contas a pagar integrados em staging; rastreabilidade do lote até venda em desenvolvimento local, ainda sem CI/staging; homologação física pendente |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
-| 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas e reversões comuns integradas; contas a pagar com liquidação parcial/reversão em validação local; faltam contas/categorias gerais, despesas, taxas, recebíveis, importação validada por arquivo oficial e CSV real |
+| 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões comuns e contas a pagar com liquidação parcial/reversão integradas; faltam contas/categorias gerais, despesas, taxas, recebíveis, importação validada por arquivo oficial e CSV real |
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
 | 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Carrinho/pedido/pagamento; preparar/retirar reserva; compra de números e rifa no PDV; publicação/pausa/cancelamento e reembolso seguro |
 | 9 — Gestão e indicadores | IN PROGRESS | 3, 6, 8 | Auditoria, configurações, desbloqueios, conta/sessões, Portal→PDV e indicadores completos por período; meta pública configurável |
@@ -221,4 +221,8 @@ Cada conferência de um item do pedido cria um `purchase_receipt` imutável, um 
 
 ## Incremento de liquidação de contas a pagar — 20/09/2026
 
-Em validação local: `/admin/financeiro/contas-a-pagar` consulta obrigações originadas exclusivamente por recebimentos, registra pagamentos parciais sob lock e calcula o saldo no banco. Correções criam uma reversão imutável vinculada ao pagamento, sem apagar custo ou histórico. API, RLS e allowlist exigem `finance.manage`; idempotência, auditoria e outbox cobrem liquidação e reversão. Evidência focal: 43 asserções SQL, uma integração PostgreSQL de corrida entre pagamentos/reversões e E2E Chromium 2/2. Contas/categorias gerais e rastreabilidade de lote continuam abertas; CI/staging desta fatia ainda não foram executados.
+`/admin/financeiro/contas-a-pagar` consulta obrigações originadas exclusivamente por recebimentos, registra pagamentos parciais sob lock e calcula o saldo no banco. Correções criam uma reversão imutável vinculada ao pagamento, sem apagar custo ou histórico. API, RLS e allowlist exigem `finance.manage`; idempotência, auditoria e outbox cobrem liquidação e reversão. PR #71 integrada em `de9c736`; Quality da PR `35549418859`, Quality pós-merge `35549886086` e Deploy Staging `35549886079` verdes. PR #72 integrou lote opcional conforme produto em `aefed60`, com Quality `35551883502` e Deploy Staging `35551883512` verdes. Contas/categorias gerais e rastreabilidade de consumo do lote continuam abertas.
+
+## Incremento de rastreabilidade do lote — em desenvolvimento local, 21/09/2026
+
+Migration aditiva em validação local: posição física por lote/local, alocação imutável de lote por movimento, consumo de custo real em centavos, preservação do lote em transferências e reversão da venda. O histórico anterior à migration permanece documental; a posição física existente é capturada como baseline de custo desconhecido, sem editar movimentos ou lotes imutáveis. Consulta administrativa com busca e cursores está em desenvolvimento. Ainda não há CI, PR ou homologação em staging desta fatia.

@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual e conclusão
 
-Auditoria atualizada em 20/09/2026: `main=95c4209`, `develop=44fe013`, checkout limpo no início da fatia. A documentação do produto registra a evidência atual do branch `develop` com a PR #70 e sem nova autorização de produção. Código, contratos, migrations integradas e testes foram inspecionados; produção não foi acessada.
+Auditoria atualizada em 21/09/2026: `main=95c4209`, `develop=aefed60`. As PRs #71 e #72 foram integradas e homologadas em staging; a rastreabilidade por lote está em desenvolvimento local, sem CI ou staging. Produção não foi acessada.
 
 A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 
@@ -9,10 +9,10 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | Identidade | Cadastro verificado, credenciais, papéis, revogação, bootstrap e recuperação; gestão de usuários em staging | Homologação SMTP/bootstrap; UI de desbloqueio, conta/sessões e handoff seguro Portal→PDV | 9, 11 |
 | Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
 | Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging | Rastreabilidade por lote e homologação física final | 2, 3, 11 |
-| Compras | Fornecedores, pedidos e recebimento parcial por lote/rateio/obrigação integrados em staging; liquidação parcial e reversão em validação local | Integrar liquidação; rastrear lote até venda e homologar a jornada | 3 |
+| Compras | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de obrigações integrados em staging; lote opcional conforme produto | Rastrear lote até venda e homologar fisicamente a jornada | 3 |
 | Pricing | QUANTIDADE_PRECO na cotação e checkout | Demais regras, gestão e consumo concorrente dos limites | 4 |
 | PDV | Checkout, confirmação Maquininha/Área Pix, fechamento e PWA read-only | Turno/histórico, caixa físico, método/terminal e dispositivos reais | 5 |
-| Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais; contas a pagar com pagamento parcial/reversão em validação local | Integrar contas a pagar; contas/categorias gerais, despesas/importação/CSV e custo real | 3, 6 |
+| Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais; contas a pagar parciais/reversíveis integradas em staging | Contas/categorias gerais, despesas/importação/CSV e custo real consolidado nos relatórios | 3, 6 |
 | Reservas | Backend ACTIVE/CONVERTED/CANCELLED/EXPIRED e consulta/cancelamento próprio | Compra/pagamento, preparação, pronta retirada e entrega | 8 |
 | Rifas | Reserva concorrente, financeiro, criação/encerramento/sorteio e consultas | Compra consumidor/PDV, publicação/pausa/cancelamento e reembolso específico | 8 |
 | Indicadores | Resumo explícito de 100 vendas recentes e contagens operacionais | Relatórios integrais por período, conciliação, custo/margem/perdas/meta | 9 |

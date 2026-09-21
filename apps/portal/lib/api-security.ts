@@ -14,6 +14,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/catalog/product-images/:id", methods: ["DELETE"], access: "admin" },
   { path: "/api/v1/admin/catalog/products/:id/prices", methods: ["GET"], access: "admin" },
   { path: "/api/v1/admin/inventory/distributions", methods: ["POST"], access: "inventory" },
+  { path: "/api/v1/admin/inventory/lots", methods: ["GET"], access: "inventory" },
   { path: "/api/v1/inventory/transfer-requests", methods: ["GET", "POST"], access: "seller" },
   { path: "/api/v1/inventory/transfer-requests/:id", methods: ["PATCH"], access: "seller" },
   { path: "/api/v1/inventory/returns", methods: ["GET", "POST"], access: "seller" },
