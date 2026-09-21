@@ -12,7 +12,7 @@ const rowSchema = z.array(z.object({
   payment_method: z.string(), proof_reference: z.string().nullable(), notes: z.string().nullable(),
   cancellation_reason: z.string().nullable(), created_at: z.string(),
   suppliers: z.object({ name: z.string() }),
-  purchase_order_items: z.array(z.object({ id: z.uuid(), product_id: z.uuid(), product_name: z.string(), product_sku: z.string(), quantity: z.number(), unit_cost_cents: z.number(), line_total_cents: z.number() })),
+  purchase_order_items: z.array(z.object({ id: z.uuid(), product_id: z.uuid(), product_name: z.string(), product_sku: z.string(), quantity: z.number(), unit_cost_cents: z.number(), line_total_cents: z.number(), products: z.object({ tracks_lots: z.boolean() }) })),
 }));
 const headers = (id: string) => ({ "Cache-Control": "no-store", "x-request-id": id });
 const fail = (id: string, code: string, message: string, status: number) => NextResponse.json(createApiError(code, message, id), { status, headers: headers(id) });
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     if (!parsed.success) return fail(id, "INVALID_PURCHASE_QUERY", "Consulta de pedidos inválida.", 422);
     const client = await createAuthenticatedSupabaseClient(request);
     let query = client.from("purchase_orders")
-      .select("id,supplier_id,status,ordered_on,expected_on,freight_cents,other_cost_cents,items_subtotal_cents,total_cents,payment_method,proof_reference,notes,cancellation_reason,created_at,suppliers(name),purchase_order_items(id,product_id,product_name,product_sku,quantity,unit_cost_cents,line_total_cents)")
+      .select("id,supplier_id,status,ordered_on,expected_on,freight_cents,other_cost_cents,items_subtotal_cents,total_cents,payment_method,proof_reference,notes,cancellation_reason,created_at,suppliers(name),purchase_order_items(id,product_id,product_name,product_sku,quantity,unit_cost_cents,line_total_cents,products(tracks_lots))")
       .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(21);
     if (parsed.data.status !== "ALL") query = query.eq("status", parsed.data.status);
     if (parsed.data.orderId) query = query.eq("id", parsed.data.orderId);
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
         totalCents: row.total_cents, paymentMethod: row.payment_method, proofReference: row.proof_reference,
         notes: row.notes, cancellationReason: row.cancellation_reason, createdAt: row.created_at,
         items: row.purchase_order_items.map((item) => ({ id: item.id, productId: item.product_id,
-          productName: item.product_name, productSku: item.product_sku, quantity: item.quantity,
+          productName: item.product_name, productSku: item.product_sku, tracksLots: item.products.tracks_lots, quantity: item.quantity,
           unitCostCents: item.unit_cost_cents, lineTotalCents: item.line_total_cents })),
       })),
       nextCursor: rows.data.length > 20 ? page.at(-1)?.id ?? null : null, request_id: id,

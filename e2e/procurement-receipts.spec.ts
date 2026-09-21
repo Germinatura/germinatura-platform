@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const portal = "http://127.0.0.1:3000";
 
-test("gestão recebe pedido em dois lotes sem duplicar estoque ou obrigação", async ({ browser }) => {
+test("gestão recebe duas entregas e torna o lote opcional conforme o produto", async ({ browser }) => {
   const context = await browser.newContext();
   try {
     const page = await context.newPage();
@@ -25,9 +25,9 @@ test("gestão recebe pedido em dois lotes sem duplicar estoque ou obrigação", 
     await expect(page.getByRole("heading", { name: "Recebimento de compras" })).toBeVisible();
     await expect(page.getByText("recebido 0 de 2")).toBeVisible();
     await page.getByLabel("Item do pedido").selectOption({ index: 1 });
+    await expect(page.getByLabel("Código do lote (opcional)")).toBeVisible();
     await page.getByLabel("Quantidade conferida").fill("1");
     await page.getByLabel("Data do recebimento").fill("2026-09-18");
-    await page.getByLabel("Código do lote").fill("E2E-LOTE-A");
     await page.getByLabel("Validade opcional").fill("2026-10-18");
     await page.getByLabel("Motivo e conferência").fill("Entrega parcial conferida");
     const firstPromise = page.waitForResponse((response) => response.url().endsWith("/api/v1/admin/procurement/receipts") && response.request().method() === "POST");
@@ -36,10 +36,10 @@ test("gestão recebe pedido em dois lotes sem duplicar estoque ou obrigação", 
     expect(first.status()).toBe(201);
     expect((await first.json() as { data: { totalCostCents: number } }).data.totalCostCents).toBe(775);
     await expect(page.getByText("recebido 1 de 2")).toBeVisible();
-    await expect(page.getByText("E2E-LOTE-A")).toBeVisible();
+    await expect(page.getByText(/^Lote REC-/)).toBeVisible();
     await page.getByLabel("Item do pedido").selectOption({ index: 1 });
     await page.getByLabel("Data do recebimento").fill("2026-09-18");
-    await page.getByLabel("Código do lote").fill("E2E-LOTE-B");
+    await page.getByLabel("Código do lote (opcional)").fill("E2E-LOTE-B");
     await page.getByLabel("Motivo e conferência").fill("Entrega final conferida");
     const secondPromise = page.waitForResponse((response) => response.url().endsWith("/api/v1/admin/procurement/receipts") && response.request().method() === "POST");
     await page.getByRole("button", { name: "Registrar recebimento" }).click();
