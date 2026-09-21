@@ -1,5 +1,5 @@
 begin;
-select plan(32);
+select plan(34);
 
 select ok(has_table_privilege('authenticated','public.purchase_receipts','SELECT'),'receipt reads pass through RLS');
 select ok(not has_table_privilege('authenticated','public.purchase_receipts','INSERT'),'direct receipt inserts denied');
@@ -66,6 +66,25 @@ insert into public.user_roles(user_id,role_id) values('10000000-0000-4000-8000-0
 set local role authenticated;
 select is((select count(*)::integer from public.purchase_payable_entries where receipt_id=(select (result->>'id')::uuid from first_receipt)),1,'finance role can read linked payable');
 select is((select count(*)::integer from public.purchase_receipts where order_id=(select (result->>'id')::uuid from receipt_order)),0,'finance role cannot inspect operational receipt data');
+
+reset role;
+update public.products
+set tracks_lots=true
+where id='33000000-0000-4000-8000-000000000001';
+set local role authenticated;
+set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
+create temp table tracked_receipt_order as select public.create_purchase_order(
+  (select (result->>'id')::uuid from receipt_supplier),(now() at time zone 'America/Sao_Paulo')::date,null,0,0,'PIX',null,null,
+  '[{"productId":"33000000-0000-4000-8000-000000000001","quantity":1,"unitCostCents":625}]'::jsonb,
+  'Validar lote obrigatório','receipt-tracked-order',gen_random_uuid()) result;
+create temp table tracked_receipt_item as select id from public.purchase_order_items
+  where order_id=(select (result->>'id')::uuid from tracked_receipt_order);
+select throws_ok($$select public.receive_purchase_order_item(
+  (select (result->>'id')::uuid from tracked_receipt_order),(select id from tracked_receipt_item),1,
+  (now() at time zone 'America/Sao_Paulo')::date,null,null,null,'Entrega sem lote','receipt-tracked-missing',gen_random_uuid())$$,
+  '22023','LOT_CODE_REQUIRED','tracked product requires supplier lot code');
+select is((select count(*)::integer from public.purchase_receipts
+  where order_id=(select (result->>'id')::uuid from tracked_receipt_order)),0,'missing required lot creates no receipt');
 
 select * from finish();
 rollback;

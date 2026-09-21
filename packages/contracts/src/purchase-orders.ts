@@ -33,7 +33,7 @@ export const purchaseOrderSchema = z.object({
   freightCents: cents, otherCostCents: cents, itemsSubtotalCents: cents, totalCents: cents,
   paymentMethod: z.string(), proofReference: z.string().nullable(), notes: z.string().nullable(),
   cancellationReason: z.string().nullable(), createdAt: z.iso.datetime({ offset: true }),
-  items: z.array(z.object({ id: z.uuid(), productId: z.uuid(), productName: z.string(), productSku: z.string(), quantity: z.number().int().positive(), unitCostCents: cents, lineTotalCents: cents }).strict()),
+  items: z.array(z.object({ id: z.uuid(), productId: z.uuid(), productName: z.string(), productSku: z.string(), tracksLots: z.boolean(), quantity: z.number().int().positive(), unitCostCents: cents, lineTotalCents: cents }).strict()),
 }).strict();
 export const purchaseOrdersResponseSchema = z.object({ data: z.array(purchaseOrderSchema), nextCursor: z.uuid().nullable(), request_id: z.string() }).strict();
 export const purchaseOrderCommandResponseSchema = z.object({ data: z.object({ id: z.uuid(), status: z.enum(["OPEN", "CANCELLED"]), totalCents: cents.optional(), correlationId: z.uuid() }).strict(), request_id: z.string() }).strict();
