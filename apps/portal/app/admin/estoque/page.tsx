@@ -3,6 +3,7 @@ import { Badge, Card, Input } from "@germinatura/ui";
 import { Boxes, CircleAlert, PackageOpen, Warehouse } from "lucide-react";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { StockDistributionForm } from "@/components/admin/StockDistributionForm";
@@ -51,7 +52,7 @@ export default async function InventoryAdminPage({ searchParams }: { searchParam
   const totals = balances.reduce((sum, balance) => ({ onHand: sum.onHand + balance.on_hand_quantity, reserved: sum.reserved + balance.reserved_quantity, available: sum.available + balance.available_quantity }), { onHand: 0, reserved: 0, available: 0 });
 
   return <div className="px-4 py-8 sm:px-6 lg:px-8 lg:py-10"><div className="mx-auto max-w-[var(--g-content-standard)] space-y-6">
-    <header><p className="text-sm font-semibold text-[var(--g-brand-primary)]">Estoque</p><h1 className="mt-1 text-3xl font-bold tracking-tight">Saldos por localização</h1><p className="mt-2 max-w-2xl text-base text-[var(--g-text-secondary)]">Acompanhe saldo físico, reservas e movimentos imutáveis. Correções devem usar movimentos compensatórios, nunca edição direta.</p></header>
+    <header><p className="text-sm font-semibold text-[var(--g-brand-primary)]">Estoque</p><div className="flex flex-wrap items-center justify-between gap-3"><h1 className="mt-1 text-3xl font-bold tracking-tight">Saldos por localização</h1><Link href="/admin/estoque/lotes" className="inline-flex min-h-11 items-center rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] px-4 text-sm font-semibold text-[var(--g-brand-primary)]">Rastrear lotes</Link></div><p className="mt-2 max-w-2xl text-base text-[var(--g-text-secondary)]">Acompanhe saldo físico, reservas e movimentos imutáveis. Correções devem usar movimentos compensatórios, nunca edição direta.</p></header>
     {unavailable && <div role="alert" className="rounded-[var(--g-radius-control)] bg-[var(--g-status-danger-soft)] p-4 text-sm text-[var(--g-status-danger-foreground)]">Não foi possível consultar todo o estoque. Não use os totais abaixo para fechamento enquanto este aviso estiver visível.</div>}
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do estoque">
       <Summary icon={Boxes} label="Saldo físico" value={totals.onHand} />
