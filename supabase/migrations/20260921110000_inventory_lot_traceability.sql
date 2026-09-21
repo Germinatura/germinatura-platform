@@ -134,8 +134,13 @@ begin
   select * into strict v_movement from public.stock_movements where id=new.movement_id;
   if v_movement.movement_type in ('ENTRADA_COMPRA','RESERVA','LIBERACAO_RESERVA') then return new; end if;
 
+  -- Reversing an earlier positive adjustment removes current physical units.
+  -- Those original units may already have been sold or lost, so allocate the
+  -- compensating negative adjustment from the lots actually still on hand.
   if v_movement.reversal_of is not null then
     select * into strict v_original from public.stock_movements where id=v_movement.reversal_of;
+  end if;
+  if v_movement.reversal_of is not null and v_original.movement_type<>'AJUSTE_POSITIVO' then
     for v_row in select allocation.* from public.stock_movement_lot_allocations allocation
       join public.stock_movement_items item on item.id=allocation.movement_item_id
       where item.movement_id=v_original.id and item.product_id=new.product_id order by allocation.lot_id

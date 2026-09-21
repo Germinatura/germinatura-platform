@@ -1,5 +1,5 @@
 begin;
-select plan(31);
+select plan(33);
 
 select has_table('public','inventory_lot_balances','lot balances exist');
 select has_table('public','stock_movement_lot_allocations','movement allocations exist');
@@ -69,6 +69,30 @@ select throws_ok($$insert into public.stock_movement_lot_allocations(movement_it
 reset role;
 select is((select count(*)::integer from public.inventory_lot_positions where lot_id=(select id from trace_lot)),2,'manager view exposes current lot across both locations');
 select is((select count(*)::integer from public.inventory_lot_history where lot_id=(select id from trace_lot)),4,'history exposes receipt, transfer, sale and reversal');
+
+set local role authenticated;
+set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
+create temp table trace_depletion as select public.adjust_stock(
+  '50000000-0000-4000-8000-000000000002','33f00000-0000-4000-8000-000000000001',-3,
+  'Consumir posição antes da reversão antiga','trace-depletion',gen_random_uuid()) result;
+create temp table trace_replenishment as select public.adjust_stock(
+  '50000000-0000-4000-8000-000000000002','33f00000-0000-4000-8000-000000000001',1,
+  'Repor para compensação tardia','trace-replenishment',gen_random_uuid()) result;
+create temp table trace_late_reversal as select public.reverse_stock_movement(
+  (select (result->>'movement_id')::uuid from trace_adjustment),'Reverter ajuste após consumo',
+  'trace-late-reversal',gen_random_uuid()) result;
+select is((select allocation.lot_id from public.stock_movement_lot_allocations allocation
+  join public.stock_movement_items item on item.id=allocation.movement_item_id
+  where item.movement_id=(select (result->>'movement_id')::uuid from trace_late_reversal)),
+  (select allocation.lot_id from public.stock_movement_lot_allocations allocation
+  join public.stock_movement_items item on item.id=allocation.movement_item_id
+  where item.movement_id=(select (result->>'movement_id')::uuid from trace_replenishment)),
+  'late reversal consumes the lot actually on hand');
+select public.reverse_stock_movement((select (result->>'movement_id')::uuid from trace_depletion),
+  'Repor consumo de teste','trace-depletion-reversal',gen_random_uuid());
+select is((select consumed_quantity from public.inventory_lot_cost_states where lot_id=(select id from trace_lot)),
+  0::bigint,'compensating negative adjustment restores cost state on reversal');
+reset role;
 
 -- A later consumption may remain after an earlier one is reversed. Cost must
 -- still be nonnegative and all original cents must be recoverable.
