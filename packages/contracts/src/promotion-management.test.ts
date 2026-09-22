@@ -15,7 +15,9 @@ describe("quantity price promotion administration contract",()=>{
     expect(saveQuantityPricePromotionSchema.safeParse({...valid,globalRedemptionLimit:10}).success).toBe(false);
   });
   it("can display legacy limits without accepting an unsafe rewrite",()=>{
-    const { expectedRevision: _expectedRevision, reason: _reason, ...stored } = valid;
+    const stored: Record<string, unknown> = {...valid};
+    delete stored.expectedRevision;
+    delete stored.reason;
     expect(quantityPricePromotionSchema.safeParse({...stored,id:"60000000-0000-4000-8000-000000000001",revision:1,cumulative:true,globalRedemptionLimit:10}).success).toBe(true);
   });
 });
