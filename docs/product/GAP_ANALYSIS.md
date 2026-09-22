@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual e conclusão
 
-Auditoria atualizada em 21/09/2026: `main=95c4209`, `develop=aefed60`. As PRs #71 e #72 foram integradas e homologadas em staging; a rastreabilidade por lote está em desenvolvimento local, sem CI ou staging. Produção não foi acessada.
+Auditoria atualizada em 22/09/2026: `main=95c4209`, `develop=61d2a34`. A PR #73 integrou e homologou em staging a rastreabilidade por lote/local, custo consumido e histórico de movimentos. A administração transacional da regra promocional já executável está em desenvolvimento local. Produção não foi acessada.
 
 A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 
@@ -8,8 +8,8 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | --- | --- | --- | --- |
 | Identidade | Cadastro verificado, credenciais, papéis, revogação, bootstrap e recuperação; gestão de usuários em staging | Homologação SMTP/bootstrap; UI de desbloqueio, conta/sessões e handoff seguro Portal→PDV | 9, 11 |
 | Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
-| Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging | Rastreabilidade por lote e homologação física final | 2, 3, 11 |
-| Compras | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de obrigações integrados em staging; lote opcional conforme produto | Rastrear lote até venda e homologar fisicamente a jornada | 3 |
+| Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging | Homologação física da rastreabilidade por lote | 2, 3, 11 |
+| Compras | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de obrigações integrados em staging; lote opcional conforme produto | Rastreabilidade integrada; homologar fisicamente e consolidar custo nos indicadores | 3 |
 | Pricing | QUANTIDADE_PRECO na cotação e checkout | Demais regras, gestão e consumo concorrente dos limites | 4 |
 | PDV | Checkout, confirmação Maquininha/Área Pix, fechamento e PWA read-only | Turno/histórico, caixa físico, método/terminal e dispositivos reais | 5 |
 | Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais; contas a pagar parciais/reversíveis integradas em staging | Contas/categorias gerais, despesas/importação/CSV e custo real consolidado nos relatórios | 3, 6 |
