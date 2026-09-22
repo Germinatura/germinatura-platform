@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, Boxes, CalendarClock, ClipboardCheck, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, Boxes, CalendarClock, ClipboardCheck, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -90,6 +90,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             {isAdmin && <Link href="/admin/catalogo" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/catalogo"))} title={collapsed ? "Catálogo" : undefined}>
               {pathname.startsWith("/admin/catalogo") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <PackageSearch className="size-5 shrink-0" />{!collapsed && <span>Catálogo</span>}
+            </Link>}
+            {isAdmin && <Link href="/admin/promocoes" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/promocoes"))} title={collapsed ? "Promoções" : undefined}>
+              {pathname.startsWith("/admin/promocoes") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <Percent className="size-5 shrink-0" />{!collapsed && <span>Promoções</span>}
             </Link>}
             {canInspectInventory && <Link href="/admin/estoque" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/estoque"))} title={collapsed ? "Estoque" : undefined}>
               {pathname.startsWith("/admin/estoque") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
