@@ -35,4 +35,30 @@ describe("RBAC", () => {
     expect(hasPermission(seller, "closeouts.manage")).toBe(false);
     expect(hasPermission(seller, "users.manage")).toBe(false);
   });
+
+  it("fails closed for unknown roles without dropping known ones", () => {
+    expect(hasPermission({ roles: ["ADMIN", "UNKNOWN_ROLE"] }, "users.manage")).toBe(true);
+    expect(hasPermission({ roles: ["UNKNOWN_ROLE"] }, "catalog.read")).toBe(false);
+    expect(primaryRole(["UNKNOWN_ROLE"])).toBe("CONSUMIDOR");
+    expect(primaryRole(["UNKNOWN_ROLE", "VENDEDOR"])).toBe("VENDEDOR");
+  });
+
+  it("ignores prototype keys and non-string role values", () => {
+    for (const role of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(hasPermission({ roles: [role] }, "catalog.read")).toBe(false);
+      expect(primaryRole([role])).toBe("CONSUMIDOR");
+    }
+    expect(hasPermission({ roles: [null, 1, {}, ["ADMIN"]] }, "admin.access")).toBe(false);
+  });
+
+  it("handles missing or malformed role payloads safely", () => {
+    expect(primaryRole(undefined)).toBe("CONSUMIDOR");
+    expect(primaryRole(null)).toBe("CONSUMIDOR");
+    expect(primaryRole([])).toBe("CONSUMIDOR");
+    expect(hasPermission({ roles: undefined }, "catalog.read")).toBe(false);
+    expect(hasPermission({ roles: null }, "catalog.read")).toBe(false);
+    expect(hasPermission({}, "catalog.read")).toBe(false);
+    expect(hasPermission(null, "catalog.read")).toBe(false);
+    expect(hasPermission({ roles: "ADMIN" as unknown as string[] }, "admin.access")).toBe(false);
+  });
 });

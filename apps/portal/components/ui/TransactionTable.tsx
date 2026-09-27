@@ -36,7 +36,7 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {transactions.map((t: any) => (
+                        {transactions.map((t: Transaction) => (
                             <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                                 <td className="px-6 py-4 text-sm whitespace-nowrap">{t.data}</td>
                                 <td className="px-6 py-4 text-sm font-medium">{t.descricao}</td>

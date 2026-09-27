@@ -84,13 +84,23 @@ const rolePriority: Readonly<Record<AppRole, number>> = {
   CONSUMIDOR: 1,
 };
 
-export function primaryRole(roles: readonly AppRole[]): AppRole {
-  return [...roles].sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
+function isKnownRole(role: unknown): role is AppRole {
+  return typeof role === "string" && Object.hasOwn(rolePermissions, role);
 }
 
+function knownRoles(roles: unknown): AppRole[] {
+  return Array.isArray(roles) ? roles.filter(isKnownRole) : [];
+}
+
+/** Fail-closed: unknown, malformed or missing roles grant nothing. */
+export function primaryRole(roles: readonly unknown[] | null | undefined): AppRole {
+  return knownRoles(roles).sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
+}
+
+/** Fail-closed: only known roles contribute permissions. */
 export function hasPermission(
-  user: { roles: readonly AppRole[] },
+  user: { roles?: readonly unknown[] | null } | null | undefined,
   permission: Permission,
 ): boolean {
-  return user.roles.some((role) => rolePermissions[role].includes(permission));
+  return knownRoles(user?.roles).some((role) => rolePermissions[role].includes(permission));
 }
