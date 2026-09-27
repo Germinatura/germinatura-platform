@@ -117,7 +117,7 @@ select throws_ok(
 );
 select throws_ok(
   $$insert into public.promotion_quantity_price_rules (promotion_id, rule_type, group_quantity, group_price_cents) values ('60000000-0000-4000-8000-000000000001', 'PERCENTUAL', 2, 1000)$$,
-  '22P02', null, 'unimplemented promotion type is rejected'
+  '23514', null, 'quantity rule table rejects other promotion types'
 );
 select throws_ok(
   $$insert into public.promotion_products (promotion_id, product_id) values ('60000000-0000-4000-8000-000000000001', '34000000-0000-4000-8000-000000000001')$$,

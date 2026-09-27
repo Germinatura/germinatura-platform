@@ -6,7 +6,8 @@ import {
 import {
   DomainError,
   moneyFromCents,
-  priceCartWithQuantityPromotions,
+  priceCartWithPromotions,
+  type PrioritizedPromotionRule,
 } from "@germinatura/domain";
 import { createRequestId } from "@germinatura/observability";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -23,10 +24,12 @@ const databaseRowSchema = z.object({
   amount_cents: z.number().int().nonnegative().refine(Number.isSafeInteger),
   promotion_id: z.uuid().nullable(),
   priority: z.number().int().nullable(),
-  rule_type: z.literal("QUANTIDADE_PRECO").nullable(),
+  rule_type: z.enum(["QUANTIDADE_PRECO", "PERCENTUAL", "VALOR_FIXO_UNITARIO"]).nullable(),
   group_quantity: z.number().int().nullable(),
   group_price_cents: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
   max_groups_per_line: z.number().int().nullable(),
+  percentage_basis_points: z.number().int().nullable(),
+  fixed_unit_price_cents: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
 });
 
 function errorResponse(code: string, message: string, requestId: string, status: number, details?: unknown) {
@@ -77,7 +80,7 @@ export async function POST(request: Request) {
     return errorResponse("PRICING_UNAVAILABLE", "Cotação temporariamente indisponível", requestId, 503);
   }
 
-  const { data, error } = await supabase.rpc("get_pricing_quote_inputs", {
+  const { data, error } = await supabase.rpc("get_pricing_quote_inputs_v2", {
     p_channel: parsed.data.channel,
     p_product_ids: parsed.data.items.map((item) => item.productId),
   });
@@ -91,23 +94,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    const quote = priceCartWithQuantityPromotions(
+    const quote = priceCartWithPromotions(
       parsed.data.items.map((item) => {
         const product = products.get(item.productId)!;
         return { productId: item.productId, quantity: item.quantity, unitPriceCents: moneyFromCents(product.amount_cents) };
       }),
-      rows.data.flatMap((row) => row.promotion_id && row.rule_type && row.priority !== null
-        && row.group_quantity !== null && row.group_price_cents !== null
-        ? [{
-            promotionId: row.promotion_id,
-            type: row.rule_type,
-            productId: row.product_id,
-            priority: row.priority,
-            groupQuantity: row.group_quantity,
-            groupPriceCents: moneyFromCents(row.group_price_cents),
-            maxGroupsPerLine: row.max_groups_per_line,
-          }]
-        : []),
+      rows.data.flatMap((row): PrioritizedPromotionRule[] => {
+        if (!row.promotion_id || !row.rule_type || row.priority === null) return [];
+        const common={promotionId:row.promotion_id,productId:row.product_id,priority:row.priority};
+        if (row.rule_type === "QUANTIDADE_PRECO" && row.group_quantity !== null && row.group_price_cents !== null) {
+          return [{...common,type:row.rule_type,groupQuantity:row.group_quantity,
+            groupPriceCents:moneyFromCents(row.group_price_cents),maxGroupsPerLine:row.max_groups_per_line}];
+        }
+        if (row.rule_type === "PERCENTUAL" && row.percentage_basis_points !== null) {
+          return [{...common,type:row.rule_type,percentageBasisPoints:row.percentage_basis_points}];
+        }
+        if (row.rule_type === "VALOR_FIXO_UNITARIO" && row.fixed_unit_price_cents !== null) {
+          return [{...common,type:row.rule_type,fixedUnitPriceCents:moneyFromCents(row.fixed_unit_price_cents)}];
+        }
+        return [];
+      }),
     );
     const response = pricingQuoteResponseSchema.parse({
       data: {

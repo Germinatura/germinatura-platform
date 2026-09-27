@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quantityPricePromotionSchema, saveQuantityPricePromotionSchema } from "./promotion-management";
+import { quantityPricePromotionSchema, savePromotionSchema, saveQuantityPricePromotionSchema } from "./promotion-management";
 
 const valid={id:null,expectedRevision:null,code:"DOIS-POR-DEZ",name:"Duas por dez",description:null,active:false,publicable:false,priority:10,cumulative:false as const,validFrom:"2026-09-22T12:00:00.000Z",validTo:null,globalRedemptionLimit:null,perUserRedemptionLimit:null,productIds:["33f00000-0000-4000-8000-000000000001"],channels:["PDV" as const],rule:{type:"QUANTIDADE_PRECO" as const,groupQuantity:2,groupPriceCents:1000,maxGroupsPerLine:null},reason:"Criar promoção"};
 
@@ -19,5 +19,20 @@ describe("quantity price promotion administration contract",()=>{
     delete stored.expectedRevision;
     delete stored.reason;
     expect(quantityPricePromotionSchema.safeParse({...stored,id:"60000000-0000-4000-8000-000000000001",revision:1,cumulative:true,globalRedemptionLimit:10}).success).toBe(true);
+  });
+});
+
+describe("unit promotion administration contract",()=>{
+  it("accepts percentages as integer basis points below 100%",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:1_500}}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:10_000}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:12.5}}).success).toBe(false);
+  });
+  it("accepts a fixed unit price only in integer cents",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:1_000}}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:10.5}}).success).toBe(false);
+  });
+  it("rejects fields from another rule type",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:1_000,fixedUnitPriceCents:100}}).success).toBe(false);
   });
 });

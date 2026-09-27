@@ -151,6 +151,38 @@ export interface QuantityFixedPricePromotionExplanation {
   readonly savingsCents: MoneyCents;
 }
 
+export interface PercentagePromotionRule {
+  readonly promotionId: string;
+  readonly type: "PERCENTUAL";
+  readonly productId: string;
+  readonly percentageBasisPoints: number;
+}
+
+export interface FixedUnitPricePromotionRule {
+  readonly promotionId: string;
+  readonly type: "VALOR_FIXO_UNITARIO";
+  readonly productId: string;
+  readonly fixedUnitPriceCents: MoneyCents;
+}
+
+export interface PercentagePromotionExplanation {
+  readonly promotionId: string;
+  readonly type: "PERCENTUAL";
+  readonly percentageBasisPoints: number;
+  readonly discountedUnitPriceCents: MoneyCents;
+  readonly savingsCents: MoneyCents;
+}
+
+export interface FixedUnitPricePromotionExplanation {
+  readonly promotionId: string;
+  readonly type: "VALOR_FIXO_UNITARIO";
+  readonly fixedUnitPriceCents: MoneyCents;
+  readonly savingsCents: MoneyCents;
+}
+
+export type AppliedPromotionExplanation = QuantityFixedPricePromotionExplanation
+  | PercentagePromotionExplanation | FixedUnitPricePromotionExplanation;
+
 export interface QuantityFixedPriceLineQuote {
   readonly productId: string;
   readonly unitPriceCents: MoneyCents;
@@ -158,20 +190,25 @@ export interface QuantityFixedPriceLineQuote {
   readonly originalSubtotalCents: MoneyCents;
   readonly discountCents: MoneyCents;
   readonly effectiveSubtotalCents: MoneyCents;
-  readonly appliedPromotion: QuantityFixedPricePromotionExplanation | null;
-  readonly rounding: "NONE";
+  readonly appliedPromotion: AppliedPromotionExplanation | null;
+  readonly rounding: "NONE" | "FLOOR_PER_UNIT";
 }
 
 export interface PrioritizedQuantityPromotionRule extends QuantityFixedPricePromotionRule {
   readonly priority: number;
 }
 
+export type PrioritizedPromotionRule =
+  | PrioritizedQuantityPromotionRule
+  | (PercentagePromotionRule & { readonly priority: number })
+  | (FixedUnitPricePromotionRule & { readonly priority: number });
+
 export interface PromotedCartQuote {
   readonly lines: readonly QuantityFixedPriceLineQuote[];
   readonly originalTotalCents: MoneyCents;
   readonly discountTotalCents: MoneyCents;
   readonly totalCents: MoneyCents;
-  readonly rounding: "NONE";
+  readonly rounding: "NONE" | "FLOOR_PER_UNIT";
 }
 
 /**
@@ -335,17 +372,82 @@ export function applyQuantityFixedPricePromotion(
   };
 }
 
-/** Selects at most one quantity promotion per line by priority, then lowest
+/** Customer-favorable rounding: the discounted unit price is floored to the cent. */
+function flooredPercentageUnitPrice(unitPriceCents: MoneyCents, basisPoints: number): MoneyCents {
+  if (!Number.isSafeInteger(basisPoints) || basisPoints < 1 || basisPoints > 9_999) {
+    throw new DomainError("INVALID_PROMOTION_PERCENTAGE", "Promotion percentage must be between 0.01% and 99.99%");
+  }
+  const numerator = BigInt(unitPriceCents) * BigInt(10_000 - basisPoints);
+  return moneyFromCents(Number(numerator / 10_000n));
+}
+
+export function applyUnitPromotion(
+  item: BasePricingItemInput,
+  rule: PercentagePromotionRule | FixedUnitPricePromotionRule,
+): QuantityFixedPriceLineQuote {
+  const baseLine = priceBaseCart([item]).lines[0];
+  assertCanonicalIdentifier(rule.promotionId, "INVALID_PROMOTION_ID", "Promotion ID");
+  assertCanonicalIdentifier(rule.productId, "INVALID_PROMOTION_PRODUCT_ID", "Promotion product ID");
+  if (rule.productId !== baseLine.productId) {
+    return {
+      productId: baseLine.productId, unitPriceCents: baseLine.unitPriceCents,
+      quantity: baseLine.quantity, originalSubtotalCents: baseLine.subtotalCents,
+      discountCents: moneyFromCents(0), effectiveSubtotalCents: baseLine.subtotalCents,
+      appliedPromotion: null, rounding: "NONE",
+    };
+  }
+
+  let effectiveUnitPriceCents: MoneyCents;
+  let explanation: PercentagePromotionExplanation | FixedUnitPricePromotionExplanation;
+  if (rule.type === "PERCENTUAL") {
+    effectiveUnitPriceCents = flooredPercentageUnitPrice(baseLine.unitPriceCents, rule.percentageBasisPoints);
+    explanation = {
+      promotionId: rule.promotionId, type: rule.type,
+      percentageBasisPoints: rule.percentageBasisPoints,
+      discountedUnitPriceCents: effectiveUnitPriceCents,
+      savingsCents: moneyFromCents(0),
+    };
+  } else {
+    effectiveUnitPriceCents = moneyFromCents(rule.fixedUnitPriceCents);
+    if (compareMoney(effectiveUnitPriceCents, baseLine.unitPriceCents) >= 0) {
+      throw new DomainError("INVALID_PROMOTION_FIXED_PRICE", "Promotion unit price must produce a positive saving");
+    }
+    explanation = {
+      promotionId: rule.promotionId, type: rule.type,
+      fixedUnitPriceCents: effectiveUnitPriceCents, savingsCents: moneyFromCents(0),
+    };
+  }
+  const effectiveSubtotalCents = multiplyMoney(effectiveUnitPriceCents, baseLine.quantity);
+  const discountCents = subtractMoney(baseLine.subtotalCents, effectiveSubtotalCents);
+  if (discountCents === 0) {
+    return {
+      productId: baseLine.productId, unitPriceCents: baseLine.unitPriceCents,
+      quantity: baseLine.quantity, originalSubtotalCents: baseLine.subtotalCents,
+      discountCents, effectiveSubtotalCents: baseLine.subtotalCents,
+      appliedPromotion: null, rounding: "NONE",
+    };
+  }
+  return {
+    productId: baseLine.productId, unitPriceCents: baseLine.unitPriceCents,
+    quantity: baseLine.quantity, originalSubtotalCents: baseLine.subtotalCents,
+    discountCents, effectiveSubtotalCents,
+    appliedPromotion: { ...explanation, savingsCents: discountCents },
+    rounding: rule.type === "PERCENTUAL" ? "FLOOR_PER_UNIT" : "NONE",
+  };
+}
+
+/** Selects at most one promotion per line by priority, then lowest
  * effective subtotal, then stable promotion ID, and totals the trusted cart. */
-export function priceCartWithQuantityPromotions(
+export function priceCartWithPromotions(
   items: readonly BasePricingItemInput[],
-  rules: readonly PrioritizedQuantityPromotionRule[],
+  rules: readonly PrioritizedPromotionRule[],
 ): PromotedCartQuote {
   const base = priceBaseCart(items);
   const lines = base.lines.map((line) => {
     const candidates = rules
       .filter((rule) => rule.productId === line.productId)
-      .map((rule) => ({ rule, quote: applyQuantityFixedPricePromotion(line, rule) }))
+      .map((rule) => ({ rule, quote: rule.type === "QUANTIDADE_PRECO"
+        ? applyQuantityFixedPricePromotion(line, rule) : applyUnitPromotion(line, rule) }))
       .filter(({ quote }) => quote.appliedPromotion !== null)
       .sort((left, right) => (
         right.rule.priority - left.rule.priority
@@ -373,5 +475,14 @@ export function priceCartWithQuantityPromotions(
     discountTotalCents = addMoney(discountTotalCents, line.discountCents);
     totalCents = addMoney(totalCents, line.effectiveSubtotalCents);
   }
-  return { lines, originalTotalCents, discountTotalCents, totalCents, rounding: "NONE" };
+  const rounding = lines.some((line) => line.rounding === "FLOOR_PER_UNIT")
+    ? "FLOOR_PER_UNIT" as const : "NONE" as const;
+  return { lines, originalTotalCents, discountTotalCents, totalCents, rounding };
+}
+
+export function priceCartWithQuantityPromotions(
+  items: readonly BasePricingItemInput[],
+  rules: readonly PrioritizedQuantityPromotionRule[],
+): PromotedCartQuote {
+  return priceCartWithPromotions(items, rules);
 }

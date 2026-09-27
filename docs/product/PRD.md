@@ -51,6 +51,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 - **PRICE-002** — O servidor recalcula preço, desconto e total; valores enviados pelo cliente não são autoridade.
 - **PROMO-001** — Promoções são regras sobre produtos reais, com vigência, canal, prioridade, cumulatividade e limites.
 - **PROMO-002** — “2 por R$10” sobre item de R$15 calcula 3 unidades como R$25 e explica a economia.
+- **PROMO-003** — `PERCENTUAL` aplica o percentual (em basis points, de 0,01% a 99,99%) ao preço unitário elegível e arredonda o preço unitário com desconto para baixo, ao centavo, a favor do cliente; o total da linha é esse preço vezes a quantidade (ex.: 10% sobre R$15,05 → R$13,54 por unidade). `VALOR_FIXO_UNITARIO` substitui o preço unitário e não arredonda. A cotação declara a regra aplicada (`FLOOR_PER_UNIT` ou `NONE`). Decisão registrada em 27/09/2026.
 
 ### Estoque, compras e fornecedores
 
