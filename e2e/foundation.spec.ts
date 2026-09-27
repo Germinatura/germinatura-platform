@@ -19,7 +19,14 @@ async function prepareCheckoutStock(locationId: string, productId: string) {
     if (!response.ok) throw new Error(`${name}: ${String(result.message ?? response.status)}`);
     return result;
   }
-  const prepared = await rpc("adjust_stock", { p_location_id: locationId, p_product_id: productId, p_quantity_delta: 1,
+  // Earlier suites (e.g. the checkout integration test cancelling a confirmed sale) can leave stock behind,
+  // so bring availability to exactly one unit instead of assuming an empty location.
+  const balanceResponse = await fetch(`${url}/rest/v1/inventory_balances?select=available_quantity&location_id=eq.${locationId}&product_id=eq.${productId}`, { headers });
+  if (!balanceResponse.ok) throw new Error("Saldo indisponível para preparar o estoque E2E");
+  const [balance] = await balanceResponse.json() as Array<{ available_quantity: number }>;
+  const delta = 1 - (balance?.available_quantity ?? 0);
+  if (delta === 0) return async () => {};
+  const prepared = await rpc("adjust_stock", { p_location_id: locationId, p_product_id: productId, p_quantity_delta: delta,
     p_reason: "Preparar checkout E2E", p_idempotency_key: `e2e-checkout-stock:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() });
   const movementId = String(prepared.movement_id);
   return async () => { await rpc("reverse_stock_movement", { p_movement_id: movementId, p_reason: "Limpar estoque do checkout E2E",
