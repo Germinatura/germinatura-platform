@@ -10,42 +10,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission, requireSession } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { promotionSnapshotSchema, publicPromotion } from "@/lib/promotion-snapshot";
 
-const internalQuantityPromotionSchema = z.object({
-  promotion_id: z.uuid(),
-  type: z.literal("QUANTIDADE_PRECO"),
-  priority: z.number().int(),
-  group_quantity: z.number().int().min(2),
-  group_price_cents: z.number().int().nonnegative(),
-  max_groups_per_line: z.number().int().positive().nullable(),
-  groups: z.number().int().positive(),
-  promoted_quantity: z.number().int().positive(),
-  remainder_quantity: z.number().int().nonnegative(),
-  savings_cents: z.number().int().nonnegative(),
-});
-const internalPromotionSchema = z.discriminatedUnion("type", [
-  internalQuantityPromotionSchema,
-  z.object({
-    promotion_id:z.uuid(),type:z.literal("PERCENTUAL"),priority:z.number().int(),
-    percentage_basis_points:z.number().int().min(1).max(9_999),
-    discounted_unit_price_cents:z.number().int().nonnegative(),savings_cents:z.number().int().positive(),
-  }),
-  z.object({
-    promotion_id:z.uuid(),type:z.literal("VALOR_FIXO_UNITARIO"),priority:z.number().int(),
-    fixed_unit_price_cents:z.number().int().nonnegative(),savings_cents:z.number().int().positive(),
-  }),
-]);
-
-function publicPromotion(value:z.infer<typeof internalPromotionSchema>){
-  if(value.type==="QUANTIDADE_PRECO")return{promotionId:value.promotion_id,type:value.type,
-    groupQuantity:value.group_quantity,groupPriceCents:value.group_price_cents,groups:value.groups,
-    promotedQuantity:value.promoted_quantity,remainderQuantity:value.remainder_quantity,savingsCents:value.savings_cents};
-  if(value.type==="PERCENTUAL")return{promotionId:value.promotion_id,type:value.type,
-    percentageBasisPoints:value.percentage_basis_points,discountedUnitPriceCents:value.discounted_unit_price_cents,
-    savingsCents:value.savings_cents};
-  return{promotionId:value.promotion_id,type:value.type,fixedUnitPriceCents:value.fixed_unit_price_cents,
-    savingsCents:value.savings_cents};
-}
 
 const checkoutDatabaseResultSchema = z.object({
   sale_id: z.uuid(),
@@ -66,7 +32,7 @@ const checkoutDatabaseResultSchema = z.object({
       discount_cents: z.number().int().nonnegative(),
       total_cents: z.number().int().nonnegative(),
       promotion_id: z.uuid().nullable(),
-      promotion_snapshot: internalPromotionSchema.nullable(),
+      promotion_snapshot: promotionSnapshotSchema.nullable(),
     })),
     original_total_cents: z.number().int().nonnegative(),
     discount_total_cents: z.number().int().nonnegative(),

@@ -9,31 +9,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requireSession } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { promotionSnapshotSchema, publicPromotion } from "@/lib/promotion-snapshot";
 
-const quantityPromotionSchema = z.object({
-  promotion_id: z.uuid(), type: z.literal("QUANTIDADE_PRECO"), priority: z.number().int(),
-  group_quantity: z.number().int(), group_price_cents: z.number().int(),
-  max_groups_per_line: z.number().int().nullable(), groups: z.number().int(),
-  promoted_quantity: z.number().int(), remainder_quantity: z.number().int(), savings_cents: z.number().int(),
-});
-const promotionSchema = z.discriminatedUnion("type",[
-  quantityPromotionSchema,
-  z.object({promotion_id:z.uuid(),type:z.literal("PERCENTUAL"),priority:z.number().int(),
-    percentage_basis_points:z.number().int().min(1).max(9_999),discounted_unit_price_cents:z.number().int().nonnegative(),
-    savings_cents:z.number().int().positive()}),
-  z.object({promotion_id:z.uuid(),type:z.literal("VALOR_FIXO_UNITARIO"),priority:z.number().int(),
-    fixed_unit_price_cents:z.number().int().nonnegative(),savings_cents:z.number().int().positive()}),
-]);
-function publicPromotion(value:z.infer<typeof promotionSchema>){
-  if(value.type==="QUANTIDADE_PRECO")return{promotionId:value.promotion_id,type:value.type,
-    groupQuantity:value.group_quantity,groupPriceCents:value.group_price_cents,groups:value.groups,
-    promotedQuantity:value.promoted_quantity,remainderQuantity:value.remainder_quantity,savingsCents:value.savings_cents};
-  if(value.type==="PERCENTUAL")return{promotionId:value.promotion_id,type:value.type,
-    percentageBasisPoints:value.percentage_basis_points,discountedUnitPriceCents:value.discounted_unit_price_cents,
-    savingsCents:value.savings_cents};
-  return{promotionId:value.promotion_id,type:value.type,fixedUnitPriceCents:value.fixed_unit_price_cents,
-    savingsCents:value.savings_cents};
-}
 const resultSchema = z.object({
   reservation_id: z.uuid(),
   status: z.literal("ACTIVE"),
@@ -45,7 +22,7 @@ const resultSchema = z.object({
       unit_price_cents: z.number().int().nonnegative(),
       original_subtotal_cents: z.number().int().nonnegative(),
       discount_cents: z.number().int().nonnegative(), total_cents: z.number().int().nonnegative(),
-      promotion_snapshot: promotionSchema.nullable(),
+      promotion_snapshot: promotionSnapshotSchema.nullable(),
     })),
     original_total_cents: z.number().int().nonnegative(),
     discount_total_cents: z.number().int().nonnegative(), total_cents: z.number().int().nonnegative(),

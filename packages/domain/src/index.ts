@@ -180,8 +180,28 @@ export interface FixedUnitPricePromotionExplanation {
   readonly savingsCents: MoneyCents;
 }
 
+/** LEVE_PAGUE: every complete group of buyQuantity units charges only payQuantity units. */
+export interface BuyPayPromotionRule {
+  readonly promotionId: string;
+  readonly type: "LEVE_PAGUE";
+  readonly productId: string;
+  readonly buyQuantity: number;
+  readonly payQuantity: number;
+  readonly maxGroupsPerLine: number | null;
+}
+
+export interface BuyPayPromotionExplanation {
+  readonly promotionId: string;
+  readonly type: "LEVE_PAGUE";
+  readonly buyQuantity: number;
+  readonly payQuantity: number;
+  readonly groups: number;
+  readonly freeQuantity: number;
+  readonly savingsCents: MoneyCents;
+}
+
 export type AppliedPromotionExplanation = QuantityFixedPricePromotionExplanation
-  | PercentagePromotionExplanation | FixedUnitPricePromotionExplanation;
+  | PercentagePromotionExplanation | FixedUnitPricePromotionExplanation | BuyPayPromotionExplanation;
 
 export interface QuantityFixedPriceLineQuote {
   readonly productId: string;
@@ -201,7 +221,8 @@ export interface PrioritizedQuantityPromotionRule extends QuantityFixedPriceProm
 export type PrioritizedPromotionRule =
   | PrioritizedQuantityPromotionRule
   | (PercentagePromotionRule & { readonly priority: number })
-  | (FixedUnitPricePromotionRule & { readonly priority: number });
+  | (FixedUnitPricePromotionRule & { readonly priority: number })
+  | (BuyPayPromotionRule & { readonly priority: number });
 
 export interface PromotedCartQuote {
   readonly lines: readonly QuantityFixedPriceLineQuote[];
@@ -436,6 +457,45 @@ export function applyUnitPromotion(
   };
 }
 
+export function applyBuyPayPromotion(
+  item: BasePricingItemInput,
+  rule: BuyPayPromotionRule,
+): QuantityFixedPriceLineQuote {
+  const baseLine = priceBaseCart([item]).lines[0];
+  assertCanonicalIdentifier(rule.promotionId, "INVALID_PROMOTION_ID", "Promotion ID");
+  assertCanonicalIdentifier(rule.productId, "INVALID_PROMOTION_PRODUCT_ID", "Promotion product ID");
+  if (!Number.isSafeInteger(rule.buyQuantity) || rule.buyQuantity < 2) {
+    throw new DomainError("INVALID_PROMOTION_BUY_QUANTITY", "Buy quantity must be a safe integer of at least two");
+  }
+  if (!Number.isSafeInteger(rule.payQuantity) || rule.payQuantity < 1 || rule.payQuantity >= rule.buyQuantity) {
+    throw new DomainError("INVALID_PROMOTION_PAY_QUANTITY", "Pay quantity must be at least one and below the buy quantity");
+  }
+  if (rule.maxGroupsPerLine !== null && (!Number.isSafeInteger(rule.maxGroupsPerLine) || rule.maxGroupsPerLine < 1)) {
+    throw new DomainError("INVALID_PROMOTION_GROUP_LIMIT", "Promotion group limit must be null or a positive safe integer");
+  }
+  const unchanged: QuantityFixedPriceLineQuote = {
+    productId: baseLine.productId, unitPriceCents: baseLine.unitPriceCents,
+    quantity: baseLine.quantity, originalSubtotalCents: baseLine.subtotalCents,
+    discountCents: moneyFromCents(0), effectiveSubtotalCents: baseLine.subtotalCents,
+    appliedPromotion: null, rounding: "NONE",
+  };
+  if (rule.productId !== baseLine.productId) return unchanged;
+  const availableGroups = Math.floor(baseLine.quantity / rule.buyQuantity);
+  const groups = rule.maxGroupsPerLine === null ? availableGroups : Math.min(availableGroups, rule.maxGroupsPerLine);
+  const freeQuantity = groups * (rule.buyQuantity - rule.payQuantity);
+  const discountCents = multiplyMoney(baseLine.unitPriceCents, freeQuantity);
+  if (discountCents === 0) return unchanged;
+  return {
+    ...unchanged,
+    discountCents,
+    effectiveSubtotalCents: subtractMoney(baseLine.subtotalCents, discountCents),
+    appliedPromotion: {
+      promotionId: rule.promotionId, type: rule.type, buyQuantity: rule.buyQuantity,
+      payQuantity: rule.payQuantity, groups, freeQuantity, savingsCents: discountCents,
+    },
+  };
+}
+
 /** PROMO-004: code-unit order, matching PostgreSQL's byte-wise UUID ordering and independent of locale. */
 function compareIdentifiers(left: string, right: string): number {
   if (left === right) return 0;
@@ -453,7 +513,8 @@ export function priceCartWithPromotions(
     const candidates = rules
       .filter((rule) => rule.productId === line.productId)
       .map((rule) => ({ rule, quote: rule.type === "QUANTIDADE_PRECO"
-        ? applyQuantityFixedPricePromotion(line, rule) : applyUnitPromotion(line, rule) }))
+        ? applyQuantityFixedPricePromotion(line, rule)
+        : rule.type === "LEVE_PAGUE" ? applyBuyPayPromotion(line, rule) : applyUnitPromotion(line, rule) }))
       .filter(({ quote }) => quote.appliedPromotion !== null)
       .sort((left, right) => (
         right.rule.priority - left.rule.priority
