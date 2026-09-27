@@ -4,7 +4,21 @@ const safeInteger = z.number().int().nonnegative().refine(Number.isSafeInteger);
 export const promotionChannelSchema = z.enum(["PORTAL", "PDV", "RESERVA"]);
 const unique = <T>(values: T[]) => new Set(values).size === values.length;
 
-export const quantityPricePromotionSchema = z.object({
+export const quantityPriceRuleSchema = z.object({
+  type: z.literal("QUANTIDADE_PRECO"), groupQuantity: z.number().int().min(2),
+  groupPriceCents: safeInteger, maxGroupsPerLine: z.number().int().positive().nullable(),
+}).strict();
+export const percentageRuleSchema = z.object({
+  type: z.literal("PERCENTUAL"), percentageBasisPoints: z.number().int().min(1).max(9_999),
+}).strict();
+export const fixedUnitPriceRuleSchema = z.object({
+  type: z.literal("VALOR_FIXO_UNITARIO"), fixedUnitPriceCents: safeInteger,
+}).strict();
+export const managedPromotionRuleSchema = z.discriminatedUnion("type", [
+  quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema,
+]);
+
+const managedPromotionFields = {
   id: z.uuid(), revision: z.number().int().positive(), code: z.string(), name: z.string(),
   description: z.string().nullable(), active: z.boolean(), publicable: z.boolean(),
   priority: z.number().int().min(0).max(1000), cumulative: z.boolean(),
@@ -13,21 +27,45 @@ export const quantityPricePromotionSchema = z.object({
   perUserRedemptionLimit: z.number().int().positive().nullable(),
   productIds: z.array(z.uuid()).min(1).max(100).refine(unique),
   channels: z.array(promotionChannelSchema).min(1).max(3).refine(unique),
-  rule: z.object({ type: z.literal("QUANTIDADE_PRECO"), groupQuantity: z.number().int().min(2),
-    groupPriceCents: safeInteger, maxGroupsPerLine: z.number().int().positive().nullable() }).strict(),
+};
+
+export const managedPromotionSchema = z.object({
+  ...managedPromotionFields, rule: managedPromotionRuleSchema,
+}).strict();
+export const quantityPricePromotionSchema = z.object({
+  ...managedPromotionFields, rule: quantityPriceRuleSchema,
 }).strict();
 
-export const saveQuantityPricePromotionSchema = quantityPricePromotionSchema.omit({ id: true, revision: true }).extend({
+const { revision: _revision, ...saveBaseFields } = managedPromotionFields;
+void _revision;
+const saveFields = {
+  ...saveBaseFields,
   id: z.uuid().nullable(), expectedRevision: z.number().int().positive().nullable(),
   code: z.string().trim().min(1).max(80).regex(/^[A-Z0-9]+(?:[-_.][A-Z0-9]+)*$/),
   name: z.string().trim().min(1).max(160), description: z.string().trim().min(1).max(2000).nullable(),
   cumulative: z.literal(false), globalRedemptionLimit: z.null(), perUserRedemptionLimit: z.null(),
   reason: z.string().trim().min(4).max(500),
-}).strict()
-  .refine((value) => (value.id === null) === (value.expectedRevision === null), { message: "Informe a revisão ao editar" })
-  .refine((value) => value.validTo === null || Date.parse(value.validTo) > Date.parse(value.validFrom), { message: "O fim deve ser posterior ao início" });
+};
 
+type SaveRefinementValue = { id: string | null; expectedRevision: number | null; validFrom: string; validTo: string | null };
+function saveRefinements<T extends z.ZodObject>(schema: T) {
+  return schema
+    .refine((value) => { const candidate=value as SaveRefinementValue; return (candidate.id === null) === (candidate.expectedRevision === null); }, { message: "Informe a revisão ao editar" })
+    .refine((value) => { const candidate=value as SaveRefinementValue; return candidate.validTo === null || Date.parse(candidate.validTo) > Date.parse(candidate.validFrom); }, { message: "O fim deve ser posterior ao início" });
+}
+
+export const savePromotionSchema = saveRefinements(z.object({
+  ...saveFields, rule: managedPromotionRuleSchema,
+}).strict());
+export const saveQuantityPricePromotionSchema = saveRefinements(z.object({
+  ...saveFields, rule: quantityPriceRuleSchema,
+}).strict());
+
+export const savePromotionResponseSchema = z.object({
+  data: managedPromotionSchema.extend({ correlationId: z.uuid() }), request_id: z.string().min(1),
+}).strict();
 export const saveQuantityPricePromotionResponseSchema = z.object({
   data: quantityPricePromotionSchema.extend({ correlationId: z.uuid() }), request_id: z.string().min(1),
 }).strict();
+export type ManagedPromotion = z.infer<typeof managedPromotionSchema>;
 export type QuantityPricePromotion = z.infer<typeof quantityPricePromotionSchema>;

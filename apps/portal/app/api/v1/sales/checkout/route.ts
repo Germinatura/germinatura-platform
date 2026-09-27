@@ -11,7 +11,7 @@ import { z } from "zod";
 import { AuthorizationError, requirePermission, requireSession } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
 
-const internalPromotionSchema = z.object({
+const internalQuantityPromotionSchema = z.object({
   promotion_id: z.uuid(),
   type: z.literal("QUANTIDADE_PRECO"),
   priority: z.number().int(),
@@ -23,6 +23,29 @@ const internalPromotionSchema = z.object({
   remainder_quantity: z.number().int().nonnegative(),
   savings_cents: z.number().int().nonnegative(),
 });
+const internalPromotionSchema = z.discriminatedUnion("type", [
+  internalQuantityPromotionSchema,
+  z.object({
+    promotion_id:z.uuid(),type:z.literal("PERCENTUAL"),priority:z.number().int(),
+    percentage_basis_points:z.number().int().min(1).max(9_999),
+    discounted_unit_price_cents:z.number().int().nonnegative(),savings_cents:z.number().int().positive(),
+  }),
+  z.object({
+    promotion_id:z.uuid(),type:z.literal("VALOR_FIXO_UNITARIO"),priority:z.number().int(),
+    fixed_unit_price_cents:z.number().int().nonnegative(),savings_cents:z.number().int().positive(),
+  }),
+]);
+
+function publicPromotion(value:z.infer<typeof internalPromotionSchema>){
+  if(value.type==="QUANTIDADE_PRECO")return{promotionId:value.promotion_id,type:value.type,
+    groupQuantity:value.group_quantity,groupPriceCents:value.group_price_cents,groups:value.groups,
+    promotedQuantity:value.promoted_quantity,remainderQuantity:value.remainder_quantity,savingsCents:value.savings_cents};
+  if(value.type==="PERCENTUAL")return{promotionId:value.promotion_id,type:value.type,
+    percentageBasisPoints:value.percentage_basis_points,discountedUnitPriceCents:value.discounted_unit_price_cents,
+    savingsCents:value.savings_cents};
+  return{promotionId:value.promotion_id,type:value.type,fixedUnitPriceCents:value.fixed_unit_price_cents,
+    savingsCents:value.savings_cents};
+}
 
 const checkoutDatabaseResultSchema = z.object({
   sale_id: z.uuid(),
@@ -32,7 +55,7 @@ const checkoutDatabaseResultSchema = z.object({
   quote: z.object({
     quoted_at: z.string(),
     currency: z.literal("BRL"),
-    rounding: z.literal("NONE"),
+    rounding: z.enum(["NONE","FLOOR_PER_UNIT"]),
     lines: z.array(z.object({
       product_id: z.uuid(),
       product_sku: z.string(),
@@ -159,16 +182,7 @@ export async function POST(request: Request) {
           originalSubtotalCents: line.original_subtotal_cents,
           discountCents: line.discount_cents,
           totalCents: line.total_cents,
-          appliedPromotion: line.promotion_snapshot && {
-            promotionId: line.promotion_snapshot.promotion_id,
-            type: line.promotion_snapshot.type,
-            groupQuantity: line.promotion_snapshot.group_quantity,
-            groupPriceCents: line.promotion_snapshot.group_price_cents,
-            groups: line.promotion_snapshot.groups,
-            promotedQuantity: line.promotion_snapshot.promoted_quantity,
-            remainderQuantity: line.promotion_snapshot.remainder_quantity,
-            savingsCents: line.promotion_snapshot.savings_cents,
-          },
+          appliedPromotion: line.promotion_snapshot ? publicPromotion(line.promotion_snapshot) : null,
         })),
         originalTotalCents: value.quote.original_total_cents,
         discountTotalCents: value.quote.discount_total_cents,

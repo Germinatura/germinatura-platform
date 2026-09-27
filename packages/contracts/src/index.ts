@@ -108,12 +108,30 @@ const appliedQuantityPromotionSchema = z.object({
   remainderQuantity: z.number().int().nonnegative(),
   savingsCents: moneyCentsSchema,
 });
+const appliedPercentagePromotionSchema = z.object({
+  promotionId: z.uuid(),
+  type: z.literal("PERCENTUAL"),
+  percentageBasisPoints: z.number().int().min(1).max(9_999),
+  discountedUnitPriceCents: moneyCentsSchema,
+  savingsCents: moneyCentsSchema,
+});
+const appliedFixedUnitPricePromotionSchema = z.object({
+  promotionId: z.uuid(),
+  type: z.literal("VALOR_FIXO_UNITARIO"),
+  fixedUnitPriceCents: moneyCentsSchema,
+  savingsCents: moneyCentsSchema,
+});
+export const appliedPromotionSchema = z.discriminatedUnion("type", [
+  appliedQuantityPromotionSchema,
+  appliedPercentagePromotionSchema,
+  appliedFixedUnitPricePromotionSchema,
+]);
 export const pricingQuoteResponseSchema = z.object({
   data: z.object({
     channel: pricingChannelSchema,
     quotedAt: z.iso.datetime({ offset: true }),
     currency: z.literal("BRL"),
-    rounding: z.literal("NONE"),
+    rounding: z.enum(["NONE", "FLOOR_PER_UNIT"]),
     lines: z.array(z.object({
       productId: z.uuid(),
       name: z.string().min(1),
@@ -122,7 +140,7 @@ export const pricingQuoteResponseSchema = z.object({
       originalSubtotalCents: moneyCentsSchema,
       discountCents: moneyCentsSchema,
       totalCents: moneyCentsSchema,
-      appliedPromotion: appliedQuantityPromotionSchema.nullable(),
+      appliedPromotion: appliedPromotionSchema.nullable(),
     })),
     originalTotalCents: moneyCentsSchema,
     discountTotalCents: moneyCentsSchema,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addMoney,
   applyQuantityFixedPricePromotion,
+  applyUnitPromotion,
   compareMoney,
   DomainError,
   formatMoneyBrl,
@@ -10,6 +11,7 @@ import {
   multiplyMoney,
   parseBrlToCents,
   priceBaseCart,
+  priceCartWithPromotions,
   priceCartWithQuantityPromotions,
   subtractMoney,
 } from "./index";
@@ -85,6 +87,69 @@ describe("MoneyCents", () => {
       () => addMoney(moneyFromCents(Number.MAX_SAFE_INTEGER), moneyFromCents(1)),
       "INVALID_MONEY_CENTS",
     );
+  });
+});
+
+describe("unit promotions", () => {
+  const item = { productId: "product-a", unitPriceCents: moneyFromCents(999), quantity: 3 };
+
+  it("floors the discounted unit price in favor of the customer", () => {
+    // 10% on R$ 15,05 = R$ 13,545 per unit -> R$ 13,54 (half-up would charge R$ 13,55).
+    expect(applyUnitPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_505), quantity: 2 }, {
+      promotionId: "percent-a", productId: "product-a", type: "PERCENTUAL", percentageBasisPoints: 1_000,
+    })).toMatchObject({
+      originalSubtotalCents: 3_010, discountCents: 302, effectiveSubtotalCents: 2_708,
+      appliedPromotion: { discountedUnitPriceCents: 1_354, savingsCents: 302 },
+      rounding: "FLOOR_PER_UNIT",
+    });
+    // 0.01% on R$ 0,99 floors to R$ 0,98: the smallest percentage still yields a saving.
+    expect(applyUnitPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(99), quantity: 1 }, {
+      promotionId: "percent-a", productId: "product-a", type: "PERCENTUAL", percentageBasisPoints: 1,
+    })).toMatchObject({ discountCents: 1, effectiveSubtotalCents: 98 });
+  });
+
+  it("applies percentage in basis points per unit", () => {
+    expect(applyUnitPromotion(item, {
+      promotionId: "percent-a", productId: "product-a", type: "PERCENTUAL",
+      percentageBasisPoints: 1_250,
+    })).toEqual({
+      productId: "product-a", unitPriceCents: 999, quantity: 3,
+      originalSubtotalCents: 2_997, discountCents: 375, effectiveSubtotalCents: 2_622,
+      appliedPromotion: {
+        promotionId: "percent-a", type: "PERCENTUAL", percentageBasisPoints: 1_250,
+        discountedUnitPriceCents: 874, savingsCents: 375,
+      },
+      rounding: "FLOOR_PER_UNIT",
+    });
+  });
+
+  it("replaces the eligible unit price in integer cents", () => {
+    expect(applyUnitPromotion(item, {
+      promotionId: "fixed-a", productId: "product-a", type: "VALOR_FIXO_UNITARIO",
+      fixedUnitPriceCents: moneyFromCents(800),
+    })).toMatchObject({
+      discountCents: 597, effectiveSubtotalCents: 2_400,
+      appliedPromotion: { type: "VALOR_FIXO_UNITARIO", fixedUnitPriceCents: 800, savingsCents: 597 },
+      rounding: "NONE",
+    });
+  });
+
+  it("keeps priority before best price across different rule types", () => {
+    const quote=priceCartWithPromotions([item],[
+      { promotionId:"percent-high",productId:"product-a",type:"PERCENTUAL",percentageBasisPoints:1_000,priority:20 },
+      { promotionId:"fixed-low",productId:"product-a",type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:moneyFromCents(100),priority:10 },
+    ]);
+    expect(quote.lines[0].appliedPromotion?.promotionId).toBe("percent-high");
+    expect(quote.rounding).toBe("FLOOR_PER_UNIT");
+  });
+
+  it("rejects invalid percentages and non-promotional fixed prices", () => {
+    expectDomainError(() => applyUnitPromotion(item, {
+      promotionId:"bad",productId:"product-a",type:"PERCENTUAL",percentageBasisPoints:10_000,
+    }), "INVALID_PROMOTION_PERCENTAGE");
+    expectDomainError(() => applyUnitPromotion(item, {
+      promotionId:"bad",productId:"product-a",type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:moneyFromCents(999),
+    }), "INVALID_PROMOTION_FIXED_PRICE");
   });
 });
 
