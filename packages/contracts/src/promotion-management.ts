@@ -14,8 +14,12 @@ export const percentageRuleSchema = z.object({
 export const fixedUnitPriceRuleSchema = z.object({
   type: z.literal("VALOR_FIXO_UNITARIO"), fixedUnitPriceCents: safeInteger,
 }).strict();
+export const buyPayRuleSchema = z.object({
+  type: z.literal("LEVE_PAGUE"), buyQuantity: z.number().int().min(2).max(1_000),
+  payQuantity: z.number().int().min(1), maxGroupsPerLine: z.number().int().positive().nullable(),
+}).strict().refine((rule) => rule.payQuantity < rule.buyQuantity, { message: "Pague menos unidades do que leva" });
 export const managedPromotionRuleSchema = z.discriminatedUnion("type", [
-  quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema,
+  quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema, buyPayRuleSchema,
 ]);
 
 const managedPromotionFields = {

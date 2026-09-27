@@ -15,28 +15,18 @@ export async function POST(request: Request) {
     if (!key.success || !parsed.success) return fail("INVALID_PROMOTION", "Confira os campos, vigência, produtos, canais e motivo.", 422);
     const value = parsed.data;
     const client = await createAuthenticatedSupabaseClient(request);
-    const common = {
+    // One audited command for every rule type; the database validates the rule document again.
+    const { data, error } = await client.rpc("save_promotion", {
       p_promotion_id: value.id, p_expected_revision: value.expectedRevision, p_code: value.code,
       p_name: value.name, p_description: value.description, p_active: value.active,
       p_publicable: value.publicable, p_priority: value.priority, p_cumulative: value.cumulative,
       p_valid_from: value.validFrom, p_valid_to: value.validTo,
       p_global_redemption_limit: value.globalRedemptionLimit,
       p_per_user_redemption_limit: value.perUserRedemptionLimit,
-      p_product_ids: value.productIds, p_channels: value.channels,
+      p_product_ids: value.productIds, p_channels: value.channels, p_rule: value.rule,
       p_reason: value.reason,
       p_idempotency_key: key.data, p_correlation_id: crypto.randomUUID(),
-    };
-    const result = value.rule.type === "QUANTIDADE_PRECO"
-      ? await client.rpc("save_quantity_price_promotion", {
-          ...common,p_group_quantity:value.rule.groupQuantity,p_group_price_cents:value.rule.groupPriceCents,
-          p_max_groups_per_line:value.rule.maxGroupsPerLine,
-        })
-      : await client.rpc("save_unit_promotion", {
-          ...common,p_rule_type:value.rule.type,
-          p_percentage_basis_points:value.rule.type==="PERCENTUAL"?value.rule.percentageBasisPoints:null,
-          p_fixed_unit_price_cents:value.rule.type==="VALOR_FIXO_UNITARIO"?value.rule.fixedUnitPriceCents:null,
-        });
-    const { data, error } = result;
+    });
     if (error) {
       if (error.code === "42501") return fail("FORBIDDEN", "Permissão insuficiente.", 403);
       if (error.message === "PROMOTION_NOT_FOUND" || error.message === "PROMOTION_PRODUCT_NOT_FOUND") return fail(error.message, "Promoção ou produto não encontrado.", 404);

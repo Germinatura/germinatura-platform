@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addMoney,
+  applyBuyPayPromotion,
   applyQuantityFixedPricePromotion,
   applyUnitPromotion,
   compareMoney,
@@ -500,5 +501,40 @@ describe("PROMO-004 non-cumulative precedence", () => {
     const deepest = priceCartWithPromotions([{ ...item, unitPriceCents: moneyFromCents(1) }], [{ ...percent, percentageBasisPoints: 9_999 }]);
     expect(deepest.totalCents).toBe(0);
     expect(deepest.discountTotalCents).toBe(2);
+  });
+});
+
+describe("LEVE_PAGUE promotions", () => {
+  const rule = { promotionId: "buy-pay", productId: "product-a", type: "LEVE_PAGUE" as const, buyQuantity: 3, payQuantity: 2, maxGroupsPerLine: null };
+
+  it("charges only the paid units of each complete group", () => {
+    // Leve 3, pague 2 sobre R$ 15,00: 7 unidades = 2 grupos (2 grátis) + 1 avulsa = R$ 75,00.
+    expect(applyBuyPayPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 7 }, rule)).toEqual({
+      productId: "product-a", unitPriceCents: 1_500, quantity: 7,
+      originalSubtotalCents: 10_500, discountCents: 3_000, effectiveSubtotalCents: 7_500,
+      appliedPromotion: { promotionId: "buy-pay", type: "LEVE_PAGUE", buyQuantity: 3, payQuantity: 2, groups: 2, freeQuantity: 2, savingsCents: 3_000 },
+      rounding: "NONE",
+    });
+  });
+
+  it("does not apply below one complete group and honors the group limit", () => {
+    expect(applyBuyPayPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 2 }, rule).appliedPromotion).toBeNull();
+    expect(applyBuyPayPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 9 }, { ...rule, maxGroupsPerLine: 1 }))
+      .toMatchObject({ discountCents: 1_500, appliedPromotion: { groups: 1, freeQuantity: 1 } });
+  });
+
+  it("competes with other rules under PROMO-004 precedence", () => {
+    const item = { productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 3 };
+    const fixed = { promotionId: "fixed", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(1_200), priority: 10 };
+    // Same priority: leve/pague (3000) beats R$ 12,00 x 3 (3600).
+    expect(priceCartWithPromotions([item], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("LEVE_PAGUE");
+    expect(priceCartWithPromotions([item], [{ ...fixed, priority: 20 }, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("VALOR_FIXO_UNITARIO");
+  });
+
+  it("rejects groups that would not charge anything or would not discount", () => {
+    const item = { productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 3 };
+    expectDomainError(() => applyBuyPayPromotion(item, { ...rule, payQuantity: 0 }), "INVALID_PROMOTION_PAY_QUANTITY");
+    expectDomainError(() => applyBuyPayPromotion(item, { ...rule, payQuantity: 3 }), "INVALID_PROMOTION_PAY_QUANTITY");
+    expectDomainError(() => applyBuyPayPromotion(item, { ...rule, buyQuantity: 1, payQuantity: 1 }), "INVALID_PROMOTION_BUY_QUANTITY");
   });
 });
