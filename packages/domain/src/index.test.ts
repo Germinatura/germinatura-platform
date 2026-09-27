@@ -445,3 +445,60 @@ describe("promoted cart pricing", () => {
     expect(stableWinner.lines[0].appliedPromotion?.promotionId).toBe("promo-a");
   });
 });
+
+describe("PROMO-004 non-cumulative precedence", () => {
+  // Mirrors supabase/tests/promotion_precedence_test.sql: R$ 25,90 x 2.
+  const item = { productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity: 2 };
+  const fixedA = { promotionId: "7a000000-0000-4000-8000-000000000002", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(2_000), priority: 300 };
+  const fixedB = { ...fixedA, promotionId: "7a000000-0000-4000-8000-000000000001" };
+  const percent = { promotionId: "7a000000-0000-4000-8000-000000000003", productId: "product-a", type: "PERCENTUAL" as const, percentageBasisPoints: 2_000, priority: 300 };
+  const cheaperLowPriority = { promotionId: "7a000000-0000-4000-8000-000000000004", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(100), priority: 100 };
+  const quantity = { promotionId: "7a000000-0000-4000-8000-000000000006", productId: "product-a", type: "QUANTIDADE_PRECO" as const, groupQuantity: 2, groupPriceCents: moneyFromCents(3_000), maxGroupsPerLine: null, priority: 300 };
+
+  function permutations<T>(values: readonly T[]): T[][] {
+    return values.length <= 1 ? [[...values]] : values.flatMap((value, index) =>
+      permutations([...values.slice(0, index), ...values.slice(index + 1)]).map((rest) => [value, ...rest]));
+  }
+
+  it("prefers higher priority, then the lowest customer total", () => {
+    const quote = priceCartWithPromotions([item], [fixedA, percent, cheaperLowPriority]);
+    expect(quote.lines[0].appliedPromotion?.promotionId).toBe(fixedA.promotionId);
+    expect(quote).toMatchObject({ originalTotalCents: 5_180, discountTotalCents: 1_180, totalCents: 4_000 });
+  });
+
+  it("breaks exact ties by code-unit promotion ID, like PostgreSQL UUID order", () => {
+    expect(priceCartWithPromotions([item], [fixedA, fixedB]).lines[0].appliedPromotion?.promotionId).toBe(fixedB.promotionId);
+    // Locale collation would put "a…" before "B…"; code-unit order must not.
+    const upper = { ...fixedA, promotionId: "B-promo" };
+    const lower = { ...fixedA, promotionId: "a-promo" };
+    expect(priceCartWithPromotions([item], [lower, upper]).lines[0].appliedPromotion?.promotionId).toBe("B-promo");
+  });
+
+  it("is independent of the order in which candidates are read", () => {
+    const rules = [fixedA, fixedB, percent, cheaperLowPriority, quantity];
+    const expected = priceCartWithPromotions([item], rules);
+    expect(expected.lines[0].appliedPromotion?.promotionId).toBe(quantity.promotionId);
+    for (const order of permutations(rules)) expect(priceCartWithPromotions([item], order)).toEqual(expected);
+  });
+
+  it("applies exactly one rule per line even with duplicate candidates", () => {
+    const quote = priceCartWithPromotions([item], [fixedB, fixedB, fixedA, percent]);
+    expect(quote.lines).toHaveLength(1);
+    expect(quote.lines[0]).toMatchObject({ discountCents: 1_180, effectiveSubtotalCents: 4_000 });
+    expect(quote.discountTotalCents).toBe(quote.originalTotalCents - quote.totalCents);
+  });
+
+  it("skips candidates that do not apply instead of blocking lower ones", () => {
+    const single = { ...item, quantity: 1 };
+    expect(priceCartWithPromotions([single], [quantity, fixedA]).lines[0].appliedPromotion?.promotionId).toBe(fixedA.promotionId);
+  });
+
+  it("never produces a negative price or a price increase", () => {
+    expectDomainError(() => priceCartWithPromotions([item], [{ ...fixedA, fixedUnitPriceCents: moneyFromCents(2_590) }]), "INVALID_PROMOTION_FIXED_PRICE");
+    expectDomainError(() => priceCartWithPromotions([item], [{ ...quantity, groupPriceCents: moneyFromCents(5_180) }]), "INVALID_PROMOTION_GROUP_PRICE");
+    expectDomainError(() => priceCartWithPromotions([item], [{ ...percent, percentageBasisPoints: 10_000 }]), "INVALID_PROMOTION_PERCENTAGE");
+    const deepest = priceCartWithPromotions([{ ...item, unitPriceCents: moneyFromCents(1) }], [{ ...percent, percentageBasisPoints: 9_999 }]);
+    expect(deepest.totalCents).toBe(0);
+    expect(deepest.discountTotalCents).toBe(2);
+  });
+});

@@ -436,7 +436,13 @@ export function applyUnitPromotion(
   };
 }
 
-/** Selects at most one promotion per line by priority, then lowest
+/** PROMO-004: code-unit order, matching PostgreSQL's byte-wise UUID ordering and independent of locale. */
+function compareIdentifiers(left: string, right: string): number {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+/** PROMO-004: selects at most one promotion per line by priority, then lowest
  * effective subtotal, then stable promotion ID, and totals the trusted cart. */
 export function priceCartWithPromotions(
   items: readonly BasePricingItemInput[],
@@ -452,7 +458,7 @@ export function priceCartWithPromotions(
       .sort((left, right) => (
         right.rule.priority - left.rule.priority
         || left.quote.effectiveSubtotalCents - right.quote.effectiveSubtotalCents
-        || left.rule.promotionId.localeCompare(right.rule.promotionId)
+        || compareIdentifiers(left.rule.promotionId, right.rule.promotionId)
       ));
 
     return candidates[0]?.quote ?? {
