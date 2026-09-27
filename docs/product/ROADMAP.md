@@ -6,7 +6,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 22/09/2026: `main` permanece em `95c4209`; `develop` está em `61d2a34` após a integração da PR #73. Categorias, produtos, preços, imagens, perfil/navegação, operações de estoque, compras, contas a pagar e rastreabilidade de lotes estão integrados em staging. A administração transacional de promoções por quantidade está em desenvolvimento local. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
+Snapshot de 27/09/2026: `main` permanece em `95c4209` e passou a ser ancestral de `develop` pela PR #75 (merge commit `5cdfdea`, sem alteração de árvore); `develop` está em `8032d16` após a PR #76 (RBAC fail-closed). `main...develop` = `0 59`. Categorias, produtos, preços, imagens, perfil/navegação, operações de estoque, compras, contas a pagar, rastreabilidade de lotes (PR #73) e a administração transacional de `QUANTIDADE_PRECO` (PR #74) estão integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
 
 A evidência atual do branch `develop` foi registrada em documentação do produto e não substitui qualquer gate externo ou smoke autenticado. O status de staging continua condicionado à conta institucional controlada, à sandbox Payment Link e à homologação humana dos módulos pendentes. Produção não foi acessada.
 
@@ -57,7 +57,7 @@ flowchart LR
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
 | 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição, transferência solicitada/aceita, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging; rastreabilidade por lote/local e custo consumido integrados na PR #73; homologação física final pendente; nenhum saldo direto |
 | 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de contas a pagar integrados em staging; rastreabilidade do lote até venda integrada em staging; homologação física e indicadores consolidados de custo/margem pendentes |
-| 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada |
+| 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada. Integrado: `QUANTIDADE_PRECO` na cotação/checkout e sua administração versionada (PR #74); demais tipos, cupons e consumo transacional de limites pendentes |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
 | 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões comuns e contas a pagar com liquidação parcial/reversão integradas; faltam contas/categorias gerais, despesas, taxas, recebíveis, importação validada por arquivo oficial e CSV real |
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
@@ -116,7 +116,7 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
-Sequência imediata: administrar a regra `QUANTIDADE_PRECO` com histórico e concorrência; depois acrescentar percentual/preço fixo e avançar pelas regras leve-pague/combo/escalonada antes de cupons e limites transacionais. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, operações previstas de estoque e recebimentos de compra já estão integrados em staging. Fornecedores, pedidos e recebimentos foram integrados pelas PRs #66, #67 e #70.
+Sequência imediata: a administração de `QUANTIDADE_PRECO` com histórico e concorrência foi integrada pela PR #74; a seguir, acrescentar percentual/preço fixo e avançar pelas regras leve-pague/combo/escalonada antes de cupons e limites transacionais. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, operações previstas de estoque e recebimentos de compra já estão integrados em staging. Fornecedores, pedidos e recebimentos foram integrados pelas PRs #66, #67 e #70.
 
 | Trilha | PRs coesos em ordem interna | Saída da trilha |
 | --- | --- | --- |
@@ -139,7 +139,7 @@ Sequência imediata: administrar a regra `QUANTIDADE_PRECO` com histórico e con
 - **Desempenho do PDV:** registrar baseline antes de ampliar cada jornada, paginar consultas, carregar recursos secundários sob demanda e publicar tarefas após commit por outbox. A CI deve impedir regressões relevantes de bundle e tempo da jornada crítica com base no baseline medido.
 - **Fronteiras de implantação:** Portal administrativo, experiência do consumidor, PDV e Jobs compartilham contratos e banco, mas não importam runtime entre apps. APIs/eventos permanecem nas fronteiras para permitir Workers separados no futuro sem assumir custo ou topologia antes de haver medição.
 - **Payment Link:** capturar schemas e validar acesso ao sandbox durante as ondas A–F. O restante do projeto continua enquanto esse acesso não for necessário; a onda G não pode ser homologada sem credenciais configuradas diretamente no ambiente governado.
-- **Dívida técnica observada:** remover os oito warnings de lint atuais e atualizar as actions antes que a compatibilidade forçada de Node.js 24 deixe de ser tolerada. Essa limpeza deve ocorrer em PR próprio e não será misturada às regras financeiras.
+- **Dívida técnica observada:** os warnings de lint foram zerados pela PR #76 (medição de 27/09/2026: 0 erros; Portal 0 e PDV 0 warnings); o orçamento em `quality/legacy-eslint-budget.json` ainda tolera 11 no Portal e 8 no PDV e pode ser reduzido a zero. Falta atualizar as actions antes que a compatibilidade forçada de Node.js 24 deixe de ser tolerada. Essa limpeza deve ocorrer em PR próprio e não será misturada às regras financeiras.
 
 ## Gates e lançamento
 
@@ -223,6 +223,16 @@ Cada conferência de um item do pedido cria um `purchase_receipt` imutável, um 
 
 `/admin/financeiro/contas-a-pagar` consulta obrigações originadas exclusivamente por recebimentos, registra pagamentos parciais sob lock e calcula o saldo no banco. Correções criam uma reversão imutável vinculada ao pagamento, sem apagar custo ou histórico. API, RLS e allowlist exigem `finance.manage`; idempotência, auditoria e outbox cobrem liquidação e reversão. PR #71 integrada em `de9c736`; Quality da PR `35549418859`, Quality pós-merge `35549886086` e Deploy Staging `35549886079` verdes. PR #72 integrou lote opcional conforme produto em `aefed60`, com Quality `35551883502` e Deploy Staging `35551883512` verdes. Contas/categorias gerais e rastreabilidade de consumo do lote continuam abertas.
 
-## Incremento de rastreabilidade do lote — em desenvolvimento local, 21/09/2026
+## Incremento de rastreabilidade do lote — 21/09/2026
 
-Migration aditiva em validação local: posição física por lote/local, alocação imutável de lote por movimento, consumo de custo real em centavos, preservação do lote em transferências e reversão da venda. O histórico anterior à migration permanece documental; a posição física existente é capturada como baseline de custo desconhecido, sem editar movimentos ou lotes imutáveis. Consulta administrativa com busca e cursores está em desenvolvimento. Ainda não há CI, PR ou homologação em staging desta fatia.
+Migration aditiva: posição física por lote/local, alocação imutável de lote por movimento, consumo de custo real em centavos, preservação do lote em transferências e reversão da venda. O histórico anterior à migration permanece documental; a posição física existente é capturada como baseline de custo desconhecido, sem editar movimentos ou lotes imutáveis. Consulta administrativa com busca e cursores exige `inventory.manage`. A PR #73 foi integrada em `61d2a34`; Quality da PR `35660582746`, Quality pós-merge `35661364303` e Deploy Staging `35661364245` verdes, com a API de lotes sem sessão respondendo 401. A homologação física com lotes reais continua pendente; as etapas 2 e 3 não estão `DONE`.
+
+## Incremento de administração de promoções por quantidade — 22/09/2026
+
+`QUANTIDADE_PRECO` ganhou administração por produto e canal em `/admin/promocoes`, com `catalog.manage`, revisão otimista, idempotência, auditoria, outbox e versões imutáveis. Regras cumulativas ou com limite, anteriores a esta fatia, continuam visíveis e têm a edição bloqueada até existir consumo transacional dos limites, para não remover semântica silenciosamente. A PR #74 foi integrada em `92429c5`; Quality da PR `35789997842`, Quality pós-merge `35790849422` e Deploy Staging `35790849402` verdes. Percentual, preço fixo, leve/pague, combo, escalonada, cupons e o consumo concorrente de limites continuam pendentes; a etapa 4 permanece `IN PROGRESS`.
+
+## Onda 0 — reconciliação de branches e RBAC fail-closed — 27/09/2026
+
+A PR #75 integrou `main` em `develop` por merge commit intencional (`5cdfdea`), com árvore idêntica à de `92429c5`: os commits exclusivos de `main` (#19 `86238e1`, #20 `95c4209`) passaram a ser ancestrais de `develop`, e uma promoção futura não diverge. O ruleset de `develop` foi flexibilizado somente durante o merge e restaurado sem diferenças. Quality pós-merge `36343819559` e Deploy Staging `36343819590` verdes.
+
+A PR #76 fez `hasPermission`/`primaryRole` falharem fechados: só papéis próprios da tabela concedem permissão; papéis desconhecidos, chaves de protótipo e payloads malformados não autorizam nem lançam exceção. Também removeu o `any` explícito restante da UI, zerando os warnings de lint. Integrada em `8032d16`; Quality da PR `36343983315`, Quality pós-merge `36347489093` e Deploy Staging `36347489069` verdes; smokes externos de Portal, PDV, Jobs e Service Binding 200 e APIs administrativas sem sessão 401. Papéis válidos mantêm as mesmas permissões; nenhuma migration.
