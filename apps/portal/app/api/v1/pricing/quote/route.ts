@@ -24,12 +24,13 @@ const databaseRowSchema = z.object({
   amount_cents: z.number().int().nonnegative().refine(Number.isSafeInteger),
   promotion_id: z.uuid().nullable(),
   priority: z.number().int().nullable(),
-  rule_type: z.enum(["QUANTIDADE_PRECO", "PERCENTUAL", "VALOR_FIXO_UNITARIO"]).nullable(),
+  rule_type: z.enum(["QUANTIDADE_PRECO", "PERCENTUAL", "VALOR_FIXO_UNITARIO", "LEVE_PAGUE"]).nullable(),
   group_quantity: z.number().int().nullable(),
   group_price_cents: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
   max_groups_per_line: z.number().int().nullable(),
   percentage_basis_points: z.number().int().nullable(),
   fixed_unit_price_cents: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
+  pay_quantity: z.number().int().nullable(),
 });
 
 function errorResponse(code: string, message: string, requestId: string, status: number, details?: unknown) {
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
     return errorResponse("PRICING_UNAVAILABLE", "Cotação temporariamente indisponível", requestId, 503);
   }
 
-  const { data, error } = await supabase.rpc("get_pricing_quote_inputs_v2", {
+  const { data, error } = await supabase.rpc("get_pricing_quote_inputs_v3", {
     p_channel: parsed.data.channel,
     p_product_ids: parsed.data.items.map((item) => item.productId),
   });
@@ -112,7 +113,12 @@ export async function POST(request: Request) {
         if (row.rule_type === "VALOR_FIXO_UNITARIO" && row.fixed_unit_price_cents !== null) {
           return [{...common,type:row.rule_type,fixedUnitPriceCents:moneyFromCents(row.fixed_unit_price_cents)}];
         }
-        return [];
+        if (row.rule_type === "LEVE_PAGUE" && row.group_quantity !== null && row.pay_quantity !== null) {
+          return [{...common,type:row.rule_type,buyQuantity:row.group_quantity,payQuantity:row.pay_quantity,
+            maxGroupsPerLine:row.max_groups_per_line}];
+        }
+        // Fail closed: checkout would still price this candidate, so the quote must not silently skip it.
+        throw new DomainError("PRICING_INVALID_RULE", "Promotion candidate is incomplete");
       }),
     );
     const response = pricingQuoteResponseSchema.parse({

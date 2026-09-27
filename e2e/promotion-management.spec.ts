@@ -29,3 +29,20 @@ test("administra percentual com arredondamento a favor do cliente e reflete na c
     await anonymous.dispose();
   }
 });
+
+test("administra leve e pague e cobra só as unidades pagas na cotação pública",async({page,playwright})=>{
+  test.slow();const productId="33f00000-0000-4000-8000-000000000001";
+  expect((await page.request.post(`${portal}/api/auth/login`,{headers,data:{identifier:"admin.teste",password:"Admin123!"}})).status()).toBe(200);await page.goto(`${portal}/admin/promocoes`);
+  const code=`E2E-LP-${crypto.randomUUID()}`.toUpperCase();await page.getByLabel("Código").fill(code);await page.getByLabel("Nome").fill("Leve 3, pague 2");await page.getByLabel("Tipo de regra").selectOption("LEVE_PAGUE");await page.getByLabel("Leve (unidades)").fill("3");await page.getByLabel("Pague (unidades)").fill("2");await page.getByLabel("PORTAL").check();await page.getByLabel(/Item público A/).check();await page.getByLabel("Ativa").check();await page.getByLabel("Publicável").check();await page.getByLabel("Prioridade").fill("1000");await page.getByLabel("Motivo").fill("Validar leve e pague no catálogo público");
+  const createResponse=page.waitForResponse((response)=>response.url()===endpoint&&response.request().method()==="POST");await page.getByRole("button",{name:"Salvar promoção"}).click();const created=await createResponse;expect(created.status()).toBe(201);const promotion=await created.json() as{data:Record<string,unknown>&{id:string;revision:number}};await expect(page.getByRole("listitem").filter({hasText:code})).toContainText("leve 3, pague 2");
+  const anonymous=await playwright.request.newContext();
+  try{
+    // 3 x R$ 25,90 com leve 3, pague 2 = R$ 51,80.
+    await expect((await anonymous.post(`${portal}/api/v1/pricing/quote`,{headers:{Origin:portal},data:{channel:"PORTAL",items:[{productId,quantity:3}]}})).json()).resolves.toMatchObject({data:{rounding:"NONE",originalTotalCents:7770,discountTotalCents:2590,totalCents:5180,lines:[{appliedPromotion:{promotionId:promotion.data.id,type:"LEVE_PAGUE",buyQuantity:3,payQuantity:2,groups:1,freeQuantity:1,savingsCents:2590}}]}});
+  }finally{
+    const{id,revision,correlationId:_correlationId,...current}=promotion.data;void _correlationId;
+    const deactivate=await page.request.post(endpoint,{headers:{...headers,"Idempotency-Key":`promotion-lp-off:${crypto.randomUUID()}`},data:{...current,id,expectedRevision:revision,active:false,publicable:false,reason:"Encerrar promoção de teste"}});expect(deactivate.status()).toBe(200);
+    await expect((await anonymous.post(`${portal}/api/v1/pricing/quote`,{headers:{Origin:portal},data:{channel:"PORTAL",items:[{productId,quantity:3}]}})).json()).resolves.toMatchObject({data:{totalCents:7770}});
+    await anonymous.dispose();
+  }
+});
