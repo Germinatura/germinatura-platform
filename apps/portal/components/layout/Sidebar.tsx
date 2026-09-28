@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, Boxes, CalendarClock, ClipboardCheck, HandCoins, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, Boxes, CalendarClock, ClipboardCheck, CreditCard, HandCoins, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -119,6 +119,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Link href="/admin/financeiro/turnos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/turnos"))} title={collapsed ? "Turnos de caixa" : undefined}>
               {pathname.startsWith("/admin/financeiro/turnos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <HandCoins className="size-5 shrink-0" />{!collapsed && <span>Turnos de caixa</span>}
+            </Link>
+            <Link href="/admin/financeiro/maquininhas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/maquininhas"))} title={collapsed ? "Maquininhas" : undefined}>
+              {pathname.startsWith("/admin/financeiro/maquininhas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <CreditCard className="size-5 shrink-0" />{!collapsed && <span>Maquininhas</span>}
             </Link>
           </>
         )}

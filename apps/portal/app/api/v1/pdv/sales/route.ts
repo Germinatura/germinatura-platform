@@ -23,6 +23,8 @@ const databaseSalesSchema = z.object({
       integration_channel: z.string().nullable(),
       confirmation_source: z.string().nullable(),
       confirmed_at: z.string().nullable(),
+      card_method: z.string().nullish(),
+      terminal_code: z.string().nullish(),
     }).nullable(),
     items: z.array(z.object({ product_name: z.string(), quantity: z.number().int(), total_cents: z.number().int() })).nullable(),
   })),
@@ -53,6 +55,7 @@ export async function GET(request: Request) {
         payment: sale.payment && {
           attemptId: sale.payment.attempt_id, status: sale.payment.status, integrationChannel: sale.payment.integration_channel,
           confirmationSource: sale.payment.confirmation_source, confirmedAt: sale.payment.confirmed_at,
+          cardMethod: sale.payment.card_method ?? null, terminalCode: sale.payment.terminal_code ?? null,
         },
         items: (sale.items ?? []).map((item) => ({ productName: item.product_name, quantity: item.quantity, totalCents: item.total_cents })),
       })),

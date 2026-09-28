@@ -160,6 +160,8 @@ describe("checkout transacional real", () => {
       p_sale_id: saleId,
       p_integration_channel: "MAQUININHA",
       p_proof_reference: proofReference,
+      p_card_method: "CREDITO",
+      p_terminal_id: null,
       p_idempotency_key: confirmationKey,
       p_correlation_id: randomUUID(),
     });

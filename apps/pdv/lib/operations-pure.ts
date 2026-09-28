@@ -48,3 +48,14 @@ export function mySaleStatus(sale: { status: string; pendingReason: string | nul
     ? { label: "Estornada", tone: "danger" as const } : { label: "Cancelada", tone: "neutral" as const };
   return { label: "Concluída", tone: "success" as const };
 }
+
+const cardMethodLabels: Record<string, string> = {
+  CREDITO: "Crédito", DEBITO: "Débito", VOUCHER_ALIMENTACAO: "Vale-alimentação", VOUCHER_REFEICAO: "Vale-refeição",
+};
+
+/** Payment line of "Minhas vendas": channel, then card method and terminal when present. */
+export function paymentSummary(payment: { integrationChannel: string | null; cardMethod: string | null; terminalCode: string | null } | null) {
+  const channel = paymentMethodLabel(payment?.integrationChannel);
+  const card = payment?.cardMethod ? cardMethodLabels[payment.cardMethod] ?? payment.cardMethod : null;
+  return [channel, card, payment?.terminalCode ?? null].filter(Boolean).join(" · ");
+}

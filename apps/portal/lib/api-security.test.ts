@@ -50,6 +50,8 @@ describe("purchase payable API access", () => {
   it("allows only finance operators and administrators", () => {
     expect(apiAccessRule("/api/v1/admin/finance/payables")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/shifts")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/terminals")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/terminals/6a000000-0000-4000-8000-000000000001")?.methods).toEqual(["PATCH"]);
     expect(apiAccessRule("/api/v1/admin/finance/payables/63000000-0000-4000-8000-000000000001/settlements")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/payables/settlements/63000000-0000-4000-8000-000000000001/reverse")?.access).toBe("finance");
     expect(rolesSatisfyAccess(["ADMIN"], "finance")).toBe(true);
@@ -63,6 +65,7 @@ describe("cash and shift API access", () => {
   it("allows only sellers to operate shifts and cash payments", () => {
     expect(apiAccessRule("/api/v1/pdv/shifts")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/sales")?.access).toBe("seller");
+    expect(apiAccessRule("/api/v1/pdv/terminals")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/shifts/67000000-0000-4000-8000-000000000001/close")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/sales/67000000-0000-4000-8000-000000000001/payments/cash")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/shifts/not-a-uuid!/close")).toBeUndefined();

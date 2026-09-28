@@ -2,6 +2,7 @@ import {
   cashPaymentResponseSchema,
   manualPaymentConfirmationResponseSchema,
   mySalesResponseSchema,
+  paymentTerminalsResponseSchema,
   sellerShiftResponseSchema,
   pricingQuoteResponseSchema,
   publicCatalogProductsResponseSchema,
@@ -20,6 +21,8 @@ import {
   type ManualPaymentConfirmationResponse,
   type MySalesFilter,
   type MySalesResponse,
+  type CardPaymentMethod,
+  type PaymentTerminal,
   type SellerShift,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
@@ -39,7 +42,7 @@ import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { cartPayload } from "./operations-pure";
 
-export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel } from "./operations-pure";
+export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary } from "./operations-pure";
 
 export interface StockLocation {
   id: string;
@@ -190,16 +193,26 @@ export async function confirmManualPayment(
   saleId: string,
   channel: Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">,
   proofReference: string,
+  card: { cardMethod: CardPaymentMethod; terminalId: string | null } | null,
   idempotencyKey: string,
 ): Promise<ManualPaymentConfirmationResponse["data"]> {
   const response = await apiFetch(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ integrationChannel: channel, proofReference }),
+    body: JSON.stringify({ integrationChannel: channel, proofReference, ...(card ?? {}) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível confirmar o recebimento."));
   const parsed = manualPaymentConfirmationResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("A confirmação retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+/** Spec 6.7: active Maquininhas; when any exists the seller must name the one used. */
+export async function loadPaymentTerminals(): Promise<PaymentTerminal[]> {
+  const response = await apiFetch("/api/v1/pdv/terminals");
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as maquininhas."));
+  const parsed = paymentTerminalsResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("As maquininhas retornaram dados inválidos.");
   return parsed.data.data;
 }
 

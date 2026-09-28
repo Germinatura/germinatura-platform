@@ -554,6 +554,7 @@ describe("shared contracts", () => {
     expect(manualPaymentConfirmationRequestSchema.parse({
       integrationChannel: "MAQUININHA",
       proofReference: "NSU-TEST-0001",
+      cardMethod: "CREDITO",
     }).integrationChannel).toBe("MAQUININHA");
     expect(manualPaymentConfirmationRequestSchema.safeParse({
       integrationChannel: "TAP",
@@ -576,6 +577,8 @@ describe("shared contracts", () => {
           confirmationSource: "MANUAL",
           confirmedAt: "2026-08-30T19:00:00.000Z",
           proofReference: "PIX-TEST-0001",
+          cardMethod: null,
+          terminal: null,
         },
         stock: {
           reservationId: "74000000-0000-4000-8000-000000000001",

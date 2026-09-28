@@ -1,6 +1,6 @@
 import { publicCatalogProductSchema } from "@germinatura/contracts";
 import { describe, expect, it } from "vitest";
-import { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel } from "./operations-pure";
+import { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary } from "./operations-pure";
 
 const product = publicCatalogProductSchema.parse({
   id: "33f00000-0000-4000-8000-000000000001",
@@ -66,5 +66,7 @@ describe("my sales labels", () => {
     expect(paymentMethodLabel("DINHEIRO")).toBe("Dinheiro");
     expect(paymentMethodLabel("PIX_AREA")).toBe("Pix (Área Pix)");
     expect(paymentMethodLabel(null)).toBe("Sem pagamento");
+    expect(paymentSummary({ integrationChannel: "MAQUININHA", cardMethod: "DEBITO", terminalCode: "MAQ-01" })).toBe("Maquininha · Débito · MAQ-01");
+    expect(paymentSummary({ integrationChannel: "DINHEIRO", cardMethod: null, terminalCode: null })).toBe("Dinheiro");
   });
 });

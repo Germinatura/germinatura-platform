@@ -18,7 +18,7 @@ create temp table my_sales(label text primary key, sale_id uuid);
 insert into my_sales select label, (public.checkout_sale('PDV','50000000-0000-4000-8000-000000000002','[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":1}]'::jsonb,'my-sales-'||label,gen_random_uuid())->>'sale_id')::uuid
 from unnest(array['cash','card','pending','cancelled']) label;
 select lives_ok($$select public.confirm_cash_payment((select sale_id from my_sales where label='cash'),2590,'my-sales-cash',gen_random_uuid())$$,'cash sale confirmed');
-select lives_ok($$select public.confirm_manual_payment((select sale_id from my_sales where label='card'),'MAQUININHA','NSU-MYSALES-01','my-sales-card',gen_random_uuid())$$,'card sale confirmed');
+select lives_ok($$select public.confirm_manual_payment((select sale_id from my_sales where label='card'),'MAQUININHA','NSU-MYSALES-01', 'CREDITO', null,'my-sales-card',gen_random_uuid())$$,'card sale confirmed');
 select lives_ok($$select public.cancel_sale((select sale_id from my_sales where label='cancelled'),'my-sales-cancel',gen_random_uuid())$$,'pending sale cancelled');
 
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
