@@ -36,3 +36,13 @@ describe("unit promotion administration contract",()=>{
     expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:1_000,fixedUnitPriceCents:100}}).success).toBe(false);
   });
 });
+
+describe("combo promotion administration contract",()=>{
+  const combo={type:"COMBO_MIX" as const,components:[{productId:"33f00000-0000-4000-8000-000000000001",quantity:1},{productId:"33f00000-0000-4000-8000-000000000002",quantity:2}],comboPriceCents:3_500,maxCombosPerCart:null};
+  it("accepts two to ten distinct components with integer quantities",()=>{
+    expect(savePromotionSchema.safeParse({...valid,productIds:combo.components.map((item)=>item.productId),rule:combo}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...combo,components:[combo.components[0]]}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...combo,components:[combo.components[0],combo.components[0]]}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...combo,components:[combo.components[0],{...combo.components[1],quantity:1.5}]}}).success).toBe(false);
+  });
+});

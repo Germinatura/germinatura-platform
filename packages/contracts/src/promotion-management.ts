@@ -26,8 +26,14 @@ export const tieredRuleSchema = z.object({
 }).strict().refine((rule) => rule.tiers.every((tier, index) => index === 0
   || (tier.minQuantity > rule.tiers[index - 1].minQuantity && tier.percentageBasisPoints > rule.tiers[index - 1].percentageBasisPoints)),
 { message: "As faixas devem crescer em quantidade e desconto" });
+export const comboRuleSchema = z.object({
+  type: z.literal("COMBO_MIX"),
+  components: z.array(z.object({ productId: z.uuid(), quantity: z.number().int().min(1).max(1_000) }).strict()).min(2).max(10)
+    .refine((components) => unique(components.map((component) => component.productId)), { message: "Produtos repetidos no combo" }),
+  comboPriceCents: safeInteger, maxCombosPerCart: z.number().int().positive().nullable(),
+}).strict();
 export const managedPromotionRuleSchema = z.discriminatedUnion("type", [
-  quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema, buyPayRuleSchema, tieredRuleSchema,
+  quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema, buyPayRuleSchema, tieredRuleSchema, comboRuleSchema,
 ]);
 
 const managedPromotionFields = {
