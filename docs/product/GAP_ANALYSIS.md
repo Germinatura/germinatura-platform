@@ -1,6 +1,6 @@
 # Diagnóstico v2.2 — estado atual e conclusão
 
-Auditoria atualizada em 27/09/2026: `main=95c4209`, `develop=8032d16`; `main` é ancestral de `develop` desde a PR #75. A PR #73 integrou em staging a rastreabilidade por lote/local, custo consumido e histórico de movimentos (homologação física pendente). A PR #74 integrou a administração transacional de `QUANTIDADE_PRECO`. A PR #76 tornou o RBAC fail-closed. Produção não foi acessada.
+Auditoria atualizada em 28/09/2026: `main=95c4209`, `develop=1476741`; `main` é ancestral de `develop` desde a PR #75. As PRs #78–#82 integraram percentual, preço fixo, PROMO-004, leve/pague, a estabilização do E2E de checkout e a escalonada. A PR #73 integrou em staging a rastreabilidade por lote/local, custo consumido e histórico de movimentos (homologação física pendente). A PR #74 integrou a administração transacional de `QUANTIDADE_PRECO`. A PR #76 tornou o RBAC fail-closed. Produção não foi acessada.
 
 A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 
@@ -18,7 +18,8 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | Indicadores | Resumo explícito de 100 vendas recentes e contagens operacionais | Relatórios integrais por período, conciliação, custo/margem/perdas/meta | 9 |
 | Operação assíncrona | Worker claim/lease/retry/ack e expiração; notificações in-app | Alertas, retenção, restore ensaiado, preferências/avise-me/segmentação | 9–11 |
 | Pagamentos online | Documentação pública Payment Link verificada; contrato neutro no repo | Adapter, receipt e sandbox real não implementados/validados | 7 |
-| Crescimento/comunidade | Sem jornada completa | Vitrine, campanhas/eventos, links/QR, atribuição, mural/enquetes/moderação | 10 |
+| Campanhas operacionais (Marco 1) | Sem jornada completa | Vitrine, campanhas/eventos, links/QR e atribuição ligados a cardápio, pedidos, reservas e vendas | 10 |
+| Rede Social Germinare (Marco 2) | Fora do Marco 1 por decisão de 28/09/2026 | Mural, posts, comentários, sugestões, enquetes, denúncias e moderação, depois do site operacional em produção | Marco 2 |
 
 ## Divergências resolvidas documentalmente
 
@@ -37,4 +38,4 @@ Estoque/compras, promoções, pagamentos/financeiro, Portal consumidor/crescimen
 
 Habilitação, credenciais e execução de sandbox ainda não foram comprovadas; não acessar segredos para produzir evidência documental. Confirmar schemas completos e comportamento de timeout/múltiplos pagamentos por link antes de ativar. Materiais públicos não autorizam integrações privadas de Tap/TEF/SDK, nem V.A./V.R. sem credenciamento.
 
-Quarenta e uma migrations formam o schema integrado atual (a mais recente é `20260928090100_promotion_buy_pay_rules.sql`); a fatia escalonada acrescenta duas migrations aditivas. Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
+Quarenta e três migrations formam o schema integrado atual (a mais recente é `20260928120100_promotion_tiered_rules.sql`). Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
