@@ -48,6 +48,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   const [query, setQuery] = useState("");
   const [step, setStep] = useState<Step>("catalog");
   const [quote, setQuote] = useState<QuoteData | null>(null);
+  const [couponCode, setCouponCode] = useState("");
   const [checkout, setCheckout] = useState<CheckoutData | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null);
   const [channel, setChannel] = useState<ManualChannel>("MAQUININHA");
@@ -115,7 +116,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   }
 
   function resetSale() {
-    setCart([]); setQuote(null); setCheckout(null); setConfirmation(null); setProofReference("");
+    setCart([]); setQuote(null); setCheckout(null); setConfirmation(null); setProofReference(""); setCouponCode("");
     setChannel("MAQUININHA"); setError(""); setStep("catalog");
     checkoutKey.current = operationKey("pdv-checkout");
     confirmationKey.current = operationKey("pdv-confirm");
@@ -134,11 +135,11 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
 
   const reviewSale = () => perform("quote", async () => {
     if (!online || cart.length === 0) return;
-    setQuote(await quoteCart(cart)); setStep("review"); window.scrollTo({ top: 0, behavior: "smooth" });
+    setQuote(await quoteCart(cart, couponCode.trim() || undefined)); setStep("review"); window.scrollTo({ top: 0, behavior: "smooth" });
   });
   const startCheckout = () => perform("checkout", async () => {
     if (!online || !locationId || cart.length === 0) return;
-    const result = await checkoutCart(locationId, cart, checkoutKey.current);
+    const result = await checkoutCart(locationId, cart, checkoutKey.current, couponCode.trim() || undefined);
     setCheckout(result); setQuote(result.quote); setStep("payment"); window.scrollTo({ top: 0, behavior: "smooth" });
   });
   const confirmPayment = () => perform("confirm", async () => {
@@ -201,7 +202,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
           : view === "closeout" && inventory ? <CloseoutWorkspace catalog={catalog} inventory={inventory} online={online} />
           : inventory?.locations.length === 0 ? <EmptyState icon={Store} title="Nenhuma localização disponível" description="Peça a um administrador para ativar a localização deste PDV antes de iniciar vendas." onRetry={refreshData} />
           : step === "catalog" ? <CatalogStep catalog={filteredCatalog} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
-          : step === "review" && quote ? <ReviewStep quote={quote} online={online} loading={action === "checkout"} onCheckout={startCheckout} />
+          : step === "review" && quote ? <ReviewStep quote={quote} online={online} loading={action === "checkout"} onCheckout={startCheckout}
+            couponCode={couponCode} applying={action === "quote"} onCouponChange={(value) => { setCouponCode(value.toUpperCase()); checkoutKey.current = operationKey("pdv-checkout"); }} onApplyCoupon={reviewSale} />
           : step === "payment" && checkout && quote ? <PaymentStep checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} online={online} action={action} onChannel={setChannel} onReference={setProofReference} onConfirm={confirmPayment} onCancel={cancelSale} />
           : step === "success" && confirmation && quote ? <SuccessStep confirmation={confirmation} quote={quote} onNewSale={resetSale} /> : null}
       </div>
@@ -251,8 +253,8 @@ function QuoteSummary({ quote }: { quote: QuoteData }) {
   return <Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5"><h2 className="font-semibold">Itens da venda</h2><p className="mt-1 text-sm text-[var(--g-text-muted)]">Valores confirmados pelo servidor</p></div><div className="divide-y divide-[var(--g-border-subtle)]">{quote.lines.map((line) => <div key={line.productId} className="flex items-start justify-between gap-4 p-5"><div><p className="font-semibold">{line.name}</p><p className="mt-1 text-sm text-[var(--g-text-muted)]">{line.quantity} × {formatMoney(line.unitPriceCents)}</p>{line.discountCents > 0 && <Badge tone="success" className="mt-2">Economia de {formatMoney(line.discountCents)}</Badge>}</div><p className="g-money shrink-0 font-bold">{formatMoney(line.totalCents)}</p></div>)}</div><div className="space-y-2 bg-[var(--g-surface-subtle)] p-5 text-sm">{quote.discountTotalCents > 0 && <><div className="flex justify-between text-[var(--g-text-secondary)]"><span>Subtotal</span><span className="g-money">{formatMoney(quote.originalTotalCents)}</span></div><div className="flex justify-between text-[var(--g-status-success)]"><span>Descontos</span><span className="g-money">− {formatMoney(quote.discountTotalCents)}</span></div></>}<div className="flex items-baseline justify-between border-t border-[var(--g-border-default)] pt-3"><span className="font-semibold">Total</span><span className="g-money text-2xl font-bold">{formatMoney(quote.totalCents)}</span></div></div></Card>;
 }
 
-function ReviewStep({ quote, online, loading, onCheckout }: { quote: QuoteData; online: boolean; loading: boolean; onCheckout: () => void }) {
-  return <div className="mx-auto grid max-w-3xl gap-5"><QuoteSummary quote={quote} /><Card className="p-5"><div className="flex items-start gap-3"><Banknote className="mt-0.5 size-5 text-[var(--g-focus-ring)]" /><div><h2 className="font-semibold">Pronto para cobrar?</h2><p className="mt-1 text-sm leading-6 text-[var(--g-text-secondary)]">Ao continuar, o sistema reserva o estoque por tempo limitado. O recebimento ainda precisará ser confirmado manualmente.</p></div></div><Button variant="operation" size="lg" className="mt-5 w-full" onClick={onCheckout} loading={loading} disabled={!online}>Cobrar {formatMoney(quote.totalCents)}</Button></Card></div>;
+function ReviewStep({ quote, online, loading, onCheckout, couponCode, applying, onCouponChange, onApplyCoupon }: { quote: QuoteData; online: boolean; loading: boolean; onCheckout: () => void; couponCode: string; applying: boolean; onCouponChange: (value: string) => void; onApplyCoupon: () => void }) {
+  return <div className="mx-auto grid max-w-3xl gap-5"><QuoteSummary quote={quote} /><Card className="p-5"><Field id="pdv-coupon" label="Cupom (opcional)"><div className="flex gap-2"><Input id="pdv-coupon" maxLength={40} value={couponCode} onChange={(event) => onCouponChange(event.target.value)} /><Button variant="secondary" onClick={onApplyCoupon} loading={applying} disabled={!online}>Aplicar</Button></div></Field>{quote.coupon && <p role="status" className="mt-2 text-sm">{quote.coupon.applied ? `Cupom ${quote.coupon.code} aplicado.` : `O cupom ${quote.coupon.code} não se aplica a esta venda.`}</p>}</Card><Card className="p-5"><div className="flex items-start gap-3"><Banknote className="mt-0.5 size-5 text-[var(--g-focus-ring)]" /><div><h2 className="font-semibold">Pronto para cobrar?</h2><p className="mt-1 text-sm leading-6 text-[var(--g-text-secondary)]">Ao continuar, o sistema reserva o estoque por tempo limitado. O recebimento ainda precisará ser confirmado manualmente.</p></div></div><Button variant="operation" size="lg" className="mt-5 w-full" onClick={onCheckout} loading={loading} disabled={!online}>Cobrar {formatMoney(quote.totalCents)}</Button></Card></div>;
 }
 
 interface PaymentProps { checkout: CheckoutData; quote: QuoteData; channel: ManualChannel; proofReference: string; online: boolean; action: string | null; onChannel: (channel: ManualChannel) => void; onReference: (value: string) => void; onConfirm: () => void; onCancel: () => void }

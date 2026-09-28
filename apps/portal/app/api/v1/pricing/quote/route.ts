@@ -18,7 +18,7 @@ import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-// get_pricing_quote_inputs_v4 returns the canonical rule document; the shared contract validates it.
+// get_pricing_inputs returns the canonical rule document; the shared contract validates it.
 const databaseRowSchema = z.object({
   quoted_at: z.string(),
   product_id: z.uuid(),
@@ -26,12 +26,24 @@ const databaseRowSchema = z.object({
   amount_cents: z.number().int().nonnegative().refine(Number.isSafeInteger),
   promotion_id: z.uuid().nullable(),
   priority: z.number().int().nullable(),
+  cumulative: z.boolean().nullable(),
   rule: managedPromotionRuleSchema.nullable(),
 });
 
 type DatabaseRow = z.infer<typeof databaseRowSchema>;
 
-function promotionRule(row: DatabaseRow): CartPromotionRule[] {
+function promotionRules(rows: readonly DatabaseRow[]): CartPromotionRule[] {
+  // A coupon arrives once per eligible product; the domain needs its whole product scope.
+  const couponProducts = new Map<string, string[]>();
+  for (const row of rows) {
+    if (row.promotion_id && row.rule?.type === "CUPOM") {
+      couponProducts.set(row.promotion_id, [...(couponProducts.get(row.promotion_id) ?? []), row.product_id]);
+    }
+  }
+  return rows.flatMap((row) => promotionRule(row, couponProducts));
+}
+
+function promotionRule(row: DatabaseRow, couponProducts: ReadonlyMap<string, string[]>): CartPromotionRule[] {
   if (row.promotion_id === null && row.rule === null) return [];
   // Fail closed: checkout would still price this candidate, so the quote must not silently skip it.
   if (row.promotion_id === null || row.rule === null || row.priority === null) {
@@ -47,6 +59,11 @@ function promotionRule(row: DatabaseRow): CartPromotionRule[] {
     case "COMBO_MIX":
       // One row per component product; the domain keeps a single combo per promotion ID.
       return [{ promotionId: common.promotionId, priority: common.priority, ...rule, comboPriceCents: moneyFromCents(rule.comboPriceCents) }];
+    case "CUPOM":
+      return [{ promotionId: common.promotionId, priority: common.priority, type: rule.type, code: rule.code,
+        productIds: couponProducts.get(common.promotionId) ?? [row.product_id], cumulative: row.cumulative === true,
+        discount: rule.discount.kind === "PERCENTUAL" ? rule.discount
+          : { kind: "VALOR_FIXO", amountCents: moneyFromCents(rule.discount.amountCents) } }];
     default:
       return [{ ...common, ...rule }];
   }
@@ -100,9 +117,10 @@ export async function POST(request: Request) {
     return errorResponse("PRICING_UNAVAILABLE", "Cotação temporariamente indisponível", requestId, 503);
   }
 
-  const { data, error } = await supabase.rpc("get_pricing_quote_inputs_v4", {
+  const { data, error } = await supabase.rpc("get_pricing_inputs", {
     p_channel: parsed.data.channel,
     p_product_ids: parsed.data.items.map((item) => item.productId),
+    p_coupon_code: parsed.data.couponCode ?? null,
   });
   if (error) return errorResponse("PRICING_UNAVAILABLE", "Cotação temporariamente indisponível", requestId, 503);
   const rows = z.array(databaseRowSchema).safeParse(data);
@@ -119,7 +137,7 @@ export async function POST(request: Request) {
         const product = products.get(item.productId)!;
         return { productId: item.productId, quantity: item.quantity, unitPriceCents: moneyFromCents(product.amount_cents) };
       }),
-      rows.data.flatMap(promotionRule),
+      promotionRules(rows.data),
     );
     const response = pricingQuoteResponseSchema.parse({
       data: {
@@ -127,6 +145,8 @@ export async function POST(request: Request) {
         quotedAt: rows.data[0].quoted_at,
         currency: "BRL",
         rounding: quote.rounding,
+        coupon: parsed.data.couponCode ? { code: parsed.data.couponCode, applied: quote.lines.some((line) =>
+          line.appliedCoupon || line.appliedPromotion?.type === "CUPOM") } : null,
         lines: quote.lines.map((line) => ({
           productId: line.productId,
           name: products.get(line.productId)!.product_name,
@@ -136,6 +156,7 @@ export async function POST(request: Request) {
           discountCents: line.discountCents,
           totalCents: line.effectiveSubtotalCents,
           appliedPromotion: line.appliedPromotion,
+          appliedCoupon: line.appliedCoupon ?? null,
         })),
         originalTotalCents: quote.originalTotalCents,
         discountTotalCents: quote.discountTotalCents,

@@ -14,6 +14,7 @@ const channelRows = z.array(z.object({ promotion_id:z.uuid(),channel:z.enum(["PO
 const ruleRows = z.array(z.object({ promotion_id:z.uuid(),rule_type:z.literal("QUANTIDADE_PRECO"),group_quantity:z.number().int(),group_price_cents:z.number(),max_groups_per_line:z.number().int().nullable() }));
 const percentageRows=z.array(z.object({promotion_id:z.uuid(),rule_type:z.literal("PERCENTUAL"),percentage_basis_points:z.number().int()}));
 const fixedRows=z.array(z.object({promotion_id:z.uuid(),rule_type:z.literal("VALOR_FIXO_UNITARIO"),fixed_unit_price_cents:z.number().int()}));
+const couponRows=z.array(z.object({promotion_id:z.uuid(),code:z.string(),discount_kind:z.enum(["PERCENTUAL","VALOR_FIXO"]),percentage_basis_points:z.number().int().nullable(),amount_cents:z.number().int().nullable()}));
 const comboRows=z.array(z.object({promotion_id:z.uuid(),combo_price_cents:z.number().int(),max_combos_per_cart:z.number().int().nullable()}));
 const componentRows=z.array(z.object({promotion_id:z.uuid(),product_id:z.uuid(),quantity:z.number().int()}));
 const tierRows=z.array(z.object({promotion_id:z.uuid(),min_quantity:z.number().int(),percentage_basis_points:z.number().int()}));
@@ -30,7 +31,7 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
   const promotionsResult=await query;
   const parsedPromotions=promotionRows.safeParse(promotionsResult.data);
   const ids=parsedPromotions.success?parsedPromotions.data.map((item)=>item.id):[];
-  const [productsResult,scopesResult,channelsResult,rulesResult,percentagesResult,fixedResult,buyPayResult,combosResult,componentsResult,tiersResult]=await Promise.all([
+  const [productsResult,scopesResult,channelsResult,rulesResult,percentagesResult,fixedResult,buyPayResult,combosResult,componentsResult,tiersResult,couponsResult]=await Promise.all([
     client.from("products").select("id,sku,name,active").order("name"),
     ids.length?client.from("promotion_products").select("promotion_id,product_id").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
     ids.length?client.from("promotion_channels").select("promotion_id,channel").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
@@ -41,6 +42,7 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
     ids.length?client.from("promotion_combo_rules").select("promotion_id,combo_price_cents,max_combos_per_cart").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
     ids.length?client.from("promotion_combo_components").select("promotion_id,product_id,quantity").in("promotion_id",ids).order("product_id"):Promise.resolve({data:[],error:null}),
     ids.length?client.from("promotion_tiered_rule_tiers").select("promotion_id,min_quantity,percentage_basis_points").in("promotion_id",ids).order("min_quantity"):Promise.resolve({data:[],error:null}),
+    ids.length?client.from("promotion_coupon_rules").select("promotion_id,code,discount_kind,percentage_basis_points,amount_cents").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
   ]);
   const products=productRows.safeParse(productsResult.data);
   const scopes=scopeRows.safeParse(scopesResult.data);
@@ -52,8 +54,9 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
   const tiers=tierRows.safeParse(tiersResult.data);
   const combos=comboRows.safeParse(combosResult.data);
   const components=componentRows.safeParse(componentsResult.data);
+  const coupons=couponRows.safeParse(couponsResult.data);
   const invalidAfter=Boolean(after&&!cursor.success);
-  const unavailable=Boolean(invalidAfter||promotionsResult.error||productsResult.error||scopesResult.error||channelsResult.error||rulesResult.error||percentagesResult.error||fixedResult.error||buyPayResult.error||tiersResult.error||combosResult.error||componentsResult.error||!parsedPromotions.success||!products.success||!scopes.success||!channels.success||!rules.success||!percentages.success||!fixed.success||!buyPay.success||!tiers.success||!combos.success||!components.success);
+  const unavailable=Boolean(invalidAfter||promotionsResult.error||productsResult.error||scopesResult.error||channelsResult.error||rulesResult.error||percentagesResult.error||fixedResult.error||buyPayResult.error||tiersResult.error||combosResult.error||componentsResult.error||couponsResult.error||!parsedPromotions.success||!products.success||!scopes.success||!channels.success||!rules.success||!percentages.success||!fixed.success||!buyPay.success||!tiers.success||!combos.success||!components.success||!coupons.success);
   const page=parsedPromotions.success?parsedPromotions.data.slice(0,50):[];
   const mapped=page.map((item)=>{
     const quantityRule=rules.success?rules.data.find((row)=>row.promotion_id===item.id):undefined;
@@ -63,6 +66,7 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
     const promotionTiers=tiers.success?tiers.data.filter((row)=>row.promotion_id===item.id):[];
     const comboRule=combos.success?combos.data.find((row)=>row.promotion_id===item.id):undefined;
     const comboComponents=components.success?components.data.filter((row)=>row.promotion_id===item.id):[];
+    const couponRule=coupons.success?coupons.data.find((row)=>row.promotion_id===item.id):undefined;
     const rule=quantityRule?{type:"QUANTIDADE_PRECO" as const,groupQuantity:quantityRule.group_quantity,
       groupPriceCents:quantityRule.group_price_cents,maxGroupsPerLine:quantityRule.max_groups_per_line}
       :percentageRule?{type:"PERCENTUAL" as const,percentageBasisPoints:percentageRule.percentage_basis_points}
@@ -72,7 +76,10 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
       :promotionTiers.length?{type:"ESCALONADA" as const,tiers:promotionTiers.map((tier)=>({minQuantity:tier.min_quantity,
         percentageBasisPoints:tier.percentage_basis_points}))}
       :comboRule?{type:"COMBO_MIX" as const,components:comboComponents.map((component)=>({productId:component.product_id,quantity:component.quantity})),
-        comboPriceCents:comboRule.combo_price_cents,maxCombosPerCart:comboRule.max_combos_per_cart}:undefined;
+        comboPriceCents:comboRule.combo_price_cents,maxCombosPerCart:comboRule.max_combos_per_cart}
+      :couponRule?{type:"CUPOM" as const,code:couponRule.code,discount:couponRule.discount_kind==="PERCENTUAL"
+        ?{kind:"PERCENTUAL" as const,percentageBasisPoints:couponRule.percentage_basis_points??0}
+        :{kind:"VALOR_FIXO" as const,amountCents:couponRule.amount_cents??0}}:undefined;
     return managedPromotionSchema.safeParse({
       id:item.id,revision:item.revision,code:item.code,name:item.name,description:item.description,
       active:item.active,publicable:item.publicable,priority:item.priority,cumulative:item.cumulative,

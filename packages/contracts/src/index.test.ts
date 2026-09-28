@@ -407,6 +407,7 @@ describe("shared contracts", () => {
         quotedAt: "2026-08-29T17:00:00.000Z",
         currency: "BRL",
         rounding: "NONE",
+        coupon: null,
         lines: [{
           productId: "33000000-0000-4000-8000-000000000001",
           name: "Produto",
@@ -425,6 +426,7 @@ describe("shared contracts", () => {
             remainderQuantity: 1,
             savingsCents: 2000,
           },
+          appliedCoupon: null,
         }],
         originalTotalCents: 4500,
         discountTotalCents: 2000,
@@ -495,6 +497,7 @@ describe("shared contracts", () => {
           quotedAt: "2026-08-30T18:00:00.000Z",
           currency: "BRL",
           rounding: "NONE",
+          coupon: null,
           lines: [{
             productId,
             name: "Item",
@@ -504,6 +507,7 @@ describe("shared contracts", () => {
             discountCents: 0,
             totalCents: 3000,
             appliedPromotion: null,
+            appliedCoupon: null,
           }],
           originalTotalCents: 3000,
           discountTotalCents: 0,

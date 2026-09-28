@@ -8,7 +8,7 @@ select has_type('public', 'payment_integration_channel', 'payment channel type e
 select has_type('public', 'payment_confirmation_source', 'confirmation source type exists');
 select has_function(
   'public', 'checkout_sale',
-  array['public.promotion_channel', 'uuid', 'jsonb', 'text', 'uuid'],
+  array['public.promotion_channel', 'uuid', 'jsonb', 'text', 'uuid', 'text'],
   'transactional checkout RPC exists'
 );
 select has_function(
@@ -57,7 +57,7 @@ select results_eq(
   'API roles receive no payment attempt history write grants'
 );
 select ok(
-  not has_function_privilege('anon', 'public.checkout_sale(public.promotion_channel,uuid,jsonb,text,uuid)', 'EXECUTE'),
+  not has_function_privilege('anon', 'public.checkout_sale(public.promotion_channel,uuid,jsonb,text,uuid,text)', 'EXECUTE'),
   'anonymous checkout is not executable'
 );
 select ok(

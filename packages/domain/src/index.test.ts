@@ -623,3 +623,47 @@ describe("COMBO_MIX promotions", () => {
     expectDomainError(() => priceCartWithPromotions([itemA, itemB], [{ ...combo, components: [combo.components[0]] }]), "INVALID_PROMOTION_COMBO");
   });
 });
+
+describe("CUPOM promotions", () => {
+  // Mirrors supabase/tests/promotion_coupon_limits_test.sql: A R$ 25,90, B R$ 19,90.
+  const a = (quantity: number) => ({ productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity });
+  const b = (quantity: number) => ({ productId: "product-b", unitPriceCents: moneyFromCents(1_990), quantity });
+  const coupon = { promotionId: "7d000000-0000-4000-8000-000000000001", type: "CUPOM" as const, code: "FORMANDO10",
+    productIds: ["product-a"], discount: { kind: "PERCENTUAL" as const, percentageBasisPoints: 1_000 }, cumulative: false, priority: 300 };
+  const lineRule = { promotionId: "7d000000-0000-4000-8000-000000000009", productId: "product-a", type: "PERCENTUAL" as const, percentageBasisPoints: 2_000, priority: 300 };
+
+  it("applies a non-cumulative percentage coupon per unit, floored", () => {
+    expect(priceCartWithPromotions([a(2)], [coupon])).toMatchObject({ totalCents: 4_662, discountTotalCents: 518, rounding: "FLOOR_PER_UNIT",
+      lines: [{ appliedPromotion: { type: "CUPOM", code: "FORMANDO10", discountKind: "PERCENTUAL", savingsCents: 518 } }] });
+  });
+
+  it("splits a fixed coupon across eligible lines with PROMO-005", () => {
+    const fixed = { ...coupon, productIds: ["product-a", "product-b"], discount: { kind: "VALOR_FIXO" as const, amountCents: moneyFromCents(1_000) } };
+    const quote = priceCartWithPromotions([a(1), b(1)], [fixed]);
+    expect(quote).toMatchObject({ totalCents: 3_580, discountTotalCents: 1_000 });
+    expect(quote.lines.map((line) => line.discountCents)).toEqual([566, 434]);
+  });
+
+  it("competes with line promotions when not cumulative", () => {
+    expect(priceCartWithPromotions([a(2)], [coupon, lineRule]).lines[0].appliedPromotion?.type).toBe("PERCENTUAL");
+    expect(priceCartWithPromotions([a(2)], [{ ...coupon, priority: 400 }, lineRule]).lines[0].appliedPromotion?.type).toBe("CUPOM");
+  });
+
+  it("stacks a cumulative coupon on the winning promotion, flooring the line", () => {
+    // 20% line rule: 2072 x 3 = 6216; cumulative 10% -> floor(5594.4) = 5594.
+    const quote = priceCartWithPromotions([a(3)], [{ ...coupon, cumulative: true }, lineRule]);
+    expect(quote).toMatchObject({ totalCents: 5_594, discountTotalCents: 2_176, rounding: "FLOOR_PER_UNIT_AND_LINE" });
+    expect(quote.lines[0]).toMatchObject({ appliedPromotion: { type: "PERCENTUAL", savingsCents: 1_554 },
+      appliedCoupon: { type: "CUPOM", cumulative: true, savingsCents: 622 } });
+  });
+
+  it("never makes a line negative", () => {
+    const fixed = { ...coupon, cumulative: true, discount: { kind: "VALOR_FIXO" as const, amountCents: moneyFromCents(5_000) } };
+    expect(priceCartWithPromotions([a(1)], [fixed])).toMatchObject({ totalCents: 0, discountTotalCents: 2_590 });
+  });
+
+  it("prices at most one coupon and ignores lines outside its scope", () => {
+    expect(priceCartWithPromotions([b(1)], [coupon]).lines[0].appliedPromotion).toBeNull();
+    expectDomainError(() => priceCartWithPromotions([a(1)], [coupon, { ...coupon, promotionId: "7d000000-0000-4000-8000-000000000002" }]), "MULTIPLE_COUPONS");
+  });
+});
