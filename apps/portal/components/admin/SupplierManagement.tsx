@@ -34,7 +34,7 @@ export function SupplierManagement() {
   return <div className="space-y-6">
     <Card className="p-5"><form onSubmit={(event) => { event.preventDefault(); setLoading(true); setError(""); setAppliedQuery(query.trim()); setRefreshKey((value) => value + 1); }} className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end">
       <Field id="supplier-search" label="Buscar fornecedor"><Input id="supplier-search" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={160} placeholder="Nome, contato ou documento" /></Field>
-      <Field id="supplier-status" label="Status"><select id="supplier-status" className="g-input" value={status} onChange={(event) => { setLoading(true); setError(""); setStatus(event.target.value as typeof status); }}><option value="ALL">Todos</option><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select></Field>
+      <Field id="supplier-status" label="Status"><select id="supplier-status" className="g-input" value={status} onChange={(event) => { setLoading(true); setError(""); setNotice(""); setStatus(event.target.value as typeof status); }}><option value="ALL">Todos</option><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select></Field>
       <Button type="submit" variant="secondary" loading={loading}><RefreshCw className="size-4" /> Atualizar</Button>
     </form></Card>
     {notice && <p role="status" className="rounded-[var(--g-radius-control)] bg-[var(--g-status-success-soft)] p-4 text-sm text-[var(--g-status-success-foreground)]">{notice}</p>}
