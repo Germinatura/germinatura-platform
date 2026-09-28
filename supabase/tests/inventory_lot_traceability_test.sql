@@ -37,7 +37,7 @@ create temp table trace_checkout as select public.checkout_sale(
   'PDV','50000000-0000-4000-8000-000000000002','[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":2}]'::jsonb,
   'trace-checkout',gen_random_uuid()) result;
 create temp table trace_payment as select public.confirm_manual_payment(
-  (select (result->>'sale_id')::uuid from trace_checkout),'MAQUININHA','NSU-TRACE-0001','trace-payment',gen_random_uuid()) result;
+  (select (result->>'sale_id')::uuid from trace_checkout),'MAQUININHA','NSU-TRACE-0001', 'CREDITO', null,'trace-payment',gen_random_uuid()) result;
 create temp table trace_sale_movement as select id from public.stock_movements where source_type='sale' and source_id=(select result->>'sale_id' from trace_checkout);
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
 select is((select on_hand_quantity from public.inventory_lot_balances where lot_id=(select id from trace_lot) and location_id='50000000-0000-4000-8000-000000000002'),0::bigint,'confirmed sale consumes seller lot');

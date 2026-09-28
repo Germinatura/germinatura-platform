@@ -23,6 +23,9 @@ const databaseResultSchema = z.object({
     confirmation_source: z.literal("MANUAL"),
     confirmed_at: z.string(),
     proof_reference: z.string(),
+    // Absent in replays stored before card methods were recorded.
+    card_method: z.enum(["CREDITO", "DEBITO", "VOUCHER_ALIMENTACAO", "VOUCHER_REFEICAO"]).nullish(),
+    terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).nullish(),
   }),
   stock: z.object({
     reservation_id: z.uuid(),
@@ -46,6 +49,18 @@ function databaseErrorResponse(message: string, requestId: string) {
   }
   if (message.includes("PROOF_REFERENCE_ALREADY_USED")) {
     return errorResponse("PROOF_REFERENCE_ALREADY_USED", "Referência já utilizada", requestId, 409);
+  }
+  if (message.includes("PAYMENT_TERMINAL_REQUIRED")) {
+    return errorResponse("PAYMENT_TERMINAL_REQUIRED", "Informe qual maquininha foi usada", requestId, 422);
+  }
+  if (message.includes("PAYMENT_TERMINAL_UNAVAILABLE")) {
+    return errorResponse("PAYMENT_TERMINAL_UNAVAILABLE", "Maquininha inativa ou não cadastrada", requestId, 409);
+  }
+  if (message.includes("CARD_METHOD_REQUIRED") || message.includes("CARD_DETAILS_NOT_ALLOWED")) {
+    return errorResponse("INVALID_MANUAL_CONFIRMATION", "Método de cartão incompatível com o canal", requestId, 422);
+  }
+  if (message.includes("FEATURE_DISABLED")) {
+    return errorResponse("FEATURE_DISABLED", "Este meio de pagamento ainda não está habilitado", requestId, 409);
   }
   if (message.includes("IDEMPOTENCY_CONFLICT")) {
     return errorResponse("IDEMPOTENCY_CONFLICT", "A chave já foi usada com outro conteúdo", requestId, 409);
@@ -106,6 +121,8 @@ export async function POST(request: Request, context: RouteContext) {
     p_sale_id: id,
     p_integration_channel: parsed.data.integrationChannel,
     p_proof_reference: parsed.data.proofReference,
+    p_card_method: parsed.data.cardMethod ?? null,
+    p_terminal_id: parsed.data.terminalId ?? null,
     p_idempotency_key: idempotency.data,
     p_correlation_id: crypto.randomUUID(),
   });
@@ -128,6 +145,8 @@ export async function POST(request: Request, context: RouteContext) {
         confirmationSource: value.payment_attempt.confirmation_source,
         confirmedAt: value.payment_attempt.confirmed_at,
         proofReference: value.payment_attempt.proof_reference,
+        cardMethod: value.payment_attempt.card_method ?? null,
+        terminal: value.payment_attempt.terminal ?? null,
       },
       stock: {
         reservationId: value.stock.reservation_id,

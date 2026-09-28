@@ -57,7 +57,7 @@ select throws_ok(
   '22023', 'MANUAL_PAYMENT_CHANNEL_UNSUPPORTED', 'Tap remains fail closed'
 );
 select throws_ok(
-  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from manual_checkout), 'MAQUININHA', '4111111111111111', 'manual-confirm-pan', '63000000-0000-4000-8000-000000000004')$$,
+  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from manual_checkout), 'MAQUININHA', '4111111111111111', 'CREDITO', null, 'manual-confirm-pan', '63000000-0000-4000-8000-000000000004')$$,
   '22023', 'INVALID_NON_SENSITIVE_PROOF_REFERENCE', 'PAN-like proof reference is rejected'
 );
 reset role;
@@ -65,7 +65,7 @@ reset role;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000003';
 select throws_ok(
-  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from manual_checkout), 'MAQUININHA', 'NSU-FOREIGN-1', 'manual-confirm-foreign', '63000000-0000-4000-8000-000000000005')$$,
+  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from manual_checkout), 'MAQUININHA', 'NSU-FOREIGN-1', 'CREDITO', null, 'manual-confirm-foreign', '63000000-0000-4000-8000-000000000005')$$,
   '42501', 'SELLER_REQUIRED', 'consumer cannot confirm a seller payment'
 );
 reset role;
@@ -75,7 +75,7 @@ set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
 create temp table manual_confirmation as
 select public.confirm_manual_payment(
   (select (result ->> 'sale_id')::uuid from manual_checkout),
-  'MAQUININHA', 'NSU-MANUAL-0001', 'manual-confirm-1',
+  'MAQUININHA', 'NSU-MANUAL-0001', 'CREDITO', null, 'manual-confirm-1',
   '63000000-0000-4000-8000-000000000006'
 ) as result;
 select results_eq(
@@ -145,7 +145,7 @@ select results_eq(
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
 select results_eq(
-  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from manual_checkout), 'MAQUININHA', 'NSU-MANUAL-0001', 'manual-confirm-1', '63000000-0000-4000-8000-000000000099')$$,
+  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from manual_checkout), 'MAQUININHA', 'NSU-MANUAL-0001', 'CREDITO', null, 'manual-confirm-1', '63000000-0000-4000-8000-000000000099')$$,
   $$select result from manual_confirmation$$,
   'same confirmation key replays the complete result'
 );
@@ -174,7 +174,7 @@ select results_eq(
   'a second pending sale is available for duplicate-proof abuse testing'
 );
 select throws_ok(
-  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from second_checkout), 'MAQUININHA', 'NSU-MANUAL-0001', 'manual-confirm-2', '63000000-0000-4000-8000-000000000009')$$,
+  $$select public.confirm_manual_payment((select (result ->> 'sale_id')::uuid from second_checkout), 'MAQUININHA', 'NSU-MANUAL-0001', 'CREDITO', null, 'manual-confirm-2', '63000000-0000-4000-8000-000000000009')$$,
   'P0001', 'PROOF_REFERENCE_ALREADY_USED', 'one manual proof cannot approve two sales'
 );
 select results_eq(

@@ -349,6 +349,10 @@ export const salesCancelResponseSchema = z.object({
 }).strict();
 export type SalesCancelResponse = z.infer<typeof salesCancelResponseSchema>;
 
+// Spec 6.7: card method of a card-present payment; meal vouchers depend on the meal_voucher flag.
+export const cardPaymentMethodSchema = z.enum(["CREDITO", "DEBITO", "VOUCHER_ALIMENTACAO", "VOUCHER_REFEICAO"]);
+export type CardPaymentMethod = z.infer<typeof cardPaymentMethodSchema>;
+
 // Spec 6.10: PDV "Minhas vendas" — the seller's own sales, pending ones highlighted.
 export const mySalesFilterSchema = z.enum(["PENDING", "CONFIRMED", "CANCELLED"]);
 export type MySalesFilter = z.infer<typeof mySalesFilterSchema>;
@@ -374,6 +378,8 @@ export const mySaleSchema = z.object({
     integrationChannel: paymentIntegrationChannelSchema.nullable(),
     confirmationSource: paymentConfirmationSourceSchema.nullable(),
     confirmedAt: z.iso.datetime({ offset: true }).nullable(),
+    cardMethod: cardPaymentMethodSchema.nullable(),
+    terminalCode: z.string().nullable(),
   }).strict().nullable(),
   items: z.array(z.object({
     productName: z.string().min(1).max(160),
@@ -511,12 +517,47 @@ export const raffleDrawResponseSchema = z.object({
 }).strict();
 export type RaffleDrawResponse = z.infer<typeof raffleDrawResponseSchema>;
 
+export const paymentTerminalSchema = z.object({
+  id: z.uuid(),
+  code: z.string().regex(/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/).min(2).max(32),
+  label: z.string().min(2).max(80),
+  active: z.boolean(),
+  updatedAt: z.iso.datetime({ offset: true }),
+}).strict();
+export type PaymentTerminal = z.infer<typeof paymentTerminalSchema>;
+
+export const paymentTerminalsResponseSchema = z.object({
+  data: z.array(paymentTerminalSchema),
+  request_id: z.string().min(1),
+}).strict();
+
+export const savePaymentTerminalRequestSchema = z.object({
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/, "Use letras, números e hífen").min(2).max(32),
+  label: z.string().trim().min(2).max(80),
+  active: z.boolean(),
+}).strict();
+export type SavePaymentTerminalRequest = z.infer<typeof savePaymentTerminalRequestSchema>;
+
+export const paymentTerminalResponseSchema = z.object({
+  data: paymentTerminalSchema,
+  request_id: z.string().min(1),
+}).strict();
+
 export const manualPaymentConfirmationRequestSchema = z.object({
   integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
   proofReference: z.string().min(4).max(128)
     .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
     .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
-}).strict();
+  cardMethod: cardPaymentMethodSchema.nullable().optional(),
+  terminalId: z.uuid().nullable().optional(),
+}).strict().superRefine((value, context) => {
+  if (value.integrationChannel === "MAQUININHA" && !value.cardMethod) {
+    context.addIssue({ code: "custom", path: ["cardMethod"], message: "Informe crédito, débito ou voucher" });
+  }
+  if (value.integrationChannel === "PIX_AREA" && (value.cardMethod || value.terminalId)) {
+    context.addIssue({ code: "custom", path: ["cardMethod"], message: "Área Pix não tem método de cartão nem terminal" });
+  }
+});
 export type ManualPaymentConfirmationRequest = z.infer<typeof manualPaymentConfirmationRequestSchema>;
 
 export const manualPaymentConfirmationResponseSchema = z.object({
@@ -531,6 +572,8 @@ export const manualPaymentConfirmationResponseSchema = z.object({
       confirmationSource: z.literal("MANUAL"),
       confirmedAt: z.iso.datetime({ offset: true }),
       proofReference: z.string().min(4).max(128),
+      cardMethod: cardPaymentMethodSchema.nullable(),
+      terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).strict().nullable(),
     }).strict(),
     stock: z.object({
       reservationId: z.uuid(),

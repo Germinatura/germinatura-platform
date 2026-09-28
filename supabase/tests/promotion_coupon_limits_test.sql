@@ -101,7 +101,7 @@ select is((select status::text from public.promotion_redemptions where sale_id=(
 set local role authenticated;
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000002';
 create temp table sale_three as select public.checkout_sale('PDV','50000000-0000-4000-8000-000000000002','[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":1}]'::jsonb,'coupon-sale-3','66000000-0000-4000-8000-000000000014','UNICO') result;
-select public.confirm_manual_payment((select (result->>'sale_id')::uuid from sale_three),'MAQUININHA','NSU-COUPON-0003','coupon-confirm-3','66000000-0000-4000-8000-000000000015');
+select public.confirm_manual_payment((select (result->>'sale_id')::uuid from sale_three),'MAQUININHA','NSU-COUPON-0003', 'CREDITO', null,'coupon-confirm-3','66000000-0000-4000-8000-000000000015');
 reset role;
 select is((select result->'quote'->'coupon'->>'applied' from sale_three),'true','released capacity can be used again');
 select is((select status::text from public.promotion_redemptions where sale_id=(select (result->>'sale_id')::uuid from sale_three)),'CONSUMED','confirmation consumes the use');
