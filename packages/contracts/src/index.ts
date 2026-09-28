@@ -306,6 +306,8 @@ export const confirmedSaleReversalRequestSchema = z.object({
   refundReference: z.string().trim().min(4).max(128)
     .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
     .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
+  // PAY-009a: open shift whose drawer physically hands the cash back; omitted when refunded by other means.
+  cashPayoutShiftId: z.uuid().nullable().optional(),
 }).strict();
 export type ConfirmedSaleReversalRequest = z.infer<typeof confirmedSaleReversalRequestSchema>;
 
@@ -335,6 +337,11 @@ export const salesCancelResponseSchema = z.object({
       refundEntryId: z.uuid(),
       amountCents: moneyCentsSchema,
       refundReference: z.string().min(4).max(128),
+      cashPayout: z.object({
+        movementId: z.uuid(),
+        shiftId: z.uuid(),
+        amountCents: moneyCentsSchema,
+      }).strict().nullable(),
     }).strict(),
     correlationId: z.uuid(),
   }).strict()]),

@@ -40,6 +40,11 @@ const reversalDatabaseResultSchema = z.object({
     refund_entry_id: z.uuid(),
     amount_cents: z.number().int().nonnegative(),
     refund_reference: z.string().min(4).max(128),
+    cash_payout: z.object({
+      movement_id: z.uuid(),
+      shift_id: z.uuid(),
+      amount_cents: z.number().int().nonnegative(),
+    }).nullish(), // Absent in replays stored before PAY-009a payouts.
   }),
   correlation_id: z.uuid(),
 });
@@ -66,6 +71,18 @@ function databaseErrorResponse(message: string, requestId: string) {
   }
   if (message.includes("STOCK_REVERSAL_CONFLICT") || message.includes("SALE_MOVEMENT_ALREADY_REVERSED")) {
     return errorResponse("STOCK_REVERSAL_CONFLICT", "O estoque mudou e a reversão não pôde ser concluída", requestId, 409);
+  }
+  if (message.includes("CASH_PAYOUT_NOT_CASH_SALE")) {
+    return errorResponse("CASH_PAYOUT_NOT_CASH_SALE", "Só vendas pagas em dinheiro podem ser devolvidas pelo caixa", requestId, 409);
+  }
+  if (message.includes("SELLER_SHIFT_NOT_FOUND") || message.includes("SELLER_SHIFT_NOT_OPEN")) {
+    return errorResponse("CASH_PAYOUT_SHIFT_NOT_OPEN", "A devolução em dinheiro precisa de um turno aberto", requestId, 409);
+  }
+  if (message.includes("CASH_DRAWER_INSUFFICIENT")) {
+    return errorResponse("CASH_DRAWER_INSUFFICIENT", "O caixa do turno não tem dinheiro suficiente para a devolução", requestId, 409);
+  }
+  if (message.includes("SALE_ALREADY_REVERSED")) {
+    return errorResponse("SALE_ALREADY_REVERSED", "A venda já foi revertida com outra forma de devolução", requestId, 409);
   }
   if (message.includes("IDEMPOTENCY_CONFLICT")) {
     return errorResponse("IDEMPOTENCY_CONFLICT", "A chave já foi usada com outro conteúdo", requestId, 409);
@@ -116,6 +133,7 @@ export async function POST(request: Request, context: RouteContext) {
         p_sale_id: id,
         p_reason: reversalRequest.data.reason,
         p_refund_reference: reversalRequest.data.refundReference,
+        p_cash_payout_shift_id: reversalRequest.data.cashPayoutShiftId ?? null,
         p_idempotency_key: idempotency.data,
         p_correlation_id: correlationId,
       })
@@ -145,6 +163,11 @@ export async function POST(request: Request, context: RouteContext) {
           refundEntryId: value.reversal.refund_entry_id,
           amountCents: value.reversal.amount_cents,
           refundReference: value.reversal.refund_reference,
+          cashPayout: value.reversal.cash_payout ? {
+            movementId: value.reversal.cash_payout.movement_id,
+            shiftId: value.reversal.cash_payout.shift_id,
+            amountCents: value.reversal.cash_payout.amount_cents,
+          } : null,
         },
         correlationId: value.correlation_id,
       },

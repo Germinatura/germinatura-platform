@@ -12,12 +12,31 @@ export const sellerShiftSchema = z.object({
   openingCashCents: cents,
   cashSalesCount: z.number().int().nonnegative(),
   cashSalesTotalCents: cents,
+  // PAY-009a: physical cash handed back from this drawer; expected = float + receipts - refunds.
+  cashRefundsCount: z.number().int().nonnegative(),
+  cashRefundsTotalCents: cents,
   expectedCashCents: cents,
   countedCashCents: cents.nullable(),
   differenceCents: z.number().int().refine(Number.isSafeInteger).nullable(),
   justification: z.string().nullable(),
 }).strict();
 export type SellerShift = z.infer<typeof sellerShiftSchema>;
+
+export const adminSellerShiftSchema = sellerShiftSchema.extend({
+  sellerId: z.uuid(),
+  sellerName: z.string().min(1),
+  locationName: z.string().min(1),
+}).strict();
+export type AdminSellerShift = z.infer<typeof adminSellerShiftSchema>;
+
+export const adminSellerShiftsQuerySchema = z.object({
+  status: z.enum(["OPEN", "CLOSED"]).optional(),
+}).strict();
+
+export const adminSellerShiftsResponseSchema = z.object({
+  data: z.array(adminSellerShiftSchema),
+  request_id: z.string().min(1),
+}).strict();
 
 export const openSellerShiftRequestSchema = z.object({
   locationId: z.uuid(),
