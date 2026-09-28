@@ -4,7 +4,7 @@ select plan(24);
 
 select has_table('public','promotion_tiered_rules','tiered rules table exists');
 select has_table('public','promotion_tiered_rule_tiers','tiers table exists');
-select has_function('public','get_pricing_quote_inputs_v4',array['promotion_channel','uuid[]'],'v4 quote inputs exist');
+select has_function('public','get_pricing_inputs',array['promotion_channel','uuid[]','text'],'single pricing inputs exist');
 select ok(not has_table_privilege('authenticated','public.promotion_tiered_rule_tiers','INSERT'),'tiers deny direct insert');
 select ok(not has_function_privilege('authenticated','private.apply_promotion_rule(bigint,bigint,jsonb)','EXECUTE'),'pricing helper is private');
 
@@ -48,9 +48,9 @@ select is((select count(*)::integer from public.promotion_tiered_rule_tiers wher
 select is((select count(*)::integer from public.promotion_versions where promotion_id=(select (result->>'id')::uuid from tiered)),2,'both revisions are preserved');
 
 -- The v4 inputs expose the same canonical document used by administration.
-select is((select rule from public.get_pricing_quote_inputs_v4('PORTAL',array['33f00000-0000-4000-8000-000000000001']::uuid[])
+select is((select rule from public.get_pricing_inputs('PORTAL',array['33f00000-0000-4000-8000-000000000001']::uuid[],null)
   where promotion_id=(select (result->>'id')::uuid from tiered)),
-  '{"type":"ESCALONADA","tiers":[{"minQuantity":4,"percentageBasisPoints":1000}]}'::jsonb,'v4 returns the canonical rule document');
+  '{"type":"ESCALONADA","tiers":[{"minQuantity":4,"percentageBasisPoints":1000}]}'::jsonb,'pricing inputs return the canonical rule document');
 
 -- A rule without saving is not applied, exactly as in the domain.
 select is(private.apply_promotion_rule(0,3,'{"type":"PERCENTUAL","percentageBasisPoints":5000}'::jsonb),null,'zero-price line has no saving and no promotion');

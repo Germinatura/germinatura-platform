@@ -65,11 +65,11 @@ select is((pg_temp.quote(3)->>'discount_total_cents')::bigint,
   (pg_temp.quote(3)->>'original_total_cents')::bigint-(pg_temp.quote(3)->>'total_cents')::bigint,'discount equals original minus total');
 
 -- The same candidates through the quote input RPC: cumulative and limited promotions are not candidates.
-select is((select count(*)::integer from public.get_pricing_quote_inputs_v2('PORTAL',array['33f00000-0000-4000-8000-000000000001']::uuid[])
+select is((select count(*)::integer from public.get_pricing_inputs('PORTAL',array['33f00000-0000-4000-8000-000000000001']::uuid[],null)
   where promotion_id='7a000000-0000-4000-8000-000000000005'),0,'cumulative promotion is not offered as a product candidate');
 update public.promotions set global_redemption_limit=10 where id='7a000000-0000-4000-8000-000000000001';
-select is((select count(*)::integer from public.get_pricing_quote_inputs_v2('PORTAL',array['33f00000-0000-4000-8000-000000000001']::uuid[])
-  where promotion_id='7a000000-0000-4000-8000-000000000001'),0,'limited promotion is excluded until limits are consumed atomically');
+select is((select count(*)::integer from public.get_pricing_inputs('PORTAL',array['33f00000-0000-4000-8000-000000000001']::uuid[],null)
+  where promotion_id='7a000000-0000-4000-8000-000000000001'),1,'a limited promotion with capacity is offered (PROMO-007)');
 
 select * from finish();
 rollback;

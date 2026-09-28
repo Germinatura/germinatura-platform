@@ -2,11 +2,11 @@ begin;
 select plan(10);
 
 select has_function(
-  'public', 'get_pricing_quote_inputs', array['promotion_channel', 'uuid[]'],
+  'public', 'get_pricing_inputs', array['promotion_channel', 'uuid[]', 'text'],
   'authoritative pricing input resolver exists'
 );
 select function_privs_are(
-  'public', 'get_pricing_quote_inputs', array['promotion_channel', 'uuid[]'], 'anon', array['EXECUTE'],
+  'public', 'get_pricing_inputs', array['promotion_channel', 'uuid[]', 'text'], 'anon', array['EXECUTE'],
   'anonymous clients may resolve public quote inputs'
 );
 
@@ -42,25 +42,26 @@ where id between '61000000-0000-4000-8000-000000000001' and '61000000-0000-4000-
 
 set local role anon;
 select results_eq(
-  $$select product_id, amount_cents, promotion_id from public.get_pricing_quote_inputs('PORTAL', array['35000000-0000-4000-8000-000000000001'::uuid])$$,
-  $$values ('35000000-0000-4000-8000-000000000001'::uuid, 1500::bigint, '61000000-0000-4000-8000-000000000001'::uuid)$$,
-  'public quote resolves the current price and executable promotion only'
+  $$select product_id, amount_cents, promotion_id from public.get_pricing_inputs('PORTAL', array['35000000-0000-4000-8000-000000000001'::uuid], null)$$,
+  $$values ('35000000-0000-4000-8000-000000000001'::uuid, 1500::bigint, '61000000-0000-4000-8000-000000000003'::uuid),
+    ('35000000-0000-4000-8000-000000000001'::uuid, 1500::bigint, '61000000-0000-4000-8000-000000000001'::uuid)$$,
+  'public quote resolves the current price and current promotions, including a limited one with capacity (PROMO-007)'
 );
 select is(
-  (select count(distinct quoted_at) from public.get_pricing_quote_inputs('PORTAL', array['35000000-0000-4000-8000-000000000001'::uuid])),
+  (select count(distinct quoted_at) from public.get_pricing_inputs('PORTAL', array['35000000-0000-4000-8000-000000000001'::uuid], null)),
   1::bigint,
   'all quote inputs share one database instant'
 );
 select is_empty(
-  $$select * from public.get_pricing_quote_inputs('PORTAL', array['35000000-0000-4000-8000-000000000002'::uuid])$$,
+  $$select * from public.get_pricing_inputs('PORTAL', array['35000000-0000-4000-8000-000000000002'::uuid], null)$$,
   'public channel hides unpublished products'
 );
 select is_empty(
-  $$select * from public.get_pricing_quote_inputs('PORTAL', array['35000000-0000-4000-8000-000000000003'::uuid])$$,
+  $$select * from public.get_pricing_inputs('PORTAL', array['35000000-0000-4000-8000-000000000003'::uuid], null)$$,
   'products without a current price are unavailable'
 );
 select throws_ok(
-  $$select * from public.get_pricing_quote_inputs('RESERVA', array['35000000-0000-4000-8000-000000000001'::uuid])$$,
+  $$select * from public.get_pricing_inputs('RESERVA', array['35000000-0000-4000-8000-000000000001'::uuid], null)$$,
   '22023', 'PRICING_CHANNEL_UNSUPPORTED', 'unsupported quote channel fails closed'
 );
 reset role;
@@ -68,7 +69,7 @@ reset role;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000003';
 select throws_ok(
-  $$select * from public.get_pricing_quote_inputs('PDV', array['35000000-0000-4000-8000-000000000002'::uuid])$$,
+  $$select * from public.get_pricing_inputs('PDV', array['35000000-0000-4000-8000-000000000002'::uuid], null)$$,
   '42501', 'PRICING_PDV_FORBIDDEN', 'consumer cannot resolve PDV pricing'
 );
 reset role;
@@ -76,12 +77,12 @@ reset role;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
 select results_eq(
-  $$select product_id, amount_cents from public.get_pricing_quote_inputs('PDV', array['35000000-0000-4000-8000-000000000002'::uuid])$$,
+  $$select product_id, amount_cents from public.get_pricing_inputs('PDV', array['35000000-0000-4000-8000-000000000002'::uuid], null)$$,
   $$values ('35000000-0000-4000-8000-000000000002'::uuid, 1700::bigint)$$,
   'seller with sales.create resolves internal PDV pricing'
 );
 select throws_ok(
-  $$select * from public.get_pricing_quote_inputs('PDV', array['35000000-0000-4000-8000-000000000002'::uuid, '35000000-0000-4000-8000-000000000002'::uuid])$$,
+  $$select * from public.get_pricing_inputs('PDV', array['35000000-0000-4000-8000-000000000002'::uuid, '35000000-0000-4000-8000-000000000002'::uuid], null)$$,
   '22023', 'PRICING_PRODUCTS_INVALID', 'duplicate products are rejected at the database boundary'
 );
 reset role;
