@@ -349,6 +349,48 @@ export const salesCancelResponseSchema = z.object({
 }).strict();
 export type SalesCancelResponse = z.infer<typeof salesCancelResponseSchema>;
 
+// Spec 6.10: PDV "Minhas vendas" — the seller's own sales, pending ones highlighted.
+export const mySalesFilterSchema = z.enum(["PENDING", "CONFIRMED", "CANCELLED"]);
+export type MySalesFilter = z.infer<typeof mySalesFilterSchema>;
+
+export const mySalesQuerySchema = z.object({
+  filter: mySalesFilterSchema.optional(),
+  cursor: z.uuid().optional(),
+}).strict();
+
+export const mySaleSchema = z.object({
+  saleId: z.uuid(),
+  status: saleStatusSchema.exclude(["DRAFT"]),
+  createdAt: z.iso.datetime({ offset: true }),
+  locationId: z.uuid(),
+  originalTotalCents: moneyCentsSchema,
+  discountTotalCents: moneyCentsSchema,
+  totalCents: moneyCentsSchema,
+  pendingReason: z.enum(["AWAITING_PAYMENT", "RECONCILIATION_PENDING"]).nullable(),
+  reservationExpiresAt: z.iso.datetime({ offset: true }).nullable(),
+  payment: z.object({
+    attemptId: z.uuid(),
+    status: paymentAttemptStatusSchema,
+    integrationChannel: paymentIntegrationChannelSchema.nullable(),
+    confirmationSource: paymentConfirmationSourceSchema.nullable(),
+    confirmedAt: z.iso.datetime({ offset: true }).nullable(),
+  }).strict().nullable(),
+  items: z.array(z.object({
+    productName: z.string().min(1).max(160),
+    quantity: z.number().int().positive().refine(Number.isSafeInteger, "Quantity must be a safe integer"),
+    totalCents: moneyCentsSchema,
+  }).strict()).max(100),
+}).strict();
+export type MySale = z.infer<typeof mySaleSchema>;
+
+export const mySalesResponseSchema = z.object({
+  data: z.array(mySaleSchema),
+  nextCursor: z.uuid().nullable(),
+  pendingCount: z.number().int().nonnegative(),
+  request_id: z.string().min(1),
+}).strict();
+export type MySalesResponse = z.infer<typeof mySalesResponseSchema>;
+
 export const commercialReservationCreateRequestSchema = z.object({
   locationId: z.uuid(),
   couponCode: couponCodeSchema.optional(),

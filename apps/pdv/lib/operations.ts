@@ -1,6 +1,7 @@
 import {
   cashPaymentResponseSchema,
   manualPaymentConfirmationResponseSchema,
+  mySalesResponseSchema,
   sellerShiftResponseSchema,
   pricingQuoteResponseSchema,
   publicCatalogProductsResponseSchema,
@@ -17,6 +18,8 @@ import {
   inventoryCountMutationResponseSchema,
   type CashPaymentResponse,
   type ManualPaymentConfirmationResponse,
+  type MySalesFilter,
+  type MySalesResponse,
   type SellerShift,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
@@ -36,7 +39,7 @@ import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { cartPayload } from "./operations-pure";
 
-export { cartPayload, cashChange, formatMoney, parseMoneyInput } from "./operations-pure";
+export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel } from "./operations-pure";
 
 export interface StockLocation {
   id: string;
@@ -198,6 +201,18 @@ export async function confirmManualPayment(
   const parsed = manualPaymentConfirmationResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("A confirmação retornou dados inválidos.");
   return parsed.data.data;
+}
+
+/** Spec 6.10: the seller's own sales, newest first, with the pending count for the tab badge. */
+export async function loadMySales(filter: MySalesFilter | null, cursor?: string | null): Promise<MySalesResponse> {
+  const params = new URLSearchParams();
+  if (filter) params.set("filter", filter);
+  if (cursor) params.set("cursor", cursor);
+  const response = await apiFetch(`/api/v1/pdv/sales${params.size ? `?${params}` : ""}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar suas vendas."));
+  const parsed = mySalesResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("As vendas retornaram dados inválidos.");
+  return parsed.data;
 }
 
 export async function cancelPendingSale(saleId: string, idempotencyKey: string) {

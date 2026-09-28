@@ -62,6 +62,7 @@ describe("purchase payable API access", () => {
 describe("cash and shift API access", () => {
   it("allows only sellers to operate shifts and cash payments", () => {
     expect(apiAccessRule("/api/v1/pdv/shifts")?.access).toBe("seller");
+    expect(apiAccessRule("/api/v1/pdv/sales")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/shifts/67000000-0000-4000-8000-000000000001/close")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/sales/67000000-0000-4000-8000-000000000001/payments/cash")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/shifts/not-a-uuid!/close")).toBeUndefined();
