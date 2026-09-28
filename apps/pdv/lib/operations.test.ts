@@ -1,6 +1,6 @@
 import { publicCatalogProductSchema } from "@germinatura/contracts";
 import { describe, expect, it } from "vitest";
-import { cartPayload, cashChange, formatMoney, parseMoneyInput } from "./operations-pure";
+import { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel } from "./operations-pure";
 
 const product = publicCatalogProductSchema.parse({
   id: "33f00000-0000-4000-8000-000000000001",
@@ -47,5 +47,24 @@ describe("cash input", () => {
     expect(cashChange(2_590, 2_590)).toBe(0);
     expect(cashChange(2_590, 2_000)).toBeNull();
     expect(cashChange(2_590, null)).toBeNull();
+  });
+});
+
+describe("my sales labels", () => {
+  it("highlights pending sales before their stored status", () => {
+    expect(mySaleStatus({ status: "AWAITING_PAYMENT", pendingReason: "AWAITING_PAYMENT", payment: { status: "CREATED" } }).label).toBe("Aguardando pagamento");
+    expect(mySaleStatus({ status: "CONFIRMED", pendingReason: "RECONCILIATION_PENDING", payment: { status: "RECONCILIATION_PENDING" } }).label).toBe("Pendente de conciliação");
+    expect(mySaleStatus({ status: "CONFIRMED", pendingReason: null, payment: { status: "APPROVED" } }).label).toBe("Concluída");
+  });
+
+  it("tells a refunded sale from an unpaid cancellation", () => {
+    expect(mySaleStatus({ status: "CANCELLED", pendingReason: null, payment: { status: "REFUNDED" } }).label).toBe("Estornada");
+    expect(mySaleStatus({ status: "CANCELLED", pendingReason: null, payment: { status: "CANCELLED" } }).label).toBe("Cancelada");
+  });
+
+  it("names the payment method", () => {
+    expect(paymentMethodLabel("DINHEIRO")).toBe("Dinheiro");
+    expect(paymentMethodLabel("PIX_AREA")).toBe("Pix (Área Pix)");
+    expect(paymentMethodLabel(null)).toBe("Sem pagamento");
   });
 });

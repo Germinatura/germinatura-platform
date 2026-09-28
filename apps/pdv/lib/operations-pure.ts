@@ -29,3 +29,22 @@ export function parseMoneyInput(value: string): number | null {
 export function cashChange(totalCents: number, tenderedCents: number | null): number | null {
   return tenderedCents === null || tenderedCents < totalCents ? null : tenderedCents - totalCents;
 }
+
+const paymentMethodLabels: Record<string, string> = {
+  DINHEIRO: "Dinheiro", MAQUININHA: "Maquininha", PIX_AREA: "Pix (Área Pix)", TAP: "PicPay Tap",
+  PAYMENT_LINK: "Link de pagamento", CHECKOUT_API: "Checkout PicPay", PICPAY_WALLET: "Carteira PicPay",
+};
+
+/** Human label of the payment method of a sale; null channel means not paid yet. */
+export function paymentMethodLabel(channel: string | null | undefined) {
+  return channel ? paymentMethodLabels[channel] ?? channel : "Sem pagamento";
+}
+
+/** Spec 6.10 status shown in "Minhas vendas"; pending reasons take precedence over the sale status. */
+export function mySaleStatus(sale: { status: string; pendingReason: string | null; payment: { status: string } | null }) {
+  if (sale.pendingReason === "AWAITING_PAYMENT") return { label: "Aguardando pagamento", tone: "warning" as const };
+  if (sale.pendingReason === "RECONCILIATION_PENDING") return { label: "Pendente de conciliação", tone: "warning" as const };
+  if (sale.status === "CANCELLED") return sale.payment?.status === "REFUNDED"
+    ? { label: "Estornada", tone: "danger" as const } : { label: "Cancelada", tone: "neutral" as const };
+  return { label: "Concluída", tone: "success" as const };
+}

@@ -68,6 +68,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 ### Vendas e PDV
 
 - **PDV-001** — PDV é mobile-first, rápido, separado do Portal e bloqueia consumidor, usuário inativo ou conta institucional sem ativação administrativa de vendedor no servidor.
+- **PDV-002** — "Minhas vendas" (spec 6.10, 30/09/2026): lista paginada somente das vendas PDV do próprio vendedor, com status, método de pagamento, itens e total; vendas aguardando pagamento e pagamentos pendentes de conciliação ficam destacados e contados. O vendedor cancela apenas a própria venda ainda não paga (liberando a reserva); venda concluída só é estornada pelo financeiro (supervisor), sem janela de cancelamento pelo vendedor.
 - **SALE-001** — Cobrar recalcula carrinho, reserva estoque e cria venda/tentativa com `Idempotency-Key` em uma transação.
 - **SALE-002** — Venda só conclui com pagamento confirmado ou método manual autorizado; conclusão cria estoque e financeiro atomicamente.
 - **SALE-003** — Cancelamento não exclui: registra motivo e cria reversões vinculadas, repetíveis sem duplicação.
