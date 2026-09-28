@@ -1,6 +1,6 @@
 import { publicCatalogProductSchema } from "@germinatura/contracts";
 import { describe, expect, it } from "vitest";
-import { cartPayload, formatMoney } from "./operations-pure";
+import { cartPayload, cashChange, formatMoney, parseMoneyInput } from "./operations-pure";
 
 const product = publicCatalogProductSchema.parse({
   id: "33f00000-0000-4000-8000-000000000001",
@@ -29,5 +29,23 @@ describe("PDV operation helpers", () => {
     expect(payload).toEqual([{ productId: product.id, quantity: 2 }]);
     expect(payload[0]).not.toHaveProperty("totalCents");
     expect(payload[0]).not.toHaveProperty("unitPriceCents");
+  });
+});
+
+describe("cash input", () => {
+  it("parses typed reais into integer cents", () => {
+    expect(parseMoneyInput("50")).toBe(5_000);
+    expect(parseMoneyInput("50,5")).toBe(5_050);
+    expect(parseMoneyInput("R$ 1.234,56")).toBe(123_456);
+    expect(parseMoneyInput("25.90")).toBe(2_590);
+    expect(parseMoneyInput("abc")).toBeNull();
+    expect(parseMoneyInput("1,234")).toBeNull();
+  });
+
+  it("computes change only when the tendered cash covers the total", () => {
+    expect(cashChange(2_590, 5_000)).toBe(2_410);
+    expect(cashChange(2_590, 2_590)).toBe(0);
+    expect(cashChange(2_590, 2_000)).toBeNull();
+    expect(cashChange(2_590, null)).toBeNull();
   });
 });

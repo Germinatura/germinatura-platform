@@ -85,6 +85,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 - **PAY-007** — Webhooks persistem receipt, validam autenticidade, deduplicam e permitem replay controlado. Payment Link usa API Key no header authorization conforme contrato oficial, sem presumir HMAC; pagamento tardio, valor divergente e resultado incerto entram em recuperação/conciliação sem duplicar efeitos.
 - **PAY-008** — Adapter privado/TEF/SDK futuro substitui somente a borda de integração, sem reescrever venda, estoque ou financeiro.
 
+- **PAY-009a** — Operação do dinheiro físico (29/09/2026): o recebimento em dinheiro exige turno aberto do vendedor no local da venda; o turno abre com fundo de troco opcional (padrão R$ 0), cada venda registra valor recebido e troco em centavos (troco = recebido − total, nunca negativo) e o caixa esperado é fundo + recebimentos. O fechamento informa o valor contado; diferença diferente de zero exige justificativa e o turno fechado é imutável. O dinheiro usa o canal interno `DINHEIRO` e o lançamento `CASH_RECEIPT`, nunca recebível PicPay. Estorno de venda paga em dinheiro segue o fluxo financeiro de estorno e não altera o caixa do turno.
 - **PAY-009** — Dinheiro físico é método interno com conta própria, recebimento e troco em centavos, autoria/idempotência e conferência por turno. Não identificar caixa físico como provider PicPay. Somente papéis autorizados registram e corrigem movimentos por reversão.
 
 ### Financeiro e conciliação

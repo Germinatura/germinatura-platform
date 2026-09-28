@@ -10,6 +10,7 @@ export * from "./seller-stock-transfers";
 export * from "./stock-returns";
 export * from "./stock-losses";
 export * from "./inventory-counts";
+export * from "./cash-shifts";
 
 export const moneyCentsSchema = z.number()
   .int()
@@ -257,6 +258,7 @@ export const paymentIntegrationChannelSchema = z.enum([
   "PAYMENT_LINK",
   "MAQUININHA",
   "TAP",
+  "DINHEIRO",
 ]);
 export type PaymentIntegrationChannel = z.infer<typeof paymentIntegrationChannelSchema>;
 
@@ -824,6 +826,7 @@ export const featureFlagKeySchema = z.enum([
   "notifications",
   "card_present",
   "pix_area_manual",
+  "cash_payment",
   "online_checkout",
   "picpay_checkout",
   "picpay_tap",
