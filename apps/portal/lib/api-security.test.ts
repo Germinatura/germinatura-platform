@@ -49,6 +49,7 @@ describe("procurement API access", () => {
 describe("purchase payable API access", () => {
   it("allows only finance operators and administrators", () => {
     expect(apiAccessRule("/api/v1/admin/finance/payables")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/shifts")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/payables/63000000-0000-4000-8000-000000000001/settlements")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/payables/settlements/63000000-0000-4000-8000-000000000001/reverse")?.access).toBe("finance");
     expect(rolesSatisfyAccess(["ADMIN"], "finance")).toBe(true);

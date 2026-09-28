@@ -1,4 +1,4 @@
-import { createApiError, sellerShiftSchema } from "@germinatura/contracts";
+import { adminSellerShiftSchema, createApiError, sellerShiftSchema } from "@germinatura/contracts";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -12,6 +12,8 @@ export const databaseShiftSchema = z.object({
   opening_cash_cents: z.number().int().nonnegative(),
   cash_sales_count: z.number().int().nonnegative(),
   cash_sales_total_cents: z.number().int().nonnegative(),
+  cash_refunds_count: z.number().int().nonnegative(),
+  cash_refunds_total_cents: z.number().int().nonnegative(),
   expected_cash_cents: z.number().int().nonnegative(),
   counted_cash_cents: z.number().int().nonnegative().nullable(),
   difference_cents: z.number().int().nullable(),
@@ -23,8 +25,22 @@ export function toSellerShift(value: z.infer<typeof databaseShiftSchema>) {
     shiftId: value.shift_id, status: value.status, locationId: value.location_id,
     openedAt: value.opened_at, closedAt: value.closed_at, openingCashCents: value.opening_cash_cents,
     cashSalesCount: value.cash_sales_count, cashSalesTotalCents: value.cash_sales_total_cents,
+    cashRefundsCount: value.cash_refunds_count, cashRefundsTotalCents: value.cash_refunds_total_cents,
     expectedCashCents: value.expected_cash_cents, countedCashCents: value.counted_cash_cents,
     differenceCents: value.difference_cents, justification: value.justification,
+  });
+}
+
+// Finance review rows returned by public.list_seller_shifts.
+export const databaseAdminShiftSchema = databaseShiftSchema.extend({
+  seller_id: z.uuid(),
+  seller_name: z.string(),
+  location_name: z.string(),
+});
+
+export function toAdminSellerShift(value: z.infer<typeof databaseAdminShiftSchema>) {
+  return adminSellerShiftSchema.parse({
+    ...toSellerShift(value), sellerId: value.seller_id, sellerName: value.seller_name, locationName: value.location_name,
   });
 }
 
