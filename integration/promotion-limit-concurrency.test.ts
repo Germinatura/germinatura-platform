@@ -17,7 +17,7 @@ it("a globally limited coupon is used exactly once under concurrent checkouts", 
   async function rpc(name: string, body: Record<string, unknown>) {
     const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST", headers, body: JSON.stringify(body) });
     const result = await response.json() as Record<string, unknown>;
-    if (!response.ok) throw new Error(`${name}: ${String(result.message ?? response.status)}`);
+    if (!response.ok) throw new Error(`${name}: ${typeof result.message === "string" ? result.message : response.status}`);
     return result;
   }
   async function balance() {
