@@ -51,6 +51,8 @@ describe("purchase payable API access", () => {
     expect(apiAccessRule("/api/v1/admin/finance/payables")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/shifts")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/terminals")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/sales")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/sales/6b000000-0000-4000-8000-000000000001")?.methods).toEqual(["GET"]);
     expect(apiAccessRule("/api/v1/admin/finance/terminals/6a000000-0000-4000-8000-000000000001")?.methods).toEqual(["PATCH"]);
     expect(apiAccessRule("/api/v1/admin/finance/payables/63000000-0000-4000-8000-000000000001/settlements")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/payables/settlements/63000000-0000-4000-8000-000000000001/reverse")?.access).toBe("finance");
