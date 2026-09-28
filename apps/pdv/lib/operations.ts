@@ -1,5 +1,7 @@
 import {
+  cashPaymentResponseSchema,
   manualPaymentConfirmationResponseSchema,
+  sellerShiftResponseSchema,
   pricingQuoteResponseSchema,
   publicCatalogProductsResponseSchema,
   sellerCloseoutResponseSchema,
@@ -13,7 +15,9 @@ import {
   stockLossMutationResponseSchema,
   inventoryCountContextResponseSchema,
   inventoryCountMutationResponseSchema,
+  type CashPaymentResponse,
   type ManualPaymentConfirmationResponse,
+  type SellerShift,
   type PaymentIntegrationChannel,
   type PricingQuoteResponse,
   type PublicCatalogProduct,
@@ -32,7 +36,7 @@ import { apiFetch } from "@/lib/api";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { cartPayload } from "./operations-pure";
 
-export { cartPayload, formatMoney } from "./operations-pure";
+export { cartPayload, cashChange, formatMoney, parseMoneyInput } from "./operations-pure";
 
 export interface StockLocation {
   id: string;
@@ -327,5 +331,50 @@ export async function resolveSellerStockTransfer(
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível decidir a transferência."));
   const parsed = sellerStockTransferMutationResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("A decisão da transferência retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+/** PAY-009: the seller open shift ("Meu turno"), or null. */
+export async function loadMyShift(): Promise<SellerShift | null> {
+  const response = await apiFetch("/api/v1/pdv/shifts");
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar o turno."));
+  const parsed = sellerShiftResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O turno retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function openShift(locationId: string, openingCashCents: number, idempotencyKey: string): Promise<SellerShift> {
+  const response = await apiFetch("/api/v1/pdv/shifts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ locationId, openingCashCents }),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível abrir o turno."));
+  const parsed = sellerShiftResponseSchema.safeParse(await response.json());
+  if (!parsed.success || !parsed.data.data) throw new Error("O turno retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function closeShift(shiftId: string, countedCashCents: number, justification: string | null, idempotencyKey: string): Promise<SellerShift> {
+  const response = await apiFetch(`/api/v1/pdv/shifts/${shiftId}/close`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ countedCashCents, justification }),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível fechar o turno."));
+  const parsed = sellerShiftResponseSchema.safeParse(await response.json());
+  if (!parsed.success || !parsed.data.data) throw new Error("O turno retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function confirmCashPayment(saleId: string, tenderedCents: number, idempotencyKey: string): Promise<CashPaymentResponse["data"]> {
+  const response = await apiFetch(`/api/v1/sales/${saleId}/payments/cash`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ tenderedCents }),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível registrar o recebimento em dinheiro."));
+  const parsed = cashPaymentResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O recebimento retornou dados inválidos.");
   return parsed.data.data;
 }

@@ -2,6 +2,7 @@
 
 import { Badge, BrandMark, Button, Card, Field, Input } from "@germinatura/ui";
 import type {
+  CashPaymentResponse,
   ManualPaymentConfirmationResponse,
   PaymentIntegrationChannel,
   PricingQuoteResponse,
@@ -11,7 +12,7 @@ import type {
 import {
   AlertTriangle, ArrowLeft, Banknote, Check, ChevronDown, CircleCheck, CreditCard,
   Loader2, LogOut, Minus, PackageSearch, Plus, RotateCcw, Search, ShoppingBag,
-  Store, Undo2, WifiOff, X,
+  Store, Undo2, Wallet, WifiOff, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PdvSessionUser } from "@/app/page";
@@ -20,19 +21,21 @@ const CloseoutWorkspace = dynamic(() => import("@/components/operations/Closeout
 const StockTransferWorkspace = dynamic(() => import("@/components/operations/StockTransferWorkspace").then((module) => module.StockTransferWorkspace), { loading: () => <p role="status" className="p-6">Carregando transferências…</p> });
 const StockReturnWorkspace = dynamic(() => import("@/components/operations/StockReturnWorkspace").then((module) => module.StockReturnWorkspace), { loading: () => <p role="status" className="p-6">Carregando devoluções…</p> });
 const StockLossWorkspace = dynamic(() => import("@/components/operations/StockLossWorkspace").then((module) => module.StockLossWorkspace), { loading: () => <p role="status" className="p-6">Carregando perdas…</p> });
+const ShiftWorkspace = dynamic(() => import("@/components/operations/ShiftWorkspace").then((module) => module.ShiftWorkspace), { loading: () => <p role="status" className="p-6">Carregando turno…</p> });
 const MyStockWorkspace = dynamic(() => import("@/components/operations/MyStockWorkspace").then((module) => module.MyStockWorkspace), { loading: () => <p role="status" className="p-6">Carregando estoque…</p> });
 import { useToast } from "@/components/ui/Toast";
 import {
-  cancelPendingSale, checkoutCart, confirmManualPayment, formatMoney, loadCatalog,
+  cancelPendingSale, cashChange, checkoutCart, confirmCashPayment, confirmManualPayment, formatMoney, loadCatalog, parseMoneyInput,
   loadInventoryContext, quoteCart, type CartItem, type InventoryContext,
 } from "@/lib/operations";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 type Step = "catalog" | "review" | "payment" | "success";
 type CheckoutData = SalesCheckoutResponse["data"];
-type ConfirmationData = ManualPaymentConfirmationResponse["data"];
+type ConfirmationData = ManualPaymentConfirmationResponse["data"] | CashPaymentResponse["data"];
 type QuoteData = PricingQuoteResponse["data"];
 type ManualChannel = Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">;
+type PaymentChannel = ManualChannel | "DINHEIRO";
 
 const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
 const operationKey = (prefix: string) => `${prefix}:${crypto.randomUUID()}`;
@@ -40,7 +43,7 @@ const messageFrom = (error: unknown) => error instanceof Error ? error.message :
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
 export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
-  const [view, setView] = useState<"sale" | "stock" | "transfers" | "returns" | "losses" | "closeout">("sale");
+  const [view, setView] = useState<"sale" | "shift" | "stock" | "transfers" | "returns" | "losses" | "closeout">("sale");
   const [catalog, setCatalog] = useState<PublicCatalogProduct[]>([]);
   const [inventory, setInventory] = useState<InventoryContext | null>(null);
   const [locationId, setLocationId] = useState("");
@@ -51,7 +54,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   const [couponCode, setCouponCode] = useState("");
   const [checkout, setCheckout] = useState<CheckoutData | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null);
-  const [channel, setChannel] = useState<ManualChannel>("MAQUININHA");
+  const [channel, setChannel] = useState<PaymentChannel>("MAQUININHA");
+  const [tendered, setTendered] = useState("");
   const [proofReference, setProofReference] = useState("");
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<"quote" | "checkout" | "confirm" | "cancel" | null>(null);
@@ -116,7 +120,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   }
 
   function resetSale() {
-    setCart([]); setQuote(null); setCheckout(null); setConfirmation(null); setProofReference(""); setCouponCode("");
+    setCart([]); setQuote(null); setCheckout(null); setConfirmation(null); setProofReference(""); setCouponCode(""); setTendered("");
     setChannel("MAQUININHA"); setError(""); setStep("catalog");
     checkoutKey.current = operationKey("pdv-checkout");
     confirmationKey.current = operationKey("pdv-confirm");
@@ -143,8 +147,16 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     setCheckout(result); setQuote(result.quote); setStep("payment"); window.scrollTo({ top: 0, behavior: "smooth" });
   });
   const confirmPayment = () => perform("confirm", async () => {
-    if (!online || !checkout || proofReference.trim().length < 4) return;
-    const result = await confirmManualPayment(checkout.saleId, channel, proofReference.trim(), confirmationKey.current);
+    if (!online || !checkout) return;
+    let result: ConfirmationData;
+    if (channel === "DINHEIRO") {
+      const tenderedCents = parseMoneyInput(tendered);
+      if (tenderedCents === null || cashChange(checkout.quote.totalCents, tenderedCents) === null) return;
+      result = await confirmCashPayment(checkout.saleId, tenderedCents, confirmationKey.current);
+    } else {
+      if (proofReference.trim().length < 4) return;
+      result = await confirmManualPayment(checkout.saleId, channel, proofReference.trim(), confirmationKey.current);
+    }
     setConfirmation(result); setStep("success"); showToast("Venda confirmada e estoque atualizado.", "success");
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
@@ -183,13 +195,13 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
       </header>
       {!online && <div role="status" className="border-b border-[var(--g-status-warning)]/40 bg-[var(--g-status-warning-soft)] px-4 py-3 text-center text-sm font-semibold text-[var(--g-status-warning-foreground)]"><WifiOff className="mr-2 inline size-4" /> Sem internet. O catálogo permanece visível, mas ações de venda estão bloqueadas.</div>}
 
-      {canCloseout && <nav aria-label="Operação do PDV" className="overflow-x-auto border-b border-[var(--g-border-subtle)] bg-[var(--g-surface-default)]"><div className="mx-auto flex max-w-[var(--g-content-wide)] gap-1 px-4 md:px-6"><button type="button" aria-current={view === "sale" ? "page" : undefined} onClick={() => setView("sale")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "sale" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Operação</button><button type="button" aria-current={view === "stock" ? "page" : undefined} onClick={() => setView("stock")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "stock" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Meu estoque</button><button type="button" aria-current={view === "transfers" ? "page" : undefined} onClick={() => setView("transfers")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "transfers" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Transferências</button><button type="button" aria-current={view === "returns" ? "page" : undefined} onClick={() => setView("returns")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "returns" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Devoluções</button><button type="button" aria-current={view === "losses" ? "page" : undefined} onClick={() => setView("losses")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "losses" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Perdas</button><button type="button" aria-current={view === "closeout" ? "page" : undefined} onClick={() => setView("closeout")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "closeout" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Fechamento</button></div></nav>}
+      {canCloseout && <nav aria-label="Operação do PDV" className="overflow-x-auto border-b border-[var(--g-border-subtle)] bg-[var(--g-surface-default)]"><div className="mx-auto flex max-w-[var(--g-content-wide)] gap-1 px-4 md:px-6"><button type="button" aria-current={view === "sale" ? "page" : undefined} onClick={() => setView("sale")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "sale" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Operação</button><button type="button" aria-current={view === "shift" ? "page" : undefined} onClick={() => setView("shift")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "shift" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Meu turno</button><button type="button" aria-current={view === "stock" ? "page" : undefined} onClick={() => setView("stock")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "stock" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Meu estoque</button><button type="button" aria-current={view === "transfers" ? "page" : undefined} onClick={() => setView("transfers")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "transfers" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Transferências</button><button type="button" aria-current={view === "returns" ? "page" : undefined} onClick={() => setView("returns")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "returns" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Devoluções</button><button type="button" aria-current={view === "losses" ? "page" : undefined} onClick={() => setView("losses")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "losses" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Perdas</button><button type="button" aria-current={view === "closeout" ? "page" : undefined} onClick={() => setView("closeout")} className={`min-h-12 shrink-0 border-b-2 px-4 text-sm font-semibold ${view === "closeout" ? "border-[var(--g-operation-primary)] text-[var(--g-text-primary)]" : "border-transparent text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)]"}`}>Fechamento</button></div></nav>}
 
       <div className="mx-auto max-w-[var(--g-content-wide)] px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div><Badge tone="success"><Check className="size-3.5" /> Acesso autorizado</Badge>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">{view === "closeout" ? "Fechamento" : view === "stock" ? "Meu estoque" : view === "transfers" ? "Transferências entre vendedores" : view === "returns" ? "Devoluções à central" : view === "losses" ? "Perdas de estoque" : { catalog: "Nova venda", review: "Revisar venda", payment: "Confirmar pagamento", success: "Venda concluída" }[step]}</h1>
-            <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{view === "closeout" ? "Confira o período, conte o estoque físico e registre divergências." : view === "stock" ? "Consulte saldos, movimentos recentes e envie uma contagem física para confirmação." : view === "transfers" ? "Solicite produtos e aceite apenas movimentações destinadas ao seu estoque." : view === "returns" ? "Envie produtos de volta e acompanhe a conferência física da central." : view === "losses" ? "Registre ocorrências com motivo, evidência opcional e aprovação configurável." : { catalog: "Selecione os produtos e quantidades para começar.", review: "Confira os valores recalculados pelo servidor antes de cobrar.", payment: "Registre somente depois de confirmar o recebimento fora do sistema.", success: "Pagamento, estoque e financeiro foram registrados juntos." }[step]}</p>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">{view === "shift" ? "Meu turno" : view === "closeout" ? "Fechamento" : view === "stock" ? "Meu estoque" : view === "transfers" ? "Transferências entre vendedores" : view === "returns" ? "Devoluções à central" : view === "losses" ? "Perdas de estoque" : { catalog: "Nova venda", review: "Revisar venda", payment: "Confirmar pagamento", success: "Venda concluída" }[step]}</h1>
+            <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{view === "shift" ? "Abra o turno com o fundo de troco e feche com o dinheiro contado." : view === "closeout" ? "Confira o período, conte o estoque físico e registre divergências." : view === "stock" ? "Consulte saldos, movimentos recentes e envie uma contagem física para confirmação." : view === "transfers" ? "Solicite produtos e aceite apenas movimentações destinadas ao seu estoque." : view === "returns" ? "Envie produtos de volta e acompanhe a conferência física da central." : view === "losses" ? "Registre ocorrências com motivo, evidência opcional e aprovação configurável." : { catalog: "Selecione os produtos e quantidades para começar.", review: "Confira os valores recalculados pelo servidor antes de cobrar.", payment: "Registre somente depois de confirmar o recebimento fora do sistema.", success: "Pagamento, estoque e financeiro foram registrados juntos." }[step]}</p>
           </div>
           {view === "sale" && step === "review" && <Button variant="ghost" onClick={() => setStep("catalog")} disabled={action !== null}><ArrowLeft className="size-4" /> <span className="hidden sm:inline">Voltar</span></Button>}
         </div>
@@ -199,12 +211,13 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
           : view === "transfers" ? <StockTransferWorkspace online={online} />
           : view === "returns" ? <StockReturnWorkspace online={online} />
           : view === "losses" ? <StockLossWorkspace online={online} />
+          : view === "shift" ? <ShiftWorkspace locationId={locationId} online={online} />
           : view === "closeout" && inventory ? <CloseoutWorkspace catalog={catalog} inventory={inventory} online={online} />
           : inventory?.locations.length === 0 ? <EmptyState icon={Store} title="Nenhuma localização disponível" description="Peça a um administrador para ativar a localização deste PDV antes de iniciar vendas." onRetry={refreshData} />
           : step === "catalog" ? <CatalogStep catalog={filteredCatalog} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
           : step === "review" && quote ? <ReviewStep quote={quote} online={online} loading={action === "checkout"} onCheckout={startCheckout}
             couponCode={couponCode} applying={action === "quote"} onCouponChange={(value) => { setCouponCode(value.toUpperCase()); checkoutKey.current = operationKey("pdv-checkout"); }} onApplyCoupon={reviewSale} />
-          : step === "payment" && checkout && quote ? <PaymentStep checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} online={online} action={action} onChannel={setChannel} onReference={setProofReference} onConfirm={confirmPayment} onCancel={cancelSale} />
+          : step === "payment" && checkout && quote ? <PaymentStep checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} tendered={tendered} online={online} action={action} onChannel={(value) => { setChannel(value); confirmationKey.current = operationKey("pdv-confirm"); }} onReference={setProofReference} onTendered={setTendered} onConfirm={confirmPayment} onCancel={cancelSale} />
           : step === "success" && confirmation && quote ? <SuccessStep confirmation={confirmation} quote={quote} onNewSale={resetSale} /> : null}
       </div>
     </main>
@@ -257,14 +270,21 @@ function ReviewStep({ quote, online, loading, onCheckout, couponCode, applying, 
   return <div className="mx-auto grid max-w-3xl gap-5"><QuoteSummary quote={quote} /><Card className="p-5"><Field id="pdv-coupon" label="Cupom (opcional)"><div className="flex gap-2"><Input id="pdv-coupon" maxLength={40} value={couponCode} onChange={(event) => onCouponChange(event.target.value)} /><Button variant="secondary" onClick={onApplyCoupon} loading={applying} disabled={!online}>Aplicar</Button></div></Field>{quote.coupon && <p role="status" className="mt-2 text-sm">{quote.coupon.applied ? `Cupom ${quote.coupon.code} aplicado.` : `O cupom ${quote.coupon.code} não se aplica a esta venda.`}</p>}</Card><Card className="p-5"><div className="flex items-start gap-3"><Banknote className="mt-0.5 size-5 text-[var(--g-focus-ring)]" /><div><h2 className="font-semibold">Pronto para cobrar?</h2><p className="mt-1 text-sm leading-6 text-[var(--g-text-secondary)]">Ao continuar, o sistema reserva o estoque por tempo limitado. O recebimento ainda precisará ser confirmado manualmente.</p></div></div><Button variant="operation" size="lg" className="mt-5 w-full" onClick={onCheckout} loading={loading} disabled={!online}>Cobrar {formatMoney(quote.totalCents)}</Button></Card></div>;
 }
 
-interface PaymentProps { checkout: CheckoutData; quote: QuoteData; channel: ManualChannel; proofReference: string; online: boolean; action: string | null; onChannel: (channel: ManualChannel) => void; onReference: (value: string) => void; onConfirm: () => void; onCancel: () => void }
+interface PaymentProps { checkout: CheckoutData; quote: QuoteData; channel: PaymentChannel; proofReference: string; tendered: string; online: boolean; action: string | null; onChannel: (channel: PaymentChannel) => void; onReference: (value: string) => void; onTendered: (value: string) => void; onConfirm: () => void; onCancel: () => void }
 function PaymentStep(props: PaymentProps) {
+  const cash = props.channel === "DINHEIRO";
+  const change = cashChange(props.quote.totalCents, parseMoneyInput(props.tendered));
+  const ready = cash ? change !== null : props.proofReference.trim().length >= 4;
   return <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"><div className="space-y-5"><Card className="p-5">
     <div className="flex items-center justify-between gap-4"><div><Badge tone="warning">Confirmação manual</Badge><h2 className="mt-3 text-xl font-semibold">Como o cliente pagou?</h2></div><p className="g-money text-2xl font-bold">{formatMoney(props.quote.totalCents)}</p></div>
-    <div className="mt-5 grid gap-3 sm:grid-cols-2"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Área Pix" description="Conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} /></div>
-    <Field id="proof-reference" label="Referência não sensível do comprovante" description="Use o identificador da operação. Nunca informe número do cartão, CVV, senha ou token." className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} minLength={4} maxLength={128} autoComplete="off" placeholder="Ex.: COMPROVANTE-9F2A" /></Field>
-    <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">Confirme fora do sistema antes de continuar.</strong> Esta tela não consulta automaticamente a Maquininha nem a Área Pix.</div>
-    <Button variant="operation" size="lg" className="mt-5 w-full" onClick={props.onConfirm} loading={props.action === "confirm"} disabled={!props.online || props.proofReference.trim().length < 4 || props.action !== null}>Confirmar recebimento manualmente</Button>
+    <div className="mt-5 grid gap-3 sm:grid-cols-3"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Área Pix" description="Conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} /><ChannelButton icon={Wallet} selected={cash} title="Dinheiro" description="Entra no caixa do turno" onClick={() => props.onChannel("DINHEIRO")} /></div>
+    {cash
+      ? <><Field id="cash-tendered" label="Valor recebido (R$)" description="Informe quanto o cliente entregou. O troco é calculado em centavos." className="mt-5"><Input id="cash-tendered" inputMode="decimal" value={props.tendered} onChange={(event) => props.onTendered(event.target.value)} autoComplete="off" placeholder="Ex.: 50,00" /></Field>
+        <p role="status" className="mt-3 text-sm">{change === null ? "O valor recebido precisa cobrir o total." : <>Troco: <strong className="g-money">{formatMoney(change)}</strong></>}</p>
+        <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">É preciso ter um turno aberto.</strong> O dinheiro fica registrado no seu caixa e será conferido no fechamento do turno.</div></>
+      : <><Field id="proof-reference" label="Referência não sensível do comprovante" description="Use o identificador da operação. Nunca informe número do cartão, CVV, senha ou token." className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} minLength={4} maxLength={128} autoComplete="off" placeholder="Ex.: COMPROVANTE-9F2A" /></Field>
+        <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">Confirme fora do sistema antes de continuar.</strong> Esta tela não consulta automaticamente a Maquininha nem a Área Pix.</div></>}
+    <Button variant="operation" size="lg" className="mt-5 w-full" onClick={props.onConfirm} loading={props.action === "confirm"} disabled={!props.online || !ready || props.action !== null}>{cash ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>
   </Card><Button variant="ghost" className="w-full text-[var(--g-status-danger)]" onClick={props.onCancel} loading={props.action === "cancel"} disabled={!props.online || props.action !== null}><X className="size-4" /> Cancelar venda pendente</Button></div><div><QuoteSummary quote={props.quote} /><p className="mt-3 text-xs text-[var(--g-text-muted)]">Reserva válida até {new Date(props.checkout.reservation.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p></div></div>;
 }
 
@@ -273,7 +293,9 @@ function ChannelButton({ icon: Icon, selected, title, description, onClick }: { 
 }
 
 function SuccessStep({ confirmation, quote, onNewSale }: { confirmation: ConfirmationData; quote: QuoteData; onNewSale: () => void }) {
-  return <div className="mx-auto max-w-2xl"><Card className="overflow-hidden text-center"><div className="bg-[var(--g-status-success-soft)] p-8 text-[var(--g-status-success-foreground)]"><div className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--g-operation-primary)] text-[var(--g-operation-on-primary)]"><CircleCheck className="size-9" /></div><h2 className="mt-4 text-2xl font-bold">Pagamento confirmado</h2><p className="mt-2 text-sm">Registro manual concluído com segurança.</p></div><div className="p-6 text-left"><div className="flex items-baseline justify-between border-b border-[var(--g-border-subtle)] pb-5"><span className="text-sm text-[var(--g-text-secondary)]">Total recebido</span><strong className="g-money text-2xl">{formatMoney(quote.totalCents)}</strong></div><dl className="grid gap-4 py-5 text-sm sm:grid-cols-2"><div><dt className="text-[var(--g-text-muted)]">Canal</dt><dd className="mt-1 font-semibold">{confirmation.paymentAttempt.integrationChannel === "MAQUININHA" ? "Maquininha" : "Área Pix"}</dd></div><div><dt className="text-[var(--g-text-muted)]">Confirmação</dt><dd className="mt-1 font-semibold">Manual</dd></div><div><dt className="text-[var(--g-text-muted)]">Referência</dt><dd className="mt-1 break-all font-semibold">{confirmation.paymentAttempt.proofReference}</dd></div><div><dt className="text-[var(--g-text-muted)]">Venda</dt><dd className="mt-1 font-mono text-xs">{confirmation.saleId}</dd></div></dl><Button variant="brand" size="lg" className="w-full" onClick={onNewSale}><RotateCcw className="size-4" /> Iniciar nova venda</Button></div></Card></div>;
+  return <div className="mx-auto max-w-2xl"><Card className="overflow-hidden text-center"><div className="bg-[var(--g-status-success-soft)] p-8 text-[var(--g-status-success-foreground)]"><div className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--g-operation-primary)] text-[var(--g-operation-on-primary)]"><CircleCheck className="size-9" /></div><h2 className="mt-4 text-2xl font-bold">Pagamento confirmado</h2><p className="mt-2 text-sm">Registro manual concluído com segurança.</p></div><div className="p-6 text-left"><div className="flex items-baseline justify-between border-b border-[var(--g-border-subtle)] pb-5"><span className="text-sm text-[var(--g-text-secondary)]">Total recebido</span><strong className="g-money text-2xl">{formatMoney(quote.totalCents)}</strong></div><dl className="grid gap-4 py-5 text-sm sm:grid-cols-2"><div><dt className="text-[var(--g-text-muted)]">Canal</dt><dd className="mt-1 font-semibold">{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro" }[confirmation.paymentAttempt.integrationChannel]}</dd></div><div><dt className="text-[var(--g-text-muted)]">Confirmação</dt><dd className="mt-1 font-semibold">Manual</dd></div>{"cash" in confirmation
+    ? <div><dt className="text-[var(--g-text-muted)]">Recebido / troco</dt><dd className="mt-1 font-semibold"><span className="g-money">{formatMoney(confirmation.cash.tenderedCents)}</span> / <span className="g-money">{formatMoney(confirmation.cash.changeCents)}</span></dd></div>
+    : <div><dt className="text-[var(--g-text-muted)]">Referência</dt><dd className="mt-1 break-all font-semibold">{confirmation.paymentAttempt.proofReference}</dd></div>}<div><dt className="text-[var(--g-text-muted)]">Venda</dt><dd className="mt-1 font-mono text-xs">{confirmation.saleId}</dd></div></dl><Button variant="brand" size="lg" className="w-full" onClick={onNewSale}><RotateCcw className="size-4" /> Iniciar nova venda</Button></div></Card></div>;
 }
 
 function EmptyState({ icon: Icon, title, description, onRetry }: { icon: typeof Store; title: string; description: string; onRetry?: () => void }) {
