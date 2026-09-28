@@ -46,3 +46,17 @@ describe("combo promotion administration contract",()=>{
     expect(savePromotionSchema.safeParse({...valid,rule:{...combo,components:[combo.components[0],{...combo.components[1],quantity:1.5}]}}).success).toBe(false);
   });
 });
+
+describe("coupon and limit administration contract",()=>{
+  const coupon={type:"CUPOM" as const,code:"FORMANDO10",discount:{kind:"PERCENTUAL" as const,percentageBasisPoints:1_000}};
+  it("accepts coupons with limits and cumulativity",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:coupon,cumulative:true,globalRedemptionLimit:100,perUserRedemptionLimit:1}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...coupon,discount:{kind:"VALOR_FIXO",amountCents:500}}}).success).toBe(true);
+  });
+  it("rejects cumulative product promotions, lowercase codes and empty discounts",()=>{
+    expect(savePromotionSchema.safeParse({...valid,cumulative:true}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...coupon,code:"formando10"}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...coupon,discount:{kind:"VALOR_FIXO",amountCents:0}}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,globalRedemptionLimit:0}).success).toBe(false);
+  });
+});

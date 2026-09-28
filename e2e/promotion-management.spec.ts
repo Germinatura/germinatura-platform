@@ -88,3 +88,27 @@ test("administra combo e rateia o desconto proporcionalmente na cotação do PDV
     await expect(quote()).resolves.toMatchObject({data:{discountTotalCents:0}});
   }
 });
+
+test("administra cupom com limite e só o aplica quando o código é informado",async({page,playwright})=>{
+  test.slow();const productId="33f00000-0000-4000-8000-000000000001";
+  expect((await page.request.post(`${portal}/api/auth/login`,{headers,data:{identifier:"admin.teste",password:"Admin123!"}})).status()).toBe(200);await page.goto(`${portal}/admin/promocoes`);
+  const couponCode=`E2E${crypto.randomUUID().replaceAll("-","").slice(0,10).toUpperCase()}`;
+  const code=`E2E-CUPOM-${crypto.randomUUID()}`.toUpperCase();await page.getByLabel("Código",{exact:true}).fill(code);await page.getByLabel("Nome").fill("Cupom de formatura");await page.getByLabel("Tipo de regra").selectOption("CUPOM");
+  await page.getByLabel("Código do cupom").fill(couponCode.toLowerCase());await page.getByLabel("Tipo de desconto do cupom").selectOption("PERCENTUAL");await page.getByLabel("Desconto do cupom (%)").fill("10");await page.getByLabel("Limite total de usos (opcional)").fill("5");
+  await page.getByLabel("PORTAL").check();await page.getByLabel(/Item público A/).check();await page.getByLabel("Ativa").check();await page.getByLabel("Publicável").check();await page.getByLabel("Prioridade").fill("1000");await page.getByLabel("Motivo").fill("Validar cupom no catálogo público");
+  const createResponse=page.waitForResponse((response)=>response.url()===endpoint&&response.request().method()==="POST");await page.getByRole("button",{name:"Salvar promoção"}).click();const created=await createResponse;expect(created.status()).toBe(201);const promotion=await created.json() as{data:Record<string,unknown>&{id:string;revision:number}};
+  const row=page.getByRole("listitem").filter({hasText:code});await expect(row).toContainText(`cupom ${couponCode}: 10%`);await expect(row).toContainText("5 usos no total");
+  const anonymous=await playwright.request.newContext();
+  const quote=async(couponCodeValue?:string)=>(await anonymous.post(`${portal}/api/v1/pricing/quote`,{headers:{Origin:portal},data:{channel:"PORTAL",items:[{productId,quantity:2}],...(couponCodeValue?{couponCode:couponCodeValue}:{})}})).json();
+  try{
+    await expect(quote()).resolves.toMatchObject({data:{totalCents:5180,coupon:null}});
+    // R$ 25,90 com 10% = R$ 23,31 cada.
+    await expect(quote(couponCode.toLowerCase())).resolves.toMatchObject({data:{totalCents:4662,rounding:"FLOOR_PER_UNIT",coupon:{code:couponCode,applied:true},
+      lines:[{appliedPromotion:{promotionId:promotion.data.id,type:"CUPOM",code:couponCode,discountKind:"PERCENTUAL",savingsCents:518},appliedCoupon:null}]}});
+    await expect(quote("NAOEXISTE")).resolves.toMatchObject({data:{totalCents:5180,coupon:{code:"NAOEXISTE",applied:false}}});
+  }finally{
+    const{id,revision,correlationId:_correlationId,...current}=promotion.data;void _correlationId;
+    const deactivate=await page.request.post(endpoint,{headers:{...headers,"Idempotency-Key":`promotion-coupon-off:${crypto.randomUUID()}`},data:{...current,id,expectedRevision:revision,active:false,publicable:false,reason:"Encerrar promoção de teste"}});expect(deactivate.status()).toBe(200);
+    await anonymous.dispose();
+  }
+});

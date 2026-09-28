@@ -3,7 +3,7 @@ select plan(34);
 
 select has_table('public', 'commercial_reservations', 'commercial reservations table exists');
 select has_type('public', 'commercial_reservation_status', 'commercial reservation status exists');
-select has_function('public', 'create_commercial_reservation', array['uuid', 'jsonb', 'text', 'uuid'], 'create RPC exists');
+select has_function('public', 'create_commercial_reservation', array['uuid', 'jsonb', 'text', 'uuid', 'text'], 'create RPC exists');
 select has_function('public', 'cancel_commercial_reservation', array['uuid', 'text', 'uuid'], 'cancel RPC exists');
 select has_function('public', 'convert_commercial_reservation', array['uuid', 'text', 'uuid'], 'convert RPC exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.commercial_reservations'::regclass), 'RLS is enabled');
@@ -15,7 +15,7 @@ select results_eq(
   $$select count(*)::bigint from information_schema.role_table_grants where table_schema = 'public' and table_name = 'commercial_reservations' and grantee in ('anon','authenticated') and privilege_type <> 'SELECT'$$,
   array[0::bigint], 'API roles receive no table write grant'
 );
-select ok(not has_function_privilege('anon', 'public.create_commercial_reservation(uuid,jsonb,text,uuid)', 'EXECUTE'), 'anonymous create is denied');
+select ok(not has_function_privilege('anon', 'public.create_commercial_reservation(uuid,jsonb,text,uuid,text)', 'EXECUTE'), 'anonymous create is denied');
 select ok(not has_function_privilege('anon', 'public.cancel_commercial_reservation(uuid,text,uuid)', 'EXECUTE'), 'anonymous cancel is denied');
 select ok(not has_function_privilege('anon', 'public.convert_commercial_reservation(uuid,text,uuid)', 'EXECUTE'), 'anonymous convert is denied');
 

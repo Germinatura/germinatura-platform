@@ -32,8 +32,17 @@ export const comboRuleSchema = z.object({
     .refine((components) => unique(components.map((component) => component.productId)), { message: "Produtos repetidos no combo" }),
   comboPriceCents: safeInteger, maxCombosPerCart: z.number().int().positive().nullable(),
 }).strict();
+export const couponRuleSchema = z.object({
+  type: z.literal("CUPOM"),
+  code: z.string().min(3).max(40).regex(/^[A-Z0-9]+(?:[-_.][A-Z0-9]+)*$/),
+  discount: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("PERCENTUAL"), percentageBasisPoints: z.number().int().min(1).max(9_999) }).strict(),
+    z.object({ kind: z.literal("VALOR_FIXO"), amountCents: safeInteger.refine((value) => value >= 1) }).strict(),
+  ]),
+}).strict();
 export const managedPromotionRuleSchema = z.discriminatedUnion("type", [
   quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema, buyPayRuleSchema, tieredRuleSchema, comboRuleSchema,
+  couponRuleSchema,
 ]);
 
 const managedPromotionFields = {
@@ -61,7 +70,6 @@ const saveFields = {
   id: z.uuid().nullable(), expectedRevision: z.number().int().positive().nullable(),
   code: z.string().trim().min(1).max(80).regex(/^[A-Z0-9]+(?:[-_.][A-Z0-9]+)*$/),
   name: z.string().trim().min(1).max(160), description: z.string().trim().min(1).max(2000).nullable(),
-  cumulative: z.literal(false), globalRedemptionLimit: z.null(), perUserRedemptionLimit: z.null(),
   reason: z.string().trim().min(4).max(500),
 };
 
@@ -72,11 +80,14 @@ function saveRefinements<T extends z.ZodObject>(schema: T) {
     .refine((value) => { const candidate=value as SaveRefinementValue; return candidate.validTo === null || Date.parse(candidate.validTo) > Date.parse(candidate.validFrom); }, { message: "O fim deve ser posterior ao início" });
 }
 
+// PROMO-004: only a coupon may be cumulative. Limits are consumed atomically at checkout (PROMO-007).
 export const savePromotionSchema = saveRefinements(z.object({
   ...saveFields, rule: managedPromotionRuleSchema,
-}).strict());
+}).strict()).refine((value) => !value.cumulative || value.rule.type === "CUPOM", { message: "Só cupons podem ser cumulativos" });
+/** Legacy quantity-only command: no cumulativity and no limits. */
 export const saveQuantityPricePromotionSchema = saveRefinements(z.object({
-  ...saveFields, rule: quantityPriceRuleSchema,
+  ...saveFields, cumulative: z.literal(false), globalRedemptionLimit: z.null(), perUserRedemptionLimit: z.null(),
+  rule: quantityPriceRuleSchema,
 }).strict());
 
 export const savePromotionResponseSchema = z.object({

@@ -1,7 +1,16 @@
 import { z } from "zod";
 
 // Snapshot written by private.price_sale_items for the single winning rule of a line (PROMO-004).
+const couponSnapshotShape = {
+  promotion_id: z.uuid(), type: z.literal("CUPOM"), priority: z.number().int(), code: z.string().min(3).max(40),
+  discount_kind: z.enum(["PERCENTUAL", "VALOR_FIXO"]), percentage_basis_points: z.number().int().min(1).max(9_999).nullable(),
+  amount_cents: z.number().int().positive().nullable(), cumulative: z.boolean(), savings_cents: z.number().int().nonnegative(),
+};
+/** Cumulative coupon stored next to the winning promotion of a line (PROMO-006). */
+export const couponSnapshotSchema = z.object(couponSnapshotShape);
+
 export const promotionSnapshotSchema = z.discriminatedUnion("type", [
+  z.object(couponSnapshotShape),
   z.object({
     promotion_id: z.uuid(), type: z.literal("QUANTIDADE_PRECO"), priority: z.number().int(),
     group_quantity: z.number().int().min(2), group_price_cents: z.number().int().nonnegative(),
@@ -38,9 +47,17 @@ export const promotionSnapshotSchema = z.discriminatedUnion("type", [
 
 export type PromotionSnapshot = z.infer<typeof promotionSnapshotSchema>;
 
+export function publicCoupon(value: z.infer<typeof couponSnapshotSchema>) {
+  return { promotionId: value.promotion_id, type: value.type, code: value.code, discountKind: value.discount_kind,
+    percentageBasisPoints: value.percentage_basis_points, amountCents: value.amount_cents,
+    cumulative: value.cumulative, savingsCents: value.savings_cents };
+}
+
 /** Maps the stored snapshot to the public quote explanation. */
 export function publicPromotion(value: PromotionSnapshot) {
   switch (value.type) {
+    case "CUPOM":
+      return publicCoupon(value);
     case "QUANTIDADE_PRECO":
       return { promotionId: value.promotion_id, type: value.type, groupQuantity: value.group_quantity,
         groupPriceCents: value.group_price_cents, groups: value.groups, promotedQuantity: value.promoted_quantity,
@@ -63,4 +80,43 @@ export function publicPromotion(value: PromotionSnapshot) {
       return { promotionId: value.promotion_id, type: value.type, comboPriceCents: value.combo_price_cents,
         combos: value.combos, componentQuantity: value.component_quantity, savingsCents: value.savings_cents };
   }
+}
+
+/** Quote returned by private.price_cart through checkout_sale and create_commercial_reservation. */
+export const storedQuoteSchema = z.object({
+  quoted_at: z.string(),
+  currency: z.literal("BRL"),
+  rounding: z.enum(["NONE", "FLOOR_PER_UNIT", "FLOOR_PER_LINE", "FLOOR_PER_UNIT_AND_LINE"]),
+  coupon: z.object({ code: z.string(), applied: z.boolean() }).nullable().optional(),
+  lines: z.array(z.object({
+    product_id: z.uuid(),
+    product_name: z.string(),
+    quantity: z.number().int().positive(),
+    unit_price_cents: z.number().int().nonnegative(),
+    original_subtotal_cents: z.number().int().nonnegative(),
+    discount_cents: z.number().int().nonnegative(),
+    total_cents: z.number().int().nonnegative(),
+    promotion_snapshot: promotionSnapshotSchema.nullable(),
+    coupon_snapshot: couponSnapshotSchema.nullable().optional(),
+  })),
+  original_total_cents: z.number().int().nonnegative(),
+  discount_total_cents: z.number().int().nonnegative(),
+  total_cents: z.number().int().nonnegative(),
+});
+
+export function publicQuote(quote: z.infer<typeof storedQuoteSchema>, channel: "PORTAL" | "PDV") {
+  return {
+    channel, quotedAt: quote.quoted_at, currency: quote.currency, rounding: quote.rounding,
+    coupon: quote.coupon ?? null,
+    lines: quote.lines.map((line) => ({
+      productId: line.product_id, name: line.product_name, unitPriceCents: line.unit_price_cents,
+      quantity: line.quantity, originalSubtotalCents: line.original_subtotal_cents,
+      discountCents: line.discount_cents, totalCents: line.total_cents,
+      appliedPromotion: line.promotion_snapshot ? publicPromotion(line.promotion_snapshot) : null,
+      appliedCoupon: line.coupon_snapshot ? publicCoupon(line.coupon_snapshot) : null,
+    })),
+    originalTotalCents: quote.original_total_cents,
+    discountTotalCents: quote.discount_total_cents,
+    totalCents: quote.total_cents,
+  };
 }

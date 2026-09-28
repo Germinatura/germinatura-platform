@@ -150,11 +150,11 @@ export async function loadCatalog(): Promise<PublicCatalogProduct[]> {
   return parsed.data.data.filter((product) => product.sellablePdv);
 }
 
-export async function quoteCart(items: CartItem[]): Promise<PricingQuoteResponse["data"]> {
+export async function quoteCart(items: CartItem[], couponCode?: string): Promise<PricingQuoteResponse["data"]> {
   const response = await apiFetch("/api/v1/pricing/quote", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ channel: "PDV", items: cartPayload(items) }),
+    body: JSON.stringify({ channel: "PDV", items: cartPayload(items), ...(couponCode ? { couponCode } : {}) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível atualizar os valores da venda."));
   const parsed = pricingQuoteResponseSchema.safeParse(await response.json());
@@ -166,11 +166,12 @@ export async function checkoutCart(
   locationId: string,
   items: CartItem[],
   idempotencyKey: string,
+  couponCode?: string,
 ): Promise<SalesCheckoutResponse["data"]> {
   const response = await apiFetch("/api/v1/sales/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ channel: "PDV", locationId, items: cartPayload(items) }),
+    body: JSON.stringify({ channel: "PDV", locationId, items: cartPayload(items), ...(couponCode ? { couponCode } : {}) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível iniciar a cobrança."));
   const parsed = salesCheckoutResponseSchema.safeParse(await response.json());

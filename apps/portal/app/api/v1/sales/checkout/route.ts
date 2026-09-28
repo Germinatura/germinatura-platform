@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission, requireSession } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
-import { promotionSnapshotSchema, publicPromotion } from "@/lib/promotion-snapshot";
+import { publicQuote, storedQuoteSchema } from "@/lib/promotion-snapshot";
 
 
 const checkoutDatabaseResultSchema = z.object({
@@ -18,26 +18,7 @@ const checkoutDatabaseResultSchema = z.object({
   status: z.literal("AWAITING_PAYMENT"),
   channel: z.enum(["PORTAL", "PDV"]),
   location_id: z.uuid(),
-  quote: z.object({
-    quoted_at: z.string(),
-    currency: z.literal("BRL"),
-    rounding: z.enum(["NONE","FLOOR_PER_UNIT"]),
-    lines: z.array(z.object({
-      product_id: z.uuid(),
-      product_sku: z.string(),
-      product_name: z.string(),
-      quantity: z.number().int().positive(),
-      unit_price_cents: z.number().int().nonnegative(),
-      original_subtotal_cents: z.number().int().nonnegative(),
-      discount_cents: z.number().int().nonnegative(),
-      total_cents: z.number().int().nonnegative(),
-      promotion_id: z.uuid().nullable(),
-      promotion_snapshot: promotionSnapshotSchema.nullable(),
-    })),
-    original_total_cents: z.number().int().nonnegative(),
-    discount_total_cents: z.number().int().nonnegative(),
-    total_cents: z.number().int().nonnegative(),
-  }),
+  quote: storedQuoteSchema,
   reservation: z.object({
     reservation_id: z.uuid(),
     status: z.literal("ACTIVE"),
@@ -121,6 +102,7 @@ export async function POST(request: Request) {
     p_items: parsed.data.items.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
     p_idempotency_key: idempotency.data,
     p_correlation_id: correlationId,
+    p_coupon_code: parsed.data.couponCode ?? null,
   });
   if (error) return databaseErrorResponse(error.message, requestId);
 
@@ -135,25 +117,7 @@ export async function POST(request: Request) {
       status: value.status,
       channel: value.channel,
       locationId: value.location_id,
-      quote: {
-        channel: value.channel,
-        quotedAt: value.quote.quoted_at,
-        currency: value.quote.currency,
-        rounding: value.quote.rounding,
-        lines: value.quote.lines.map((line) => ({
-          productId: line.product_id,
-          name: line.product_name,
-          unitPriceCents: line.unit_price_cents,
-          quantity: line.quantity,
-          originalSubtotalCents: line.original_subtotal_cents,
-          discountCents: line.discount_cents,
-          totalCents: line.total_cents,
-          appliedPromotion: line.promotion_snapshot ? publicPromotion(line.promotion_snapshot) : null,
-        })),
-        originalTotalCents: value.quote.original_total_cents,
-        discountTotalCents: value.quote.discount_total_cents,
-        totalCents: value.quote.total_cents,
-      },
+      quote: publicQuote(value.quote, value.channel),
       reservation: {
         reservationId: value.reservation.reservation_id,
         status: value.reservation.status,

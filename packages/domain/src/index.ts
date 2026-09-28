@@ -241,9 +241,40 @@ export interface ComboPromotionExplanation {
   readonly savingsCents: MoneyCents;
 }
 
+export type CouponDiscount =
+  | { readonly kind: "PERCENTUAL"; readonly percentageBasisPoints: number }
+  | { readonly kind: "VALOR_FIXO"; readonly amountCents: MoneyCents };
+
+/**
+ * CUPOM (PROMO-006): only offered when its code was informed. A non-cumulative coupon competes for its
+ * eligible lines like a combo; a cumulative coupon applies on top of the winning line promotions.
+ */
+export interface CouponPromotionRule {
+  readonly promotionId: string;
+  readonly type: "CUPOM";
+  readonly code: string;
+  readonly productIds: readonly string[];
+  readonly discount: CouponDiscount;
+  readonly cumulative: boolean;
+  readonly priority: number;
+}
+
+export interface CouponPromotionExplanation {
+  readonly promotionId: string;
+  readonly type: "CUPOM";
+  readonly code: string;
+  readonly discountKind: CouponDiscount["kind"];
+  readonly percentageBasisPoints: number | null;
+  readonly amountCents: MoneyCents | null;
+  readonly cumulative: boolean;
+  readonly savingsCents: MoneyCents;
+}
+
 export type AppliedPromotionExplanation = QuantityFixedPricePromotionExplanation
   | PercentagePromotionExplanation | FixedUnitPricePromotionExplanation | BuyPayPromotionExplanation
-  | TieredPromotionExplanation | ComboPromotionExplanation;
+  | TieredPromotionExplanation | ComboPromotionExplanation | CouponPromotionExplanation;
+
+export type PricingRounding = "NONE" | "FLOOR_PER_UNIT" | "FLOOR_PER_LINE" | "FLOOR_PER_UNIT_AND_LINE";
 
 export interface QuantityFixedPriceLineQuote {
   readonly productId: string;
@@ -253,7 +284,9 @@ export interface QuantityFixedPriceLineQuote {
   readonly discountCents: MoneyCents;
   readonly effectiveSubtotalCents: MoneyCents;
   readonly appliedPromotion: AppliedPromotionExplanation | null;
-  readonly rounding: "NONE" | "FLOOR_PER_UNIT";
+  /** Cumulative coupon applied on top of appliedPromotion (PROMO-004 #4). */
+  readonly appliedCoupon?: CouponPromotionExplanation | null;
+  readonly rounding: PricingRounding;
 }
 
 export interface PrioritizedQuantityPromotionRule extends QuantityFixedPricePromotionRule {
@@ -267,14 +300,14 @@ export type PrioritizedPromotionRule =
   | (BuyPayPromotionRule & { readonly priority: number })
   | (TieredPromotionRule & { readonly priority: number });
 
-export type CartPromotionRule = PrioritizedPromotionRule | ComboPromotionRule;
+export type CartPromotionRule = PrioritizedPromotionRule | ComboPromotionRule | CouponPromotionRule;
 
 export interface PromotedCartQuote {
   readonly lines: readonly QuantityFixedPriceLineQuote[];
   readonly originalTotalCents: MoneyCents;
   readonly discountTotalCents: MoneyCents;
   readonly totalCents: MoneyCents;
-  readonly rounding: "NONE" | "FLOOR_PER_UNIT";
+  readonly rounding: PricingRounding;
 }
 
 /**
@@ -653,77 +686,167 @@ function bestLineQuote(line: BasePricingLine, rules: readonly PrioritizedPromoti
   return { quote, priority: winner?.rule.priority ?? null, promotionId: winner?.rule.promotionId ?? null };
 }
 
+function validateCouponRule(rule: CouponPromotionRule): void {
+  assertCanonicalIdentifier(rule.promotionId, "INVALID_PROMOTION_ID", "Promotion ID");
+  const discount = rule.discount;
+  if (rule.productIds.length < 1 || new Set(rule.productIds).size !== rule.productIds.length
+    || (discount.kind === "PERCENTUAL" && (!Number.isSafeInteger(discount.percentageBasisPoints)
+      || discount.percentageBasisPoints < 1 || discount.percentageBasisPoints > 9_999))
+    || (discount.kind === "VALOR_FIXO" && (!Number.isSafeInteger(discount.amountCents) || discount.amountCents < 1))) {
+    throw new DomainError("INVALID_PROMOTION_COUPON", "Coupon needs eligible products and a positive discount");
+  }
+}
+
+function couponExplanation(rule: CouponPromotionRule, savingsCents: MoneyCents): CouponPromotionExplanation {
+  return {
+    promotionId: rule.promotionId, type: rule.type, code: rule.code, discountKind: rule.discount.kind,
+    percentageBasisPoints: rule.discount.kind === "PERCENTUAL" ? rule.discount.percentageBasisPoints : null,
+    amountCents: rule.discount.kind === "VALOR_FIXO" ? rule.discount.amountCents : null,
+    cumulative: rule.cumulative, savingsCents,
+  };
+}
+
+/** Coupon discount per line over the given line values. PERCENTUAL floors the resulting price. */
+function couponDiscounts(
+  rule: CouponPromotionRule,
+  lines: readonly { readonly productId: string; readonly valueCents: MoneyCents; readonly unitPriceCents: MoneyCents; readonly quantity: number }[],
+  perUnit: boolean,
+): Map<string, MoneyCents> {
+  const discount = rule.discount;
+  if (discount.kind === "PERCENTUAL") {
+    return new Map(lines.map((line) => {
+      const discounted = perUnit
+        ? multiplyMoney(flooredPercentageUnitPrice(line.unitPriceCents, discount.percentageBasisPoints), line.quantity)
+        : flooredPercentageUnitPrice(line.valueCents, discount.percentageBasisPoints);
+      return [line.productId, subtractMoney(line.valueCents, discounted)];
+    }));
+  }
+  const total = lines.reduce((sum, line) => addMoney(sum, line.valueCents), moneyFromCents(0));
+  if (total === 0) return new Map(lines.map((line) => [line.productId, moneyFromCents(0)]));
+  const amount = compareMoney(discount.amountCents, total) > 0 ? total : discount.amountCents;
+  return allocateComboDiscount(amount, lines.map((line) => ({ productId: line.productId, valueCents: line.valueCents })));
+}
+
+type SetCandidate =
+  | { readonly kind: "COMBO"; readonly rule: ComboPromotionRule; readonly saving: number }
+  | { readonly kind: "COUPON"; readonly rule: CouponPromotionRule; readonly saving: number };
+
 /**
- * PROMO-004: every line keeps at most one winning rule. Line rules pick by priority, lowest total and
- * stable ID. Combos are then tried by priority, larger saving per combo and ID; a combo takes its
- * component lines when its priority beats their line winners, or ties with a lower cart total, or ties
- * on both with a smaller ID. A line joins at most one combo and its remaining units keep the base price.
+ * PROMO-004/005/006: every line keeps at most one winning rule. Line rules pick by priority, lowest total
+ * and stable ID. Set rules (combos and non-cumulative coupons) are then tried by priority, larger saving
+ * and ID; a set rule takes its lines when its priority beats their line winners, or ties with a lower
+ * cart total, or ties on both with a smaller ID. A line joins at most one set rule; units of a combo line
+ * outside the combos keep the base price. Finally a cumulative coupon applies on top of the line totals.
  */
 export function priceCartWithPromotions(
   items: readonly BasePricingItemInput[],
   rules: readonly CartPromotionRule[],
 ): PromotedCartQuote {
   const base = priceBaseCart(items);
-  const lineRules = rules.filter((rule): rule is PrioritizedPromotionRule => rule.type !== "COMBO_MIX");
+  const lineRules = rules.filter((rule): rule is PrioritizedPromotionRule => rule.type !== "COMBO_MIX" && rule.type !== "CUPOM");
   const baseByProduct = new Map(base.lines.map((line) => [line.productId, line]));
   const best = new Map(base.lines.map((line) => [line.productId, bestLineQuote(line, lineRules)]));
+  const coupons = rules.filter((rule): rule is CouponPromotionRule => rule.type === "CUPOM")
+    .filter((rule, index, all) => all.findIndex((other) => other.promotionId === rule.promotionId) === index);
+  if (coupons.length > 1) throw new DomainError("MULTIPLE_COUPONS", "At most one coupon can be priced");
+  coupons.forEach(validateCouponRule);
 
-  const combos = rules
-    .filter((rule): rule is ComboPromotionRule => rule.type === "COMBO_MIX")
-    .filter((rule, index, all) => all.findIndex((other) => other.promotionId === rule.promotionId) === index)
-    .map((rule) => {
-      validateComboRule(rule);
-      const present = rule.components.every((component) => baseByProduct.has(component.productId));
-      const fullValue = present ? rule.components.reduce((sum, component) => addMoney(sum,
-        multiplyMoney(baseByProduct.get(component.productId)!.unitPriceCents, component.quantity)), moneyFromCents(0)) : moneyFromCents(0);
-      if (present && compareMoney(moneyFromCents(rule.comboPriceCents), fullValue) >= 0) {
-        throw new DomainError("INVALID_PROMOTION_COMBO_PRICE", "Combo price must produce a positive saving");
-      }
-      return { rule, present, saving: present ? fullValue - rule.comboPriceCents : 0 };
-    })
-    .filter((combo) => combo.present)
-    .sort((left, right) => right.rule.priority - left.rule.priority || right.saving - left.saving
-      || compareIdentifiers(left.rule.promotionId, right.rule.promotionId));
+  const setCandidates: SetCandidate[] = [];
+  for (const rule of rules.filter((candidate): candidate is ComboPromotionRule => candidate.type === "COMBO_MIX")
+    .filter((rule, index, all) => all.findIndex((other) => other.promotionId === rule.promotionId) === index)) {
+    validateComboRule(rule);
+    if (!rule.components.every((component) => baseByProduct.has(component.productId))) continue;
+    const fullValue = rule.components.reduce((sum, component) => addMoney(sum,
+      multiplyMoney(baseByProduct.get(component.productId)!.unitPriceCents, component.quantity)), moneyFromCents(0));
+    if (compareMoney(moneyFromCents(rule.comboPriceCents), fullValue) >= 0) {
+      throw new DomainError("INVALID_PROMOTION_COMBO_PRICE", "Combo price must produce a positive saving");
+    }
+    setCandidates.push({ kind: "COMBO", rule, saving: fullValue - rule.comboPriceCents });
+  }
+  for (const rule of coupons.filter((coupon) => !coupon.cumulative)) {
+    const eligible = base.lines.filter((line) => rule.productIds.includes(line.productId));
+    if (!eligible.length) continue;
+    const discounts = couponDiscounts(rule, eligible.map((line) => ({ productId: line.productId,
+      valueCents: line.subtotalCents, unitPriceCents: line.unitPriceCents, quantity: line.quantity })), true);
+    setCandidates.push({ kind: "COUPON", rule, saving: [...discounts.values()].reduce((sum, value) => sum + value, 0) });
+  }
+  setCandidates.sort((left, right) => right.rule.priority - left.rule.priority || right.saving - left.saving
+    || compareIdentifiers(left.rule.promotionId, right.rule.promotionId));
 
-  const comboLines = new Map<string, QuantityFixedPriceLineQuote>();
-  for (const { rule } of combos) {
-    if (rule.components.some((component) => comboLines.has(component.productId))) continue;
-    const available = Math.min(...rule.components.map((component) =>
-      Math.floor(baseByProduct.get(component.productId)!.quantity / component.quantity)));
-    const count = rule.maxCombosPerCart === null ? available : Math.min(available, rule.maxCombosPerCart);
-    if (count === 0) continue;
-    const shares = rule.components.map((component) => ({ productId: component.productId,
-      valueCents: multiplyMoney(baseByProduct.get(component.productId)!.unitPriceCents, component.quantity * count) }));
-    const comboValue = shares.reduce((sum, share) => addMoney(sum, share.valueCents), moneyFromCents(0));
-    const discount = subtractMoney(comboValue, multiplyMoney(moneyFromCents(rule.comboPriceCents), count));
-    const componentLines = rule.components.map((component) => best.get(component.productId)!);
-    const withCombo = rule.components.reduce((sum, component) => addMoney(sum, baseByProduct.get(component.productId)!.subtotalCents), moneyFromCents(0)) - discount;
-    const withoutCombo = componentLines.reduce((sum, line) => sum + line.quote.effectiveSubtotalCents, 0);
-    const linePriorities = componentLines.flatMap((line) => line.priority === null ? [] : [line.priority]);
+  const setLines = new Map<string, QuantityFixedPriceLineQuote>();
+  for (const candidate of setCandidates) {
+    let lineDiscounts: Map<string, MoneyCents>;
+    let explain: (productId: string, discount: MoneyCents) => AppliedPromotionExplanation;
+    let rounding: PricingRounding = "NONE";
+    if (candidate.kind === "COMBO") {
+      const rule = candidate.rule;
+      if (rule.components.some((component) => setLines.has(component.productId))) continue;
+      const available = Math.min(...rule.components.map((component) =>
+        Math.floor(baseByProduct.get(component.productId)!.quantity / component.quantity)));
+      const count = rule.maxCombosPerCart === null ? available : Math.min(available, rule.maxCombosPerCart);
+      if (count === 0) continue;
+      const shares = rule.components.map((component) => ({ productId: component.productId,
+        valueCents: multiplyMoney(baseByProduct.get(component.productId)!.unitPriceCents, component.quantity * count) }));
+      const comboValue = shares.reduce((sum, share) => addMoney(sum, share.valueCents), moneyFromCents(0));
+      lineDiscounts = allocateComboDiscount(subtractMoney(comboValue, multiplyMoney(moneyFromCents(rule.comboPriceCents), count)), shares);
+      const quantities = new Map(rule.components.map((component) => [component.productId, component.quantity * count]));
+      explain = (productId, discount) => ({ promotionId: rule.promotionId, type: rule.type,
+        comboPriceCents: moneyFromCents(rule.comboPriceCents), combos: count,
+        componentQuantity: quantities.get(productId)!, savingsCents: discount });
+    } else {
+      const rule = candidate.rule;
+      const eligible = base.lines.filter((line) => rule.productIds.includes(line.productId) && !setLines.has(line.productId));
+      if (!eligible.length) continue;
+      lineDiscounts = couponDiscounts(rule, eligible.map((line) => ({ productId: line.productId,
+        valueCents: line.subtotalCents, unitPriceCents: line.unitPriceCents, quantity: line.quantity })), true);
+      if (![...lineDiscounts.values()].some((value) => value > 0)) continue;
+      explain = (_productId, discount) => couponExplanation(rule, discount);
+      rounding = rule.discount.kind === "PERCENTUAL" ? "FLOOR_PER_UNIT" : "NONE";
+    }
+    const productIds = [...lineDiscounts.keys()];
+    const lineWinners = productIds.map((productId) => best.get(productId)!);
+    const withRule = productIds.reduce((sum, productId) => sum + baseByProduct.get(productId)!.subtotalCents - lineDiscounts.get(productId)!, 0);
+    const withoutRule = lineWinners.reduce((sum, line) => sum + line.quote.effectiveSubtotalCents, 0);
+    const linePriorities = lineWinners.flatMap((line) => line.priority === null ? [] : [line.priority]);
     const linePriority = linePriorities.length ? Math.max(...linePriorities) : null;
-    const lineIds = componentLines.flatMap((line) => line.promotionId === null ? [] : [line.promotionId]).sort(compareIdentifiers);
-    const wins = linePriority === null || rule.priority > linePriority
-      || (rule.priority === linePriority && (withCombo < withoutCombo
-        || (withCombo === withoutCombo && compareIdentifiers(rule.promotionId, lineIds[0]) < 0)));
+    const lineIds = lineWinners.flatMap((line) => line.promotionId === null ? [] : [line.promotionId]).sort(compareIdentifiers);
+    const wins = linePriority === null || candidate.rule.priority > linePriority
+      || (candidate.rule.priority === linePriority && (withRule < withoutRule
+        || (withRule === withoutRule && compareIdentifiers(candidate.rule.promotionId, lineIds[0]) < 0)));
     if (!wins) continue;
-    const allocation = allocateComboDiscount(discount, shares);
-    for (const component of rule.components) {
-      const line = baseByProduct.get(component.productId)!;
-      const lineDiscount = allocation.get(component.productId)!;
-      comboLines.set(component.productId, {
-        productId: line.productId, unitPriceCents: line.unitPriceCents, quantity: line.quantity,
+    for (const productId of productIds) {
+      const line = baseByProduct.get(productId)!;
+      const lineDiscount = lineDiscounts.get(productId)!;
+      setLines.set(productId, {
+        productId, unitPriceCents: line.unitPriceCents, quantity: line.quantity,
         originalSubtotalCents: line.subtotalCents, discountCents: lineDiscount,
         effectiveSubtotalCents: subtractMoney(line.subtotalCents, lineDiscount),
-        appliedPromotion: {
-          promotionId: rule.promotionId, type: rule.type, comboPriceCents: moneyFromCents(rule.comboPriceCents),
-          combos: count, componentQuantity: component.quantity * count, savingsCents: lineDiscount,
-        },
-        rounding: "NONE",
+        appliedPromotion: explain(productId, lineDiscount), rounding,
       });
     }
   }
 
-  const lines = base.lines.map((line) => comboLines.get(line.productId) ?? best.get(line.productId)!.quote);
+  let lines: QuantityFixedPriceLineQuote[] = base.lines.map((line) => setLines.get(line.productId) ?? best.get(line.productId)!.quote);
+  const cumulative = coupons.find((coupon) => coupon.cumulative);
+  if (cumulative) {
+    const eligible = lines.filter((line) => cumulative.productIds.includes(line.productId));
+    const discounts = couponDiscounts(cumulative, eligible.map((line) => ({ productId: line.productId,
+      valueCents: line.effectiveSubtotalCents, unitPriceCents: line.unitPriceCents, quantity: line.quantity })), false);
+    lines = lines.map((line) => {
+      const couponDiscount = discounts.get(line.productId);
+      if (couponDiscount === undefined || couponDiscount === 0) return line;
+      const perLine = cumulative.discount.kind === "PERCENTUAL";
+      const rounding: PricingRounding = !perLine ? line.rounding
+        : line.rounding === "FLOOR_PER_UNIT" ? "FLOOR_PER_UNIT_AND_LINE" : "FLOOR_PER_LINE";
+      return {
+        ...line,
+        discountCents: addMoney(line.discountCents, couponDiscount),
+        effectiveSubtotalCents: subtractMoney(line.effectiveSubtotalCents, couponDiscount),
+        appliedCoupon: couponExplanation(cumulative, couponDiscount),
+        rounding,
+      };
+    });
+  }
 
   let originalTotalCents = moneyFromCents(0);
   let discountTotalCents = moneyFromCents(0);
@@ -733,8 +856,9 @@ export function priceCartWithPromotions(
     discountTotalCents = addMoney(discountTotalCents, line.discountCents);
     totalCents = addMoney(totalCents, line.effectiveSubtotalCents);
   }
-  const rounding = lines.some((line) => line.rounding === "FLOOR_PER_UNIT")
-    ? "FLOOR_PER_UNIT" as const : "NONE" as const;
+  const perUnit = lines.some((line) => line.rounding === "FLOOR_PER_UNIT" || line.rounding === "FLOOR_PER_UNIT_AND_LINE");
+  const perLine = lines.some((line) => line.rounding === "FLOOR_PER_LINE" || line.rounding === "FLOOR_PER_UNIT_AND_LINE");
+  const rounding: PricingRounding = perUnit && perLine ? "FLOOR_PER_UNIT_AND_LINE" : perUnit ? "FLOOR_PER_UNIT" : perLine ? "FLOOR_PER_LINE" : "NONE";
   return { lines, originalTotalCents, discountTotalCents, totalCents, rounding };
 }
 

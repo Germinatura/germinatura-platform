@@ -81,8 +81,13 @@ export const publicCatalogProductsResponseSchema = z.object({
 export type PublicCatalogProductsResponse = z.infer<typeof publicCatalogProductsResponseSchema>;
 
 export const pricingChannelSchema = z.enum(["PORTAL", "PDV"]);
+/** Coupon codes are case-insensitive and normalized to upper case (PROMO-006). */
+export const couponCodeSchema = z.string().trim().min(3).max(40)
+  .regex(/^[A-Za-z0-9]+(?:[-_.][A-Za-z0-9]+)*$/).transform((value) => value.toUpperCase());
+export const pricingRoundingSchema = z.enum(["NONE", "FLOOR_PER_UNIT", "FLOOR_PER_LINE", "FLOOR_PER_UNIT_AND_LINE"]);
 export const pricingQuoteRequestSchema = z.object({
   channel: pricingChannelSchema,
+  couponCode: couponCodeSchema.optional(),
   items: z.array(z.object({
     productId: z.uuid(),
     quantity: z.number().int().positive().refine(Number.isSafeInteger, "Quantity must be a safe integer"),
@@ -146,7 +151,18 @@ const appliedComboPromotionSchema = z.object({
   componentQuantity: z.number().int().positive(),
   savingsCents: moneyCentsSchema,
 });
+export const appliedCouponSchema = z.object({
+  promotionId: z.uuid(),
+  type: z.literal("CUPOM"),
+  code: z.string().min(3).max(40),
+  discountKind: z.enum(["PERCENTUAL", "VALOR_FIXO"]),
+  percentageBasisPoints: z.number().int().min(1).max(9_999).nullable(),
+  amountCents: moneyCentsSchema.nullable(),
+  cumulative: z.boolean(),
+  savingsCents: moneyCentsSchema,
+});
 export const appliedPromotionSchema = z.discriminatedUnion("type", [
+  appliedCouponSchema,
   appliedQuantityPromotionSchema,
   appliedPercentagePromotionSchema,
   appliedFixedUnitPricePromotionSchema,
@@ -159,7 +175,8 @@ export const pricingQuoteResponseSchema = z.object({
     channel: pricingChannelSchema,
     quotedAt: z.iso.datetime({ offset: true }),
     currency: z.literal("BRL"),
-    rounding: z.enum(["NONE", "FLOOR_PER_UNIT"]),
+    rounding: pricingRoundingSchema,
+    coupon: z.object({ code: z.string().min(3).max(40), applied: z.boolean() }).strict().nullable(),
     lines: z.array(z.object({
       productId: z.uuid(),
       name: z.string().min(1),
@@ -169,6 +186,7 @@ export const pricingQuoteResponseSchema = z.object({
       discountCents: moneyCentsSchema,
       totalCents: moneyCentsSchema,
       appliedPromotion: appliedPromotionSchema.nullable(),
+      appliedCoupon: appliedCouponSchema.nullable(),
     })),
     originalTotalCents: moneyCentsSchema,
     discountTotalCents: moneyCentsSchema,
@@ -324,6 +342,7 @@ export type SalesCancelResponse = z.infer<typeof salesCancelResponseSchema>;
 
 export const commercialReservationCreateRequestSchema = z.object({
   locationId: z.uuid(),
+  couponCode: couponCodeSchema.optional(),
   items: z.array(z.object({
     productId: z.uuid(),
     quantity: z.number().int().positive().refine(Number.isSafeInteger),
