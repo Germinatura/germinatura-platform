@@ -11,6 +11,7 @@ export * from "./stock-returns";
 export * from "./stock-losses";
 export * from "./inventory-counts";
 export * from "./cash-shifts";
+export * from "./finance-entries";
 
 export const moneyCentsSchema = z.number()
   .int()
