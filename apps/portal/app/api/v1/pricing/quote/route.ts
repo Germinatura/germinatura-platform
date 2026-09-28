@@ -1,5 +1,6 @@
 import {
   createApiError,
+  managedPromotionRuleSchema,
   pricingQuoteRequestSchema,
   pricingQuoteResponseSchema,
 } from "@germinatura/contracts";
@@ -17,6 +18,7 @@ import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+// get_pricing_quote_inputs_v4 returns the canonical rule document; the shared contract validates it.
 const databaseRowSchema = z.object({
   quoted_at: z.string(),
   product_id: z.uuid(),
@@ -24,14 +26,28 @@ const databaseRowSchema = z.object({
   amount_cents: z.number().int().nonnegative().refine(Number.isSafeInteger),
   promotion_id: z.uuid().nullable(),
   priority: z.number().int().nullable(),
-  rule_type: z.enum(["QUANTIDADE_PRECO", "PERCENTUAL", "VALOR_FIXO_UNITARIO", "LEVE_PAGUE"]).nullable(),
-  group_quantity: z.number().int().nullable(),
-  group_price_cents: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
-  max_groups_per_line: z.number().int().nullable(),
-  percentage_basis_points: z.number().int().nullable(),
-  fixed_unit_price_cents: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
-  pay_quantity: z.number().int().nullable(),
+  rule: managedPromotionRuleSchema.nullable(),
 });
+
+type DatabaseRow = z.infer<typeof databaseRowSchema>;
+
+function promotionRule(row: DatabaseRow): PrioritizedPromotionRule[] {
+  if (row.promotion_id === null && row.rule === null) return [];
+  // Fail closed: checkout would still price this candidate, so the quote must not silently skip it.
+  if (row.promotion_id === null || row.rule === null || row.priority === null) {
+    throw new DomainError("PRICING_INVALID_RULE", "Promotion candidate is incomplete");
+  }
+  const common = { promotionId: row.promotion_id, productId: row.product_id, priority: row.priority };
+  const rule = row.rule;
+  switch (rule.type) {
+    case "QUANTIDADE_PRECO":
+      return [{ ...common, ...rule, groupPriceCents: moneyFromCents(rule.groupPriceCents) }];
+    case "VALOR_FIXO_UNITARIO":
+      return [{ ...common, ...rule, fixedUnitPriceCents: moneyFromCents(rule.fixedUnitPriceCents) }];
+    default:
+      return [{ ...common, ...rule }];
+  }
+}
 
 function errorResponse(code: string, message: string, requestId: string, status: number, details?: unknown) {
   return NextResponse.json(createApiError(code, message, requestId, details), {
@@ -81,7 +97,7 @@ export async function POST(request: Request) {
     return errorResponse("PRICING_UNAVAILABLE", "Cotação temporariamente indisponível", requestId, 503);
   }
 
-  const { data, error } = await supabase.rpc("get_pricing_quote_inputs_v3", {
+  const { data, error } = await supabase.rpc("get_pricing_quote_inputs_v4", {
     p_channel: parsed.data.channel,
     p_product_ids: parsed.data.items.map((item) => item.productId),
   });
@@ -100,26 +116,7 @@ export async function POST(request: Request) {
         const product = products.get(item.productId)!;
         return { productId: item.productId, quantity: item.quantity, unitPriceCents: moneyFromCents(product.amount_cents) };
       }),
-      rows.data.flatMap((row): PrioritizedPromotionRule[] => {
-        if (!row.promotion_id || !row.rule_type || row.priority === null) return [];
-        const common={promotionId:row.promotion_id,productId:row.product_id,priority:row.priority};
-        if (row.rule_type === "QUANTIDADE_PRECO" && row.group_quantity !== null && row.group_price_cents !== null) {
-          return [{...common,type:row.rule_type,groupQuantity:row.group_quantity,
-            groupPriceCents:moneyFromCents(row.group_price_cents),maxGroupsPerLine:row.max_groups_per_line}];
-        }
-        if (row.rule_type === "PERCENTUAL" && row.percentage_basis_points !== null) {
-          return [{...common,type:row.rule_type,percentageBasisPoints:row.percentage_basis_points}];
-        }
-        if (row.rule_type === "VALOR_FIXO_UNITARIO" && row.fixed_unit_price_cents !== null) {
-          return [{...common,type:row.rule_type,fixedUnitPriceCents:moneyFromCents(row.fixed_unit_price_cents)}];
-        }
-        if (row.rule_type === "LEVE_PAGUE" && row.group_quantity !== null && row.pay_quantity !== null) {
-          return [{...common,type:row.rule_type,buyQuantity:row.group_quantity,payQuantity:row.pay_quantity,
-            maxGroupsPerLine:row.max_groups_per_line}];
-        }
-        // Fail closed: checkout would still price this candidate, so the quote must not silently skip it.
-        throw new DomainError("PRICING_INVALID_RULE", "Promotion candidate is incomplete");
-      }),
+      rows.data.flatMap(promotionRule),
     );
     const response = pricingQuoteResponseSchema.parse({
       data: {

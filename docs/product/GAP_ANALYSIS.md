@@ -10,7 +10,7 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
 | Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging | Homologação física da rastreabilidade por lote | 2, 3, 11 |
 | Compras | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de obrigações integrados em staging; lote opcional conforme produto | Rastreabilidade integrada; homologar fisicamente e consolidar custo nos indicadores | 3 |
-| Pricing | QUANTIDADE_PRECO (PR #74), PERCENTUAL e VALOR_FIXO_UNITARIO (PR #78) e LEVE_PAGUE na cotação, checkout e administração versionada; política PROMO-004 | Escalonada, combo, cupom e consumo concorrente dos limites | 4 |
+| Pricing | QUANTIDADE_PRECO (PR #74), PERCENTUAL e VALOR_FIXO_UNITARIO (PR #78), LEVE_PAGUE (PR #80) e ESCALONADA na cotação, checkout e administração versionada; política PROMO-004 | Combo, cupom e consumo concorrente dos limites | 4 |
 | PDV | Checkout, confirmação Maquininha/Área Pix, fechamento e PWA read-only | Turno/histórico, caixa físico, método/terminal e dispositivos reais | 5 |
 | Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais; contas a pagar parciais/reversíveis integradas em staging | Contas/categorias gerais, despesas/importação/CSV e custo real consolidado nos relatórios | 3, 6 |
 | Reservas | Backend ACTIVE/CONVERTED/CANCELLED/EXPIRED e consulta/cancelamento próprio | Compra/pagamento, preparação, pronta retirada e entrega | 8 |
@@ -37,4 +37,4 @@ Estoque/compras, promoções, pagamentos/financeiro, Portal consumidor/crescimen
 
 Habilitação, credenciais e execução de sandbox ainda não foram comprovadas; não acessar segredos para produzir evidência documental. Confirmar schemas completos e comportamento de timeout/múltiplos pagamentos por link antes de ativar. Materiais públicos não autorizam integrações privadas de Tap/TEF/SDK, nem V.A./V.R. sem credenciamento.
 
-Trinta e nove migrations formam o schema integrado atual (a mais recente é `20260927120100_promotion_unit_rules.sql`); a fatia de leve/pague acrescenta duas migrations aditivas. Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
+Quarenta e uma migrations formam o schema integrado atual (a mais recente é `20260928090100_promotion_buy_pay_rules.sql`); a fatia escalonada acrescenta duas migrations aditivas. Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.

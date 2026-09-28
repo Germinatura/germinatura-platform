@@ -3,6 +3,7 @@ import {
   addMoney,
   applyBuyPayPromotion,
   applyQuantityFixedPricePromotion,
+  applyTieredPromotion,
   applyUnitPromotion,
   compareMoney,
   DomainError,
@@ -536,5 +537,35 @@ describe("LEVE_PAGUE promotions", () => {
     expectDomainError(() => applyBuyPayPromotion(item, { ...rule, payQuantity: 0 }), "INVALID_PROMOTION_PAY_QUANTITY");
     expectDomainError(() => applyBuyPayPromotion(item, { ...rule, payQuantity: 3 }), "INVALID_PROMOTION_PAY_QUANTITY");
     expectDomainError(() => applyBuyPayPromotion(item, { ...rule, buyQuantity: 1, payQuantity: 1 }), "INVALID_PROMOTION_BUY_QUANTITY");
+  });
+});
+
+describe("ESCALONADA promotions", () => {
+  // Mirrors supabase/tests/promotion_tiered_test.sql: R$ 25,90 with 3+ = 5% and 6+ = 8%.
+  const rule = { promotionId: "tiered", productId: "product-a", type: "ESCALONADA" as const,
+    tiers: [{ minQuantity: 3, percentageBasisPoints: 500 }, { minQuantity: 6, percentageBasisPoints: 800 }] };
+  const line = (quantity: number) => ({ productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity });
+
+  it("applies the highest reached tier to every unit, floored per unit", () => {
+    expect(applyTieredPromotion(line(2), rule).appliedPromotion).toBeNull();
+    // 5%: R$ 24,605 -> R$ 24,60 per unit.
+    expect(applyTieredPromotion(line(3), rule)).toMatchObject({ effectiveSubtotalCents: 7_380, discountCents: 390,
+      appliedPromotion: { minQuantity: 3, percentageBasisPoints: 500, discountedUnitPriceCents: 2_460, savingsCents: 390 }, rounding: "FLOOR_PER_UNIT" });
+    // 8%: R$ 23,828 -> R$ 23,82 per unit.
+    expect(applyTieredPromotion(line(6), rule)).toMatchObject({ effectiveSubtotalCents: 14_292, discountCents: 1_248,
+      appliedPromotion: { minQuantity: 6, percentageBasisPoints: 800, discountedUnitPriceCents: 2_382 } });
+  });
+
+  it("rejects tiers that do not grow in quantity and discount", () => {
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [] }), "INVALID_PROMOTION_TIERS");
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [{ minQuantity: 6, percentageBasisPoints: 800 }, { minQuantity: 3, percentageBasisPoints: 900 }] }), "INVALID_PROMOTION_TIERS");
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [{ minQuantity: 3, percentageBasisPoints: 800 }, { minQuantity: 6, percentageBasisPoints: 800 }] }), "INVALID_PROMOTION_TIERS");
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [{ minQuantity: 1, percentageBasisPoints: 500 }] }), "INVALID_PROMOTION_TIERS");
+  });
+
+  it("competes under PROMO-004 precedence", () => {
+    const fixed = { promotionId: "fixed", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(2_400), priority: 10 };
+    expect(priceCartWithPromotions([line(6)], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("ESCALONADA");
+    expect(priceCartWithPromotions([line(3)], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("VALOR_FIXO_UNITARIO");
   });
 });
