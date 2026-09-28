@@ -6,7 +6,7 @@ Estados: `TODO`, `IN PROGRESS`, `BLOCKED`, `DONE`. DONE exige jornada completa, 
 
 ## Base auditada
 
-Snapshot de 27/09/2026: `main` permanece em `95c4209` e passou a ser ancestral de `develop` pela PR #75 (merge commit `5cdfdea`, sem alteração de árvore); `develop` está em `8032d16` após a PR #76 (RBAC fail-closed). `main...develop` = `0 59`. Categorias, produtos, preços, imagens, perfil/navegação, operações de estoque, compras, contas a pagar, rastreabilidade de lotes (PR #73) e a administração transacional de `QUANTIDADE_PRECO` (PR #74) estão integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
+Snapshot de 28/09/2026: `main` permanece em `95c4209` e é ancestral de `develop` desde a PR #75 (merge commit `5cdfdea`, sem alteração de árvore); `develop` está em `1476741` após a PR #82 (promoção escalonada). `main...develop` = `0 65`; 43 migrations integradas. Categorias, produtos, preços, imagens, perfil/navegação, operações de estoque, compras, contas a pagar, rastreabilidade de lotes (PR #73), RBAC fail-closed (PR #76) e as promoções `QUANTIDADE_PRECO` (PR #74), `PERCENTUAL`/`VALOR_FIXO_UNITARIO` (PR #78), `LEVE_PAGUE` (PR #80) e `ESCALONADA` (PR #82), sob a política PROMO-004 (PR #79), estão integrados em staging. A divergência entre branches mede conteúdo e prontidão de produção, não quantidade de features.
 
 A evidência atual do branch `develop` foi registrada em documentação do produto e não substitui qualquer gate externo ou smoke autenticado. O status de staging continua condicionado à conta institucional controlada, à sandbox Payment Link e à homologação humana dos módulos pendentes. Produção não foi acessada.
 
@@ -34,7 +34,7 @@ flowchart LR
     E3 --> E9["9 · Gestão e indicadores<br/>IN PROGRESS"]
     E6 --> E9
     E8 --> E9
-    E8 --> E10["10 · Campanhas e comunidade<br/>TODO"]
+    E8 --> E10["10 · Campanhas operacionais<br/>TODO"]
     E9 --> E10
     E10 --> E11["11 · Homologação e release<br/>TODO"]
     S["Sandbox/credenciais<br/>validação externa"] -. habilita .-> E7
@@ -57,13 +57,13 @@ flowchart LR
 | 1 — Catálogo administrável | IN PROGRESS | 0 | Produtos/categorias, SKU, imagens Storage, canais, reserva/lote e preços auditados integrados em staging; falta o smoke autenticado da oferta completa |
 | 2 — Operação de estoque | IN PROGRESS | 1 | Distribuição, transferência solicitada/aceita, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging; rastreabilidade por lote/local e custo consumido integrados na PR #73; homologação física final pendente; nenhum saldo direto |
 | 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de contas a pagar integrados em staging; rastreabilidade do lote até venda integrada em staging; homologação física e indicadores consolidados de custo/margem pendentes |
-| 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada. Integrado: `QUANTIDADE_PRECO` na cotação/checkout e sua administração versionada (PR #74). `PERCENTUAL` (piso por unidade, a favor do cliente) e `VALOR_FIXO_UNITARIO` integrados (PR #78). Política de concorrência/cumulatividade registrada como PROMO-004 e coberta por testes (PR #79). `LEVE_PAGUE` integrado (PR #80). Em PR: `ESCALONADA`. Combo, cupons e consumo transacional de limites pendentes |
+| 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada. Integrado: `QUANTIDADE_PRECO` na cotação/checkout e sua administração versionada (PR #74). `PERCENTUAL` (piso por unidade, a favor do cliente) e `VALOR_FIXO_UNITARIO` integrados (PR #78). Política de concorrência/cumulatividade registrada como PROMO-004 e coberta por testes (PR #79). `LEVE_PAGUE` integrado (PR #80). `ESCALONADA` integrada (PR #82). Combo, cupons, consumo transacional de limites e consolidação das versões antigas de `get_pricing_quote_inputs` pendentes |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo |
 | 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões comuns e contas a pagar com liquidação parcial/reversão integradas; faltam contas/categorias gerais, despesas, taxas, recebíveis, importação validada por arquivo oficial e CSV real |
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
 | 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Carrinho/pedido/pagamento; preparar/retirar reserva; compra de números e rifa no PDV; publicação/pausa/cancelamento e reembolso seguro |
 | 9 — Gestão e indicadores | IN PROGRESS | 3, 6, 8 | Auditoria, configurações, desbloqueios, conta/sessões, Portal→PDV e indicadores completos por período; meta pública configurável |
-| 10 — Campanhas e comunidade | TODO | 8, 9 | Vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me, segmentação, mural, sugestões, enquetes e moderação |
+| 10 — Campanhas operacionais | TODO | 8, 9 | Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
 | 11 — Homologação e release | TODO | 1–10 | Jornada por papel, carga/acessibilidade, backup restaurado, alertas, runbooks, migrations revisadas e promoção autorizada |
 
 ## Plano paralelo de conclusão
@@ -76,11 +76,11 @@ O caminho crítico foi dividido em braços que avançam simultaneamente e conver
 | 1 — Fundações transacionais | Estoque; compras; promoções; intenção/receipt de pagamento; sessões/auditoria; contratos de campanhas/comunidade | Contratos, permissões e invariantes estáveis para as jornadas seguintes | GG |
 | 2 — Operação interna | Devolução/perda/inventário; recebimento/custo; promoções completas; turno/caixa; financeiro; campanhas | Operação interna completa e custos rastreáveis | GG |
 | 3 — Compra e pagamento | Carrinho/pedido; Payment Link; reservas; rifas; reembolsos; importação/CSV | Venda, estoque e financeiro refletem pagamento ou estorno exatamente uma vez | GG |
-| 4 — Gestão e comunidade | Indicadores; auditoria; conta/sessões; notificações; mural, enquetes e moderação | Cada papel conclui sua jornada e papéis indevidos são bloqueados também no banco | G |
+| 4 — Gestão e comunicação operacional | Indicadores; auditoria; conta/sessões; notificações operacionais (mural, enquetes e moderação ficam para o Marco 2) | Cada papel conclui sua jornada e papéis indevidos são bloqueados também no banco | G |
 | 5 — Homologação contínua | Staging por PR; concorrência; acessibilidade; desempenho; dispositivos; migrations; restore e alertas | A homologação final contém somente integração cruzada e correções residuais | G |
 | 6 — Candidato e release | SHA congelado, gates completos, runbooks e PR `develop → main` | Revisão homologada pronta para autorização explícita | M |
 
-Dependências críticas: estoque→compras/custos→financeiro/margem; catálogo→promoções→carrinho/pedidos; intenção local + credenciais→Payment Link→reservas/rifas/reembolsos. Campanhas editoriais, mural, sessões, auditoria e notificações avançam sem esperar Payment Link. O adapter pode ser construído e testado com contratos oficiais e fixtures locais, mas sandbox e webhook real não serão declarados homologados sem credenciais configuradas no ambiente governado.
+Dependências críticas: estoque→compras/custos→financeiro/margem; catálogo→promoções→carrinho/pedidos; intenção local + credenciais→Payment Link→reservas/rifas/reembolsos. Campanhas editoriais, sessões, auditoria e notificações operacionais avançam sem esperar Payment Link. A Rede Social Germinare fica fora do caminho do Marco 1. O adapter pode ser construído e testado com contratos oficiais e fixtures locais, mas sandbox e webhook real não serão declarados homologados sem credenciais configuradas no ambiente governado.
 
 ### Fronteiras para trabalho paralelo
 
@@ -116,6 +116,8 @@ O PWA já integrado permite somente shell/catálogo público datado, primeira p�
 
 O trabalho segue em trilhas paralelas e sem intervalos entre PRs destinados a `develop`: ao fechar uma fatia com CI, revisão, merge e staging, a próxima branch curta começa do novo `develop`. As únicas pausas obrigatórias são informação externa indispensável, migration destrutiva, segredo/custo de infraestrutura ou autorização do PR final para `main`.
 
+Ordem do Marco 1 depois de promoções (decisão de 28/09/2026): PDV/caixa → comercial/financeiro essencial → cliente/cardápio/pedidos → comunicação operacional → Payment Link → gestão/release.
+
 Sequência imediata: a administração de `QUANTIDADE_PRECO` com histórico e concorrência foi integrada pela PR #74; percentual/preço fixo foram integrados pela PR #78 e a política de concorrência foi fixada em PROMO-004; a seguir, avançar pelas regras leve-pague/combo/escalonada antes de cupons e limites transacionais. A conta institucional será solicitada quando o smoke autenticado puder ser executado; credenciais Payment Link e API Key do webhook serão solicitadas apenas quando o adapter fail-closed estiver pronto para sandbox. Produtos, preços, imagens, operações previstas de estoque e recebimentos de compra já estão integrados em staging. Fornecedores, pedidos e recebimentos foram integrados pelas PRs #66, #67 e #70.
 
 | Trilha | PRs coesos em ordem interna | Saída da trilha |
@@ -129,7 +131,7 @@ Sequência imediata: a administração de `QUANTIDADE_PRECO` com histórico e co
 | G — Payment Link | Contratos e intenção persistida; adapter OAuth backend; criação/consulta/inativação; receipt/webhook; recuperação; estorno; sandbox e falhas controladas | Etapa 7 `DONE`: cada pagamento ou estorno produz efeitos exatamente uma vez; flag só liga após homologação |
 | H — Compra, reservas e rifas | Carrinho/pedido; acompanhamento/pagamento; preparar/pronta/retirar; seleção e compra de números; rifa no PDV; ciclo editorial e reembolso | Etapa 8 `DONE`: consumidor e vendedor concluem as jornadas, inclusive concorrência e reversões antes/depois do sorteio |
 | I — Gestão | Auditoria pesquisável; configurações/desbloqueios; perfil/sessões; indicadores financeiros; meta pública | Etapa 9 `DONE`: cada papel consulta e executa suas responsabilidades com totais completos |
-| J — Crescimento e comunidade | Campanhas/eventos; links/QR/origem; textos/preferências/avise-me; segmentação; mural/posts/sugestões/enquetes; denúncias/moderação | Etapa 10 `DONE`: publicação e moderação funcionam de ponta a ponta, com privacidade e permissões testadas |
+| J — Campanhas operacionais | Campanhas/eventos; links/QR/origem; textos/preferências/avise-me; segmentação ligados a cardápio, pedidos, reservas e vendas | Etapa 10 `DONE` no Marco 1: campanhas e notificações operacionais funcionam de ponta a ponta. A Rede Social Germinare (mural/posts/sugestões/enquetes/denúncias/moderação) é Marco 2 |
 | K — Release | Jornada por papel; carga/acessibilidade; backup restaurado; alertas/runbooks; revisão de migrations; PR `develop → main` | Etapa 11 `DONE`: revisão homologada pronta para autorização explícita de promoção |
 
 ### Trilhas transversais
@@ -151,7 +153,7 @@ Branches curtas de develop, Conventional Commits, PR e squash; nunca force push.
 
 ## Evoluções condicionais
 
-App nativo, chat privado, cards automáticos, Web Push, SFTP, Open Finance e integração remota de terminal não bloqueiam o lançamento não opcional. Tap/V.A./V.R. exigem habilitação e processo próprios; permanecem indisponíveis até comprovação. Notificações in-app, campanhas e mural moderado fazem parte deste lançamento. Dinheiro físico foi aprovado com conta/controle próprios (ADR 0010).
+App nativo, chat privado, cards automáticos, Web Push, SFTP, Open Finance e integração remota de terminal não bloqueiam o lançamento não opcional. Tap/V.A./V.R. exigem habilitação e processo próprios; permanecem indisponíveis até comprovação. Notificações in-app e campanhas necessárias a cardápio, pedidos, reservas e vendas fazem parte do primeiro go-live (Marco 1). O mural moderado e demais recursos da Rede Social Germinare são Marco 2, depois do site operacional em produção. Dinheiro físico foi aprovado com conta/controle próprios (ADR 0010).
 
 ## Incremento de categorias — 08/09/2026
 
@@ -245,6 +247,6 @@ A PR #76 fez `hasPermission`/`primaryRole` falharem fechados: só papéis própr
 
 `LEVE_PAGUE` cobra, a cada grupo completo de `buyQuantity` unidades, somente `payQuantity` unidades, com limite opcional de grupos por item; não há arredondamento. A regra participa da mesma precedência PROMO-004 da cotação (`get_pricing_quote_inputs_v3` + domínio) e do checkout/reserva (`price_sale_items`). `save_promotion` passou a ser o comando único de administração para os quatro tipos: valida o documento da regra no banco (chaves exatas, inteiros sem fração), mantém o tipo imutável após a criação e preserva revisão otimista, idempotência, auditoria, outbox e versões imutáveis; os comandos anteriores continuam disponíveis por compatibilidade. A variante com item descontado (em vez de gratuito) citada na especificação continua pendente, assim como escalonada, combo, cupons e limites; a etapa 4 permanece `IN PROGRESS`.
 
-## Incremento de promoção escalonada — 28/09/2026
+## Incremento de promoção escalonada — 28/09/2026 (PR #82)
 
 `ESCALONADA` guarda de 1 a 10 faixas crescentes em quantidade e desconto (`minQuantity` a partir de 2, basis points de 0,01% a 99,99%). A maior faixa atingida aplica seu percentual a todas as unidades, com o mesmo piso por unidade do PROMO-003. Para evitar uma coluna nova por tipo, `get_pricing_quote_inputs_v4` devolve o documento canônico da regra (o mesmo do contrato de administração) e o checkout calcula cada candidato por `private.apply_promotion_rule`, escolhendo o vencedor pela precedência PROMO-004. Um candidato sem economia (por exemplo, preço zero) não é aplicado, como no domínio. `/admin/promocoes` ganhou um editor de faixas. Combo, cupons e limites seguem pendentes; a etapa 4 permanece `IN PROGRESS`.

@@ -96,7 +96,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 - **RES-001** — Reserva congela preço, bloqueia estoque e conclui/cancela/expira atomicamente.
 - **RAF-001** — Número de rifa é reservado concorrentemente; pagamento integra financeiro; sorteio é auditável.
 - **NOTIF-001** — Notificação in-app é MVP; e-mail/push são assíncronos e falhas não desfazem transação.
-- **COMM-001** — A Rede Social Germinare começa como mural moderado para identidades institucionais verificadas, sem mensagens privadas no MVP; publicação, comentário e moderação respeitam papéis, flags e permissões.
+- **COMM-001** (Marco 2) — A Rede Social Germinare começa como mural moderado para identidades institucionais verificadas, sem mensagens privadas no MVP; publicação, comentário e moderação respeitam papéis, flags e permissões.
 - **GROW-001** — Campanhas podem gerar texto, links rastreáveis e QR; cards automáticos são posteriores.
 
 ## Requisitos não funcionais
@@ -118,7 +118,9 @@ Bloqueados externamente: conta/KYC e representante legal; termos e habilitação
 
 MVP: fundação segura; cadastro institucional verificado e login por e-mail/username + senha; recuperação limitada e desbloqueio administrativo; bootstrap controlado do primeiro administrador; papéis cumulativos com provisionamento/ativação administrativa do vendedor; catálogo; centavos/pricing; ledger/localizações/reservas; checkout/venda; tentativa PicPay; PIX manual controlado e Maquininha manual auditada; idempotência/outbox; financeiro/conciliação básica; fechamento; reservas/rifas essenciais; notificações in-app.
 
-Lançamento v2.2 replanejado: incluir Payment Link homologado, dinheiro físico, todas as jornadas administrativas/comerciais, compras/custos, campanhas e mural moderado. As datas anteriores de 10/09 e 11/09 foram substituídas por marcos no ROADMAP. O recorte MVP acima descreve a base histórica, não o escopo final do lançamento.
+Lançamento v2.2 replanejado: incluir Payment Link homologado, dinheiro físico, todas as jornadas administrativas/comerciais, compras/custos e as campanhas operacionais.
+
+**Decisão de escopo (28/09/2026):** o primeiro go-live (Marco 1) não depende da Rede Social Germinare. Mural, posts, comentários, sugestões, enquetes, denúncias e moderação social (COMM-001) são Marco 2, depois do site operacional em produção. Campanhas e notificações necessárias a cardápio, pedidos, reservas e vendas continuam no Marco 1. Depois das promoções, a ordem do Marco 1 é: PDV/caixa → comercial/financeiro essencial → cliente/cardápio/pedidos → comunicação operacional → Payment Link → gestão/release. As datas anteriores de 10/09 e 11/09 foram substituídas por marcos no ROADMAP. O recorte MVP acima descreve a base histórica, não o escopo final do lançamento.
 
 Evoluções condicionais: automação SFTP, Web Push, cards automáticos, comunidade avançada, integração presencial privada oficial, Open Finance somente se conciliação justificar e app nativo/chat apenas com evidência de necessidade.
 
