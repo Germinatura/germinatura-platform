@@ -24,6 +24,11 @@ export const promotionSnapshotSchema = z.discriminatedUnion("type", [
     max_groups_per_line: z.number().int().positive().nullable(), groups: z.number().int().positive(),
     free_quantity: z.number().int().positive(), savings_cents: z.number().int().positive(),
   }),
+  z.object({
+    promotion_id: z.uuid(), type: z.literal("ESCALONADA"), priority: z.number().int(),
+    min_quantity: z.number().int().min(2), percentage_basis_points: z.number().int().min(1).max(9_999),
+    discounted_unit_price_cents: z.number().int().nonnegative(), savings_cents: z.number().int().positive(),
+  }),
 ]);
 
 export type PromotionSnapshot = z.infer<typeof promotionSnapshotSchema>;
@@ -45,5 +50,9 @@ export function publicPromotion(value: PromotionSnapshot) {
       return { promotionId: value.promotion_id, type: value.type, buyQuantity: value.buy_quantity,
         payQuantity: value.pay_quantity, groups: value.groups, freeQuantity: value.free_quantity,
         savingsCents: value.savings_cents };
+    case "ESCALONADA":
+      return { promotionId: value.promotion_id, type: value.type, minQuantity: value.min_quantity,
+        percentageBasisPoints: value.percentage_basis_points,
+        discountedUnitPriceCents: value.discounted_unit_price_cents, savingsCents: value.savings_cents };
   }
 }

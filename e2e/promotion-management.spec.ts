@@ -46,3 +46,25 @@ test("administra leve e pague e cobra só as unidades pagas na cotação públic
     await anonymous.dispose();
   }
 });
+
+test("administra escalonada com faixas e aplica a maior faixa atingida na cotação pública",async({page,playwright})=>{
+  test.slow();const productId="33f00000-0000-4000-8000-000000000001";
+  expect((await page.request.post(`${portal}/api/auth/login`,{headers,data:{identifier:"admin.teste",password:"Admin123!"}})).status()).toBe(200);await page.goto(`${portal}/admin/promocoes`);
+  const code=`E2E-ESC-${crypto.randomUUID()}`.toUpperCase();await page.getByLabel("Código").fill(code);await page.getByLabel("Nome").fill("Escalonada por quantidade");await page.getByLabel("Tipo de regra").selectOption("ESCALONADA");
+  await page.getByLabel("Faixa 1: a partir de (unidades)").fill("3");await page.getByLabel("Faixa 1: desconto (%)").fill("10");await page.getByRole("button",{name:"Adicionar faixa"}).click();await page.getByLabel("Faixa 2: a partir de (unidades)").fill("6");await page.getByLabel("Faixa 2: desconto (%)").fill("20");
+  await page.getByLabel("PORTAL").check();await page.getByLabel(/Item público A/).check();await page.getByLabel("Ativa").check();await page.getByLabel("Publicável").check();await page.getByLabel("Prioridade").fill("1000");await page.getByLabel("Motivo").fill("Validar escalonada no catálogo público");
+  const createResponse=page.waitForResponse((response)=>response.url()===endpoint&&response.request().method()==="POST");await page.getByRole("button",{name:"Salvar promoção"}).click();const created=await createResponse;expect(created.status()).toBe(201);const promotion=await created.json() as{data:Record<string,unknown>&{id:string;revision:number}};await expect(page.getByRole("listitem").filter({hasText:code})).toContainText("3+ = 10% · 6+ = 20%");
+  const anonymous=await playwright.request.newContext();
+  const quote=async(quantity:number)=>(await anonymous.post(`${portal}/api/v1/pricing/quote`,{headers:{Origin:portal},data:{channel:"PORTAL",items:[{productId,quantity}]}})).json();
+  try{
+    // 3 x R$ 25,90 com 10% = R$ 23,31 cada; 6 com 20% = R$ 20,72 cada.
+    await expect(quote(3)).resolves.toMatchObject({data:{rounding:"FLOOR_PER_UNIT",totalCents:6993,discountTotalCents:777,lines:[{appliedPromotion:{promotionId:promotion.data.id,type:"ESCALONADA",minQuantity:3,percentageBasisPoints:1000,discountedUnitPriceCents:2331}}]}});
+    await expect(quote(6)).resolves.toMatchObject({data:{totalCents:12432,lines:[{appliedPromotion:{minQuantity:6,percentageBasisPoints:2000,discountedUnitPriceCents:2072}}]}});
+    await expect(quote(2)).resolves.toMatchObject({data:{totalCents:5180,lines:[{appliedPromotion:null}]}});
+  }finally{
+    const{id,revision,correlationId:_correlationId,...current}=promotion.data;void _correlationId;
+    const deactivate=await page.request.post(endpoint,{headers:{...headers,"Idempotency-Key":`promotion-esc-off:${crypto.randomUUID()}`},data:{...current,id,expectedRevision:revision,active:false,publicable:false,reason:"Encerrar promoção de teste"}});expect(deactivate.status()).toBe(200);
+    await expect(quote(3)).resolves.toMatchObject({data:{totalCents:7770}});
+    await anonymous.dispose();
+  }
+});

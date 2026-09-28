@@ -200,8 +200,31 @@ export interface BuyPayPromotionExplanation {
   readonly savingsCents: MoneyCents;
 }
 
+export interface PromotionTier {
+  readonly minQuantity: number;
+  readonly percentageBasisPoints: number;
+}
+
+/** ESCALONADA: the highest reached tier applies its percentage to every unit (PROMO-003 floor per unit). */
+export interface TieredPromotionRule {
+  readonly promotionId: string;
+  readonly type: "ESCALONADA";
+  readonly productId: string;
+  readonly tiers: readonly PromotionTier[];
+}
+
+export interface TieredPromotionExplanation {
+  readonly promotionId: string;
+  readonly type: "ESCALONADA";
+  readonly minQuantity: number;
+  readonly percentageBasisPoints: number;
+  readonly discountedUnitPriceCents: MoneyCents;
+  readonly savingsCents: MoneyCents;
+}
+
 export type AppliedPromotionExplanation = QuantityFixedPricePromotionExplanation
-  | PercentagePromotionExplanation | FixedUnitPricePromotionExplanation | BuyPayPromotionExplanation;
+  | PercentagePromotionExplanation | FixedUnitPricePromotionExplanation | BuyPayPromotionExplanation
+  | TieredPromotionExplanation;
 
 export interface QuantityFixedPriceLineQuote {
   readonly productId: string;
@@ -222,7 +245,8 @@ export type PrioritizedPromotionRule =
   | PrioritizedQuantityPromotionRule
   | (PercentagePromotionRule & { readonly priority: number })
   | (FixedUnitPricePromotionRule & { readonly priority: number })
-  | (BuyPayPromotionRule & { readonly priority: number });
+  | (BuyPayPromotionRule & { readonly priority: number })
+  | (TieredPromotionRule & { readonly priority: number });
 
 export interface PromotedCartQuote {
   readonly lines: readonly QuantityFixedPriceLineQuote[];
@@ -496,6 +520,47 @@ export function applyBuyPayPromotion(
   };
 }
 
+export function applyTieredPromotion(
+  item: BasePricingItemInput,
+  rule: TieredPromotionRule,
+): QuantityFixedPriceLineQuote {
+  const baseLine = priceBaseCart([item]).lines[0];
+  assertCanonicalIdentifier(rule.promotionId, "INVALID_PROMOTION_ID", "Promotion ID");
+  assertCanonicalIdentifier(rule.productId, "INVALID_PROMOTION_PRODUCT_ID", "Promotion product ID");
+  if (rule.tiers.length < 1 || rule.tiers.length > 10) {
+    throw new DomainError("INVALID_PROMOTION_TIERS", "Tiered promotion needs between one and ten tiers");
+  }
+  rule.tiers.forEach((tier, index) => {
+    const previous = rule.tiers[index - 1];
+    if (!Number.isSafeInteger(tier.minQuantity) || tier.minQuantity < 2
+      || !Number.isSafeInteger(tier.percentageBasisPoints) || tier.percentageBasisPoints < 1 || tier.percentageBasisPoints > 9_999
+      || (previous && (tier.minQuantity <= previous.minQuantity || tier.percentageBasisPoints <= previous.percentageBasisPoints))) {
+      throw new DomainError("INVALID_PROMOTION_TIERS", "Tiers must grow in quantity and discount");
+    }
+  });
+  const unchanged: QuantityFixedPriceLineQuote = {
+    productId: baseLine.productId, unitPriceCents: baseLine.unitPriceCents,
+    quantity: baseLine.quantity, originalSubtotalCents: baseLine.subtotalCents,
+    discountCents: moneyFromCents(0), effectiveSubtotalCents: baseLine.subtotalCents,
+    appliedPromotion: null, rounding: "NONE",
+  };
+  if (rule.productId !== baseLine.productId) return unchanged;
+  const tier = [...rule.tiers].reverse().find((candidate) => candidate.minQuantity <= baseLine.quantity);
+  if (!tier) return unchanged;
+  const discountedUnitPriceCents = flooredPercentageUnitPrice(baseLine.unitPriceCents, tier.percentageBasisPoints);
+  const effectiveSubtotalCents = multiplyMoney(discountedUnitPriceCents, baseLine.quantity);
+  const discountCents = subtractMoney(baseLine.subtotalCents, effectiveSubtotalCents);
+  if (discountCents === 0) return unchanged;
+  return {
+    ...unchanged, discountCents, effectiveSubtotalCents,
+    appliedPromotion: {
+      promotionId: rule.promotionId, type: rule.type, minQuantity: tier.minQuantity,
+      percentageBasisPoints: tier.percentageBasisPoints, discountedUnitPriceCents, savingsCents: discountCents,
+    },
+    rounding: "FLOOR_PER_UNIT",
+  };
+}
+
 /** PROMO-004: code-unit order, matching PostgreSQL's byte-wise UUID ordering and independent of locale. */
 function compareIdentifiers(left: string, right: string): number {
   if (left === right) return 0;
@@ -514,7 +579,8 @@ export function priceCartWithPromotions(
       .filter((rule) => rule.productId === line.productId)
       .map((rule) => ({ rule, quote: rule.type === "QUANTIDADE_PRECO"
         ? applyQuantityFixedPricePromotion(line, rule)
-        : rule.type === "LEVE_PAGUE" ? applyBuyPayPromotion(line, rule) : applyUnitPromotion(line, rule) }))
+        : rule.type === "LEVE_PAGUE" ? applyBuyPayPromotion(line, rule)
+          : rule.type === "ESCALONADA" ? applyTieredPromotion(line, rule) : applyUnitPromotion(line, rule) }))
       .filter(({ quote }) => quote.appliedPromotion !== null)
       .sort((left, right) => (
         right.rule.priority - left.rule.priority

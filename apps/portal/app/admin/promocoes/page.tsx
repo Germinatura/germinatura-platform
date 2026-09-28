@@ -14,6 +14,7 @@ const channelRows = z.array(z.object({ promotion_id:z.uuid(),channel:z.enum(["PO
 const ruleRows = z.array(z.object({ promotion_id:z.uuid(),rule_type:z.literal("QUANTIDADE_PRECO"),group_quantity:z.number().int(),group_price_cents:z.number(),max_groups_per_line:z.number().int().nullable() }));
 const percentageRows=z.array(z.object({promotion_id:z.uuid(),rule_type:z.literal("PERCENTUAL"),percentage_basis_points:z.number().int()}));
 const fixedRows=z.array(z.object({promotion_id:z.uuid(),rule_type:z.literal("VALOR_FIXO_UNITARIO"),fixed_unit_price_cents:z.number().int()}));
+const tierRows=z.array(z.object({promotion_id:z.uuid(),min_quantity:z.number().int(),percentage_basis_points:z.number().int()}));
 const buyPayRows=z.array(z.object({promotion_id:z.uuid(),rule_type:z.literal("LEVE_PAGUE"),buy_quantity:z.number().int(),pay_quantity:z.number().int(),max_groups_per_line:z.number().int().nullable()}));
 
 export default async function PromotionsPage({ searchParams }:{ searchParams:Promise<{ after?:string }> }) {
@@ -27,7 +28,7 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
   const promotionsResult=await query;
   const parsedPromotions=promotionRows.safeParse(promotionsResult.data);
   const ids=parsedPromotions.success?parsedPromotions.data.map((item)=>item.id):[];
-  const [productsResult,scopesResult,channelsResult,rulesResult,percentagesResult,fixedResult,buyPayResult]=await Promise.all([
+  const [productsResult,scopesResult,channelsResult,rulesResult,percentagesResult,fixedResult,buyPayResult,tiersResult]=await Promise.all([
     client.from("products").select("id,sku,name,active").order("name"),
     ids.length?client.from("promotion_products").select("promotion_id,product_id").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
     ids.length?client.from("promotion_channels").select("promotion_id,channel").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
@@ -35,6 +36,7 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
     ids.length?client.from("promotion_percentage_rules").select("promotion_id,rule_type,percentage_basis_points").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
     ids.length?client.from("promotion_fixed_unit_price_rules").select("promotion_id,rule_type,fixed_unit_price_cents").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
     ids.length?client.from("promotion_buy_pay_rules").select("promotion_id,rule_type,buy_quantity,pay_quantity,max_groups_per_line").in("promotion_id",ids):Promise.resolve({data:[],error:null}),
+    ids.length?client.from("promotion_tiered_rule_tiers").select("promotion_id,min_quantity,percentage_basis_points").in("promotion_id",ids).order("min_quantity"):Promise.resolve({data:[],error:null}),
   ]);
   const products=productRows.safeParse(productsResult.data);
   const scopes=scopeRows.safeParse(scopesResult.data);
@@ -43,20 +45,24 @@ export default async function PromotionsPage({ searchParams }:{ searchParams:Pro
   const percentages=percentageRows.safeParse(percentagesResult.data);
   const fixed=fixedRows.safeParse(fixedResult.data);
   const buyPay=buyPayRows.safeParse(buyPayResult.data);
+  const tiers=tierRows.safeParse(tiersResult.data);
   const invalidAfter=Boolean(after&&!cursor.success);
-  const unavailable=Boolean(invalidAfter||promotionsResult.error||productsResult.error||scopesResult.error||channelsResult.error||rulesResult.error||percentagesResult.error||fixedResult.error||buyPayResult.error||!parsedPromotions.success||!products.success||!scopes.success||!channels.success||!rules.success||!percentages.success||!fixed.success||!buyPay.success);
+  const unavailable=Boolean(invalidAfter||promotionsResult.error||productsResult.error||scopesResult.error||channelsResult.error||rulesResult.error||percentagesResult.error||fixedResult.error||buyPayResult.error||tiersResult.error||!parsedPromotions.success||!products.success||!scopes.success||!channels.success||!rules.success||!percentages.success||!fixed.success||!buyPay.success||!tiers.success);
   const page=parsedPromotions.success?parsedPromotions.data.slice(0,50):[];
   const mapped=page.map((item)=>{
     const quantityRule=rules.success?rules.data.find((row)=>row.promotion_id===item.id):undefined;
     const percentageRule=percentages.success?percentages.data.find((row)=>row.promotion_id===item.id):undefined;
     const fixedRule=fixed.success?fixed.data.find((row)=>row.promotion_id===item.id):undefined;
     const buyPayRule=buyPay.success?buyPay.data.find((row)=>row.promotion_id===item.id):undefined;
+    const promotionTiers=tiers.success?tiers.data.filter((row)=>row.promotion_id===item.id):[];
     const rule=quantityRule?{type:"QUANTIDADE_PRECO" as const,groupQuantity:quantityRule.group_quantity,
       groupPriceCents:quantityRule.group_price_cents,maxGroupsPerLine:quantityRule.max_groups_per_line}
       :percentageRule?{type:"PERCENTUAL" as const,percentageBasisPoints:percentageRule.percentage_basis_points}
       :fixedRule?{type:"VALOR_FIXO_UNITARIO" as const,fixedUnitPriceCents:fixedRule.fixed_unit_price_cents}
       :buyPayRule?{type:"LEVE_PAGUE" as const,buyQuantity:buyPayRule.buy_quantity,payQuantity:buyPayRule.pay_quantity,
-        maxGroupsPerLine:buyPayRule.max_groups_per_line}:undefined;
+        maxGroupsPerLine:buyPayRule.max_groups_per_line}
+      :promotionTiers.length?{type:"ESCALONADA" as const,tiers:promotionTiers.map((tier)=>({minQuantity:tier.min_quantity,
+        percentageBasisPoints:tier.percentage_basis_points}))}:undefined;
     return managedPromotionSchema.safeParse({
       id:item.id,revision:item.revision,code:item.code,name:item.name,description:item.description,
       active:item.active,publicable:item.publicable,priority:item.priority,cumulative:item.cumulative,

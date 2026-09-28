@@ -18,8 +18,16 @@ export const buyPayRuleSchema = z.object({
   type: z.literal("LEVE_PAGUE"), buyQuantity: z.number().int().min(2).max(1_000),
   payQuantity: z.number().int().min(1), maxGroupsPerLine: z.number().int().positive().nullable(),
 }).strict().refine((rule) => rule.payQuantity < rule.buyQuantity, { message: "Pague menos unidades do que leva" });
+export const promotionTierSchema = z.object({
+  minQuantity: z.number().int().min(2).max(1_000_000), percentageBasisPoints: z.number().int().min(1).max(9_999),
+}).strict();
+export const tieredRuleSchema = z.object({
+  type: z.literal("ESCALONADA"), tiers: z.array(promotionTierSchema).min(1).max(10),
+}).strict().refine((rule) => rule.tiers.every((tier, index) => index === 0
+  || (tier.minQuantity > rule.tiers[index - 1].minQuantity && tier.percentageBasisPoints > rule.tiers[index - 1].percentageBasisPoints)),
+{ message: "As faixas devem crescer em quantidade e desconto" });
 export const managedPromotionRuleSchema = z.discriminatedUnion("type", [
-  quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema, buyPayRuleSchema,
+  quantityPriceRuleSchema, percentageRuleSchema, fixedUnitPriceRuleSchema, buyPayRuleSchema, tieredRuleSchema,
 ]);
 
 const managedPromotionFields = {

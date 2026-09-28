@@ -130,11 +130,20 @@ const appliedBuyPayPromotionSchema = z.object({
   freeQuantity: z.number().int().positive(),
   savingsCents: moneyCentsSchema,
 });
+const appliedTieredPromotionSchema = z.object({
+  promotionId: z.uuid(),
+  type: z.literal("ESCALONADA"),
+  minQuantity: z.number().int().min(2),
+  percentageBasisPoints: z.number().int().min(1).max(9_999),
+  discountedUnitPriceCents: moneyCentsSchema,
+  savingsCents: moneyCentsSchema,
+});
 export const appliedPromotionSchema = z.discriminatedUnion("type", [
   appliedQuantityPromotionSchema,
   appliedPercentagePromotionSchema,
   appliedFixedUnitPricePromotionSchema,
   appliedBuyPayPromotionSchema,
+  appliedTieredPromotionSchema,
 ]);
 export const pricingQuoteResponseSchema = z.object({
   data: z.object({
