@@ -8,7 +8,7 @@ import {
   DomainError,
   moneyFromCents,
   priceCartWithPromotions,
-  type PrioritizedPromotionRule,
+  type CartPromotionRule,
 } from "@germinatura/domain";
 import { createRequestId } from "@germinatura/observability";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -31,7 +31,7 @@ const databaseRowSchema = z.object({
 
 type DatabaseRow = z.infer<typeof databaseRowSchema>;
 
-function promotionRule(row: DatabaseRow): PrioritizedPromotionRule[] {
+function promotionRule(row: DatabaseRow): CartPromotionRule[] {
   if (row.promotion_id === null && row.rule === null) return [];
   // Fail closed: checkout would still price this candidate, so the quote must not silently skip it.
   if (row.promotion_id === null || row.rule === null || row.priority === null) {
@@ -44,6 +44,9 @@ function promotionRule(row: DatabaseRow): PrioritizedPromotionRule[] {
       return [{ ...common, ...rule, groupPriceCents: moneyFromCents(rule.groupPriceCents) }];
     case "VALOR_FIXO_UNITARIO":
       return [{ ...common, ...rule, fixedUnitPriceCents: moneyFromCents(rule.fixedUnitPriceCents) }];
+    case "COMBO_MIX":
+      // One row per component product; the domain keeps a single combo per promotion ID.
+      return [{ promotionId: common.promotionId, priority: common.priority, ...rule, comboPriceCents: moneyFromCents(rule.comboPriceCents) }];
     default:
       return [{ ...common, ...rule }];
   }

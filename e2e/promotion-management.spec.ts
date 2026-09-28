@@ -68,3 +68,23 @@ test("administra escalonada com faixas e aplica a maior faixa atingida na cotaç
     await anonymous.dispose();
   }
 });
+
+test("administra combo e rateia o desconto proporcionalmente na cotação do PDV",async({page})=>{
+  test.slow();const productA="33f00000-0000-4000-8000-000000000001";const productB="33f00000-0000-4000-8000-000000000002";
+  expect((await page.request.post(`${portal}/api/auth/login`,{headers,data:{identifier:"admin.teste",password:"Admin123!"}})).status()).toBe(200);await page.goto(`${portal}/admin/promocoes`);
+  const code=`E2E-COMBO-${crypto.randomUUID()}`.toUpperCase();await page.getByLabel("Código").fill(code);await page.getByLabel("Nome").fill("Combo A + B");await page.getByLabel("Tipo de regra").selectOption("COMBO_MIX");await page.getByLabel("Preço do combo (R$)").fill("35,00");
+  await page.getByLabel(/Item público A/).check();await page.getByLabel(/Item não publicado/).check();await page.getByLabel("Ativa").check();await page.getByLabel("Publicável").check();await page.getByLabel("Prioridade").fill("1000");await page.getByLabel("Motivo").fill("Validar combo no PDV");
+  const createResponse=page.waitForResponse((response)=>response.url()===endpoint&&response.request().method()==="POST");await page.getByRole("button",{name:"Salvar promoção"}).click();const created=await createResponse;expect(created.status()).toBe(201);const promotion=await created.json() as{data:Record<string,unknown>&{id:string;revision:number}};await expect(page.getByRole("listitem").filter({hasText:code})).toContainText("combo de 2 itens por");
+  const quote=async()=>(await page.request.post(`${portal}/api/v1/pricing/quote`,{headers,data:{channel:"PDV",items:[{productId:productA,quantity:3},{productId:productB,quantity:2}]}})).json();
+  try{
+    // A R$ 25,90 x 3 + B R$ 19,90 x 2 = 117,50; 2 combos por R$ 35,00 -> desconto 21,60 rateado 12,21 / 9,39.
+    await expect(quote()).resolves.toMatchObject({data:{originalTotalCents:11750,discountTotalCents:2160,totalCents:9590,lines:[
+      {productId:productA,discountCents:1221,appliedPromotion:{promotionId:promotion.data.id,type:"COMBO_MIX",combos:2,componentQuantity:2,savingsCents:1221}},
+      {productId:productB,discountCents:939,appliedPromotion:{type:"COMBO_MIX",combos:2,savingsCents:939}},
+    ]}});
+  }finally{
+    const{id,revision,correlationId:_correlationId,...current}=promotion.data;void _correlationId;
+    const deactivate=await page.request.post(endpoint,{headers:{...headers,"Idempotency-Key":`promotion-combo-off:${crypto.randomUUID()}`},data:{...current,id,expectedRevision:revision,active:false,publicable:false,reason:"Encerrar promoção de teste"}});expect(deactivate.status()).toBe(200);
+    await expect(quote()).resolves.toMatchObject({data:{discountTotalCents:0}});
+  }
+});

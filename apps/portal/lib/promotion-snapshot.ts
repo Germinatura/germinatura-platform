@@ -29,6 +29,11 @@ export const promotionSnapshotSchema = z.discriminatedUnion("type", [
     min_quantity: z.number().int().min(2), percentage_basis_points: z.number().int().min(1).max(9_999),
     discounted_unit_price_cents: z.number().int().nonnegative(), savings_cents: z.number().int().positive(),
   }),
+  z.object({
+    promotion_id: z.uuid(), type: z.literal("COMBO_MIX"), priority: z.number().int(),
+    combo_price_cents: z.number().int().nonnegative(), combos: z.number().int().positive(),
+    component_quantity: z.number().int().positive(), savings_cents: z.number().int().nonnegative(),
+  }),
 ]);
 
 export type PromotionSnapshot = z.infer<typeof promotionSnapshotSchema>;
@@ -54,5 +59,8 @@ export function publicPromotion(value: PromotionSnapshot) {
       return { promotionId: value.promotion_id, type: value.type, minQuantity: value.min_quantity,
         percentageBasisPoints: value.percentage_basis_points,
         discountedUnitPriceCents: value.discounted_unit_price_cents, savingsCents: value.savings_cents };
+    case "COMBO_MIX":
+      return { promotionId: value.promotion_id, type: value.type, comboPriceCents: value.combo_price_cents,
+        combos: value.combos, componentQuantity: value.component_quantity, savingsCents: value.savings_cents };
   }
 }

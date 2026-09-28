@@ -138,12 +138,21 @@ const appliedTieredPromotionSchema = z.object({
   discountedUnitPriceCents: moneyCentsSchema,
   savingsCents: moneyCentsSchema,
 });
+const appliedComboPromotionSchema = z.object({
+  promotionId: z.uuid(),
+  type: z.literal("COMBO_MIX"),
+  comboPriceCents: moneyCentsSchema,
+  combos: z.number().int().positive(),
+  componentQuantity: z.number().int().positive(),
+  savingsCents: moneyCentsSchema,
+});
 export const appliedPromotionSchema = z.discriminatedUnion("type", [
   appliedQuantityPromotionSchema,
   appliedPercentagePromotionSchema,
   appliedFixedUnitPricePromotionSchema,
   appliedBuyPayPromotionSchema,
   appliedTieredPromotionSchema,
+  appliedComboPromotionSchema,
 ]);
 export const pricingQuoteResponseSchema = z.object({
   data: z.object({

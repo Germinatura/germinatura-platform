@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addMoney,
+  allocateComboDiscount,
   applyBuyPayPromotion,
   applyQuantityFixedPricePromotion,
   applyTieredPromotion,
@@ -567,5 +568,58 @@ describe("ESCALONADA promotions", () => {
     const fixed = { promotionId: "fixed", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(2_400), priority: 10 };
     expect(priceCartWithPromotions([line(6)], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("ESCALONADA");
     expect(priceCartWithPromotions([line(3)], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("VALOR_FIXO_UNITARIO");
+  });
+});
+
+describe("COMBO_MIX promotions", () => {
+  // Mirrors supabase/tests/promotion_combo_test.sql: A R$ 25,90 x 3, B R$ 19,90 x 2, A+B por R$ 35,00.
+  const itemA = { productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity: 3 };
+  const itemB = { productId: "product-b", unitPriceCents: moneyFromCents(1_990), quantity: 2 };
+  const combo = { promotionId: "7c000000-0000-4000-8000-000000000001", type: "COMBO_MIX" as const,
+    components: [{ productId: "product-a", quantity: 1 }, { productId: "product-b", quantity: 1 }],
+    comboPriceCents: moneyFromCents(3_500), maxCombosPerCart: null, priority: 300 };
+
+  it("allocates the discount proportionally with the largest remainder", () => {
+    // 2 combos: discount 2160 over values 5180 (A) and 3980 (B) -> 1221.48 / 938.52; the spare cent goes to B.
+    const quote = priceCartWithPromotions([itemA, itemB], [combo]);
+    expect(quote).toMatchObject({ originalTotalCents: 11_750, discountTotalCents: 2_160, totalCents: 9_590 });
+    expect(quote.lines[0]).toMatchObject({ discountCents: 1_221, effectiveSubtotalCents: 6_549,
+      appliedPromotion: { type: "COMBO_MIX", combos: 2, componentQuantity: 2, savingsCents: 1_221 } });
+    expect(quote.lines[1]).toMatchObject({ discountCents: 939, effectiveSubtotalCents: 3_041,
+      appliedPromotion: { combos: 2, componentQuantity: 2, savingsCents: 939 } });
+    expect(allocateComboDiscount(moneyFromCents(2_160), [{ productId: "product-a", valueCents: moneyFromCents(5_180) }, { productId: "product-b", valueCents: moneyFromCents(3_980) }]))
+      .toEqual(new Map([["product-a", 1_221], ["product-b", 939]]));
+  });
+
+  it("breaks equal remainders by higher value, then product ID", () => {
+    expect(allocateComboDiscount(moneyFromCents(1), [{ productId: "b", valueCents: moneyFromCents(100) }, { productId: "a", valueCents: moneyFromCents(100) }]))
+      .toEqual(new Map([["b", 0], ["a", 1]]));
+  });
+
+  it("needs every component in the cart and honors the combo limit", () => {
+    expect(priceCartWithPromotions([itemA], [combo]).lines[0].appliedPromotion).toBeNull();
+    expect(priceCartWithPromotions([itemA, itemB], [{ ...combo, maxCombosPerCart: 1 }])).toMatchObject({ discountTotalCents: 1_080 });
+  });
+
+  it("competes with line rules under PROMO-004", () => {
+    const percentA = { promotionId: "7c000000-0000-4000-8000-000000000009", productId: "product-a", type: "PERCENTUAL" as const, percentageBasisPoints: 1_000, priority: 300 };
+    // Same priority: combo cart 9590 beats 10% on A (6993 + 3980 = 10973).
+    expect(priceCartWithPromotions([itemA, itemB], [percentA, combo]).lines[0].appliedPromotion?.type).toBe("COMBO_MIX");
+    // Higher line priority keeps the line rule and leaves B at full price.
+    const quote = priceCartWithPromotions([itemA, itemB], [{ ...percentA, priority: 400 }, combo]);
+    expect(quote.lines[0].appliedPromotion?.type).toBe("PERCENTUAL");
+    expect(quote.lines[1].appliedPromotion).toBeNull();
+  });
+
+  it("lets a line join at most one combo and stays independent of rule order", () => {
+    const cheaper = { ...combo, promotionId: "7c000000-0000-4000-8000-000000000002", comboPriceCents: moneyFromCents(3_000), priority: 100 };
+    const expected = priceCartWithPromotions([itemA, itemB], [combo, cheaper]);
+    expect(expected.lines.every((line) => line.appliedPromotion?.promotionId === combo.promotionId)).toBe(true);
+    expect(priceCartWithPromotions([itemA, itemB], [cheaper, combo, combo])).toEqual(expected);
+  });
+
+  it("fails closed on a combo that does not save", () => {
+    expectDomainError(() => priceCartWithPromotions([itemA, itemB], [{ ...combo, comboPriceCents: moneyFromCents(4_580) }]), "INVALID_PROMOTION_COMBO_PRICE");
+    expectDomainError(() => priceCartWithPromotions([itemA, itemB], [{ ...combo, components: [combo.components[0]] }]), "INVALID_PROMOTION_COMBO");
   });
 });
