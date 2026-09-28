@@ -397,6 +397,93 @@ export const mySalesResponseSchema = z.object({
 }).strict();
 export type MySalesResponse = z.infer<typeof mySalesResponseSchema>;
 
+// Etapa 6: finance sale list and detail. Dates are São Paulo calendar days (YYYY-MM-DD), both inclusive.
+const saleChannelSchema = z.enum(["PORTAL", "PDV", "RESERVA"]);
+const calendarDaySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const adminSalesQuerySchema = z.object({
+  status: saleStatusSchema.exclude(["DRAFT"]).optional(),
+  channel: saleChannelSchema.optional(),
+  pending: z.enum(["true", "false"]).optional(),
+  from: calendarDaySchema.optional(),
+  to: calendarDaySchema.optional(),
+  cursor: z.uuid().optional(),
+}).strict().refine((value) => !value.from || !value.to || value.from <= value.to, { message: "Período inválido", path: ["to"] });
+
+export const adminSaleSchema = z.object({
+  saleId: z.uuid(),
+  status: saleStatusSchema.exclude(["DRAFT"]),
+  channel: saleChannelSchema,
+  createdAt: z.iso.datetime({ offset: true }),
+  locationId: z.uuid(),
+  locationName: z.string(),
+  sellerId: z.uuid(),
+  sellerName: z.string(),
+  originalTotalCents: moneyCentsSchema,
+  discountTotalCents: moneyCentsSchema,
+  totalCents: moneyCentsSchema,
+  pendingReason: z.enum(["AWAITING_PAYMENT", "RECONCILIATION_PENDING"]).nullable(),
+  payment: z.object({
+    attemptId: z.uuid(),
+    status: paymentAttemptStatusSchema,
+    integrationChannel: paymentIntegrationChannelSchema.nullable(),
+    confirmationSource: paymentConfirmationSourceSchema.nullable(),
+    confirmedAt: z.iso.datetime({ offset: true }).nullable(),
+    proofReference: z.string().nullable(),
+    cardMethod: cardPaymentMethodSchema.nullable(),
+    terminalCode: z.string().nullable(),
+  }).strict().nullable(),
+}).strict();
+export type AdminSale = z.infer<typeof adminSaleSchema>;
+
+export const adminSalesResponseSchema = z.object({
+  data: z.array(adminSaleSchema),
+  nextCursor: z.uuid().nullable(),
+  request_id: z.string().min(1),
+}).strict();
+
+export const adminSaleDetailSchema = adminSaleSchema.extend({
+  items: z.array(z.object({
+    productName: z.string(),
+    productSku: z.string(),
+    quantity: z.number().int().positive(),
+    unitPriceCents: moneyCentsSchema,
+    discountCents: moneyCentsSchema,
+    totalCents: moneyCentsSchema,
+  }).strict()),
+  ledger: z.array(z.object({
+    id: z.uuid(),
+    entryType: z.string(),
+    amountCents: z.number().int().refine(Number.isSafeInteger),
+    createdAt: z.iso.datetime({ offset: true }),
+    refundMethod: z.enum(["OTHER", "CASH_DRAWER"]).nullable(),
+    reference: z.string().nullable(),
+  }).strict()),
+  cashMovements: z.array(z.object({
+    id: z.uuid(),
+    movementType: z.enum(["OPENING_FLOAT", "SALE_RECEIPT", "REFUND_PAYOUT"]),
+    amountCents: z.number().int().refine(Number.isSafeInteger),
+    shiftId: z.uuid(),
+    createdAt: z.iso.datetime({ offset: true }),
+  }).strict()),
+  history: z.array(z.object({
+    fromStatus: saleStatusSchema.nullable(),
+    toStatus: saleStatusSchema,
+    reason: z.string().nullable(),
+    createdAt: z.iso.datetime({ offset: true }),
+  }).strict()),
+  reversal: z.object({
+    allowed: z.boolean(),
+    blockedReason: z.string().nullable(),
+    cashPayoutAllowed: z.boolean(),
+  }).strict(),
+}).strict();
+export type AdminSaleDetail = z.infer<typeof adminSaleDetailSchema>;
+
+export const adminSaleDetailResponseSchema = z.object({
+  data: adminSaleDetailSchema,
+  request_id: z.string().min(1),
+}).strict();
+
 export const commercialReservationCreateRequestSchema = z.object({
   locationId: z.uuid(),
   couponCode: couponCodeSchema.optional(),

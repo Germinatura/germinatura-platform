@@ -72,6 +72,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 - **SALE-001** — Cobrar recalcula carrinho, reserva estoque e cria venda/tentativa com `Idempotency-Key` em uma transação.
 - **SALE-002** — Venda só conclui com pagamento confirmado ou método manual autorizado; conclusão cria estoque e financeiro atomicamente.
 - **SALE-003** — Cancelamento não exclui: registra motivo e cria reversões vinculadas, repetíveis sem duplicação.
+- **SALE-004** — Administração de vendas (etapa 6, 30/09/2026): quem tem `sales.read.all` consulta todas as vendas (exceto rascunhos) por situação, canal, pendência e período em dias de São Paulo (início e fim inclusivos, aplicados como intervalo fechado-aberto), com vendedor, local e método; o detalhe mostra itens, pagamento, lançamentos, movimentos de caixa e histórico. O estorno de venda concluída é feito pelo financeiro nessa tela, com motivo e referência não sensível, informando se o valor voltou por outro meio ou em dinheiro por um turno aberto (PAY-009a); a tela só oferece o estorno quando o comando o aceitaria.
 - **CLOSE-001** — Fechamento compara estoque, vendas e pagamentos; divergência exige justificativa e reabertura é auditada.
 - **PWA-001** — O PDV pode cachear shell/catálogo, mas nunca conclui operação crítica offline.
 

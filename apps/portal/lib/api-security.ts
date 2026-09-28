@@ -38,6 +38,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/shifts", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals/:id", methods: ["PATCH"], access: "finance" },
+  { path: "/api/v1/admin/finance/sales", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/sales/:id", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/settlements/:id/reverse", methods: ["POST"], access: "finance" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
@@ -149,6 +151,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/finance/terminals/:id") {
       return /^\/api\/v1\/admin\/finance\/terminals\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/sales/:id") {
+      return /^\/api\/v1\/admin\/finance\/sales\/[0-9a-f-]+$/i.test(path);
     }
     if (rule.path === "/api/v1/payments/:id/reconciliations") {
       return /^\/api\/v1\/payments\/[0-9a-f-]+\/reconciliations$/i.test(path);
