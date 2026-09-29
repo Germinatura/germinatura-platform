@@ -63,7 +63,7 @@ flowchart LR
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
 | 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Administração de reservas com prazos configuráveis e preparo para retirada (RES-002, #95). Retirada no PDV com cobrança pelo preço congelado (RES-003, #96). Carrinho de reserva no catálogo do Portal (RES-004, #97). Carrinho/pedido/pagamento; preparar/retirar reserva; compra de números e rifa no PDV; publicação/pausa/cancelamento e reembolso seguro |
 | 9 — Gestão e indicadores | IN PROGRESS | 3, 6, 8 | Auditoria, configurações, desbloqueios, conta/sessões, Portal→PDV e indicadores completos por período; meta pública configurável |
-| 10 — Campanhas operacionais | IN PROGRESS | 8, 9 | Avisos operacionais automáticos (NOTIF-002, #98). Em PR: avisos manuais segmentados (NOTIF-003). Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
+| 10 — Campanhas operacionais | IN PROGRESS | 8, 9 | Avisos operacionais automáticos (NOTIF-002, #98). Avisos manuais segmentados (NOTIF-003, #99). Em PR: preferências e avise-me (NOTIF-004). Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
 | 11 — Homologação e release | TODO | 1–10 | Jornada por papel, carga/acessibilidade, backup restaurado, alertas, runbooks, migrations revisadas e promoção autorizada |
 
 ## Plano paralelo de conclusão
@@ -310,3 +310,7 @@ Spec 5.15 (NOTIF-002). O worker do outbox passou a transformar em avisos in-app 
 ## Incremento de avisos segmentados — 29/09/2026
 
 Spec 5.15 (NOTIF-003). Administração e Comunicação ganharam Comunicação › Avisos: título e mensagem para todos, por perfil ou para e-mails específicos, com o público congelado no envio e entrega pelo worker na central de notificações. E-mails sem cadastro ativo são recusados. Pendentes: turmas (sem cadastro), agendamento, preferências e avise-me.
+
+## Incremento de preferências e avise-me — 29/09/2026
+
+Spec 4.2 e 4.7 (NOTIF-004). A central de notificações ganhou preferências por categoria (hoje com efeito em comunicados e estoque de volta), o catálogo passou a indicar disponível/indisponível no estoque central e, em produto indisponível, o botão "Avise-me quando voltar" registra um aviso único, disparado pelo worker quando o estoque volta. Produto indisponível deixa de oferecer a reserva. Próximo: avisos de novos produtos, promoções e rifas.

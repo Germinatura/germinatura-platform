@@ -78,6 +78,12 @@ export async function GET(request: Request) {
   const hasMore = parsedRows.data.length > limit;
   const rows = parsedRows.data.slice(0, limit);
   const storage = supabase.storage.from("product-images");
+  // A failed availability lookup only hides the flag; it never breaks the catalog.
+  const availability = rows.length > 0
+    ? await supabase.rpc("portal_availability", { p_product_ids: rows.map((row) => row.id) })
+    : { data: [], error: null };
+  const availableById = new Map(availability.error ? [] : z.array(z.object({ product_id: z.uuid(), available: z.boolean() }))
+    .catch([]).parse(availability.data).map((item) => [item.product_id, item.available] as const));
   const response = publicCatalogProductsResponseSchema.parse({
     data: rows.map((row) => ({
       id: row.id,
@@ -89,6 +95,7 @@ export async function GET(request: Request) {
       price: { amountCents: row.prices[0].amount_cents, currency: "BRL" },
       sellablePdv: row.sellable_pdv,
       reservable: row.reservable,
+      portalAvailable: availableById.get(row.id),
       images: row.images.sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id)).map((image) => ({
         id: image.id, altText: image.alt_text, sortOrder: image.sort_order,
         publicUrl: storage.getPublicUrl(image.object_path).data.publicUrl,

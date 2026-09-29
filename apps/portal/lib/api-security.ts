@@ -67,6 +67,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/reservations/:id/convert", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/notifications", methods: ["GET"], access: "authenticated" },
   { path: "/api/v1/notifications/:id/read", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/notifications/preferences", methods: ["GET", "PUT"], access: "authenticated" },
+  { path: "/api/v1/catalog/stock-alerts", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/catalog/products/:id/stock-alert", methods: ["PUT"], access: "authenticated" },
   { path: "/api/v1/feature-flags", methods: ["GET"], access: "authenticated" },
   { path: "/api/v1/admin/feature-flags/:key", methods: ["PATCH"], access: "admin" },
   { path: "/api/v1/admin/raffles", methods: ["POST"], access: "admin" },
@@ -184,6 +187,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/reservations/:id/convert") {
       return /^\/api\/v1\/reservations\/[0-9a-f-]+\/convert$/i.test(path);
+    }
+    if (rule.path === "/api/v1/catalog/products/:id/stock-alert") {
+      return /^\/api\/v1\/catalog\/products\/[0-9a-f-]+\/stock-alert$/i.test(path);
     }
     if (rule.path === "/api/v1/notifications/:id/read") {
       return /^\/api\/v1\/notifications\/[0-9a-f-]+\/read$/i.test(path);

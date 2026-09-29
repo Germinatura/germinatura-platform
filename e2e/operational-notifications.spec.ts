@@ -33,7 +33,7 @@ async function processOutbox() {
   if (!url || !key || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(url)) throw new Error("Supabase local indisponível para o worker E2E");
   const auth = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   const worker = `e2e-worker-${Date.now().toString(36)}`;
-  for (let round = 0; round < 5; round += 1) {
+  for (let round = 0; round < 50; round += 1) {
     const claimed = await fetch(`${url}/rest/v1/rpc/worker_claim_outbox_events`, { method: "POST", headers: auth,
       body: JSON.stringify({ p_worker_id: worker, p_batch_size: 100, p_lease_seconds: 300 }) });
     const events = await claimed.json() as Array<{ id: string }>;

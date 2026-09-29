@@ -66,6 +66,8 @@ export const publicCatalogProductSchema = z.object({
   }),
   sellablePdv: z.boolean(),
   reservable: z.boolean(),
+  // NOTIF-004 / spec 4.2: yes/no availability in the central (Portal) stock; quantities are never exposed.
+  portalAvailable: z.boolean().optional(),
   images: z.array(z.object({
     id: z.uuid(),
     altText: z.string().trim().min(1).max(180),
@@ -1121,7 +1123,18 @@ export const notificationKindSchema = z.enum([
   "TRANSFER_PENDING",
   "SALE_DIVERGENT",
   "ANNOUNCEMENT",
+  "PRODUCT_BACK_IN_STOCK",
 ]);
+
+// Spec 4.7 (NOTIF-004): optional notification categories each user can turn off.
+export const notificationCategorySchema = z.enum(["NOVOS_PRODUTOS", "PROMOCOES", "ESTOQUE_DE_VOLTA", "EVENTOS", "RIFAS", "COMUNICADOS"]);
+export type NotificationCategory = z.infer<typeof notificationCategorySchema>;
+export const notificationPreferencesResponseSchema = z.object({
+  data: z.array(z.object({ category: notificationCategorySchema, enabled: z.boolean() }).strict()),
+  request_id: z.string().min(1),
+}).strict();
+export const setNotificationPreferenceRequestSchema = z.object({ category: notificationCategorySchema, enabled: z.boolean() }).strict();
+export const setStockAlertRequestSchema = z.object({ enabled: z.boolean() }).strict();
 
 export const notificationsQuerySchema = z.object({
   cursor: z.uuid().optional(),
