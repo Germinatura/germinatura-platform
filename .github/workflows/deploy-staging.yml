@@ -4,6 +4,11 @@ on:
   push:
     branches: [develop]
   workflow_dispatch:
+    inputs:
+      payment_link_sandbox_check:
+        description: Run the PicPay Payment Link sandbox check after deploying (docs/operations/payment-link-runbook.md)
+        type: boolean
+        default: false
 
 concurrency:
   group: germinatura-staging
@@ -69,3 +74,13 @@ jobs:
           curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/catalog/products?limit=1"
           test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${NEXT_PUBLIC_PDV_URL}/api/v1/auth/session")" = "401"
       - run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "${JOBS_URL}/health"
+      - name: Payment Link sandbox check
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.payment_link_sandbox_check }}
+        # Sandbox only (the worker refuses other hosts); writes nothing to the database; prints step outcomes only.
+        run: |
+          status=$(curl --silent --show-error --output result.json --write-out '%{http_code}' --max-time 120 \
+            -X POST -H "Authorization: Bearer $SUPABASE_SECRET_KEY" "${JOBS_URL}/diagnostics/payment-link-sandbox")
+          echo "HTTP $status"
+          jq . result.json
+          test "$status" = "200"
+          jq -e '.ok == true' result.json > /dev/null

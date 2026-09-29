@@ -52,7 +52,7 @@ Gerar uma nova credencial revoga a anterior em 7 dias; guardar o `client_secret`
 
 ## Verificação automática do sandbox (sem webhook)
 
-O workflow manual **Payment Link Sandbox Check** (GitHub Actions → Payment Link Sandbox Check → Run workflow) chama `POST /diagnostics/payment-link-sandbox` no worker de staging, autenticado pelo segredo do Supabase que o workflow já recebe.
+O **Deploy Staging** disparado manualmente com a opção `payment_link_sandbox_check` (GitHub Actions → Deploy Staging → Run workflow → branch `develop`, marcar a opção; ou `gh workflow run deploy-staging.yml --ref develop -f payment_link_sandbox_check=true`) chama, depois do deploy, `POST /diagnostics/payment-link-sandbox` no worker de staging, autenticado pelo segredo do Supabase que o workflow já recebe. Um workflow separado não pode ser disparado enquanto não existir na `main`.
 
 - **Recusas:** o worker só roda se as URLs configuradas forem exatamente as do sandbox; caso contrário responde 409. Não grava nada no banco e mostra apenas quais configurações existem (sim/não) e o resultado de cada passo.
 - **Passos:** OAuth; link inexistente (404); transações vazias; falha de transações (500); criação de um link de R$ 1,00; consulta; transações do link; inativação duas vezes (a segunda prova a idempotência); consulta após inativar; estorno aceito e estorno recusado, com os IDs de teste documentados.
