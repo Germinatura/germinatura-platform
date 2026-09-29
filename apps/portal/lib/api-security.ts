@@ -1,4 +1,4 @@
-export type ApiAccessLevel = "public" | "authenticated" | "seller" | "stock" | "finance" | "inventory" | "procurement" | "admin";
+export type ApiAccessLevel = "public" | "authenticated" | "seller" | "stock" | "finance" | "inventory" | "procurement" | "communications" | "admin";
 
 interface ApiAccessRule {
   path: string;
@@ -85,6 +85,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin" },
   { path: "/api/v1/admin/reservations", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/announcements", methods: ["GET", "POST"], access: "communications" },
   { path: "/api/v1/admin/reservations/settings", methods: ["GET", "PUT"], access: "admin" },
   { path: "/api/v1/admin/reservations/:id/ready", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },
@@ -213,6 +214,7 @@ export function rolesSatisfyAccess(roles: readonly string[], access: ApiAccessLe
   if (access === "inventory") return roles.includes("ADMIN") || roles.includes("ESTOQUE");
   if (access === "procurement") return roles.includes("ADMIN") || roles.includes("ESTOQUE");
   if (access === "stock") return roles.includes("ADMIN") || roles.includes("VENDEDOR") || roles.includes("ESTOQUE");
+  if (access === "communications") return roles.includes("ADMIN") || roles.includes("COMUNICACAO");
   return roles.includes("ADMIN") || roles.includes("VENDEDOR");
 }
 

@@ -940,6 +940,41 @@ export const appRoleSchema = z.enum([
 ]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 
+// Spec 5.15 (NOTIF-003): announcements to everyone, to roles or to specific users by e-mail.
+export const publishAnnouncementRequestSchema = z.object({
+  title: z.string().trim().min(3).max(160),
+  body: z.string().trim().min(3).max(1000),
+  all: z.boolean(),
+  roles: z.array(appRoleSchema).max(7),
+  emails: z.array(z.string().trim().toLowerCase().pipe(z.email())).max(200),
+}).strict().refine((value) => value.all || value.roles.length > 0 || value.emails.length > 0, {
+  message: "Escolha para quem enviar", path: ["roles"],
+});
+export type PublishAnnouncementRequest = z.infer<typeof publishAnnouncementRequestSchema>;
+
+export const announcementSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  body: z.string(),
+  audienceAll: z.boolean(),
+  audienceRoles: z.array(z.string()),
+  audienceEmails: z.array(z.string()),
+  recipientCount: z.number().int().positive(),
+  createdAt: z.iso.datetime({ offset: true }),
+  createdByName: z.string(),
+}).strict();
+export type Announcement = z.infer<typeof announcementSchema>;
+
+export const announcementsResponseSchema = z.object({
+  data: z.array(announcementSchema),
+  request_id: z.string().min(1),
+}).strict();
+
+export const publishAnnouncementResponseSchema = z.object({
+  data: z.object({ id: z.uuid(), title: z.string(), recipientCount: z.number().int().positive(), correlationId: z.uuid() }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+
 export const institutionalEmailSchema = z.string().max(254)
   .transform((value) => value.trim().toLowerCase())
   .pipe(z.email().refine(
@@ -1085,6 +1120,7 @@ export const notificationKindSchema = z.enum([
   "RETURN_PENDING",
   "TRANSFER_PENDING",
   "SALE_DIVERGENT",
+  "ANNOUNCEMENT",
 ]);
 
 export const notificationsQuerySchema = z.object({
