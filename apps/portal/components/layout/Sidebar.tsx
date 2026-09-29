@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, Megaphone, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -26,6 +26,7 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
   const canInspectInventory = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false);
   const canManageProcurement = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false);
   const canManageCloseouts = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "FINANCEIRO") ?? false);
+  const canCommunicate = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "COMUNICACAO") ?? false);
   const canBrowseCatalog = !isAdmin && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR" || role === "ESTOQUE") ?? false);
   const canManageOwnReservations = !isAdmin && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
   const canBrowseRaffles = !isAdmin && enabledFeatures.includes("raffles") && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
@@ -141,6 +142,15 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Link href="/admin/financeiro/maquininhas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/maquininhas"))} title={collapsed ? "Maquininhas" : undefined}>
               {pathname.startsWith("/admin/financeiro/maquininhas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <CreditCard className="size-5 shrink-0" />{!collapsed && <span>Maquininhas</span>}
+            </Link>
+          </>
+        )}
+        {canCommunicate && (
+          <>
+            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Comunicação</p>}
+            <Link href="/admin/comunicacao/avisos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/avisos"))} title={collapsed ? "Avisos" : undefined}>
+              {pathname.startsWith("/admin/comunicacao/avisos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <Megaphone className="size-5 shrink-0" />{!collapsed && <span>Avisos</span>}
             </Link>
           </>
         )}

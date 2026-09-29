@@ -63,7 +63,7 @@ flowchart LR
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
 | 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Administração de reservas com prazos configuráveis e preparo para retirada (RES-002, #95). Retirada no PDV com cobrança pelo preço congelado (RES-003, #96). Carrinho de reserva no catálogo do Portal (RES-004, #97). Carrinho/pedido/pagamento; preparar/retirar reserva; compra de números e rifa no PDV; publicação/pausa/cancelamento e reembolso seguro |
 | 9 — Gestão e indicadores | IN PROGRESS | 3, 6, 8 | Auditoria, configurações, desbloqueios, conta/sessões, Portal→PDV e indicadores completos por período; meta pública configurável |
-| 10 — Campanhas operacionais | IN PROGRESS | 8, 9 | Em PR: avisos operacionais automáticos (NOTIF-002). Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
+| 10 — Campanhas operacionais | IN PROGRESS | 8, 9 | Avisos operacionais automáticos (NOTIF-002, #98). Em PR: avisos manuais segmentados (NOTIF-003). Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
 | 11 — Homologação e release | TODO | 1–10 | Jornada por papel, carga/acessibilidade, backup restaurado, alertas, runbooks, migrations revisadas e promoção autorizada |
 
 ## Plano paralelo de conclusão
@@ -306,3 +306,7 @@ Spec 4.2 e 4.3 (RES-004). O catálogo do cliente deixou de ser só consulta: pro
 ## Incremento de avisos operacionais — 29/09/2026
 
 Spec 5.15 (NOTIF-002). O worker do outbox passou a transformar em avisos in-app os eventos que pedem ação: reserva pronta e entregue para o cliente; perda pendente, contagem enviada e devolução a receber para o estoque; transferência solicitada para o vendedor de origem; divergência de conciliação para o financeiro; fechamento enviado para quem confere. A lista fechada de tipos de notificação do contrato agora inclui todos os tipos gravados pelo worker, o que também corrige a falha da central de notificações quando uma reserva de rifa expirava (`RAFFLE_EXPIRED`). Pendentes: preferências e avise-me, notificação segmentada manual, estoque baixo e rifa paga.
+
+## Incremento de avisos segmentados — 29/09/2026
+
+Spec 5.15 (NOTIF-003). Administração e Comunicação ganharam Comunicação › Avisos: título e mensagem para todos, por perfil ou para e-mails específicos, com o público congelado no envio e entrega pelo worker na central de notificações. E-mails sem cadastro ativo são recusados. Pendentes: turmas (sem cadastro), agendamento, preferências e avise-me.
