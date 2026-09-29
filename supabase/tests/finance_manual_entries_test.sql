@@ -25,7 +25,7 @@ select throws_ok($$select public.record_finance_entry('EXPENSE','OUTROS','PICPAY
 create temp table totals as select public.list_finance_entries('2026-09-01','2026-09-30',null,null,null,100)->'totals' result;
 select is((select (result->'by_account'->>'PICPAY_EMPRESAS')::bigint from totals),18000::bigint,'PicPay account nets income, expense and the incoming transfer');
 select is((select (result->'by_account'->>'DINHEIRO_FISICO')::bigint from totals),-3000::bigint,'the transfer leaves the physical cash account');
-select is((select (result->>'inflow_cents')::bigint from totals),23000::bigint,'inflow counts the income and the incoming side of the transfer');
+select is((select (result->>'inflow_cents')::bigint from totals),20000::bigint,'inflow counts the income, never the treasury transfer');
 
 create temp table reversal as select public.reverse_finance_entry((select (result->>'id')::uuid from expense),'Frete lançado em duplicidade','fin-reverse','6c000000-0000-4000-8000-000000000002') result;
 select is((select result->>'reversal_of' from reversal),(select result->>'id' from expense),'the reversal points to the original entry');

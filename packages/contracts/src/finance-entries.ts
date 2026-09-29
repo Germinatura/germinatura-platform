@@ -87,3 +87,34 @@ export const financeEntriesResponseSchema = z.object({
   request_id: z.string().min(1),
 }).strict();
 export type FinanceEntriesResponse = z.infer<typeof financeEntriesResponseSchema>;
+
+// FIN-006: consolidated statement of automatic and manual entries (transfers have no category).
+export const financeStatementQuerySchema = z.object({
+  from: calendarDay,
+  to: calendarDay,
+  format: z.enum(["json", "csv"]).optional(),
+}).strict().refine((value) => value.from <= value.to, { message: "Período inválido", path: ["to"] });
+
+export const financeStatementRowSchema = z.object({
+  occurredOn: calendarDay,
+  source: z.enum(["SALE", "PAYABLE", "MANUAL"]),
+  sourceId: z.uuid(),
+  category: financeCategorySchema.nullable(),
+  account: financeAccountSchema,
+  amountCents: cents,
+  description: z.string(),
+  reference: z.string().nullable(),
+}).strict();
+export type FinanceStatementRow = z.infer<typeof financeStatementRowSchema>;
+
+export const financeStatementResponseSchema = z.object({
+  data: z.array(financeStatementRowSchema),
+  totals: z.object({
+    inflowCents: cents,
+    outflowCents: cents,
+    byAccount: z.record(z.string(), cents),
+    byCategory: z.record(z.string(), cents),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type FinanceStatementResponse = z.infer<typeof financeStatementResponseSchema>;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BookOpenText, Boxes, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -115,6 +115,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Link href="/admin/financeiro/lancamentos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/lancamentos"))} title={collapsed ? "Lançamentos" : undefined}>
               {pathname.startsWith("/admin/financeiro/lancamentos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <BookOpenText className="size-5 shrink-0" />{!collapsed && <span>Lançamentos</span>}
+            </Link>
+            <Link href="/admin/financeiro/extrato" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/extrato"))} title={collapsed ? "Extrato" : undefined}>
+              {pathname.startsWith("/admin/financeiro/extrato") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <ChartNoAxesColumn className="size-5 shrink-0" />{!collapsed && <span>Extrato</span>}
             </Link>
             <Link href="/admin/fechamentos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/fechamentos"))} title={collapsed ? "Fechamentos" : undefined}>
               {pathname.startsWith("/admin/fechamentos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}

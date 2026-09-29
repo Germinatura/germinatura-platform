@@ -8,21 +8,13 @@ import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
 import { AlertTriangle, Loader2, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { financeAccountLabels as accountLabels, financeCategoryLabels as categoryLabels } from "@/lib/finance-labels";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const formatMoney = (cents: number) => money.format(cents / 100);
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 const formatDay = (value: string) => value.split("-").reverse().join("/");
 
-const categoryLabels: Record<FinanceCategory, string> = {
-  VENDA_PDV: "Venda PDV", VENDA_ONLINE: "Venda online", RESERVA: "Reserva", RIFA: "Rifa", EVENTO: "Evento",
-  FORNECEDOR: "Fornecedor", TAXAS: "Taxas", MENSALIDADES: "Mensalidades", TRANSPORTE: "Transporte",
-  MATERIAIS: "Materiais", REEMBOLSO: "Reembolso", AJUSTE: "Ajuste", OUTROS: "Outros",
-};
-const accountLabels: Record<FinanceAccount, string> = {
-  PICPAY_EMPRESAS: "PicPay Empresas", DINHEIRO_FISICO: "Dinheiro físico",
-  RECEBIVEIS_PICPAY: "Recebíveis PicPay", PENDENTE_LIQUIDACAO: "Pendente de liquidação",
-};
 const kindLabels: Record<FinanceEntry["kind"], string> = { EXPENSE: "Despesa", INCOME: "Receita", TRANSFER: "Transferência", REVERSAL: "Estorno" };
 const manualCategories = financeCategorySchema.options.filter((category) => !automaticFinanceCategories.includes(category));
 const accounts = financeAccountSchema.options;
