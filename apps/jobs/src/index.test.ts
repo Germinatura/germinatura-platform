@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { PaymentLinkProviderError, type PaymentLinkGateway } from "@germinatura/payments";
-import worker, { createRequestedPaymentLinks, handlePaymentLinkSandboxCheck, handlePaymentLinkWebhook, retryDelaySeconds, runCycle } from "./index";
+import worker, { createRequestedPaymentLinks, handlePaymentLinkSandboxCheck, handlePaymentLinkWebhook, maintainPaymentLinks, retryDelaySeconds, runCycle } from "./index";
 
 const env = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_SECRET_KEY: "service-secret" };
 const requestUrl = (input: RequestInfo | URL) => typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -195,5 +195,77 @@ describe("Payment Link sandbox check endpoint", () => {
     expect(body.status).toBe("ok");
     expect(urls.some((url) => url.includes("supabase"))).toBe(false);
     expect(JSON.stringify(body)).not.toContain("secret");
+  });
+});
+
+describe("Payment Link maintenance", () => {
+  const database = (claims: Record<string, unknown[]>) => {
+    const calls: Array<{ name: string; body: Record<string, unknown> }> = [];
+    const fetchImpl = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const name = requestUrl(input).split("/").at(-1) ?? "";
+      calls.push({ name, body: JSON.parse(init?.body as string) as Record<string, unknown> });
+      return Promise.resolve(Response.json(claims[name] ?? { status: "ok" }));
+    }) as unknown as typeof fetch;
+    return { calls, fetchImpl };
+  };
+  const gateway = (overrides: Partial<PaymentLinkGateway>): PaymentLinkGateway => ({
+    createCharge: vi.fn(), findCharge: vi.fn(), inactivateCharge: vi.fn(() => Promise.resolve()),
+    listTransactions: vi.fn(() => Promise.resolve({ transactions: [], hasNextPage: false })),
+    refundTransaction: vi.fn(), ...overrides,
+  });
+
+  it("does nothing while the provider is not configured", async () => {
+    const { calls, fetchImpl } = database({});
+    await expect(maintainPaymentLinks(env, "worker-1", fetchImpl)).resolves.toMatchObject({ configured: false });
+    expect(calls).toEqual([]);
+  });
+
+  it("inactivates links and records provider errors for a later retry", async () => {
+    const { calls, fetchImpl } = database({
+      worker_claim_payment_link_inactivations: [{ charge_id: "charge-1", provider_link_id: "link-0001" }, { charge_id: "charge-2", provider_link_id: "link-0002" }],
+      worker_claim_payment_link_status_checks: [], worker_claim_payment_link_refunds: [],
+    });
+    const provider = gateway({ inactivateCharge: vi.fn((id: string) => id === "link-0002" ? Promise.reject(new PaymentLinkProviderError("PICPAY_C003", false, 500)) : Promise.resolve()) });
+    await expect(maintainPaymentLinks(env, "worker-1", fetchImpl, provider)).resolves.toMatchObject({ inactivated: 1, inactivationErrors: 1 });
+    expect(calls.filter((call) => call.name === "worker_record_payment_link_inactivation").map((call) => call.body)).toEqual([
+      { p_charge_id: "charge-1", p_worker_id: "worker-1", p_error_code: null },
+      { p_charge_id: "charge-2", p_worker_id: "worker-1", p_error_code: "PICPAY_C003" },
+    ]);
+  });
+
+  it("feeds polled transactions to the same path as the webhook", async () => {
+    const { calls, fetchImpl } = database({
+      worker_claim_payment_link_inactivations: [], worker_claim_payment_link_refunds: [],
+      worker_claim_payment_link_status_checks: [{ charge_id: "charge-1", provider_link_id: "link-0001" }],
+    });
+    const provider = gateway({ listTransactions: vi.fn((_id: string, page = 1) => Promise.resolve(page === 1
+      ? { transactions: [{ id: "tx-00000001", status: "PAYED", amountCents: 2590 }, { id: "tx-00000002", status: "PENDING", amountCents: 2590 }], hasNextPage: true }
+      : { transactions: [{ id: "tx-00000003", status: "REFUNDED", amountCents: 2590 }], hasNextPage: false })) });
+    await expect(maintainPaymentLinks(env, "worker-1", fetchImpl, provider)).resolves.toMatchObject({ polled: 1, statusEvents: 2 });
+    expect(calls.filter((call) => call.name === "worker_record_payment_link_event").map((call) => call.body)).toEqual([
+      { p_source: "STATUS_QUERY", p_event_type: null, p_payload: { type: "PAYMENT", data: { transaction: { id: "tx-00000001", status: "PAYED", amount: 2590 }, charge: { paymentLinkId: "link-0001" } } } },
+      { p_source: "STATUS_QUERY", p_event_type: null, p_payload: { type: "REFUND", data: { transaction: { id: "tx-00000003", status: "REFUNDED", amount: 2590 }, charge: { paymentLinkId: "link-0001" } } } },
+    ]);
+  });
+
+  it("submits refunds once and marks timeouts as uncertain", async () => {
+    const { calls, fetchImpl } = database({
+      worker_claim_payment_link_inactivations: [], worker_claim_payment_link_status_checks: [],
+      worker_claim_payment_link_refunds: [
+        { refund_id: "refund-1", transaction_id: "tx-00000001", amount_cents: 2590 },
+        { refund_id: "refund-2", transaction_id: "tx-00000002", amount_cents: 100 },
+        { refund_id: "refund-3", transaction_id: "tx-00000003", amount_cents: 100 },
+      ],
+    });
+    const provider = gateway({ refundTransaction: vi.fn((id: string) => id === "tx-00000001"
+      ? Promise.resolve({ transactionId: "tx-refund-01", amountCents: 2590, originalAmountCents: 2590 })
+      : id === "tx-00000002" ? Promise.reject(new PaymentLinkProviderError("PROVIDER_NO_RESPONSE", true))
+      : Promise.reject(new PaymentLinkProviderError("PICPAY_B036", false, 400))) });
+    await expect(maintainPaymentLinks(env, "worker-1", fetchImpl, provider)).resolves.toMatchObject({ refundsAccepted: 1, refundsUncertain: 1, refundsFailed: 1 });
+    expect(calls.filter((call) => call.name === "worker_record_payment_link_refund").map((call) => call.body)).toEqual([
+      { p_refund_id: "refund-1", p_worker_id: "worker-1", p_outcome: "ACCEPTED", p_provider_refund_id: "tx-refund-01", p_original_amount_cents: 2590, p_error_code: null },
+      { p_refund_id: "refund-2", p_worker_id: "worker-1", p_outcome: "UNCERTAIN", p_provider_refund_id: null, p_original_amount_cents: null, p_error_code: "PROVIDER_NO_RESPONSE" },
+      { p_refund_id: "refund-3", p_worker_id: "worker-1", p_outcome: "FAILED", p_provider_refund_id: null, p_original_amount_cents: null, p_error_code: "PICPAY_B036" },
+    ]);
   });
 });
