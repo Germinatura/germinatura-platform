@@ -13,7 +13,7 @@ async function processOutbox() {
   if (!url || !key || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(url)) throw new Error("Supabase local indisponível para o worker E2E");
   const auth = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   const worker = `e2e-worker-${Date.now().toString(36)}`;
-  for (let round = 0; round < 5; round += 1) {
+  for (let round = 0; round < 50; round += 1) {
     const claimed = await fetch(`${url}/rest/v1/rpc/worker_claim_outbox_events`, { method: "POST", headers: auth,
       body: JSON.stringify({ p_worker_id: worker, p_batch_size: 100, p_lease_seconds: 300 }) });
     const events = await claimed.json() as Array<{ id: string }>;
@@ -44,10 +44,15 @@ test("a comunicação envia um aviso para um e-mail e a pessoa o recebe na centr
     data: { title: "Aviso", body: "Mensagem", all: false, roles: [], emails: ["ninguem@institutojef.org.br"] } });
   expect(unknown.status()).toBe(422);
 
-  await processOutbox();
   const consumer = await browser.newContext({ baseURL: portalUrl });
   const consumerPage = await consumer.newPage();
   expect((await consumerPage.request.post("/api/auth/login", { headers, data: { identifier: "consumidor.teste", password: "Consumidor123!" } })).status()).toBe(200);
+  // Announcements are an optional category; make sure this consumer keeps it on before delivery.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if ((await consumerPage.request.put("/api/v1/notifications/preferences", { headers, data: { category: "COMUNICADOS", enabled: true } })).status() === 200) break;
+    await consumerPage.waitForTimeout(500);
+  }
+  await processOutbox();
   const denied = await consumerPage.request.get("/api/v1/admin/announcements");
   expect(denied.status()).toBe(403);
   await consumerPage.goto("/notificacoes");

@@ -5,7 +5,7 @@ import {
   type PublicCatalogProduct,
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Input } from "@germinatura/ui";
-import { PackageSearch, Plus, RefreshCw, Search, ShoppingBag } from "lucide-react";
+import { Bell, BellRing, PackageSearch, Plus, RefreshCw, Search, ShoppingBag } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReservationCart } from "@/components/catalog/ReservationCart";
 
@@ -41,6 +41,8 @@ export function ConsumerCatalog({ canReserve = false }: { canReserve?: boolean }
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<StoredCart>({});
+  const [alerts, setAlerts] = useState<Set<string>>(new Set());
+  const [alertBusy, setAlertBusy] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -61,9 +63,32 @@ export function ConsumerCatalog({ canReserve = false }: { canReserve?: boolean }
   }, []);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => { void loadInitial(); if (canReserve) setCart(readStoredCart()); }, 0);
+    const initialLoad = window.setTimeout(() => {
+      void loadInitial();
+      if (canReserve) setCart(readStoredCart());
+      void fetch("/api/v1/catalog/stock-alerts", { cache: "no-store" }).then(async (response) => {
+        const body = await response.json().catch(() => null) as { data?: unknown } | null;
+        if (response.ok && Array.isArray(body?.data)) setAlerts(new Set(body.data.filter((id): id is string => typeof id === "string")));
+      }, () => undefined);
+    }, 0);
     return () => window.clearTimeout(initialLoad);
   }, [loadInitial, canReserve]);
+
+  async function toggleAlert(productId: string) {
+    const enabled = !alerts.has(productId);
+    setAlertBusy(productId); setError("");
+    try {
+      const response = await fetch(`/api/v1/catalog/products/${productId}/stock-alert`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { message?: string } | null;
+        throw new Error(body?.message ?? "Não foi possível salvar o aviso.");
+      }
+      setAlerts((current) => { const next = new Set(current); if (enabled) next.add(productId); else next.delete(productId); return next; });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível salvar o aviso."); }
+    finally { setAlertBusy(null); }
+  }
 
   function setQuantity(productId: string, quantity: number) {
     setCart((current) => {
@@ -127,7 +152,7 @@ export function ConsumerCatalog({ canReserve = false }: { canReserve?: boolean }
         ) : (
           <div className={canReserve ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start" : undefined}><div className="space-y-6">
             <section className={`grid gap-4 sm:grid-cols-2 ${canReserve ? "xl:grid-cols-2" : "xl:grid-cols-3"}`} aria-label="Produtos do catálogo">
-              {filteredProducts.map((product) => <Card key={product.id} className="group overflow-hidden">{product.images[0] ? <div role="img" aria-label={product.images[0].altText} className="h-40 bg-cover bg-center transition-transform group-hover:scale-[1.02]" style={{ backgroundImage: `url(${JSON.stringify(product.images[0].publicUrl)})` }} /> : <div className="flex h-40 items-center justify-center bg-[var(--g-surface-subtle)]"><ShoppingBag className="size-12 text-[var(--g-brand-primary)] transition-transform group-hover:scale-105" /></div>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">{product.category.name}</p><h2 className="mt-1 text-lg font-semibold">{product.name}</h2></div>{product.reservable && <Badge tone="info">Reservável</Badge>}</div><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-[var(--g-text-secondary)]">{product.description ?? "Produto disponível no catálogo Germinatura."}</p><div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-xs text-[var(--g-text-muted)]">Preço atual</p><p className="g-money mt-1 text-2xl font-bold">{money.format(product.price.amountCents / 100)}</p></div><p className="text-xs text-[var(--g-text-muted)]">{product.sku}</p></div>{canReserve && product.reservable && <Button type="button" variant={cart[product.id] ? "secondary" : "brand"} className="mt-4 w-full" aria-label={`Adicionar ${product.name} à reserva`} onClick={() => setQuantity(product.id, (cart[product.id] ?? 0) + 1)}><Plus className="size-4" />{cart[product.id] ? `Na reserva (${cart[product.id]})` : "Adicionar à reserva"}</Button>}</div></Card>)}
+              {filteredProducts.map((product) => <Card key={product.id} className="group overflow-hidden">{product.images[0] ? <div role="img" aria-label={product.images[0].altText} className="h-40 bg-cover bg-center transition-transform group-hover:scale-[1.02]" style={{ backgroundImage: `url(${JSON.stringify(product.images[0].publicUrl)})` }} /> : <div className="flex h-40 items-center justify-center bg-[var(--g-surface-subtle)]"><ShoppingBag className="size-12 text-[var(--g-brand-primary)] transition-transform group-hover:scale-105" /></div>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">{product.category.name}</p><h2 className="mt-1 text-lg font-semibold">{product.name}</h2></div><div className="flex flex-col items-end gap-1">{product.reservable && <Badge tone="info">Reservável</Badge>}{product.portalAvailable !== undefined && <Badge tone={product.portalAvailable ? "success" : "neutral"}>{product.portalAvailable ? "Disponível" : "Indisponível"}</Badge>}</div></div><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-[var(--g-text-secondary)]">{product.description ?? "Produto disponível no catálogo Germinatura."}</p><div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-xs text-[var(--g-text-muted)]">Preço atual</p><p className="g-money mt-1 text-2xl font-bold">{money.format(product.price.amountCents / 100)}</p></div><p className="text-xs text-[var(--g-text-muted)]">{product.sku}</p></div>{product.portalAvailable === false && <Button type="button" variant="secondary" className="mt-4 w-full" loading={alertBusy === product.id} disabled={alertBusy !== null} aria-pressed={alerts.has(product.id)} onClick={() => void toggleAlert(product.id)}>{alerts.has(product.id) ? <><BellRing className="size-4" />Aviso ativado</> : <><Bell className="size-4" />Avise-me quando voltar</>}</Button>}{canReserve && product.reservable && product.portalAvailable !== false && <Button type="button" variant={cart[product.id] ? "secondary" : "brand"} className="mt-4 w-full" aria-label={`Adicionar ${product.name} à reserva`} onClick={() => setQuantity(product.id, (cart[product.id] ?? 0) + 1)}><Plus className="size-4" />{cart[product.id] ? `Na reserva (${cart[product.id]})` : "Adicionar à reserva"}</Button>}</div></Card>)}
             </section>
             {nextCursor && <div className="flex justify-center"><Button variant="secondary" loading={loadingMore} onClick={() => void loadMore()}>Carregar mais produtos</Button></div>}
           </div>{canReserve && <aside className="lg:sticky lg:top-6"><ReservationCart lines={cartLines} onQuantity={setQuantity} onClear={() => { setCart({}); writeStoredCart({}); }} /></aside>}</div>

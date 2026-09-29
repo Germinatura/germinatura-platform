@@ -9,6 +9,7 @@ import { Badge, Button, Card } from "@germinatura/ui";
 import { BellRing, Check, CircleAlert, Inbox, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
+import { NotificationPreferences } from "@/components/notifications/NotificationPreferences";
 
 type Notification = z.infer<typeof notificationSchema>;
 
@@ -102,5 +103,6 @@ export function NotificationsCenter() {
       : notifications.length === 0 ? <Card className="p-10 text-center"><Inbox className="mx-auto size-11 text-[var(--g-text-muted)]" /><h2 className="mt-4 text-lg font-semibold">{unreadOnly ? "Nenhuma notificação não lida" : "Tudo em dia"}</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--g-text-secondary)]">{unreadOnly ? "Quando chegar uma nova atualização, ela aparecerá aqui." : "Você não possui notificações recentes."}</p></Card>
       : <section className="space-y-3" aria-label="Lista de notificações">{notifications.map((notification) => <Card key={notification.id} tone={notification.readAt ? "default" : "selected"} className="p-5"><div className="flex items-start gap-4"><span className={`flex size-11 shrink-0 items-center justify-center rounded-[var(--g-radius-control)] ${notification.readAt ? "bg-[var(--g-surface-subtle)] text-[var(--g-text-muted)]" : "bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]"}`}><BellRing className="size-5" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold">{notification.title}</h2>{!notification.readAt && <Badge tone="info">Nova</Badge>}</div><p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">{notification.body}</p><p className="mt-3 text-xs text-[var(--g-text-muted)]">{dateTime.format(new Date(notification.createdAt))}</p></div>{!notification.readAt && <Button variant="ghost" size="sm" loading={busyId === notification.id} onClick={() => void markRead(notification.id)} aria-label={`Marcar “${notification.title}” como lida`}><Check className="size-4" /><span className="hidden sm:inline">Marcar como lida</span></Button>}</div></Card>)}</section>}
     {nextCursor && !loading && <div className="flex justify-center"><Button variant="secondary" loading={loadingMore} onClick={() => void loadMore()}>Carregar mais notificações</Button></div>}
+    <NotificationPreferences />
   </div></div>;
 }
