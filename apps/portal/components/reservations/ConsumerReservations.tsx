@@ -1,10 +1,10 @@
 "use client";
 
-import { commercialReservationCancelResponseSchema } from "@germinatura/contracts";
+import { commercialReservationCancelResponseSchema, featureFlagsResponseSchema, paymentLinkChargeResponseSchema } from "@germinatura/contracts";
 import { Badge, Button, Card } from "@germinatura/ui";
-import { CalendarClock, CircleAlert, PackageCheck, ShoppingBag, XCircle } from "lucide-react";
+import { CalendarClock, CircleAlert, CreditCard, PackageCheck, ShoppingBag, XCircle } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface ConsumerReservation {
   id: string;
@@ -35,6 +35,36 @@ export function ConsumerReservations({ initialReservations, unavailable }: { ini
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [onlinePayment, setOnlinePayment] = useState(false);
+  const payKeys = useRef(new Map<string, string>());
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/v1/feature-flags", { cache: "no-store" }).then((response) => response.ok ? response.json() : null).then((body: unknown) => {
+      const parsed = featureFlagsResponseSchema.safeParse(body);
+      if (!cancelled && parsed.success) setOnlinePayment(parsed.data.data.some((flag) => flag.key === "payment_link" && flag.enabled));
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  // ADR 0010: pays the reservation with a PicPay Payment Link and follows it on the Portal's tracking page.
+  async function payOnline(id: string) {
+    setBusyId(id);
+    setError("");
+    const key = payKeys.current.get(id) ?? `portal-payment-link:${crypto.randomUUID()}`;
+    payKeys.current.set(id, key);
+    try {
+      const response = await fetch(`/api/v1/reservations/${id}/payment-link`, { method: "POST", headers: { "Idempotency-Key": key } });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw new Error((body as { message?: string } | null)?.message ?? "Não foi possível iniciar o pagamento online.");
+      const parsed = paymentLinkChargeResponseSchema.safeParse(body);
+      if (!parsed.success) throw new Error("O pagamento online retornou dados inválidos.");
+      window.location.assign(`/pedidos/pagamento/${parsed.data.data.chargeId}`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Não foi possível iniciar o pagamento online.");
+      setBusyId(null);
+    }
+  }
 
   async function cancelReservation(id: string) {
     setBusyId(id);
@@ -93,6 +123,7 @@ export function ConsumerReservations({ initialReservations, unavailable }: { ini
                     <div className="flex items-end justify-between gap-3"><span className="text-sm text-[var(--g-text-secondary)]">Total reservado</span><strong className="g-money text-xl">{money.format(reservation.totalCents / 100)}</strong></div>
                     {reservation.discountTotalCents > 0 && <p className="mt-1 text-right text-xs text-[var(--g-status-success-foreground)]">Economia de {money.format(reservation.discountTotalCents / 100)}</p>}
                     {active && <div className="mt-4 flex items-start gap-2 border-t border-[var(--g-border-subtle)] pt-4 text-sm"><CalendarClock className="mt-0.5 size-4 shrink-0 text-[var(--g-brand-primary)]" /><span>Válida até <strong>{dateTime.format(new Date(reservation.expiresAt))}</strong></span></div>}
+                    {onlinePayment && (active || reservation.status === "CONVERTED") && confirmingId !== reservation.id && <Button variant="brand" className="mt-4 w-full" loading={busyId === reservation.id} disabled={busyId !== null} onClick={() => void payOnline(reservation.id)}><CreditCard className="size-4" /> Pagar online</Button>}
                     {active && confirmingId !== reservation.id && <Button variant="danger" className="mt-4 w-full" onClick={() => setConfirmingId(reservation.id)}><XCircle className="size-4" /> Cancelar reserva</Button>}
                     {active && confirmingId === reservation.id && <div className="mt-4 border-t border-[var(--g-border-subtle)] pt-4"><p className="text-sm font-semibold">Liberar estes produtos?</p><p className="mt-1 text-xs leading-5 text-[var(--g-text-secondary)]">Esta ação não pode ser desfeita.</p><div className="mt-3 grid grid-cols-2 gap-2"><Button variant="secondary" size="sm" disabled={busyId === reservation.id} onClick={() => setConfirmingId(null)}>Voltar</Button><Button variant="danger" size="sm" loading={busyId === reservation.id} onClick={() => void cancelReservation(reservation.id)}>Confirmar</Button></div></div>}
                     {reservation.status === "READY" && <div className="mt-4 space-y-2 border-t border-[var(--g-border-subtle)] pt-4 text-sm"><p className="flex items-start gap-2"><PackageCheck className="mt-0.5 size-4 shrink-0 text-[var(--g-status-success-foreground)]" /><span>Separada pela comissão. Retire até <strong>{reservation.pickupDeadline ? dateTime.format(new Date(reservation.pickupDeadline)) : "o prazo informado"}</strong>.</span></p>{reservation.pickupInstructions && <p className="text-[var(--g-text-secondary)]">{reservation.pickupInstructions}</p>}</div>}
