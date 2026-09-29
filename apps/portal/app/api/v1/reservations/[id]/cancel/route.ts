@@ -33,6 +33,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (error) {
     if (error.message.includes("NOT_FOUND")) return fail("RESERVATION_NOT_FOUND", "Reserva não encontrada", requestId, 404);
     if (error.message.includes("ALREADY_CONVERTED")) return fail("RESERVATION_ALREADY_CONVERTED", "Reserva já convertida", requestId, 409);
+    if (error.message.includes("READY_CANCEL_FORBIDDEN")) return fail("RESERVATION_READY", "Reserva já separada: fale com a comissão para cancelar", requestId, 409);
     return fail("RESERVATION_UNAVAILABLE", "Reserva temporariamente indisponível", requestId, 503);
   }
   const result = resultSchema.safeParse(data);

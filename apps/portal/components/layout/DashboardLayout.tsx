@@ -30,6 +30,7 @@ function pageTitle(pathname: string, user: SidebarUser | null) {
   if (pathname.startsWith("/admin/financeiro/extrato")) return "Extrato financeiro";
   if (pathname.startsWith("/admin/financeiro/maquininhas")) return "Maquininhas";
   if (pathname.startsWith("/admin/rifas")) return "Gestão de rifas";
+  if (pathname.startsWith("/admin/reservas")) return "Gestão de reservas";
   if (pathname === "/inicio") return "Início";
   if (pathname === "/perfil") return "Perfil";
   if (pathname === "/catalogo") return "Catálogo";

@@ -82,6 +82,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/auth/password-recovery/complete", methods: ["POST"], access: "public" },
   { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin" },
+  { path: "/api/v1/admin/reservations", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/reservations/settings", methods: ["GET", "PUT"], access: "admin" },
+  { path: "/api/v1/admin/reservations/:id/ready", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },
   { path: "/api/v1/admin/users/:id/password-recovery", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/signup-code", methods: ["POST"], access: "admin" },
@@ -106,6 +109,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/users/:id/roles") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/reservations/:id/ready") {
+      return /^\/api\/v1\/admin\/reservations\/[0-9a-f-]+\/ready$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/catalog/products/:id/prices") {
       return /^\/api\/v1\/admin\/catalog\/products\/[0-9a-f-]+\/prices$/i.test(path);

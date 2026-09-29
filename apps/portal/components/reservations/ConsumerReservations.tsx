@@ -8,12 +8,14 @@ import { useState } from "react";
 
 export interface ConsumerReservation {
   id: string;
-  status: "ACTIVE" | "CONVERTED" | "CANCELLED" | "EXPIRED";
+  status: "ACTIVE" | "READY" | "CONVERTED" | "COMPLETED" | "CANCELLED" | "EXPIRED";
   lines: Array<{ productId: string; name: string; quantity: number; totalCents: number }>;
   originalTotalCents: number;
   discountTotalCents: number;
   totalCents: number;
   expiresAt: string;
+  pickupDeadline: string | null;
+  pickupInstructions: string | null;
   createdAt: string;
 }
 
@@ -21,7 +23,9 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 const statusPresentation = {
   ACTIVE: { label: "Ativa", tone: "info" as const },
+  READY: { label: "Pronta para retirada", tone: "success" as const },
   CONVERTED: { label: "Convertida", tone: "success" as const },
+  COMPLETED: { label: "Concluída", tone: "success" as const },
   CANCELLED: { label: "Cancelada", tone: "danger" as const },
   EXPIRED: { label: "Expirada", tone: "warning" as const },
 };
@@ -91,6 +95,8 @@ export function ConsumerReservations({ initialReservations, unavailable }: { ini
                     {active && <div className="mt-4 flex items-start gap-2 border-t border-[var(--g-border-subtle)] pt-4 text-sm"><CalendarClock className="mt-0.5 size-4 shrink-0 text-[var(--g-brand-primary)]" /><span>Válida até <strong>{dateTime.format(new Date(reservation.expiresAt))}</strong></span></div>}
                     {active && confirmingId !== reservation.id && <Button variant="danger" className="mt-4 w-full" onClick={() => setConfirmingId(reservation.id)}><XCircle className="size-4" /> Cancelar reserva</Button>}
                     {active && confirmingId === reservation.id && <div className="mt-4 border-t border-[var(--g-border-subtle)] pt-4"><p className="text-sm font-semibold">Liberar estes produtos?</p><p className="mt-1 text-xs leading-5 text-[var(--g-text-secondary)]">Esta ação não pode ser desfeita.</p><div className="mt-3 grid grid-cols-2 gap-2"><Button variant="secondary" size="sm" disabled={busyId === reservation.id} onClick={() => setConfirmingId(null)}>Voltar</Button><Button variant="danger" size="sm" loading={busyId === reservation.id} onClick={() => void cancelReservation(reservation.id)}>Confirmar</Button></div></div>}
+                    {reservation.status === "READY" && <div className="mt-4 space-y-2 border-t border-[var(--g-border-subtle)] pt-4 text-sm"><p className="flex items-start gap-2"><PackageCheck className="mt-0.5 size-4 shrink-0 text-[var(--g-status-success-foreground)]" /><span>Separada pela comissão. Retire até <strong>{reservation.pickupDeadline ? dateTime.format(new Date(reservation.pickupDeadline)) : "o prazo informado"}</strong>.</span></p>{reservation.pickupInstructions && <p className="text-[var(--g-text-secondary)]">{reservation.pickupInstructions}</p>}</div>}
+                    {reservation.status === "COMPLETED" && <p className="mt-4 flex items-start gap-2 text-sm text-[var(--g-status-success-foreground)]"><PackageCheck className="mt-0.5 size-4 shrink-0" /> Produtos entregues.</p>}
                     {reservation.status === "CONVERTED" && <p className="mt-4 flex items-start gap-2 text-sm text-[var(--g-status-success-foreground)]"><PackageCheck className="mt-0.5 size-4 shrink-0" /> Reserva convertida em cobrança.</p>}
                   </div>
                 </div>

@@ -72,6 +72,12 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Ticket className="size-5 shrink-0" />{!collapsed && <span>Rifas</span>}
           </Link>
         )}
+        {isAdmin && enabledFeatures.includes("reservations") && (
+          <Link href="/admin/reservas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/reservas"))} title={collapsed ? "Gestão de reservas" : undefined}>
+            {pathname.startsWith("/admin/reservas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+            <CalendarClock className="size-5 shrink-0" />{!collapsed && <span>Gestão de reservas</span>}
+          </Link>
+        )}
         {isAdmin && enabledFeatures.includes("raffles") && (
           <Link href="/admin/rifas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/rifas"))} title={collapsed ? "Gestão de rifas" : undefined}>
             {pathname.startsWith("/admin/rifas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}

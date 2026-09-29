@@ -552,6 +552,53 @@ export const commercialReservationConvertResponseSchema = z.object({
 }).strict();
 export type CommercialReservationConvertResponse = z.infer<typeof commercialReservationConvertResponseSchema>;
 
+// Spec 4.3 / 5.10 (RES-002): reservation administration by the commission.
+export const commercialReservationStatusSchema = z.enum(["ACTIVE", "READY", "CONVERTED", "COMPLETED", "CANCELLED", "EXPIRED"]);
+export type CommercialReservationStatus = z.infer<typeof commercialReservationStatusSchema>;
+
+export const reservationSettingsSchema = z.object({
+  holdHours: z.number().int().min(1).max(720),
+  pickupHours: z.number().int().min(1).max(720),
+}).strict();
+export type ReservationSettings = z.infer<typeof reservationSettingsSchema>;
+export const reservationSettingsResponseSchema = z.object({ data: reservationSettingsSchema, request_id: z.string().min(1) }).strict();
+
+export const markReservationReadyRequestSchema = z.object({
+  pickupInstructions: z.string().trim().min(3).max(500).nullable(),
+}).strict();
+
+export const adminReservationsQuerySchema = z.object({
+  status: commercialReservationStatusSchema.optional(),
+  query: z.string().trim().min(1).max(80).optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  cursor: z.uuid().optional(),
+}).strict().refine((value) => !value.from || !value.to || value.from <= value.to, { message: "Período inválido", path: ["to"] });
+
+export const adminReservationSchema = z.object({
+  reservationId: z.uuid(),
+  status: commercialReservationStatusSchema,
+  createdAt: z.iso.datetime({ offset: true }),
+  customerId: z.uuid(),
+  customerName: z.string(),
+  locationName: z.string(),
+  totalCents: moneyCentsSchema,
+  discountTotalCents: moneyCentsSchema,
+  expiresAt: z.iso.datetime({ offset: true }),
+  readyAt: z.iso.datetime({ offset: true }).nullable(),
+  pickupDeadline: z.iso.datetime({ offset: true }).nullable(),
+  pickupInstructions: z.string().nullable(),
+  convertedSaleId: z.uuid().nullable(),
+  items: z.array(z.object({ productName: z.string(), quantity: z.number().int().positive(), totalCents: moneyCentsSchema }).strict()),
+}).strict();
+export type AdminReservation = z.infer<typeof adminReservationSchema>;
+
+export const adminReservationsResponseSchema = z.object({
+  data: z.array(adminReservationSchema),
+  nextCursor: z.uuid().nullable(),
+  request_id: z.string().min(1),
+}).strict();
+
 export const raffleCampaignCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),
   productId: z.uuid(),
