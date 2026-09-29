@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const reservationRowsSchema = z.array(z.object({
   id: z.uuid(),
-  status: z.enum(["ACTIVE", "CONVERTED", "CANCELLED", "EXPIRED"]),
+  status: z.enum(["ACTIVE", "READY", "CONVERTED", "COMPLETED", "CANCELLED", "EXPIRED"]),
   quote_snapshot: z.object({
     lines: z.array(z.object({
       product_id: z.uuid(),
@@ -22,6 +22,8 @@ const reservationRowsSchema = z.array(z.object({
   discount_total_cents: z.number().int().nonnegative(),
   total_cents: z.number().int().nonnegative(),
   expires_at: z.string(),
+  pickup_deadline: z.string().nullable(),
+  pickup_instructions: z.string().nullable(),
   created_at: z.string(),
 }));
 
@@ -31,7 +33,7 @@ export default async function ReservationsPage() {
 
   const client = await createSupabaseServerClient();
   const result = await client.from("commercial_reservations")
-    .select("id,status,quote_snapshot,original_total_cents,discount_total_cents,total_cents,expires_at,created_at")
+    .select("id,status,quote_snapshot,original_total_cents,discount_total_cents,total_cents,expires_at,pickup_deadline,pickup_instructions,created_at")
     .eq("customer_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -50,6 +52,8 @@ export default async function ReservationsPage() {
     discountTotalCents: reservation.discount_total_cents,
     totalCents: reservation.total_cents,
     expiresAt: reservation.expires_at,
+    pickupDeadline: reservation.pickup_deadline,
+    pickupInstructions: reservation.pickup_instructions,
     createdAt: reservation.created_at,
   })) : [];
 
