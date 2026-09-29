@@ -13,7 +13,7 @@ interface Env extends PaymentLinkEnv {
 interface ExecutionContextLike { waitUntil(promise: Promise<unknown>): void }
 interface ScheduledControllerLike { scheduledTime: number }
 interface ClaimedEvent { id: string; attempts: number }
-interface ClaimedPaymentLink { charge_id: string; order_number: string; amount_cents: number; name: string; expires_on: string }
+interface ClaimedPaymentLink { charge_id: string; order_number: string; amount_cents: number; name: string; expires_on: string; redirect_url?: string | null }
 
 interface ClaimedLinkReference { charge_id: string; provider_link_id: string }
 interface ClaimedRefund { refund_id: string; transaction_id: string; amount_cents: number }
@@ -204,6 +204,7 @@ export async function createRequestedPaymentLinks(
     try {
       created = await provider.createCharge({
         orderNumber: claim.order_number, name: claim.name, amountCents: claim.amount_cents, expiresOn: claim.expires_on,
+        ...(claim.redirect_url ? { redirectUrl: claim.redirect_url } : {}),
       });
     } catch (error) {
       const uncertain = !(error instanceof PaymentLinkProviderError) || error.uncertain;

@@ -269,3 +269,17 @@ describe("Payment Link maintenance", () => {
     ]);
   });
 });
+
+describe("Payment Link creation for the Portal", () => {
+  it("sends PicPay the page that brings the customer back", async () => {
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const name = requestUrl(input).split("/").at(-1) ?? "";
+      if (name === "worker_claim_payment_link_requests") return Promise.resolve(Response.json([{ charge_id: "charge-1", order_number: "G0123456789ABCD", amount_cents: 2590,
+        name: "Germinatura G0123456789ABCD", expires_on: "2026-10-01", redirect_url: "https://portal.example/pedidos/pagamento/7d8a0000-0000-4000-8000-000000000001" }]));
+      return Promise.resolve(Response.json({ status: "ok" }));
+    }) as unknown as typeof fetch;
+    const createCharge = vi.fn(() => Promise.resolve({ paymentLinkId: "1688060808649dc38881cdc", checkoutUrl: "https://link.picpay.com/p/1688060808649dc38881cdc", brcode: null, expiresAt: null, amountCents: 2590 }));
+    await createRequestedPaymentLinks(env, "worker-1", fetchImpl, { createCharge, findCharge: vi.fn(), listTransactions: vi.fn(), inactivateCharge: vi.fn(), refundTransaction: vi.fn() });
+    expect(createCharge).toHaveBeenCalledWith(expect.objectContaining({ redirectUrl: "https://portal.example/pedidos/pagamento/7d8a0000-0000-4000-8000-000000000001" }));
+  });
+});
