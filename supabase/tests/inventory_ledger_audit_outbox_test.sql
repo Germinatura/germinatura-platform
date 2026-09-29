@@ -51,7 +51,7 @@ select results_eq($$select count(*)::bigint from public.stock_movements$$, array
 select results_eq($$select count(*)::bigint from public.stock_movement_items$$, array[1::bigint], 'adjustment creates one movement item');
 reset role;
 select results_eq($$select count(*)::bigint from public.audit_logs$$, array[1::bigint], 'adjustment creates one audit record');
-select results_eq($$select count(*)::bigint from public.outbox_events$$, array[1::bigint], 'adjustment creates one outbox event');
+select results_eq($$select count(*)::bigint from public.outbox_events where topic not in ('catalog.product.published', 'promotions.live', 'raffles.campaign.opened')$$, array[1::bigint], 'adjustment creates one outbox event');
 select results_eq(
   $$select count(*)::bigint from public.idempotency_keys where key = 'ledger-adjust-1' and status = 'SUCCEEDED'$$,
   array[1::bigint],
@@ -120,7 +120,7 @@ select results_eq(
   'failed transfer leaves no orphan idempotency record'
 );
 select results_eq($$select count(*)::bigint from public.audit_logs$$, array[3::bigint], 'failed transfer creates no audit record');
-select results_eq($$select count(*)::bigint from public.outbox_events$$, array[3::bigint], 'failed transfer creates no outbox event');
+select results_eq($$select count(*)::bigint from public.outbox_events where topic not in ('catalog.product.published', 'promotions.live', 'raffles.campaign.opened')$$, array[3::bigint], 'failed transfer creates no outbox event');
 
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
@@ -153,7 +153,7 @@ select throws_ok(
 reset role;
 select results_eq($$select count(*)::bigint from public.stock_movements$$, array[4::bigint], 'failed second reversal creates no movement');
 select results_eq($$select count(*)::bigint from public.audit_logs$$, array[4::bigint], 'each successful movement has one audit record');
-select results_eq($$select count(*)::bigint from public.outbox_events$$, array[4::bigint], 'each successful movement has one outbox event');
+select results_eq($$select count(*)::bigint from public.outbox_events where topic not in ('catalog.product.published', 'promotions.live', 'raffles.campaign.opened')$$, array[4::bigint], 'each successful movement has one outbox event');
 
 select throws_ok(
   $$update public.stock_movements set reason = 'Alterado' where id = (select (result ->> 'movement_id')::uuid from adjustment_result)$$,

@@ -79,6 +79,8 @@ test("o consumidor pede aviso de um produto indisponível e é avisado quando el
   // Preferences: silencing announcements is saved, then restored for the other suites.
   const preferences = page.locator("[aria-label='Preferências de notificação']");
   const announcements = preferences.getByLabel(/Comunicados da comissão/);
+  await expect(preferences.getByLabel(/Novos produtos/)).toBeVisible();
+  await expect(preferences.getByLabel(/Promoções/)).toBeVisible();
   await expect(announcements).toBeEnabled();
   await expect(announcements).toBeChecked();
   const silenced = page.waitForResponse((response) => response.url().endsWith("/api/v1/notifications/preferences") && response.request().method() === "PUT");

@@ -33,7 +33,7 @@ select is((select count(*)::integer from public.promotions where code='PCT-15'),
 
 reset role;
 select is((select count(*)::integer from public.audit_logs where entity_type='promotion' and entity_id=(select result->>'id' from percentage_promotion)),1,'creation is audited');
-select is((select count(*)::integer from public.outbox_events where aggregate_type='promotion' and aggregate_id=(select result->>'id' from percentage_promotion)),1,'creation emits outbox event');
+select is((select count(*)::integer from public.outbox_events where aggregate_type='promotion' and topic <> 'promotions.live' and aggregate_id=(select result->>'id' from percentage_promotion)),1,'creation emits outbox event');
 
 -- R$ 25,90 with 15% = R$ 22,015 per unit: floored to R$ 22,01 in favor of the customer.
 create temp table percentage_quote as select private.price_sale_items('PORTAL','[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":2}]'::jsonb) quote;

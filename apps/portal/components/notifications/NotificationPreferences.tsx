@@ -4,8 +4,11 @@ import { notificationPreferencesResponseSchema, type NotificationCategory } from
 import { Card } from "@germinatura/ui";
 import { useEffect, useState } from "react";
 
-// Only categories that already produce notices are offered; the others arrive with their sources.
+// Only categories that already produce notices are offered; events arrive with the events module.
 const offered: Array<{ category: NotificationCategory; label: string; description: string }> = [
+  { category: "NOVOS_PRODUTOS", label: "Novos produtos", description: "Quando um produto novo chega ao catálogo." },
+  { category: "PROMOCOES", label: "Promoções", description: "Quando uma promoção entra no ar." },
+  { category: "RIFAS", label: "Rifas", description: "Quando uma nova rifa abre a venda de números." },
   { category: "COMUNICADOS", label: "Comunicados da comissão", description: "Avisos enviados pela comunicação." },
   { category: "ESTOQUE_DE_VOLTA", label: "Produto de volta", description: "Quando um produto que você pediu para acompanhar voltar ao estoque." },
 ];
