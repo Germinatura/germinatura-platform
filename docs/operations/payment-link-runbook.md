@@ -1,6 +1,16 @@
 # Runbook — Link de pagamento PicPay (Payment Link)
 
-Decisão: ADR 0010. Requisitos: PAY-004 e PAY-007. Estado: fundação implementada e **desligada** (flag `payment_link` = off); homologação em sandbox pendente.
+Decisão: ADR 0010. Requisitos: PAY-004 e PAY-007. Estado: fundação (#103) e ciclo de vida implementados e **desligados** (flag `payment_link` = off); homologação em sandbox pendente.
+
+## Estado da configuração (29/09/2026)
+
+| Item | Staging | Produção |
+| --- | --- | --- |
+| `PICPAY_PAYMENT_LINK_TOKEN_URL`, `PICPAY_PAYMENT_LINK_API_BASE_URL` (sandbox) | Configurados como Secret | Não configurar ainda (`main` não promovida; worker de produção não existe) |
+| `PICPAY_PAYMENT_LINK_CLIENT_ID`, `PICPAY_PAYMENT_LINK_CLIENT_SECRET` (sandbox) | Configurados como Secret | Não configurar ainda |
+| `PICPAY_PAYMENT_LINK_WEBHOOK_KEY` | **Ausente — bloqueio externo** | Ausente |
+
+Bloqueio externo do webhook: o painel PicPay Empresas desta conta não mostra a opção "Meu checkout / URL de notificação" que a documentação descreve, então não há API Key nem URL de notificação cadastrada. Enquanto isso o endpoint do webhook responde 503, e pagamentos só podem ser reconhecidos pela consulta periódica oficial (`STATUS_QUERY`).
 
 ## Como funciona
 
@@ -9,7 +19,12 @@ Decisão: ADR 0010. Requisitos: PAY-004 e PAY-007. Estado: fundação implementa
 3. O PicPay envia o webhook para o worker. O worker confere a API Key do header `authorization` (comparação em tempo constante), grava o corpo bruto e imutável (`payment_webhook_receipts`) e o banco aplica uma única vez por transação e status. Pagamento confirmado gera os mesmos efeitos dos meios manuais: baixa da reserva de estoque, `RECEIVABLE_PICPAY`, venda `CONFIRMED`, tentativa `APPROVED` com origem `WEBHOOK`.
 4. Link desconhecido, valor diferente, pagamento depois da expiração, segundo pagamento, estorno confirmado e formato não reconhecido não geram receita: abrem itens em `payment_recovery_items`. O financeiro pode reprocessar um recibo (`replay_payment_webhook_receipt`) e encerrar um item com justificativa (`resolve_payment_recovery_item`).
 
-Sem configuração completa o worker não pega pedidos e o endpoint do webhook responde 503 (fail-closed). Com a flag desligada, `request_payment_link` recusa com `FEATURE_DISABLED`.
+5. Quando a venda deixa de aguardar pagamento (paga por qualquer meio, expirada ou cancelada), o banco marca os links dela para inativação e o worker chama `POST /paymentlink/{id}/inactive`. A operação é idempotente, porque "já inativado" (B038) conta como sucesso. Depois de 8 falhas abre `INACTIVATION_FAILED`. Um link pago também é inativado, para não aceitar segundo pagamento. Um pedido ainda não enviado ao PicPay falha com `SALE_CLOSED`. Nada disso depende de tela.
+6. A cada ciclo o worker lê as transações (`GET /paymentlink/{id}/transactions`) dos links abertos a cada 2 minutos, e dos fechados há menos de um dia ou com estorno pendente a cada 15 minutos. Cada transação `PAYED`/`REFUNDED`/`PARTREFUNDED` entra pelo mesmo caminho do webhook (`STATUS_QUERY`), deduplicada pela mesma chave. Um webhook perdido é recuperado, e webhook mais consulta nunca confirmam duas vezes.
+7. Estorno pelo provedor: o financeiro pede (`request_payment_link_refund`) o estorno de uma transação informada pelo PicPay, nunca acima do valor pago e com um estorno em andamento por transação. O worker envia uma única vez (`POST /paymentlink/transaction/{id}/refund`). Resposta 200 vira `ACCEPTED`, recusa vira `FAILED` e timeout, 5xx ou lease vencido viram `UNCERTAIN` com item `REFUND_UNCERTAIN`, sem reenvio. Só o evento de estorno do PicPay (webhook ou consulta) torna o pedido `CONFIRMED`.
+8. Reconciliação: `reconcile_uncertain_payment_link` recebe o link encontrado no painel (passa a `ACTIVE`, aplica avisos que chegaram antes e inativa se a venda já fechou) ou a confirmação de que ele não existe (`FAILED`, e o vendedor pode pedir outro). `reconcile_uncertain_payment_link_refund` registra se o estorno aparece no painel (`ACCEPTED`, aguardando o evento) ou não (`FAILED`, e pode ser pedido de novo).
+
+Sem configuração completa o worker não pega pedidos, não inativa, não consulta e não estorna, e o endpoint do webhook responde 503 (fail-closed). Com a flag desligada, `request_payment_link` recusa com `FEATURE_DISABLED`. A inativação, a consulta e o estorno de links já existentes não dependem da flag, porque dinheiro recebido precisa ser reconhecido.
 
 ## Credenciais e configurações necessárias
 
@@ -53,6 +68,11 @@ Gerar uma nova credencial revoga a anterior em 7 dias; guardar o `client_secret`
 
 ## Operação
 
-- Itens de recuperação: `list_payment_recovery_items` (financeiro). `UNCERTAIN_CREATION` pede conferência no painel PicPay antes de gerar outro link; `DUPLICATE_PAYMENT`/`LATE_PAYMENT` pedem decisão de estorno; `REFUND_CONFIRMED` pede a reversão correspondente da venda.
+- Itens de recuperação: `list_payment_recovery_items` (financeiro).
+  - `UNCERTAIN_CREATION` e `REFUND_UNCERTAIN`: conferir no painel PicPay e reconciliar.
+  - `DUPLICATE_PAYMENT`, `LATE_PAYMENT` e `AMOUNT_MISMATCH`: decidir o estorno. O estorno confirmado encerra o item.
+  - `REFUND_CONFIRMED`: registrar a reversão correspondente da venda.
+  - `INACTIVATION_FAILED`: inativar o link pelo painel.
+- Sandbox: para links criados no sandbox, a consulta de transações devolve uma lista fixa de exemplo (página "Cenários de Teste"). Em staging isso pode gerar confirmações ou itens de recuperação de teste. Nunca ligar a flag fora de um teste controlado.
 - Reprocessar um recibo depois de corrigir a causa: `replay_payment_webhook_receipt`. Recibo já aplicado não muda nada.
 - Rotação da API Key do webhook: salvar a nova no painel e atualizar `PICPAY_PAYMENT_LINK_WEBHOOK_KEY` em seguida; entregas no intervalo recebem 401 e o PicPay reenvia.

@@ -40,7 +40,7 @@ select public.create_commercial_reservation(
 ) as result;
 select results_eq($$select result ->> 'status' from created_reservation$$, array['ACTIVE'::text], 'reservation starts active');
 select results_eq(
-  $$select extract(epoch from (expires_at - created_at))::integer from public.commercial_reservations where id = (select (result ->> 'reservation_id')::uuid from created_reservation)$$,
+  $$select floor(extract(epoch from (expires_at - created_at)))::integer from public.commercial_reservations where id = (select (result ->> 'reservation_id')::uuid from created_reservation)$$,
   array[(select hold_hours * 3600 from public.reservation_settings)], 'server applies the configured reservation hold'
 );
 reset role;
