@@ -6,13 +6,14 @@ import type {
   CashPaymentResponse,
   ManualPaymentConfirmationResponse,
   PaymentIntegrationChannel,
+  PaymentLinkCharge,
   PricingQuoteResponse,
   PaymentTerminal,
   PublicCatalogProduct,
   SalesCheckoutResponse,
 } from "@germinatura/contracts";
 import {
-  AlertTriangle, ArrowLeft, Banknote, Check, ChevronDown, CircleCheck, CreditCard,
+  AlertTriangle, ArrowLeft, Banknote, Check, ChevronDown, CircleCheck, CreditCard, Link2,
   Loader2, LogOut, Minus, PackageSearch, Plus, RotateCcw, Search, ShoppingBag,
   Store, Undo2, Wallet, WifiOff, X,
 } from "lucide-react";
@@ -28,9 +29,10 @@ const PickupWorkspace = dynamic(() => import("@/components/operations/PickupWork
 const MySalesWorkspace = dynamic(() => import("@/components/operations/MySalesWorkspace").then((module) => module.MySalesWorkspace), { loading: () => <p role="status" className="p-6">Carregando vendas…</p> });
 const MyStockWorkspace = dynamic(() => import("@/components/operations/MyStockWorkspace").then((module) => module.MyStockWorkspace), { loading: () => <p role="status" className="p-6">Carregando estoque…</p> });
 import { useToast } from "@/components/ui/Toast";
+import { PaymentLinkPanel, PaymentLinkSuccess } from "@/components/operations/PaymentLinkPanel";
 import {
   cancelPendingSale, cashChange, checkoutCart, confirmCashPayment, confirmManualPayment, formatMoney, loadCatalog, parseMoneyInput,
-  loadInventoryContext, loadPaymentTerminals, quoteCart, type CartItem, type InventoryContext,
+  loadEnabledFeatures, loadInventoryContext, loadPaymentTerminals, quoteCart, type CartItem, type InventoryContext,
 } from "@/lib/operations";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
@@ -39,7 +41,7 @@ type CheckoutData = SalesCheckoutResponse["data"];
 type ConfirmationData = ManualPaymentConfirmationResponse["data"] | CashPaymentResponse["data"];
 type QuoteData = PricingQuoteResponse["data"];
 type ManualChannel = Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">;
-type PaymentChannel = ManualChannel | "DINHEIRO";
+type PaymentChannel = ManualChannel | "DINHEIRO" | "PAYMENT_LINK";
 
 const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
 const operationKey = (prefix: string) => `${prefix}:${crypto.randomUUID()}`;
@@ -69,6 +71,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   const [error, setError] = useState("");
   const [online, setOnline] = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [features, setFeatures] = useState<Set<string>>(new Set());
+  const [paidLink, setPaidLink] = useState<PaymentLinkCharge | null>(null);
   const checkoutKey = useRef(operationKey("pdv-checkout"));
   const confirmationKey = useRef(operationKey("pdv-confirm"));
   const cancellationKey = useRef(operationKey("pdv-cancel"));
@@ -91,6 +95,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void refreshData(), 0);
+    void loadEnabledFeatures().then(setFeatures, () => setFeatures(new Set()));
     const updateOnline = () => setOnline(navigator.onLine);
     updateOnline();
     window.addEventListener("online", updateOnline);
@@ -127,7 +132,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   }
 
   function resetSale() {
-    setCart([]); setQuote(null); setCheckout(null); setConfirmation(null); setProofReference(""); setCouponCode(""); setTendered("");
+    setCart([]); setQuote(null); setCheckout(null); setConfirmation(null); setPaidLink(null); setProofReference(""); setCouponCode(""); setTendered("");
     setCardMethod(null); setTerminalId("");
     setChannel("MAQUININHA"); setError(""); setStep("catalog");
     checkoutKey.current = operationKey("pdv-checkout");
@@ -157,7 +162,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     void loadPaymentTerminals().then(setTerminals, () => setTerminals([]));
   });
   const confirmPayment = () => perform("confirm", async () => {
-    if (!online || !checkout) return;
+    if (!online || !checkout || channel === "PAYMENT_LINK") return;
     let result: ConfirmationData;
     if (channel === "DINHEIRO") {
       const tenderedCents = parseMoneyInput(tendered);
@@ -172,6 +177,10 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     setConfirmation(result); setStep("success"); showToast("Venda confirmada e estoque atualizado.", "success");
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
+  const linkPaid = useCallback((charge: PaymentLinkCharge) => {
+    setPaidLink(charge); setStep("success"); showToast("Pagamento confirmado pelo PicPay.", "success");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [showToast]);
   const cancelSale = () => perform("cancel", async () => {
     if (!online || !checkout) return;
     await cancelPendingSale(checkout.saleId, cancellationKey.current);
@@ -231,7 +240,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
           : step === "catalog" ? <CatalogStep catalog={filteredCatalog} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
           : step === "review" && quote ? <ReviewStep quote={quote} online={online} loading={action === "checkout"} onCheckout={startCheckout}
             couponCode={couponCode} applying={action === "quote"} onCouponChange={(value) => { setCouponCode(value.toUpperCase()); checkoutKey.current = operationKey("pdv-checkout"); }} onApplyCoupon={reviewSale} />
-          : step === "payment" && checkout && quote ? <PaymentStep checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} tendered={tendered} cardMethod={cardMethod} terminals={terminals} terminalId={terminalId} onCardMethod={setCardMethod} onTerminal={setTerminalId} online={online} action={action} onChannel={(value) => { setChannel(value); confirmationKey.current = operationKey("pdv-confirm"); }} onReference={setProofReference} onTendered={setTendered} onConfirm={confirmPayment} onCancel={cancelSale} />
+          : step === "payment" && checkout && quote ? <PaymentStep checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} tendered={tendered} cardMethod={cardMethod} terminals={terminals} terminalId={terminalId} onCardMethod={setCardMethod} onTerminal={setTerminalId} online={online} action={action} paymentLinkEnabled={features.has("payment_link")} onLinkPaid={linkPaid} onChannel={(value) => { setChannel(value); confirmationKey.current = operationKey("pdv-confirm"); }} onReference={setProofReference} onTendered={setTendered} onConfirm={confirmPayment} onCancel={cancelSale} />
+          : step === "success" && paidLink ? <PaymentLinkSuccess charge={paidLink} onNewSale={resetSale} />
           : step === "success" && confirmation && quote ? <SuccessStep confirmation={confirmation} quote={quote} onNewSale={resetSale} /> : null}
       </div>
     </main>
@@ -287,17 +297,20 @@ function ReviewStep({ quote, online, loading, onCheckout, couponCode, applying, 
 const cardMethods: Array<{ value: CardPaymentMethod; label: string }> = [{ value: "CREDITO", label: "Crédito" }, { value: "DEBITO", label: "Débito" }];
 const cardMethodLabels: Record<CardPaymentMethod, string> = { CREDITO: "Crédito", DEBITO: "Débito", VOUCHER_ALIMENTACAO: "Vale-alimentação", VOUCHER_REFEICAO: "Vale-refeição" };
 
-interface PaymentProps { checkout: CheckoutData; quote: QuoteData; channel: PaymentChannel; proofReference: string; tendered: string; cardMethod: CardPaymentMethod | null; terminals: PaymentTerminal[]; terminalId: string; onCardMethod: (value: CardPaymentMethod) => void; onTerminal: (value: string) => void; online: boolean; action: string | null; onChannel: (channel: PaymentChannel) => void; onReference: (value: string) => void; onTendered: (value: string) => void; onConfirm: () => void; onCancel: () => void }
+interface PaymentProps { checkout: CheckoutData; quote: QuoteData; channel: PaymentChannel; proofReference: string; tendered: string; cardMethod: CardPaymentMethod | null; terminals: PaymentTerminal[]; terminalId: string; onCardMethod: (value: CardPaymentMethod) => void; onTerminal: (value: string) => void; online: boolean; action: string | null; onChannel: (channel: PaymentChannel) => void; onReference: (value: string) => void; onTendered: (value: string) => void; onConfirm: () => void; onCancel: () => void; paymentLinkEnabled: boolean; onLinkPaid: (charge: PaymentLinkCharge) => void }
 function PaymentStep(props: PaymentProps) {
   const cash = props.channel === "DINHEIRO";
+  const link = props.channel === "PAYMENT_LINK";
   const change = cashChange(props.quote.totalCents, parseMoneyInput(props.tendered));
   const card = props.channel === "MAQUININHA";
   const cardReady = !card || (props.cardMethod !== null && (props.terminals.length === 0 || props.terminalId !== ""));
   const ready = cash ? change !== null : props.proofReference.trim().length >= 4 && cardReady;
   return <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"><div className="space-y-5"><Card className="p-5">
-    <div className="flex items-center justify-between gap-4"><div><Badge tone="warning">Confirmação manual</Badge><h2 className="mt-3 text-xl font-semibold">Como o cliente pagou?</h2></div><p className="g-money text-2xl font-bold">{formatMoney(props.quote.totalCents)}</p></div>
-    <div className="mt-5 grid gap-3 sm:grid-cols-3"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Área Pix" description="Conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} /><ChannelButton icon={Wallet} selected={cash} title="Dinheiro" description="Entra no caixa do turno" onClick={() => props.onChannel("DINHEIRO")} /></div>
-    {cash
+    <div className="flex items-center justify-between gap-4"><div><Badge tone={link ? "info" : "warning"}>{link ? "Confirmação pelo PicPay" : "Confirmação manual"}</Badge><h2 className="mt-3 text-xl font-semibold">Como o cliente pagou?</h2></div><p className="g-money text-2xl font-bold">{formatMoney(props.quote.totalCents)}</p></div>
+    <div className="mt-5 grid gap-3 sm:grid-cols-3"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Área Pix" description="Conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} /><ChannelButton icon={Wallet} selected={cash} title="Dinheiro" description="Entra no caixa do turno" onClick={() => props.onChannel("DINHEIRO")} />{props.paymentLinkEnabled && <ChannelButton icon={Link2} selected={link} title="Link de pagamento" description="Cliente paga pelo celular" onClick={() => props.onChannel("PAYMENT_LINK")} />}</div>
+    {link
+      ? <PaymentLinkPanel saleId={props.checkout.saleId} totalCents={props.quote.totalCents} online={props.online} onPaid={props.onLinkPaid} />
+      : cash
       ? <><Field id="cash-tendered" label="Valor recebido (R$)" description="Informe quanto o cliente entregou. O troco é calculado em centavos." className="mt-5"><Input id="cash-tendered" inputMode="decimal" value={props.tendered} onChange={(event) => props.onTendered(event.target.value)} autoComplete="off" placeholder="Ex.: 50,00" /></Field>
         <p role="status" className="mt-3 text-sm">{change === null ? "O valor recebido precisa cobrir o total." : <>Troco: <strong className="g-money">{formatMoney(change)}</strong></>}</p>
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">É preciso ter um turno aberto.</strong> O dinheiro fica registrado no seu caixa e será conferido no fechamento do turno.</div></>
@@ -306,7 +319,7 @@ function PaymentStep(props: PaymentProps) {
         {props.terminals.length > 0 && <Field id="payment-terminal" label="Maquininha usada"><select id="payment-terminal" value={props.terminalId} onChange={(event) => props.onTerminal(event.target.value)} className="g-input min-h-12 w-full"><option value="">Selecione a maquininha</option>{props.terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
       </div>}<Field id="proof-reference" label="Referência não sensível do comprovante" description="Use o identificador da operação. Nunca informe número do cartão, CVV, senha ou token." className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} minLength={4} maxLength={128} autoComplete="off" placeholder="Ex.: COMPROVANTE-9F2A" /></Field>
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">Confirme fora do sistema antes de continuar.</strong> Esta tela não consulta automaticamente a Maquininha nem a Área Pix.</div></>}
-    <Button variant="operation" size="lg" className="mt-5 w-full" onClick={props.onConfirm} loading={props.action === "confirm"} disabled={!props.online || !ready || props.action !== null}>{cash ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>
+    {!link && <Button variant="operation" size="lg" className="mt-5 w-full" onClick={props.onConfirm} loading={props.action === "confirm"} disabled={!props.online || !ready || props.action !== null}>{cash ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>}
   </Card><Button variant="ghost" className="w-full text-[var(--g-status-danger)]" onClick={props.onCancel} loading={props.action === "cancel"} disabled={!props.online || props.action !== null}><X className="size-4" /> Cancelar venda pendente</Button></div><div><QuoteSummary quote={props.quote} /><p className="mt-3 text-xs text-[var(--g-text-muted)]">Reserva válida até {new Date(props.checkout.reservation.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p></div></div>;
 }
 
