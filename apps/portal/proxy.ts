@@ -41,6 +41,8 @@ export default async function proxy(request: NextRequest) {
     return response;
   }
 
+  // GROW-001: tracked share links are public for everyone, signed in or not.
+  if (/^\/d\/[a-z0-9]{8}$/.test(path)) return response;
   const isPublicRoute = publicRoutes.has(path);
   if (!session && !isPublicRoute) return NextResponse.redirect(new URL("/login", request.url));
   if (session && !session.user.onboardingCompleted && path !== "/cadastro/perfil") {
