@@ -54,6 +54,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
   { path: "/api/v1/sales/:id/payments/cash", methods: ["POST"], access: "seller" },
   { path: "/api/v1/pdv/shifts", methods: ["GET", "POST"], access: "seller" },
+  { path: "/api/v1/pdv/pickups", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/pickups/:id/complete", methods: ["POST"], access: "seller" },
   { path: "/api/v1/pdv/sales", methods: ["GET"], access: "seller" },
   { path: "/api/v1/pdv/terminals", methods: ["GET"], access: "seller" },
   { path: "/api/v1/pdv/shifts/:id/close", methods: ["POST"], access: "seller" },
@@ -109,6 +111,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/users/:id/roles") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
+    }
+    if (rule.path === "/api/v1/pdv/pickups/:id/complete") {
+      return /^\/api\/v1\/pdv\/pickups\/[0-9a-f-]+\/complete$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/reservations/:id/ready") {
       return /^\/api\/v1\/admin\/reservations\/[0-9a-f-]+\/ready$/i.test(path);

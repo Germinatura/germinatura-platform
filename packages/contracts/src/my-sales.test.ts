@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mySaleSchema, mySalesQuerySchema } from "./index";
 
 const sale = {
-  saleId: "69000000-0000-4000-8000-000000000001", status: "AWAITING_PAYMENT", createdAt: "2026-09-30T12:00:00.000Z",
+  saleId: "69000000-0000-4000-8000-000000000001", status: "AWAITING_PAYMENT", channel: "PDV", createdAt: "2026-09-30T12:00:00.000Z",
   locationId: "50000000-0000-4000-8000-000000000002", originalTotalCents: 2_590, discountTotalCents: 0, totalCents: 2_590,
   pendingReason: "AWAITING_PAYMENT", reservationExpiresAt: "2026-09-30T12:15:00.000Z",
   payment: { attemptId: "69000000-0000-4000-8000-000000000002", status: "CREATED", integrationChannel: null, confirmationSource: null, confirmedAt: null, cardMethod: null, terminalCode: null },
