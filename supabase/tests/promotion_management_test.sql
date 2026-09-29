@@ -28,7 +28,7 @@ select results_eq($$select group_quantity,group_price_cents,max_groups_per_line 
 select is((select count(*)::integer from public.promotion_versions where promotion_id=(select (result->>'id')::uuid from created_promotion)),1,'creation writes immutable version');
 reset role;
 select is((select count(*)::integer from public.audit_logs where entity_type='promotion' and entity_id=(select result->>'id' from created_promotion)),1,'creation is audited');
-select is((select count(*)::integer from public.outbox_events where aggregate_type='promotion' and aggregate_id=(select result->>'id' from created_promotion)),1,'creation emits outbox event');
+select is((select count(*)::integer from public.outbox_events where aggregate_type='promotion' and topic <> 'promotions.live' and aggregate_id=(select result->>'id' from created_promotion)),1,'creation emits outbox event');
 set local role authenticated;
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
 

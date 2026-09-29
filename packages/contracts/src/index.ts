@@ -1124,6 +1124,9 @@ export const notificationKindSchema = z.enum([
   "SALE_DIVERGENT",
   "ANNOUNCEMENT",
   "PRODUCT_BACK_IN_STOCK",
+  "NEW_PRODUCT",
+  "PROMOTION_LIVE",
+  "RAFFLE_OPENED",
 ]);
 
 // Spec 4.7 (NOTIF-004): optional notification categories each user can turn off.

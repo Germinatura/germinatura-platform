@@ -41,7 +41,7 @@ select throws_ok($$select pg_temp.save('BP-QTY','{"type":"QUANTIDADE_PRECO","gro
 reset role;
 select is((select count(*)::integer from public.promotion_versions where promotion_id=(select (result->>'id')::uuid from quantity)),2,'each revision keeps an immutable version');
 select is((select count(*)::integer from public.audit_logs where entity_type='promotion' and entity_id=(select result->>'id' from buy_pay)),1,'creation is audited');
-select is((select count(*)::integer from public.outbox_events where aggregate_type='promotion' and aggregate_id=(select result->>'id' from buy_pay)),1,'creation emits outbox event');
+select is((select count(*)::integer from public.outbox_events where aggregate_type='promotion' and topic <> 'promotions.live' and aggregate_id=(select result->>'id' from buy_pay)),1,'creation emits outbox event');
 
 -- R$ 25,90: 7 units with "leve 3, pague 2" = 2 groups (2 free) + 1 = 5 x 2590 = 12950.
 create temp table seven as select private.price_sale_items('PORTAL','[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":7}]'::jsonb) quote;
