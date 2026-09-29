@@ -10,6 +10,9 @@
     "test": "vitest run --passWithNoTests",
     "deploy": "wrangler deploy"
   },
+  "dependencies": {
+    "@germinatura/payments": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",

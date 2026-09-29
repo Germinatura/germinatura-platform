@@ -10,9 +10,9 @@ select has_function('public', 'worker_retry_outbox_event', array['uuid','text','
 select has_function('public', 'worker_outbox_metrics', array[]::text[], 'worker metrics RPC exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.notifications'::regclass), 'notifications have RLS');
 select ok((select relrowsecurity from pg_class where oid = 'public.feature_flags'::regclass), 'feature flags have RLS');
-select results_eq($$select count(*)::bigint from public.feature_flags$$, array[12::bigint], 'all launch flags are seeded, including cash_payment');
+select results_eq($$select count(*)::bigint from public.feature_flags$$, array[13::bigint], 'all launch flags are seeded, including cash_payment and payment_link');
 select results_eq($$select count(*)::bigint from public.feature_flags where enabled$$, array[6::bigint], 'six launch capabilities start enabled');
-select results_eq($$select count(*)::bigint from public.feature_flags where not enabled$$, array[6::bigint], 'six remote or post-MVP capabilities start disabled');
+select results_eq($$select count(*)::bigint from public.feature_flags where not enabled$$, array[7::bigint], 'seven remote or post-MVP capabilities start disabled');
 select results_eq(
   $$select count(*)::bigint from information_schema.role_table_grants where table_schema = 'public' and table_name = 'feature_flags' and grantee in ('anon','authenticated') and privilege_type <> 'SELECT'$$,
   array[0::bigint], 'API roles cannot write feature flags directly'

@@ -85,3 +85,5 @@ export class UnavailablePicPayCardPresentProvider implements CardPresentProvider
     return new PaymentIntegrationUnavailableError("PicPay card-present integration is unavailable until officially documented and enabled");
   }
 }
+
+export * from "./payment-link";

@@ -41,6 +41,10 @@ importers:
         version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.33.0)(supports-color@10.2.2)(terser@5.51.2)
 
   apps/jobs:
+    dependencies:
+      '@germinatura/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
     devDependencies:
       typescript:
         specifier: ^5.9.2
