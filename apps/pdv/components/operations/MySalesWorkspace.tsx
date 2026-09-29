@@ -74,7 +74,7 @@ export function MySalesWorkspace({ online }: { online: boolean }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="g-money text-lg font-bold">{formatMoney(sale.totalCents)}</p>
-                  <p className="text-sm text-[var(--g-text-secondary)]">{dateTime.format(new Date(sale.createdAt))} · {paymentSummary(sale.payment)}</p>
+                  <p className="text-sm text-[var(--g-text-secondary)]">{dateTime.format(new Date(sale.createdAt))} · {sale.channel === "RESERVA" ? "Retirada de reserva · " : ""}{paymentSummary(sale.payment)}</p>
                 </div>
                 <Badge tone={status.tone}>{status.label}</Badge>
               </div>

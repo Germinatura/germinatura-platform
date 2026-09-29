@@ -10,6 +10,7 @@ const databaseSalesSchema = z.object({
   items: z.array(z.object({
     sale_id: z.uuid(),
     status: z.enum(["AWAITING_PAYMENT", "CONFIRMED", "CANCELLED"]),
+    channel: z.enum(["PDV", "RESERVA"]).optional(),
     created_at: z.string(),
     location_id: z.uuid(),
     original_total_cents: z.number().int(),
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
     if (error || !rows.success) return shiftErrorResponse("SALES_UNAVAILABLE", "Não foi possível consultar suas vendas.", requestId, 503);
     const response = mySalesResponseSchema.safeParse({
       data: rows.data.items.map((sale) => ({
-        saleId: sale.sale_id, status: sale.status, createdAt: sale.created_at, locationId: sale.location_id,
+        saleId: sale.sale_id, status: sale.status, channel: sale.channel ?? "PDV", createdAt: sale.created_at, locationId: sale.location_id,
         originalTotalCents: sale.original_total_cents, discountTotalCents: sale.discount_total_cents, totalCents: sale.total_cents,
         pendingReason: sale.pending_reason, reservationExpiresAt: sale.reservation_expires_at,
         payment: sale.payment && {

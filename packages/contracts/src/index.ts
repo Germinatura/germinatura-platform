@@ -366,6 +366,7 @@ export const mySalesQuerySchema = z.object({
 export const mySaleSchema = z.object({
   saleId: z.uuid(),
   status: saleStatusSchema.exclude(["DRAFT"]),
+  channel: z.enum(["PDV", "RESERVA"]),
   createdAt: z.iso.datetime({ offset: true }),
   locationId: z.uuid(),
   originalTotalCents: moneyCentsSchema,
@@ -592,6 +593,61 @@ export const adminReservationSchema = z.object({
   items: z.array(z.object({ productName: z.string(), quantity: z.number().int().positive(), totalCents: moneyCentsSchema }).strict()),
 }).strict();
 export type AdminReservation = z.infer<typeof adminReservationSchema>;
+
+// RES-003: pickup of a prepared reservation at the PDV, charged at the frozen reservation price.
+export const pickupReservationSchema = z.object({
+  reservationId: z.uuid(),
+  customerName: z.string(),
+  locationId: z.uuid(),
+  locationName: z.string(),
+  totalCents: moneyCentsSchema,
+  discountTotalCents: moneyCentsSchema,
+  readyAt: z.iso.datetime({ offset: true }),
+  pickupDeadline: z.iso.datetime({ offset: true }),
+  pickupInstructions: z.string().nullable(),
+  items: z.array(z.object({ productName: z.string(), quantity: z.number().int().positive(), totalCents: moneyCentsSchema }).strict()),
+}).strict();
+export type PickupReservation = z.infer<typeof pickupReservationSchema>;
+
+export const pickupReservationsResponseSchema = z.object({
+  data: z.array(pickupReservationSchema),
+  request_id: z.string().min(1),
+}).strict();
+
+export const completePickupRequestSchema = z.object({
+  integrationChannel: z.enum(["DINHEIRO", "MAQUININHA", "PIX_AREA"]),
+  tenderedCents: moneyCentsSchema.nullable(),
+  proofReference: z.string().min(4).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
+    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão").nullable(),
+  cardMethod: cardPaymentMethodSchema.nullable(),
+  terminalId: z.uuid().nullable(),
+}).strict().superRefine((value, context) => {
+  if (value.integrationChannel === "DINHEIRO") {
+    if (value.tenderedCents === null) context.addIssue({ code: "custom", path: ["tenderedCents"], message: "Informe o valor recebido" });
+    if (value.proofReference || value.cardMethod || value.terminalId) context.addIssue({ code: "custom", path: ["integrationChannel"], message: "Dinheiro não tem comprovante nem cartão" });
+  } else {
+    if (value.tenderedCents !== null) context.addIssue({ code: "custom", path: ["tenderedCents"], message: "Só dinheiro tem valor recebido" });
+    if (!value.proofReference) context.addIssue({ code: "custom", path: ["proofReference"], message: "Informe a referência não sensível" });
+    if (value.integrationChannel === "MAQUININHA" && !value.cardMethod) context.addIssue({ code: "custom", path: ["cardMethod"], message: "Informe crédito ou débito" });
+    if (value.integrationChannel === "PIX_AREA" && (value.cardMethod || value.terminalId)) context.addIssue({ code: "custom", path: ["cardMethod"], message: "Área Pix não tem cartão" });
+  }
+});
+export type CompletePickupRequest = z.infer<typeof completePickupRequestSchema>;
+
+export const completePickupResponseSchema = z.object({
+  data: z.object({
+    reservationId: z.uuid(),
+    status: z.literal("COMPLETED"),
+    saleId: z.uuid(),
+    totalCents: moneyCentsSchema,
+    integrationChannel: z.enum(["DINHEIRO", "MAQUININHA", "PIX_AREA"]),
+    changeCents: moneyCentsSchema.nullable(),
+    cardMethod: cardPaymentMethodSchema.nullable(),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type CompletePickupResponse = z.infer<typeof completePickupResponseSchema>;
 
 export const adminReservationsResponseSchema = z.object({
   data: z.array(adminReservationSchema),

@@ -2,6 +2,8 @@ import {
   cashPaymentResponseSchema,
   manualPaymentConfirmationResponseSchema,
   mySalesResponseSchema,
+  completePickupResponseSchema,
+  pickupReservationsResponseSchema,
   paymentTerminalsResponseSchema,
   sellerShiftResponseSchema,
   pricingQuoteResponseSchema,
@@ -21,6 +23,9 @@ import {
   type ManualPaymentConfirmationResponse,
   type MySalesFilter,
   type MySalesResponse,
+  type CompletePickupRequest,
+  type CompletePickupResponse,
+  type PickupReservation,
   type CardPaymentMethod,
   type PaymentTerminal,
   type SellerShift,
@@ -204,6 +209,30 @@ export async function confirmManualPayment(
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível confirmar o recebimento."));
   const parsed = manualPaymentConfirmationResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("A confirmação retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+/** RES-003: prepared reservations waiting for pickup at the locations this operator runs. */
+export async function loadPickups(query: string): Promise<PickupReservation[]> {
+  const params = new URLSearchParams();
+  if (query.trim()) params.set("query", query.trim());
+  const response = await apiFetch(`/api/v1/pdv/pickups${params.size ? `?${params}` : ""}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as retiradas."));
+  const parsed = pickupReservationsResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("As retiradas retornaram dados inválidos.");
+  return parsed.data.data;
+}
+
+/** Hands over a prepared reservation, charging the frozen price in one atomic step. */
+export async function completePickup(reservationId: string, payment: CompletePickupRequest, idempotencyKey: string): Promise<CompletePickupResponse["data"]> {
+  const response = await apiFetch(`/api/v1/pdv/pickups/${reservationId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(payment),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível concluir a retirada."));
+  const parsed = completePickupResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A retirada retornou dados inválidos.");
   return parsed.data.data;
 }
 
