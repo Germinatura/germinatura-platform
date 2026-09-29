@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { PaymentLinkProviderError, type PaymentLinkGateway } from "@germinatura/payments";
-import worker, { createRequestedPaymentLinks, handlePaymentLinkWebhook, maintainPaymentLinks, retryDelaySeconds, runCycle } from "./index";
+import worker, { createRequestedPaymentLinks, handlePaymentLinkSandboxCheck, handlePaymentLinkWebhook, maintainPaymentLinks, retryDelaySeconds, runCycle } from "./index";
 
 const env = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_SECRET_KEY: "service-secret" };
 const requestUrl = (input: RequestInfo | URL) => typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -136,6 +136,65 @@ describe("Payment Link creation", () => {
     const unexpected = database();
     await createRequestedPaymentLinks(env, "worker-1", unexpected.fetchImpl, gateway(() => Promise.reject(new Error("boom"))));
     expect(unexpected.calls.at(-1)?.body).toMatchObject({ p_uncertain: true, p_error_code: "UNEXPECTED_ERROR" });
+  });
+});
+
+describe("Payment Link sandbox check endpoint", () => {
+  const sandboxEnv = {
+    ...env, PICPAY_PAYMENT_LINK_TOKEN_URL: "https://api.ms.qa.limbo.work/oauth2/token", PICPAY_PAYMENT_LINK_API_BASE_URL: "https://api.ms.qa.limbo.work/sandbox/v1",
+    PICPAY_PAYMENT_LINK_CLIENT_ID: "client", PICPAY_PAYMENT_LINK_CLIENT_SECRET: "secret",
+  };
+  const check = (authorization?: string) => new Request("https://jobs.example/diagnostics/payment-link-sandbox", { method: "POST", headers: authorization ? { authorization } : {} });
+
+  it("requires the worker secret", async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    expect((await handlePaymentLinkSandboxCheck(check(), sandboxEnv, fetchImpl)).status).toBe(401);
+    expect((await handlePaymentLinkSandboxCheck(check("Bearer wrong"), sandboxEnv, fetchImpl)).status).toBe(401);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("reports which settings are present without their values", async () => {
+    const response = await handlePaymentLinkSandboxCheck(check("Bearer service-secret"), { ...env, PICPAY_PAYMENT_LINK_CLIENT_ID: "client" });
+    expect(response.status).toBe(503);
+    const body = await response.json() as Record<string, unknown>;
+    expect(body.settings).toEqual({
+      PICPAY_PAYMENT_LINK_TOKEN_URL: false, PICPAY_PAYMENT_LINK_API_BASE_URL: false, PICPAY_PAYMENT_LINK_CLIENT_ID: true,
+      PICPAY_PAYMENT_LINK_CLIENT_SECRET: false, PICPAY_PAYMENT_LINK_WEBHOOK_KEY: false,
+    });
+    expect(JSON.stringify(body)).not.toContain("client\"");
+  });
+
+  it("refuses to run outside the sandbox", async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    const response = await handlePaymentLinkSandboxCheck(check("Bearer service-secret"), { ...sandboxEnv, PICPAY_PAYMENT_LINK_API_BASE_URL: "https://api.example.test/v1" }, fetchImpl);
+    expect(response.status).toBe(409);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("runs the documented scenarios against the sandbox and never calls the database", async () => {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      urls.push(url);
+      const route = `${init?.method ?? "GET"} ${url.replace("https://api.ms.qa.limbo.work", "")}`;
+      if (route === "POST /oauth2/token") return Promise.resolve(Response.json({ access_token: "a.b.c", expires_in: 300 }));
+      if (route === "GET /sandbox/v1/paymentlink/17496673826849ce36a1c29") return Promise.resolve(Response.json({}, { status: 404 }));
+      if (route === "GET /sandbox/v1/paymentlink/173887430167a51dbd8ee2d/transactions?page=1") return Promise.resolve(Response.json({ transactions: [], nextPage: null }));
+      if (route === "GET /sandbox/v1/paymentlink/17496626166849bb9851578/transactions?page=1") return Promise.resolve(Response.json({ error: { message: "Erro" } }, { status: 500 }));
+      if (route === "POST /sandbox/v1/paymentlink/create") return Promise.resolve(Response.json({ link: "https://link.ppay.me/p/diag0001link", amount: 100, brcode: "000201" }, { status: 201 }));
+      if (route === "GET /sandbox/v1/paymentlink/diag0001link") return Promise.resolve(Response.json({ paymentLinkId: "diag0001link", details: { charge: { status: urls.some((item) => item.endsWith("/inactive")) ? "deleted" : "active", amount: 100, totalSales: 0 } } }));
+      if (route === "GET /sandbox/v1/paymentlink/diag0001link/transactions?page=1") return Promise.resolve(Response.json({ transactions: [{ id: "afd2901c-db02-3fda-bba4-30023baeb2a2", status: "PAYED", amount: 400 }], nextPage: null }));
+      if (route === "POST /sandbox/v1/paymentlink/diag0001link/inactive") return Promise.resolve(urls.filter((item) => item.endsWith("/inactive")).length === 1 ? Response.json({ message: "ok" }) : Response.json({ error: { code: "B038" } }, { status: 422 }));
+      if (route === "POST /sandbox/v1/paymentlink/transaction/9f1c6b2a-3f4e-4b8d-a6c2-22e12f5a9d74/refund") return Promise.resolve(Response.json({ transactionId: "9f1c6b2a-3f4e-4b8d-a6c2-22e12f5a9d74", amount: 100, originalAmount: 450 }));
+      if (route === "POST /sandbox/v1/paymentlink/transaction/e379b4d5-791c-48c8-bc19-3e908a6de9b7/refund") return Promise.resolve(Response.json({ error: { code: "B036" } }, { status: 400 }));
+      return Promise.resolve(new Response(null, { status: 599 }));
+    }) as unknown as typeof fetch;
+    const response = await handlePaymentLinkSandboxCheck(check("Bearer service-secret"), sandboxEnv, fetchImpl, () => new Date("2026-09-29T12:00:00Z"));
+    const body = await response.json() as { status: string; ok: boolean; steps: Array<{ step: string; ok: boolean }> };
+    expect(body.steps.filter((step) => !step.ok)).toEqual([]);
+    expect(body.status).toBe("ok");
+    expect(urls.some((url) => url.includes("supabase"))).toBe(false);
+    expect(JSON.stringify(body)).not.toContain("secret");
   });
 });
 

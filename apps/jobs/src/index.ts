@@ -1,6 +1,6 @@
 import {
-  isAuthorizedPaymentLinkWebhook, paymentLinkConfigFromEnv, PaymentLinkProviderError, paymentLinkWebhookEventType,
-  PicPayPaymentLinkClient, transactionsToStatusEvents, type PaymentLinkEnv, type PaymentLinkGateway,
+  isAuthorizedPaymentLinkWebhook, isPaymentLinkSandbox, paymentLinkConfigFromEnv, PaymentLinkProviderError, paymentLinkWebhookEventType,
+  PicPayPaymentLinkClient, runPaymentLinkSandboxCheck, transactionsToStatusEvents, type PaymentLinkEnv, type PaymentLinkGateway,
 } from "@germinatura/payments";
 
 interface Env extends PaymentLinkEnv {
@@ -255,10 +255,38 @@ export async function handlePaymentLinkWebhook(request: Request, env: Env, fetch
   }
 }
 
+const paymentLinkSettings = [
+  "PICPAY_PAYMENT_LINK_TOKEN_URL", "PICPAY_PAYMENT_LINK_API_BASE_URL", "PICPAY_PAYMENT_LINK_CLIENT_ID",
+  "PICPAY_PAYMENT_LINK_CLIENT_SECRET", "PICPAY_PAYMENT_LINK_WEBHOOK_KEY",
+] as const;
+
+/**
+ * Operator-only sandbox check (authenticated with the worker's Supabase secret). Runs only against the documented
+ * sandbox hosts, writes nothing and reports presence of settings and step outcomes, never their values.
+ */
+export async function handlePaymentLinkSandboxCheck(
+  request: Request, env: Env, fetchImpl: typeof fetch = fetch, now: () => Date = () => new Date(),
+): Promise<Response> {
+  const headers = { "Cache-Control": "no-store" };
+  const bearer = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? null;
+  if (!env.SUPABASE_SECRET_KEY || !isAuthorizedPaymentLinkWebhook(bearer, env.SUPABASE_SECRET_KEY)) {
+    return Response.json({ status: "unauthorized" }, { status: 401, headers });
+  }
+  const settings = Object.fromEntries(paymentLinkSettings.map((name) => [name, Boolean(env[name]?.trim())]));
+  const config = paymentLinkConfigFromEnv(env);
+  if (!config) return Response.json({ status: "unconfigured", settings }, { status: 503, headers });
+  if (!isPaymentLinkSandbox(config)) return Response.json({ status: "not_sandbox", settings }, { status: 409, headers });
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now());
+  const result = await runPaymentLinkSandboxCheck(new PicPayPaymentLinkClient(config, fetchImpl), today);
+  console.log(JSON.stringify({ event: "payment_link.sandbox_check", ok: result.ok, steps: result.steps.map((step) => `${step.step}:${step.ok}`) }));
+  return Response.json({ status: result.ok ? "ok" : "failed", settings, ...result }, { headers });
+}
+
 export default {
   fetch(request: Request, env: Env) {
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === paymentLinkWebhookPath) return handlePaymentLinkWebhook(request, env);
+    if (request.method === "POST" && url.pathname === "/diagnostics/payment-link-sandbox") return handlePaymentLinkSandboxCheck(request, env);
     if (request.method !== "GET" || url.pathname !== "/health") return new Response("Not found", { status: 404 });
     try {
       assertEnvironment(env);
