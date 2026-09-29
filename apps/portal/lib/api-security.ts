@@ -36,6 +36,12 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/procurement/orders/:id/cancel", methods: ["POST"], access: "procurement" },
   { path: "/api/v1/admin/finance/payables", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/shifts", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/recovery/:id/resolve", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/receipts/:id/replay", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/links/:id/reconcile", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/refunds", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/refunds/:id/reconcile", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals/:id", methods: ["PATCH"], access: "finance" },
   { path: "/api/v1/admin/finance/sales", methods: ["GET"], access: "finance" },
@@ -178,6 +184,11 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/finance/terminals/:id") {
       return /^\/api\/v1\/admin\/finance\/terminals\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path.startsWith("/api/v1/admin/finance/online-payments/") && rule.path.includes("/:id/")) {
+      const [prefix, suffix] = rule.path.split("/:id/");
+      return path.startsWith(`${prefix}/`) && path.endsWith(`/${suffix}`)
+        && /^[0-9a-f-]+$/i.test(path.slice(prefix.length + 1, path.length - suffix.length - 1));
     }
     if (rule.path === "/api/v1/admin/finance/sales/:id") {
       return /^\/api\/v1\/admin\/finance\/sales\/[0-9a-f-]+$/i.test(path);

@@ -12,6 +12,7 @@ export * from "./stock-losses";
 export * from "./inventory-counts";
 export * from "./cash-shifts";
 export * from "./finance-entries";
+export * from "./payment-link-admin";
 export * from "./share-campaigns";
 export * from "./payment-links";
 
