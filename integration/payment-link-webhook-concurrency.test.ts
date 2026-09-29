@@ -32,7 +32,7 @@ it("simultaneous PicPay notices confirm a sale once and competing payments go to
 
   await finance("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "Teste de concorrência do link", p_correlation_id: randomUUID() });
   try {
-    await finance("adjust_stock", { p_location_id: SELLER_LOCATION_ID, p_product_id: PRODUCT_ID, p_quantity_delta: 2,
+    await finance("adjust_stock", { p_location_id: SELLER_LOCATION_ID, p_product_id: PRODUCT_ID, p_quantity_delta: 3,
       p_reason: "Preparar link concorrente", p_idempotency_key: `link-race-stock:${randomUUID()}`, p_correlation_id: randomUUID() });
     async function activeLink() {
       const sale = await seller<{ sale_id: string; quote: { total_cents: number } }>("checkout_sale", {
@@ -49,8 +49,8 @@ it("simultaneous PicPay notices confirm a sale once and competing payments go to
         p_checkout_url: `https://link.picpay.com/p/${linkId}`, p_brcode: null, p_expires_at: null });
       return { linkId, totalCents: sale.quote.total_cents };
     }
-    const notice = (linkId: string, transactionId: string, amount: number) => worker<Event>("worker_record_payment_link_event", {
-      p_source: "WEBHOOK", p_event_type: "TransactionPaymentMessage",
+    const notice = (linkId: string, transactionId: string, amount: number, source = "WEBHOOK") => worker<Event>("worker_record_payment_link_event", {
+      p_source: source, p_event_type: source === "WEBHOOK" ? "TransactionPaymentMessage" : null,
       p_payload: { type: "PAYMENT", data: { transaction: { id: transactionId, status: "PAYED", amount, paymentType: "PIX" }, charge: { paymentLinkId: linkId } } },
     });
 
@@ -70,6 +70,17 @@ it("simultaneous PicPay notices confirm a sale once and competing payments go to
     const racingReceipts = new Set(racing.filter((result) => result.outcome === "RECOVERY_OPENED").map((result) => result.receipt_id));
     expect(racingReceipts.size).toBe(2);
     expect(recovery.filter((item) => item.kind === "DUPLICATE_PAYMENT").length).toBeGreaterThanOrEqual(2);
+
+    // The webhook and the status query report the same payment at the same moment: one confirmation.
+    const third = await activeLink();
+    const sameTransaction = `tx-${randomUUID()}`;
+    const converging = await Promise.all([
+      notice(third.linkId, sameTransaction, third.totalCents, "WEBHOOK"),
+      notice(third.linkId, sameTransaction, third.totalCents, "STATUS_QUERY"),
+      notice(third.linkId, sameTransaction, third.totalCents, "STATUS_QUERY"),
+    ]);
+    expect(converging.filter((result) => !result.duplicate)).toHaveLength(1);
+    expect(converging.every((result) => result.outcome === "APPLIED")).toBe(true);
   } finally {
     await finance("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do teste de concorrência do link", p_correlation_id: randomUUID() });
   }

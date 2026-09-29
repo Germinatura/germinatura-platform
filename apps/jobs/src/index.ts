@@ -1,6 +1,6 @@
 import {
   isAuthorizedPaymentLinkWebhook, paymentLinkConfigFromEnv, PaymentLinkProviderError, paymentLinkWebhookEventType,
-  PicPayPaymentLinkClient, type PaymentLinkEnv, type PaymentLinkGateway,
+  PicPayPaymentLinkClient, transactionsToStatusEvents, type PaymentLinkEnv, type PaymentLinkGateway,
 } from "@germinatura/payments";
 
 interface Env extends PaymentLinkEnv {
@@ -15,7 +15,21 @@ interface ScheduledControllerLike { scheduledTime: number }
 interface ClaimedEvent { id: string; attempts: number }
 interface ClaimedPaymentLink { charge_id: string; order_number: string; amount_cents: number; name: string; expires_on: string }
 
+interface ClaimedLinkReference { charge_id: string; provider_link_id: string }
+interface ClaimedRefund { refund_id: string; transaction_id: string; amount_cents: number }
+
 export interface PaymentLinkMetrics { configured: boolean; created: number; failed: number; uncertain: number }
+export interface PaymentLinkMaintenanceMetrics {
+  configured: boolean;
+  inactivated: number;
+  inactivationErrors: number;
+  polled: number;
+  pollErrors: number;
+  statusEvents: number;
+  refundsAccepted: number;
+  refundsFailed: number;
+  refundsUncertain: number;
+}
 
 export interface CycleMetrics {
   expired: Record<string, number>;
@@ -25,6 +39,7 @@ export interface CycleMetrics {
   failed: number;
   outbox: Record<string, number>;
   paymentLinks: PaymentLinkMetrics | { errors: number };
+  paymentLinkMaintenance: PaymentLinkMaintenanceMetrics | { errors: number };
 }
 
 const paymentLinkWebhookPath = "/webhooks/picpay/payment-link";
@@ -83,7 +98,90 @@ export async function runCycle(env: Env, fetchImpl: typeof fetch = fetch): Promi
   const outbox = await rpc<Record<string, number>>(env, "worker_outbox_metrics", {}, fetchImpl);
   let paymentLinks: CycleMetrics["paymentLinks"];
   try { paymentLinks = await createRequestedPaymentLinks(env, workerId, fetchImpl); } catch { paymentLinks = { errors: 1 }; }
-  return { expired, claimed: claimed.length, published, retried, failed, outbox, paymentLinks };
+  let paymentLinkMaintenance: CycleMetrics["paymentLinkMaintenance"];
+  try { paymentLinkMaintenance = await maintainPaymentLinks(env, workerId, fetchImpl); } catch { paymentLinkMaintenance = { errors: 1 }; }
+  return { expired, claimed: claimed.length, published, retried, failed, outbox, paymentLinks, paymentLinkMaintenance };
+}
+
+const providerErrorCode = (error: unknown) => error instanceof PaymentLinkProviderError ? error.code : "UNEXPECTED_ERROR";
+
+/**
+ * Everything after creation, decided by the database: inactivate links of sales that stopped waiting for
+ * payment, read transactions of open links (recovering lost webhooks through the same exactly-once path) and
+ * submit refunds once. Refunds without an answer are uncertain and never resubmitted.
+ */
+export async function maintainPaymentLinks(
+  env: Env, workerId: string, fetchImpl: typeof fetch = fetch, gateway?: PaymentLinkGateway,
+): Promise<PaymentLinkMaintenanceMetrics> {
+  const config = paymentLinkConfigFromEnv(env);
+  const provider = gateway ?? (config ? new PicPayPaymentLinkClient(config, fetchImpl) : null);
+  const metrics: PaymentLinkMaintenanceMetrics = {
+    configured: Boolean(provider), inactivated: 0, inactivationErrors: 0, polled: 0, pollErrors: 0, statusEvents: 0,
+    refundsAccepted: 0, refundsFailed: 0, refundsUncertain: 0,
+  };
+  if (!provider) return metrics;
+
+  const inactivations = await rpc<ClaimedLinkReference[]>(env, "worker_claim_payment_link_inactivations", {
+    p_worker_id: workerId, p_limit: 10, p_lease_seconds: 120,
+  }, fetchImpl);
+  for (const claim of inactivations) {
+    let errorCode: string | null = null;
+    try { await provider.inactivateCharge(claim.provider_link_id); } catch (error) { errorCode = providerErrorCode(error); }
+    await rpc(env, "worker_record_payment_link_inactivation", {
+      p_charge_id: claim.charge_id, p_worker_id: workerId, p_error_code: errorCode,
+    }, fetchImpl);
+    if (errorCode) metrics.inactivationErrors += 1;
+    else metrics.inactivated += 1;
+  }
+
+  const checks = await rpc<ClaimedLinkReference[]>(env, "worker_claim_payment_link_status_checks", {
+    p_worker_id: workerId, p_limit: 20,
+  }, fetchImpl);
+  for (const check of checks) {
+    try {
+      for (let page = 1; page <= 5; page += 1) {
+        const { transactions, hasNextPage } = await provider.listTransactions(check.provider_link_id, page);
+        for (const event of transactionsToStatusEvents(check.provider_link_id, transactions)) {
+          await rpc(env, "worker_record_payment_link_event", { p_source: "STATUS_QUERY", p_event_type: null, p_payload: event }, fetchImpl);
+          metrics.statusEvents += 1;
+        }
+        if (!hasNextPage) break;
+      }
+      metrics.polled += 1;
+    } catch {
+      // The next window polls again; reading is always safe to repeat.
+      metrics.pollErrors += 1;
+    }
+  }
+
+  const refunds = await rpc<ClaimedRefund[]>(env, "worker_claim_payment_link_refunds", {
+    p_worker_id: workerId, p_limit: 10, p_lease_seconds: 120,
+  }, fetchImpl);
+  for (const refund of refunds) {
+    try {
+      const accepted = await provider.refundTransaction(refund.transaction_id, refund.amount_cents);
+      await rpc(env, "worker_record_payment_link_refund", {
+        p_refund_id: refund.refund_id, p_worker_id: workerId, p_outcome: "ACCEPTED",
+        p_provider_refund_id: /^[A-Za-z0-9-]{8,64}$/.test(accepted.transactionId) ? accepted.transactionId : null,
+        p_original_amount_cents: accepted.originalAmountCents, p_error_code: null,
+      }, fetchImpl);
+      metrics.refundsAccepted += 1;
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("RPC_")) {
+        // Submitted but not recorded: the lease expiry turns it into an uncertain refund.
+        metrics.refundsUncertain += 1;
+        continue;
+      }
+      const uncertain = !(error instanceof PaymentLinkProviderError) || error.uncertain;
+      await rpc(env, "worker_record_payment_link_refund", {
+        p_refund_id: refund.refund_id, p_worker_id: workerId, p_outcome: uncertain ? "UNCERTAIN" : "FAILED",
+        p_provider_refund_id: null, p_original_amount_cents: null, p_error_code: providerErrorCode(error),
+      }, fetchImpl);
+      if (uncertain) metrics.refundsUncertain += 1;
+      else metrics.refundsFailed += 1;
+    }
+  }
+  return metrics;
 }
 
 /**

@@ -17,7 +17,7 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | Rifas | Reserva concorrente, financeiro, criação/encerramento/sorteio e consultas | Compra consumidor/PDV, publicação/pausa/cancelamento e reembolso específico | 8 |
 | Indicadores | Resumo explícito de 100 vendas recentes e contagens operacionais | Relatórios integrais por período, conciliação, custo/margem/perdas/meta | 9 |
 | Operação assíncrona | Worker claim/lease/retry/ack e expiração; notificações in-app | Alertas, retenção, restore ensaiado, preferências/avise-me/segmentação | 9–11 |
-| Pagamentos online | Documentação pública Payment Link verificada; contrato neutro no repo | Adapter, receipt e sandbox real não implementados/validados | 7 |
+| Pagamentos online | Payment Link: intenção, adapter pela OpenAPI oficial, webhook no worker, recibos, deduplicação, recuperação, replay, inativação, consulta periódica, estorno pelo provedor e reconciliação de incertezas (flag desligada); Secrets de sandbox configurados no worker de staging | Telas do vendedor, do financeiro e do consumidor; validação no sandbox; webhook bloqueado externamente (o painel PicPay atual não mostra "Meu checkout / URL de notificação", sem API Key) | 7 |
 | Campanhas operacionais (Marco 1) | Sem jornada completa | Vitrine, campanhas/eventos, links/QR e atribuição ligados a cardápio, pedidos, reservas e vendas | 10 |
 | Rede Social Germinare (Marco 2) | Fora do Marco 1 por decisão de 28/09/2026 | Mural, posts, comentários, sugestões, enquetes, denúncias e moderação, depois do site operacional em produção | Marco 2 |
 
