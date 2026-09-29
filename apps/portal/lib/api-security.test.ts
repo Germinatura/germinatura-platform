@@ -60,6 +60,10 @@ describe("purchase payable API access", () => {
     expect(apiAccessRule("/api/v1/sales/33f00000-0000-4000-8000-000000000001/payments/payment-link")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/payments/payment-links/33f00000-0000-4000-8000-000000000001")?.access).toBe("authenticated");
     expect(apiAccessRule("/api/v1/payments/payment-links/33f00000-0000-4000-8000-000000000001")?.methods).toEqual(["GET"]);
+    expect(apiAccessRule("/api/v1/admin/finance/online-payments")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/online-payments/recovery/33f00000-0000-4000-8000-000000000001/resolve")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/online-payments/refunds/33f00000-0000-4000-8000-000000000001/reconcile")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/online-payments/refunds/x/y/reconcile")).toBeUndefined();
     expect(apiAccessRule("/api/v1/notifications/preferences")?.methods).toEqual(["GET", "PUT"]);
     expect(apiAccessRule("/api/v1/catalog/products/33f00000-0000-4000-8000-000000000001/stock-alert")?.access).toBe("authenticated");
     expect(rolesSatisfyAccess(["COMUNICACAO"], "communications")).toBe(true);
