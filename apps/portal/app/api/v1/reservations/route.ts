@@ -65,6 +65,10 @@ export async function POST(request: Request) {
     if (error.message.includes("FORBIDDEN")) return response("FORBIDDEN", "Reserva não autorizada", requestId, 403);
     return response("RESERVATION_UNAVAILABLE", "Reserva temporariamente indisponível", requestId, 503);
   }
+  // GROW-001: a reservation made after a tracked link is attributed to that campaign (best effort).
+  const origin = request.headers.get("cookie")?.match(/(?:^|;\s*)germinatura_origin=([a-z0-9]{8})(?:;|$)/)?.[1];
+  const createdId = typeof data === "object" && data !== null && "reservation_id" in data ? String(data.reservation_id) : null;
+  if (origin && createdId) await supabase.rpc("attribute_reservation", { p_reservation_id: createdId, p_code: origin });
   const result = resultSchema.safeParse(data);
   if (!result.success) return response("RESERVATION_INVALID_DATA", "Reserva temporariamente indisponível", requestId, 503);
   const value = result.data;

@@ -89,6 +89,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin" },
   { path: "/api/v1/admin/reservations", methods: ["GET"], access: "admin" },
   { path: "/api/v1/admin/announcements", methods: ["GET", "POST"], access: "communications" },
+  { path: "/api/v1/admin/share-campaigns", methods: ["GET", "POST"], access: "communications" },
   { path: "/api/v1/admin/reservations/settings", methods: ["GET", "PUT"], access: "admin" },
   { path: "/api/v1/admin/reservations/:id/ready", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, Megaphone, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, Megaphone, Share2, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, ShieldCheck, ShoppingBag, Store, Ticket, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -151,6 +151,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Link href="/admin/comunicacao/avisos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/avisos"))} title={collapsed ? "Avisos" : undefined}>
               {pathname.startsWith("/admin/comunicacao/avisos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <Megaphone className="size-5 shrink-0" />{!collapsed && <span>Avisos</span>}
+            </Link>
+            <Link href="/admin/comunicacao/divulgacao" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/divulgacao"))} title={collapsed ? "Divulgação" : undefined}>
+              {pathname.startsWith("/admin/comunicacao/divulgacao") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <Share2 className="size-5 shrink-0" />{!collapsed && <span>Divulgação</span>}
             </Link>
           </>
         )}

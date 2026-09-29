@@ -869,3 +869,4 @@ export function priceCartWithQuantityPromotions(
   return priceCartWithPromotions(items, rules);
 }
 export * from "./csv";
+export * from "./share-text";

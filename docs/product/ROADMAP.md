@@ -63,7 +63,7 @@ flowchart LR
 | 7 — Payment Link | TODO | 0, 6, sandbox autorizado | Adapter, OAuth backend, consulta/inativação, webhook, replay, reconciliação e estorno; falhas não duplicam efeitos |
 | 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Administração de reservas com prazos configuráveis e preparo para retirada (RES-002, #95). Retirada no PDV com cobrança pelo preço congelado (RES-003, #96). Carrinho de reserva no catálogo do Portal (RES-004, #97). Carrinho/pedido/pagamento; preparar/retirar reserva; compra de números e rifa no PDV; publicação/pausa/cancelamento e reembolso seguro |
 | 9 — Gestão e indicadores | IN PROGRESS | 3, 6, 8 | Auditoria, configurações, desbloqueios, conta/sessões, Portal→PDV e indicadores completos por período; meta pública configurável |
-| 10 — Campanhas operacionais | IN PROGRESS | 8, 9 | Avisos operacionais automáticos (NOTIF-002, #98). Avisos manuais segmentados (NOTIF-003, #99). Preferências e avise-me (NOTIF-004, #100). Em PR: novidades de produtos, promoções e rifas (NOTIF-005). Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
+| 10 — Campanhas operacionais | IN PROGRESS | 8, 9 | Avisos operacionais automáticos (NOTIF-002, #98). Avisos manuais segmentados (NOTIF-003, #99). Preferências e avise-me (NOTIF-004, #100). Novidades de produtos, promoções e rifas (NOTIF-005, #101). Em PR: divulgação rastreável com texto, link, QR Code e atribuição de reservas (GROW-001). Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
 | 11 — Homologação e release | TODO | 1–10 | Jornada por papel, carga/acessibilidade, backup restaurado, alertas, runbooks, migrations revisadas e promoção autorizada |
 
 ## Plano paralelo de conclusão
@@ -318,3 +318,7 @@ Spec 4.2 e 4.7 (NOTIF-004). A central de notificações ganhou preferências por
 ## Incremento de novidades — 29/09/2026
 
 Spec 4.7 (NOTIF-005). Produto publicado pela primeira vez, promoção pública que entra no ar e rifa aberta passam a gerar um aviso único por origem, respeitando as preferências Novos produtos, Promoções e Rifas, agora oferecidas na central de notificações. Pendentes: eventos (sem módulo) e avisos de promoções com início futuro (sem agendador).
+
+## Incremento de divulgação rastreável — 29/09/2026
+
+Spec 4.2 e 5.13 (GROW-001). Comunicação › Divulgação monta, para os produtos escolhidos, o texto com preços atuais no formato do canal, um link curto rastreável e o QR Code. O link conta visitas e guarda a origem por 7 dias; a reserva feita depois é atribuída à divulgação, e o histórico mostra visitas, reservas e valor reservado. Pendentes: eventos, cards automáticos e atribuição de pedidos pagos (Payment Link) e vendas do PDV.
