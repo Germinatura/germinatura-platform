@@ -29,3 +29,5 @@ Persistir intenção local antes de chamar o provedor fora da transação. Retor
 ## Consequências
 
 Evoluir contratos de pagamento para URL, link, transação e reembolsos vinculados, sem alterar os canais manuais existentes. Flags online permanecem desligadas até homologação. Tap, V.A./V.R., TEF/SDK, SFTP e Open Finance continuam condicionados às decisões anteriores.
+
+Nota de 29/09/2026: por decisão do responsável pelo projeto, a parte independente de credenciais foi implementada antes do sandbox — intenção persistida, adapter pela OpenAPI oficial publicada com o sandbox (versão 1.0.0), webhook no worker de jobs, recibos imutáveis, deduplicação, recuperação e replay — e permanece desligada pela flag `payment_link`. A comprovação em sandbox dos pontos listados em `docs/operations/payment-link-runbook.md` continua obrigatória antes de ligar a flag.

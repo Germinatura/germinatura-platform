@@ -1177,6 +1177,7 @@ export const featureFlagKeySchema = z.enum([
   "online_checkout",
   "picpay_checkout",
   "picpay_tap",
+  "payment_link",
   "meal_voucher",
   "community",
   "comments",
