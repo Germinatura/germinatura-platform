@@ -1,4 +1,7 @@
 import {
+  featureFlagsResponseSchema,
+  paymentLinkChargeResponseSchema,
+  type PaymentLinkCharge,
   cashPaymentResponseSchema,
   manualPaymentConfirmationResponseSchema,
   mySalesResponseSchema,
@@ -433,5 +436,32 @@ export async function confirmCashPayment(saleId: string, tenderedCents: number, 
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível registrar o recebimento em dinheiro."));
   const parsed = cashPaymentResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("O recebimento retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+/** Feature flags the seller can see; a failed load is treated as everything off. */
+export async function loadEnabledFeatures(): Promise<Set<string>> {
+  const response = await apiFetch("/api/v1/feature-flags");
+  if (!response.ok) return new Set();
+  const parsed = featureFlagsResponseSchema.safeParse(await response.json());
+  return new Set(parsed.success ? parsed.data.data.filter((flag) => flag.enabled).map((flag) => flag.key) : []);
+}
+
+/** ADR 0010: asks for a Payment Link; the link itself is created by the jobs worker. */
+export async function requestPaymentLink(saleId: string, idempotencyKey: string): Promise<PaymentLinkCharge> {
+  const response = await apiFetch(`/api/v1/sales/${saleId}/payments/payment-link`, {
+    method: "POST", headers: { "Idempotency-Key": idempotencyKey },
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível pedir o link de pagamento."));
+  const parsed = paymentLinkChargeResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O link de pagamento retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function loadPaymentLink(chargeId: string): Promise<PaymentLinkCharge> {
+  const response = await apiFetch(`/api/v1/payments/payment-links/${chargeId}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível consultar o link de pagamento."));
+  const parsed = paymentLinkChargeResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("O link de pagamento retornou dados inválidos.");
   return parsed.data.data;
 }
