@@ -487,7 +487,8 @@ export const adminSaleDetailResponseSchema = z.object({
 }).strict();
 
 export const commercialReservationCreateRequestSchema = z.object({
-  locationId: z.uuid(),
+  // RES-004: omitted by the Portal cart; the server holds Portal reservations at the central location.
+  locationId: z.uuid().optional(),
   couponCode: couponCodeSchema.optional(),
   items: z.array(z.object({
     productId: z.uuid(),

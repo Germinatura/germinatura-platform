@@ -9,5 +9,5 @@ export default async function CatalogPage() {
   const user = await requireSession();
   if (!hasPermission(user, "catalog.read")) redirect("/");
 
-  return <ConsumerCatalog />;
+  return <ConsumerCatalog canReserve={hasPermission(user, "reservations.manage.own")} />;
 }

@@ -43,8 +43,16 @@ export async function POST(request: Request) {
   }
   const correlationId = crypto.randomUUID();
   const supabase = await createAuthenticatedSupabaseClient(request);
+  let locationId = parsed.data.locationId;
+  if (!locationId) {
+    const location = await supabase.rpc("default_reservation_location");
+    if (location.error || typeof location.data !== "string") {
+      return response("RESERVATION_UNAVAILABLE", "Reservas temporariamente indisponíveis", requestId, 503);
+    }
+    locationId = location.data;
+  }
   const { data, error } = await supabase.rpc("create_commercial_reservation", {
-    p_location_id: parsed.data.locationId,
+    p_location_id: locationId,
     p_items: parsed.data.items.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
     p_idempotency_key: key.data, p_correlation_id: correlationId,
     p_coupon_code: parsed.data.couponCode ?? null,
@@ -52,6 +60,8 @@ export async function POST(request: Request) {
   if (error) {
     if (error.message.includes("IDEMPOTENCY_CONFLICT")) return response("IDEMPOTENCY_CONFLICT", "A chave já foi usada com outro conteúdo", requestId, 409);
     if (error.message.includes("STOCK_CONFLICT")) return response("STOCK_CONFLICT", "Estoque insuficiente", requestId, 409);
+    if (error.message.includes("FEATURE_DISABLED")) return response("FEATURE_DISABLED", "Reservas desativadas no momento", requestId, 409);
+    if (error.message.includes("INVALID_")) return response("INVALID_RESERVATION", "Confira os itens e o cupom da reserva", requestId, 422);
     if (error.message.includes("FORBIDDEN")) return response("FORBIDDEN", "Reserva não autorizada", requestId, 403);
     return response("RESERVATION_UNAVAILABLE", "Reserva temporariamente indisponível", requestId, 503);
   }
