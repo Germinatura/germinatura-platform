@@ -1065,16 +1065,26 @@ export const permissionSchema = z.enum([
 ]);
 export type Permission = z.infer<typeof permissionSchema>;
 
+// Closed list: every kind the outbox worker writes must be here, otherwise the whole notification list fails.
 export const notificationKindSchema = z.enum([
   "ACCOUNT_UPDATED",
   "RESERVATION_CREATED",
   "RESERVATION_CONVERTED",
   "RESERVATION_EXPIRED",
+  "RESERVATION_READY",
+  "RESERVATION_COMPLETED",
   "PAYMENT_CONFIRMED",
   "CLOSEOUT_REOPENED",
+  "CLOSEOUT_PENDING",
   "RAFFLE_RESERVED",
   "RAFFLE_RESERVATION_EXPIRED",
+  "RAFFLE_EXPIRED",
   "RAFFLE_DRAWN",
+  "LOSS_PENDING",
+  "COUNT_PENDING",
+  "RETURN_PENDING",
+  "TRANSFER_PENDING",
+  "SALE_DIVERGENT",
 ]);
 
 export const notificationsQuerySchema = z.object({
