@@ -8,13 +8,13 @@ import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase"
 
 const databaseRowsSchema = z.array(z.object({
   reservation_id: z.uuid(), customer_name: z.string(), location_id: z.uuid(), location_name: z.string(),
-  total_cents: z.number().int(), discount_total_cents: z.number().int(), ready_at: z.string(), pickup_deadline: z.string(),
-  pickup_instructions: z.string().nullable(),
+  total_cents: z.number().int(), discount_total_cents: z.number().int(), ready_at: z.string().nullable(), pickup_deadline: z.string().nullable(),
+  pickup_instructions: z.string().nullable(), paid_online: z.boolean(), paid_at: z.string().nullable(),
   items: z.array(z.object({ product_name: z.string(), quantity: z.number().int(), total_cents: z.number().int() })).nullable(),
 }));
 const querySchema = z.object({ query: z.string().trim().max(80).optional() }).strict();
 
-/** RES-003: prepared reservations waiting for pickup at the locations the operator runs. */
+/** RES-003 / RES-005: prepared reservations to charge and paid online orders to deliver at the operator's locations. */
 export async function GET(request: Request) {
   const requestId = createRequestId(request.headers);
   try {
@@ -31,6 +31,7 @@ export async function GET(request: Request) {
         reservationId: row.reservation_id, customerName: row.customer_name, locationId: row.location_id, locationName: row.location_name,
         totalCents: row.total_cents, discountTotalCents: row.discount_total_cents, readyAt: row.ready_at,
         pickupDeadline: row.pickup_deadline, pickupInstructions: row.pickup_instructions,
+        paidOnline: row.paid_online, paidAt: row.paid_at,
         items: (row.items ?? []).map((item) => ({ productName: item.product_name, quantity: item.quantity, totalCents: item.total_cents })),
       })),
       request_id: requestId,

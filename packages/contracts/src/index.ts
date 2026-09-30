@@ -617,9 +617,12 @@ export const pickupReservationSchema = z.object({
   locationName: z.string(),
   totalCents: moneyCentsSchema,
   discountTotalCents: moneyCentsSchema,
-  readyAt: z.iso.datetime({ offset: true }),
-  pickupDeadline: z.iso.datetime({ offset: true }),
+  // RES-005: an order paid online has no preparation window; it is delivered without charging.
+  readyAt: z.iso.datetime({ offset: true }).nullable(),
+  pickupDeadline: z.iso.datetime({ offset: true }).nullable(),
   pickupInstructions: z.string().nullable(),
+  paidOnline: z.boolean(),
+  paidAt: z.iso.datetime({ offset: true }).nullable(),
   items: z.array(z.object({ productName: z.string(), quantity: z.number().int().positive(), totalCents: moneyCentsSchema }).strict()),
 }).strict();
 export type PickupReservation = z.infer<typeof pickupReservationSchema>;
@@ -663,6 +666,20 @@ export const completePickupResponseSchema = z.object({
   request_id: z.string().min(1),
 }).strict();
 export type CompletePickupResponse = z.infer<typeof completePickupResponseSchema>;
+
+// RES-005: hands over an order already paid online, without a second charge.
+export const deliverPaidPickupResponseSchema = z.object({
+  data: z.object({
+    reservationId: z.uuid(),
+    status: z.literal("COMPLETED"),
+    saleId: z.uuid(),
+    totalCents: moneyCentsSchema,
+    paidOnline: z.literal(true),
+    correlationId: z.uuid(),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type DeliverPaidPickupResponse = z.infer<typeof deliverPaidPickupResponseSchema>;
 
 export const adminReservationsResponseSchema = z.object({
   data: z.array(adminReservationSchema),
