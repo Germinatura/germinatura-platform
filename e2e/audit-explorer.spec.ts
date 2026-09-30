@@ -38,7 +38,10 @@ test("o administrador investiga uma ação pela correlação; o vendedor não ac
   await page.waitForLoadState("networkidle");
   const filters = page.getByRole("form", { name: "Filtrar auditoria" });
   await filters.getByLabel("Correlação").fill(correlationId);
+  // The unfiltered first page may already list other suites' entries: wait for the filtered answer.
+  const filtered = page.waitForResponse((response) => response.url().includes(`correlationId=${correlationId}`) && response.ok());
   await filters.getByRole("button", { name: "Pesquisar" }).click();
+  await filtered;
   const entry = page.getByRole("list", { name: "Registros de auditoria" }).getByRole("listitem", { name: /raffles\.campaign\.created/ });
   await expect(entry).toBeVisible();
   await entry.getByRole("button", { name: "Ver correlação" }).click();
