@@ -22,6 +22,7 @@ create temp table hidden as select public.save_quantity_price_promotion(null,nul
   array['PDV']::public.promotion_channel[],2,1000,3,'Promoção interna','broadcast-hidden',gen_random_uuid()) result;
 create temp table campaign as select public.create_raffle_campaign('Rifa da formatura','33f00000-0000-4000-8000-000000000001',
   '50000000-0000-4000-8000-000000000001',10,now()-interval '1 minute',now()+interval '1 day','broadcast-raffle',gen_random_uuid()) result;
+select public.transition_raffle_campaign((select (result->>'campaign_id')::uuid from campaign),'PUBLISH','broadcast-raffle-publish',gen_random_uuid());
 reset role;
 
 select is((select count(*)::integer from public.outbox_events where topic = 'promotions.live' and aggregate_id in ((select result->>'id' from live),(select result->>'id' from hidden))),1,'only the public live promotion is announced');

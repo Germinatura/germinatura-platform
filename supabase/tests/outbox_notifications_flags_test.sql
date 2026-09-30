@@ -188,6 +188,7 @@ select public.create_raffle_campaign(
   now() - interval '1 minute', now() + interval '1 day',
   'worker-raffle-campaign', '93000000-0000-4000-8000-000000000006'
 ) as result;
+select public.transition_raffle_campaign((select (result ->> 'campaign_id')::uuid from expiring_campaign), 'PUBLISH', 'worker-raffle-publish', gen_random_uuid());
 reset role;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000003';

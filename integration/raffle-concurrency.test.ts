@@ -40,6 +40,8 @@ describe("concorrencia real de rifas", () => {
       p_idempotency_key: `raffle-campaign-${randomUUID()}`, p_correlation_id: randomUUID(),
     });
     expect(campaign.ok).toBe(true); const campaignId = String((campaign as Extract<Outcome, { ok: true }>).data.campaign_id);
+    expect((await rpc(current, accessToken, "transition_raffle_campaign", { p_campaign_id: campaignId, p_action: "PUBLISH",
+      p_idempotency_key: `raffle-publish-${randomUUID()}`, p_correlation_id: randomUUID() })).ok).toBe(true);
     const parameters = (key: string) => ({ p_campaign_id: campaignId, p_numbers: [7],
       p_idempotency_key: key, p_correlation_id: randomUUID() });
     const race = await Promise.all([

@@ -84,6 +84,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/raffles", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/raffles/:id/close", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/raffles/:id/draw", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id", methods: ["PATCH"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/transition", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/cancel", methods: ["POST"], access: "admin" },
   { path: "/api/v1/raffles/:id/numbers/reserve", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/raffles/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
@@ -226,6 +229,15 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/raffles/:id/draw") {
       return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/draw$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/transition") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/transition$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/cancel") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/cancel$/i.test(path);
     }
     if (rule.path === "/api/v1/raffles/:id/numbers/reserve") {
       return /^\/api\/v1\/raffles\/[0-9a-f-]+\/numbers\/reserve$/i.test(path);

@@ -864,6 +864,7 @@ test("Logout and an expired bearer session are rejected", async ({ page, request
 });
 
 test("Admin manages raffle campaigns and cannot draw unpaid numbers", async ({ page }) => {
+  test.slow();
   await page.goto("/login");
   await login(page, "admin.teste", "Admin123!");
   await page.getByRole("link", { name: "Gestão de rifas" }).click();
@@ -881,6 +882,9 @@ test("Admin manages raffle campaigns and cannot draw unpaid numbers", async ({ p
   await expect(page.getByRole("status")).toHaveText("Campanha criada e auditada.");
   await page.getByLabel("Buscar campanha").fill(name);
   await expect(content.getByRole("heading", { name })).toHaveCount(1);
+  await page.getByRole("button", { name: "Publicar" }).click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByRole("status")).toHaveText("Rifa publicada. As vendas estão abertas.");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Encerrar reservas" }).click();
   await page.getByRole("button", { name: "Confirmar encerramento" }).click();
