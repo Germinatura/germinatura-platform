@@ -90,6 +90,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/raffles/:id", methods: ["PATCH"], access: "admin" },
   { path: "/api/v1/admin/raffles/:id/transition", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/raffles/:id/cancel", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/buyers", methods: ["GET"], access: "admin" },
   { path: "/api/v1/raffles/:id/numbers/reserve", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/raffles/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/raffles/:id/numbers", methods: ["GET"], access: "authenticated" },
@@ -246,6 +247,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/raffles/:id/cancel") {
       return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/buyers") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/buyers$/i.test(path);
     }
     if (rule.path === "/api/v1/raffles/:id/numbers/reserve") {
       return /^\/api\/v1\/raffles\/[0-9a-f-]+\/numbers\/reserve$/i.test(path);

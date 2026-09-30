@@ -714,6 +714,15 @@ export const adminRaffleCampaignSchema = z.object({
 }).strict();
 export type AdminRaffleCampaign = z.infer<typeof adminRaffleCampaignSchema>;
 
+// RAF-006 / spec 15.5: buyers and contacts, visible to raffle managers only.
+export const adminRaffleBuyerSchema = z.object({
+  saleId: z.uuid(), numbers: z.array(z.number().int().positive()), status: z.enum(["RESERVED", "PAID", "REFUNDED"]),
+  channel: z.string(), registered: z.boolean(), buyerName: z.string().nullable(), buyerContact: z.string().nullable(),
+  sellerName: z.string().nullable(), totalCents: z.number().int().nonnegative(), createdAt: z.string(), won: z.boolean(),
+}).strict();
+export type AdminRaffleBuyer = z.infer<typeof adminRaffleBuyerSchema>;
+export const adminRaffleBuyersResponseSchema = z.object({ data: z.array(adminRaffleBuyerSchema), request_id: z.string().min(1) }).strict();
+
 export const raffleCampaignResponseSchema = z.object({
   data: z.object({
     campaignId: z.uuid(), status: raffleCampaignStatusSchema,
@@ -1173,6 +1182,10 @@ export const notificationKindSchema = z.enum([
   "NEW_PRODUCT",
   "PROMOTION_LIVE",
   "RAFFLE_OPENED",
+  "RAFFLE_WINNER_CONTACT",
+  "RAFFLE_CANCELLED",
+  "RAFFLE_REFUNDS_PENDING",
+  "RAFFLE_REFUNDED",
 ]);
 
 // Spec 4.7 (NOTIF-004): optional notification categories each user can turn off.
