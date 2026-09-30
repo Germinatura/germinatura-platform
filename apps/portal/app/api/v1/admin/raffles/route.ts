@@ -5,7 +5,7 @@ import { z } from "zod";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
 
-const resultSchema = z.object({ campaign_id: z.uuid(), status: z.literal("ACTIVE"), number_count: z.number().int(),
+const resultSchema = z.object({ campaign_id: z.uuid(), status: z.literal("DRAFT"), number_count: z.number().int(),
   starts_at: z.string(), ends_at: z.string(), correlation_id: z.uuid() });
 const fail = (code: string, message: string, requestId: string, status: number, details?: unknown) => NextResponse.json(
   createApiError(code, message, requestId, details), { status, headers: { "Cache-Control": "no-store", "x-request-id": requestId } },

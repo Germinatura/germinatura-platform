@@ -1,4 +1,5 @@
 import { hasPermission } from "@germinatura/auth";
+import { adminRaffleCampaignSchema } from "@germinatura/contracts";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { RafflesManager } from "@/components/admin/RafflesManager";
@@ -7,13 +8,16 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 const optionsSchema = z.array(z.object({ id: z.uuid(), name: z.string() }));
-const campaignsSchema = z.array(z.object({
-  id: z.uuid(), name: z.string(), number_count: z.number().int(),
-  status: z.enum(["ACTIVE", "CLOSED", "DRAWN", "CANCELLED"]), starts_at: z.string(), ends_at: z.string(),
-}));
-const drawsSchema = z.array(z.object({
-  campaign_id: z.uuid(), winner_number: z.number().int(), winner_index: z.number().int(),
-  eligible_numbers: z.array(z.number().int()), random_material: z.string(), audit_hash: z.string(),
+const rowsSchema = z.array(z.object({
+  campaign_id: z.uuid(), name: z.string(), description: z.string().nullable(), product_id: z.uuid(), product_name: z.string(),
+  location_id: z.uuid(), status: z.string(), number_count: z.number().int(), starts_at: z.string(), ends_at: z.string(),
+  published_at: z.string().nullable(), closed_at: z.string().nullable(), cancelled_at: z.string().nullable(),
+  cancel_reason: z.string().nullable(), available_count: z.number().int(), reserved_count: z.number().int(),
+  paid_count: z.number().int(), paid_total_cents: z.number().int(), paid_sales: z.number().int(),
+  draw: z.object({
+    winner_number: z.number().int(), winner_index: z.number().int(), eligible_numbers: z.array(z.number().int()),
+    random_material: z.string(), audit_hash: z.string(), drawn_at: z.string(),
+  }).nullable(),
 }));
 
 export default async function RafflesAdminPage() {
@@ -22,19 +26,24 @@ export default async function RafflesAdminPage() {
   const client = await createSupabaseServerClient();
   const [flags, campaigns, products, locations] = await Promise.all([
     client.from("feature_flags").select("enabled").eq("key", "raffles").maybeSingle(),
-    client.from("raffle_campaigns").select("id,name,number_count,status,starts_at,ends_at").order("created_at", { ascending: false }).limit(50),
+    client.rpc("list_raffles_admin", { p_limit: 50 }),
     client.from("products").select("id,name").eq("active", true).eq("published", true).order("name").limit(200),
     client.from("stock_locations").select("id,name").eq("active", true).eq("location_type", "CENTRAL").order("name").limit(200),
   ]);
-  const parsedCampaigns = campaignsSchema.safeParse(campaigns.data);
-  const ids = parsedCampaigns.success ? parsedCampaigns.data.map((item) => item.id) : [];
-  const draws = ids.length ? await client.from("raffle_draws").select("campaign_id,winner_number,winner_index,eligible_numbers,random_material,audit_hash").in("campaign_id", ids) : { data: [], error: null };
-  const parsedDraws = drawsSchema.safeParse(draws.data);
+  const rows = rowsSchema.safeParse(campaigns.data);
+  const parsed = rows.success ? z.array(adminRaffleCampaignSchema).safeParse(rows.data.map((row) => ({
+    campaignId: row.campaign_id, name: row.name, description: row.description, productId: row.product_id, productName: row.product_name,
+    locationId: row.location_id, status: row.status, numberCount: row.number_count, startsAt: row.starts_at, endsAt: row.ends_at,
+    publishedAt: row.published_at, closedAt: row.closed_at, cancelledAt: row.cancelled_at, cancelReason: row.cancel_reason,
+    availableCount: row.available_count, reservedCount: row.reserved_count, paidCount: row.paid_count,
+    paidTotalCents: row.paid_total_cents, paidSales: row.paid_sales,
+    draw: row.draw && { winnerNumber: row.draw.winner_number, winnerIndex: row.draw.winner_index, eligibleNumbers: row.draw.eligible_numbers,
+      randomMaterial: row.draw.random_material, auditHash: row.draw.audit_hash, drawnAt: row.draw.drawn_at },
+  }))) : null;
   const parsedProducts = optionsSchema.safeParse(products.data);
   const parsedLocations = optionsSchema.safeParse(locations.data);
-  const unavailable = Boolean(flags.error || campaigns.error || products.error || locations.error || draws.error
-    || !parsedCampaigns.success || !parsedDraws.success || !parsedProducts.success || !parsedLocations.success);
-  return <RafflesManager campaigns={parsedCampaigns.success ? parsedCampaigns.data : []}
-    draws={parsedDraws.success ? parsedDraws.data : []} products={parsedProducts.success ? parsedProducts.data : []}
+  const unavailable = Boolean(flags.error || campaigns.error || products.error || locations.error
+    || !parsed?.success || !parsedProducts.success || !parsedLocations.success);
+  return <RafflesManager campaigns={parsed?.success ? parsed.data : []} products={parsedProducts.success ? parsedProducts.data : []}
     locations={parsedLocations.success ? parsedLocations.data : []} enabled={flags.data?.enabled === true} unavailable={unavailable} />;
 }

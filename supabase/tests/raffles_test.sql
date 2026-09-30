@@ -1,5 +1,5 @@
 begin;
-select plan(41);
+select plan(42);
 
 select has_table('public', 'raffle_campaigns', 'raffle campaigns table exists');
 select has_table('public', 'raffle_numbers', 'raffle numbers table exists');
@@ -26,10 +26,11 @@ select public.create_raffle_campaign(
   now() - interval '1 minute', now() + interval '1 day',
   'raffle-campaign-1', '92000000-0000-4000-8000-000000000001'
 ) as result;
-select results_eq($$select result ->> 'status' from campaign$$, array['ACTIVE'::text], 'campaign starts active');
+select results_eq($$select result ->> 'status' from campaign$$, array['DRAFT'::text], 'campaign starts as a draft');
+select results_eq($$select public.transition_raffle_campaign((select (result ->> 'campaign_id')::uuid from campaign), 'PUBLISH', 'raffle-publish-1', gen_random_uuid()) ->> 'status'$$, array['ACTIVE'::text], 'publishing opens the campaign');
 select results_eq(
-  $$select count(*)::bigint from public.raffle_numbers where campaign_id = (select (result ->> 'campaign_id')::uuid from campaign)$$,
-  array[20::bigint], 'campaign materializes every unique number'
+  $$select jsonb_array_length(public.get_raffle_number_board((select (result ->> 'campaign_id')::uuid from campaign)))::bigint$$,
+  array[20::bigint], 'publishing materializes every unique number'
 );
 select results_eq(
   $$select public.create_raffle_campaign('Rifa de teste', '33f00000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 20, (select starts_at from public.raffle_campaigns where id = (select (result ->> 'campaign_id')::uuid from campaign)), (select ends_at from public.raffle_campaigns where id = (select (result ->> 'campaign_id')::uuid from campaign)), 'raffle-campaign-1', '92000000-0000-4000-8000-000000000099')$$,
@@ -47,7 +48,7 @@ select public.reserve_raffle_numbers(
 select results_eq($$select result -> 'numbers' from paid_candidate$$, array['[1, 2]'::jsonb], 'numbers are frozen in sorted order');
 select results_eq($$select result ->> 'status' from paid_candidate$$, array['RESERVED'::text], 'number hold starts reserved');
 select results_eq(
-  $$select count(*)::bigint from public.raffle_numbers where campaign_id = (select (result ->> 'campaign_id')::uuid from campaign) and status = 'RESERVED'$$,
+  $$select count(*)::bigint from jsonb_array_elements(public.get_raffle_number_board((select (result ->> 'campaign_id')::uuid from campaign))) item where item ->> 1 = 'MINE'$$,
   array[2::bigint], 'exact selected numbers are reserved'
 );
 select throws_ok(
@@ -74,7 +75,7 @@ select public.cancel_raffle_reservation(
 ) as result;
 select results_eq($$select result ->> 'status' from cancelled$$, array['CANCELLED'::text], 'pending raffle sale cancels');
 select results_eq(
-  $$select status::text from public.raffle_numbers where campaign_id = (select (result ->> 'campaign_id')::uuid from campaign) and number = 3$$,
+  $$select item ->> 1 from jsonb_array_elements(public.get_raffle_number_board((select (result ->> 'campaign_id')::uuid from campaign))) item where (item ->> 0)::integer = 3$$,
   array['AVAILABLE'::text], 'cancellation makes the number available again'
 );
 select results_eq(

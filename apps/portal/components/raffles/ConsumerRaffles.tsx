@@ -7,7 +7,7 @@ export interface ConsumerRaffle {
   productName: string;
   productSku: string | null;
   numberCount: number;
-  status: "ACTIVE" | "CLOSED" | "DRAWN" | "CANCELLED";
+  status: "ACTIVE" | "PAUSED" | "CLOSED" | "DRAWN" | "CANCELLED";
   startsAt: string;
   endsAt: string;
   ownedNumbers: Array<{ number: number; status: "RESERVED" | "PAID"; saleId: string; expiresAt: string }>;
@@ -17,6 +17,7 @@ export interface ConsumerRaffle {
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
 const statusPresentation = {
   ACTIVE: { label: "Ativa", tone: "success" as const },
+  PAUSED: { label: "Pausada", tone: "warning" as const },
   CLOSED: { label: "Encerrada", tone: "warning" as const },
   DRAWN: { label: "Sorteada", tone: "info" as const },
   CANCELLED: { label: "Cancelada", tone: "danger" as const },

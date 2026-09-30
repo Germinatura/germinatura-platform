@@ -14,7 +14,7 @@ A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de e
 | PDV | Checkout, confirmação Maquininha/Área Pix, dinheiro físico com turno, troco e devolução física no estorno (PAY-009a), conferência financeira dos turnos, "Minhas vendas"/pendências, fechamento e PWA read-only | Dispositivos reais | 5 |
 | Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais; contas a pagar parciais/reversíveis integradas em staging; consulta de vendas e estorno pela tela Financeiro › Vendas (#91); plano de categorias, contas e lançamentos manuais auditados (#92); extrato consolidado com CSV (em PR) | Contas/categorias gerais, despesas/importação/CSV e custo real consolidado nos relatórios | 3, 6 |
 | Reservas | Backend ACTIVE/CONVERTED/CANCELLED/EXPIRED e consulta/cancelamento próprio | Compra/pagamento, preparação, pronta retirada e entrega | 8 |
-| Rifas | Reserva concorrente, financeiro, criação/encerramento/sorteio e consultas | Compra consumidor/PDV, publicação/pausa/cancelamento e reembolso específico | 8 |
+| Rifas | Reserva concorrente, financeiro, sorteio auditável, ciclo de vida completo e privacidade dos compradores | Compra consumidor/PDV e estorno de rifa paga | 8 |
 | Indicadores | Resumo explícito de 100 vendas recentes e contagens operacionais | Relatórios integrais por período, conciliação, custo/margem/perdas/meta | 9 |
 | Operação assíncrona | Worker claim/lease/retry/ack e expiração; notificações in-app | Alertas, retenção, restore ensaiado, preferências/avise-me/segmentação | 9–11 |
 | Pagamentos online | Payment Link: intenção, adapter pela OpenAPI oficial, webhook no worker, recibos, deduplicação, recuperação, replay, inativação, consulta periódica, estorno pelo provedor e reconciliação de incertezas (flag desligada); Secrets de sandbox configurados no worker de staging | Telas do vendedor, do financeiro e do consumidor; validação no sandbox; webhook bloqueado externamente (o painel PicPay atual não mostra "Meu checkout / URL de notificação", sem API Key); API do sandbox indisponível em 29/09/2026 (OAuth funciona; consultas sem resposta e criação/estorno com HTTP 502 do gateway PicPay) | 7 |
@@ -39,3 +39,10 @@ Estoque/compras, promoções, pagamentos/financeiro, Portal consumidor/crescimen
 Habilitação, credenciais e execução de sandbox ainda não foram comprovadas; não acessar segredos para produzir evidência documental. Confirmar schemas completos e comportamento de timeout/múltiplos pagamentos por link antes de ativar. Materiais públicos não autorizam integrações privadas de Tap/TEF/SDK, nem V.A./V.R. sem credenciamento.
 
 Quarenta e sete migrations formam o schema integrado atual (a mais recente é `20260929090100_promotion_coupons_limits.sql`); a consolidação acrescenta uma migration que remove as funções `get_pricing_quote_inputs` v1–v4, sem tabelas ou dados. Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
+
+## Dívidas técnicas a resolver antes do release candidate
+
+Registradas em 30/09/2026; cada uma em PR própria antes do RC, sem bloquear as entregas em andamento.
+
+- **Testes unitários do Portal fora da CI:** o `pnpm test:unit` da raiz inclui só `packages/`, `apps/jobs` e `apps/pdv`, e o `vitest` do próprio Portal não inicia sem o ambiente do Vinext. Por isso testes como `apps/portal/lib/api-security.test.ts` não são executados.
+- **E2E foundation com estado compartilhado:** alguns cenários de `e2e/foundation.spec.ts` dependem de dados deixados por outras suítes (por exemplo, o fechamento do vendedor depende das sobras da integração) e falham em banco recém-resetado.

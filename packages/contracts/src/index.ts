@@ -661,6 +661,10 @@ export const adminReservationsResponseSchema = z.object({
   request_id: z.string().min(1),
 }).strict();
 
+// Spec 5.11: DRAFT is editable; ACTIVE and PAUSED sell; CLOSED freezes the eligible universe; DRAWN and CANCELLED are final.
+export const raffleCampaignStatusSchema = z.enum(["DRAFT", "ACTIVE", "PAUSED", "CLOSED", "DRAWN", "CANCELLED"]);
+export type RaffleCampaignStatus = z.infer<typeof raffleCampaignStatusSchema>;
+
 export const raffleCampaignCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(160),
   productId: z.uuid(),
@@ -673,13 +677,43 @@ export const raffleCampaignCreateRequestSchema = z.object({
 });
 export type RaffleCampaignCreateRequest = z.infer<typeof raffleCampaignCreateRequestSchema>;
 
+export const raffleCampaignUpdateRequestSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(1000).nullable(),
+  productId: z.uuid(),
+  locationId: z.uuid(),
+  numberCount: z.number().int().min(1).max(10000),
+  startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }),
+}).strict().refine((value) => Date.parse(value.endsAt) > Date.parse(value.startsAt), {
+  path: ["endsAt"], message: "Campaign end must be after start",
+});
+export const raffleCampaignTransitionRequestSchema = z.object({ action: z.enum(["PUBLISH", "PAUSE", "RESUME", "CLOSE"]) }).strict();
+export const raffleCampaignCancelRequestSchema = z.object({ reason: z.string().trim().min(3).max(300) }).strict();
+
+export const adminRaffleCampaignSchema = z.object({
+  campaignId: z.uuid(), name: z.string(), description: z.string().nullable(), productId: z.uuid(), productName: z.string(),
+  locationId: z.uuid(), status: raffleCampaignStatusSchema, numberCount: z.number().int(),
+  startsAt: z.string(), endsAt: z.string(), publishedAt: z.string().nullable(), closedAt: z.string().nullable(),
+  cancelledAt: z.string().nullable(), cancelReason: z.string().nullable(),
+  availableCount: z.number().int(), reservedCount: z.number().int(), paidCount: z.number().int(),
+  paidTotalCents: z.number().int(), paidSales: z.number().int(),
+  draw: z.object({
+    winnerNumber: z.number().int(), winnerIndex: z.number().int(), eligibleNumbers: z.array(z.number().int()),
+    randomMaterial: z.string(), auditHash: z.string(), drawnAt: z.string(),
+  }).strict().nullable(),
+}).strict();
+export type AdminRaffleCampaign = z.infer<typeof adminRaffleCampaignSchema>;
+
 export const raffleCampaignResponseSchema = z.object({
   data: z.object({
-    campaignId: z.uuid(), status: z.enum(["ACTIVE", "CLOSED"]),
+    campaignId: z.uuid(), status: raffleCampaignStatusSchema,
     numberCount: z.number().int().min(1).max(10000).optional(),
     startsAt: z.iso.datetime({ offset: true }).optional(),
     endsAt: z.iso.datetime({ offset: true }).optional(),
     correlationId: z.uuid(),
+    releasedReservations: z.number().int().nonnegative().optional(),
+    paidSalesToRefund: z.number().int().nonnegative().optional(),
   }).strict(),
   request_id: z.string().min(1),
 }).strict();
