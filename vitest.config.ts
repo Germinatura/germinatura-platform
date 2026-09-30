@@ -2,7 +2,8 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["packages/**/*.test.ts", "apps/jobs/**/*.test.ts", "apps/pdv/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "apps/jobs/**/*.test.ts", "apps/pdv/**/*.test.ts", "apps/portal/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "**/.next/**", "**/dist/**"],
     environment: "node",
     coverage: {
       reporter: ["text", "json-summary"],
