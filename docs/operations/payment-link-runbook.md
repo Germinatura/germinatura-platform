@@ -12,6 +12,19 @@ Decisão: ADR 0010. Requisitos: PAY-004 e PAY-007. Estado: fundação (#103) e c
 
 Bloqueio externo do webhook: o painel PicPay Empresas desta conta não mostra a opção "Meu checkout / URL de notificação" que a documentação descreve, então não há API Key nem URL de notificação cadastrada. Enquanto isso o endpoint do webhook responde 503, e pagamentos só podem ser reconhecidos pela consulta periódica oficial (`STATUS_QUERY`).
 
+### Resultado da verificação do sandbox em staging (29/09/2026)
+
+Execuções do Deploy Staging com `payment_link_sandbox_check`: 36652138431, 36654545369, 36656987403 e 36659411821.
+
+- As quatro configurações de sandbox estão presentes no worker. A `PICPAY_PAYMENT_LINK_WEBHOOK_KEY` está ausente.
+- As duas primeiras execuções falharam por um defeito nosso: o cliente chamava `fetch` como método de outro objeto, o que o runtime do Cloudflare recusa. Corrigido na #111, com teste de regressão.
+- **OAuth funciona:** o token é obtido em cerca de 0,4 s.
+- **API `/sandbox/v1/paymentlink/...` indisponível:**
+  - as consultas (`GET` de link inexistente, de transações vazias e da falha simulada) não recebem resposta em 30 s;
+  - criação e estornos (`POST`) recebem **HTTP 502 do gateway do PicPay** depois de cerca de 10 s.
+- **Conclusão:** o gateway do sandbox recebe as chamadas, mas o backend dele não responde. O bloqueio não está no nosso código, no Cloudflare nem nas credenciais. Nenhuma chamada gravou nada no nosso banco.
+- **Para liberar:** abrir chamado no suporte PicPay Empresas (Link de Pagamento), informando o host `api.ms.qa.limbo.work`, os horários das execuções, o OAuth funcionando, os timeouts nos `GET` e os 502 nos `POST`. Depois rodar de novo o Deploy Staging com a opção marcada.
+
 ## Como funciona
 
 1. O vendedor pede o link para uma venda pendente (`request_payment_link`). A intenção fica gravada (`payment_link_charges`, status `REQUESTED`) antes de qualquer chamada ao PicPay. Só existe um link aberto por tentativa de pagamento.

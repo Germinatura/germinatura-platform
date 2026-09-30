@@ -348,3 +348,7 @@ Toda ação é auditada e idempotente, e nenhuma cria receita.
 ## Incremento de pagamento online pelo consumidor — 29/09/2026
 
 ADR 0010 e PAY-004. Com a flag `payment_link` ligada, "Minhas reservas" oferece "Pagar online" para reservas ativas. A reserva vira uma venda do Portal aguardando pagamento, pela mesma conversão de antes, com preço congelado e o estoque mantido. O link é pedido com a página de retorno do Portal vinda da configuração, nunca de cabeçalhos da requisição. O cliente vai para a página segura do PicPay e volta para `/pedidos/pagamento/{id}`, que só mostra o que o servidor sabe; a volta do navegador não confirma nada. Uma reserva convertida sem pagamento pode pedir o link de novo. Pendente na etapa 8: a entrega no PDV de um pedido já pago online.
+
+## Verificação do link de pagamento no sandbox — 29/09/2026
+
+ADR 0010. A verificação automática em staging (#105, #107, #110–#112) encontrou e corrigiu um defeito real antes de produção: o cliente PicPay chamava `fetch` de um jeito que o runtime do Cloudflare recusa (#111). Depois disso, o OAuth do sandbox funciona. A API de links do sandbox não responde: as consultas passam de 30 s e criação e estorno recebem HTTP 502 do gateway do PicPay. Junto com a falta da API Key do webhook no painel, esse é o bloqueio externo que resta na etapa 7; o código e os testes locais e de integração estão completos. Detalhes e o que pedir ao PicPay: `docs/operations/payment-link-runbook.md`.
