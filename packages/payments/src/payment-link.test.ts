@@ -185,3 +185,15 @@ describe("Payment Link network failures", () => {
     expect(String((error as PaymentLinkProviderError).reason)).not.toContain("secret");
   });
 });
+
+describe("Payment Link on Cloudflare Workers", () => {
+  it("calls fetch without binding it to the client, as the Workers runtime requires", async () => {
+    // Workers' fetch throws "Illegal invocation" when `this` is another object.
+    const strictFetch = function (this: unknown, input: RequestInfo | URL) {
+      if (this !== undefined && this !== globalThis) return Promise.reject(new TypeError("Illegal invocation"));
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return Promise.resolve(url === config.tokenUrl ? Response.json(fixtures.token) : Response.json(fixtures.found));
+    };
+    await expect(new PicPayPaymentLinkClient(config, strictFetch).findCharge("1688060808649dc38881cdc")).resolves.toMatchObject({ status: "active" });
+  });
+});

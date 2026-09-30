@@ -133,12 +133,16 @@ async function providerCode(response: Response) {
 export class PicPayPaymentLinkClient implements PaymentLinkGateway {
   private token: { value: string; expiresAt: number } | null = null;
   private pendingToken: Promise<string> | null = null;
+  private readonly fetchImpl: typeof fetch;
 
   constructor(
     private readonly config: PaymentLinkConfig,
-    private readonly fetchImpl: typeof fetch = fetch,
-    private readonly now: () => number = Date.now,
-  ) {}
+    fetchImpl: typeof fetch = fetch,
+    private readonly now: () => number = () => Date.now(),
+  ) {
+    // Cloudflare's fetch throws "Illegal invocation" when called as a method of another object.
+    this.fetchImpl = (input, init) => fetchImpl(input, init);
+  }
 
   private async accessToken(forceRefresh = false): Promise<string> {
     if (!forceRefresh && this.token && this.token.expiresAt > this.now()) return this.token.value;
