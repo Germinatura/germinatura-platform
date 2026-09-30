@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  raffleCampaignCreateRequestSchema, raffleCampaignResponseSchema, raffleCampaignUpdateRequestSchema, raffleDrawResponseSchema,
-  type AdminRaffleCampaign, type RaffleCampaignStatus,
+  adminRaffleBuyersResponseSchema, raffleCampaignCreateRequestSchema, raffleCampaignResponseSchema, raffleCampaignUpdateRequestSchema,
+  raffleDrawResponseSchema, type AdminRaffleBuyer, type AdminRaffleCampaign, type RaffleCampaignStatus,
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
 import { AlertTriangle, Ticket } from "lucide-react";
@@ -154,6 +154,7 @@ export function RafflesManager({ campaigns: loaded, products, locations, enabled
             <div><dt className="font-semibold">Material aleatório</dt><dd>{campaign.draw.randomMaterial}</dd></div>
             <div><dt className="font-semibold">Hash de auditoria</dt><dd>{campaign.draw.auditHash}</dd></div>
           </dl></details></div>}
+          {campaign.status !== "DRAFT" && <RaffleBuyers campaign={campaign} />}
           <div className="flex flex-wrap gap-2">
             {campaign.status === "DRAFT" && <><Button disabled={disabled} variant="secondary" onClick={() => { setError(""); setEditingId(editingId === campaign.campaignId ? null : campaign.campaignId); }}>Editar rascunho</Button><Button disabled={disabled} onClick={() => ask(campaign, "publish")}>Publicar</Button></>}
             {campaign.status === "ACTIVE" && <Button disabled={disabled} variant="secondary" onClick={() => ask(campaign, "pause")}>Pausar vendas</Button>}
@@ -188,4 +189,34 @@ function StructureFields({ prefix, products, locations, campaign }: { prefix: st
     <Field id={`${prefix}-end`} label="Encerramento (horário deste dispositivo)"><Input id={`${prefix}-end`} name="endsAt" type="datetime-local" required defaultValue={campaign ? toLocalInput(campaign.endsAt) : undefined} /></Field>
     {campaign && <Field id={`${prefix}-description`} label="Descrição para os compradores (opcional)" className="sm:col-span-2"><Input id={`${prefix}-description`} name="description" maxLength={1000} defaultValue={campaign.description ?? ""} /></Field>}
   </>;
+}
+
+const buyerStatus: Record<AdminRaffleBuyer["status"], { label: string; tone: "warning" | "success" | "neutral" }> = {
+  RESERVED: { label: "Aguardando pagamento", tone: "warning" }, PAID: { label: "Pago", tone: "success" }, REFUNDED: { label: "Estornado", tone: "neutral" },
+};
+
+/** Spec 5.11 / 15.5 (RAF-006): buyers and contacts, loaded only when a manager opens the list. */
+function RaffleBuyers({ campaign }: { campaign: AdminRaffleCampaign }) {
+  const [buyers, setBuyers] = useState<AdminRaffleBuyer[] | null>(null);
+  const [error, setError] = useState("");
+  async function load() {
+    setError("");
+    try {
+      const response = await fetch(`/api/v1/admin/raffles/${campaign.campaignId}/buyers`, { cache: "no-store" });
+      const parsed = adminRaffleBuyersResponseSchema.safeParse(await response.json().catch(() => null));
+      if (!response.ok || !parsed.success) throw new Error("Não foi possível carregar os compradores.");
+      setBuyers(parsed.data.data);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível carregar os compradores."); }
+  }
+  return <details onToggle={(event) => { if (event.currentTarget.open && buyers === null) void load(); }}>
+    <summary className="min-h-11 cursor-pointer py-3 font-semibold">Compradores</summary>
+    {error ? <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>
+      : buyers === null ? <p role="status" className="text-sm">Carregando compradores…</p>
+      : buyers.length === 0 ? <p className="text-sm text-[var(--g-text-secondary)]">Nenhum número vendido ainda.</p>
+      : <ul aria-label={`Compradores de ${campaign.name}`} className="divide-y divide-[var(--g-border-subtle)] text-sm">{buyers.map((buyer) => <li key={buyer.saleId} aria-label={`Números ${buyer.numbers.join(", ")}`} className="flex flex-wrap items-center justify-between gap-2 py-2">
+        <div><p className="font-semibold">{buyer.numbers.join(", ")} · {buyer.buyerName ?? "Comprador"}{buyer.won && <Badge tone="success" className="ml-2">Ganhador</Badge>}</p>
+          <p className="text-[var(--g-text-secondary)]">{buyer.buyerContact ?? "Sem contato"} · {buyer.registered ? "com cadastro" : "sem cadastro"} · {buyer.channel === "PDV" ? `PDV${buyer.sellerName ? ` (${buyer.sellerName})` : ""}` : "Portal"} · {money.format(buyer.totalCents / 100)}</p></div>
+        <Badge tone={buyerStatus[buyer.status].tone}>{buyerStatus[buyer.status].label}</Badge>
+      </li>)}</ul>}
+  </details>;
 }
