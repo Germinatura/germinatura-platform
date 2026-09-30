@@ -88,3 +88,10 @@ export const securityEventsResponseSchema = z.object({
   nextCursor: z.object({ createdAt: z.string(), id: z.uuid() }).strict().nullable(),
   request_id: z.string().min(1),
 }).strict();
+
+// Spec 6.1: Portal→PDV handoff. The code rides in the URL fragment so it never reaches server logs.
+export const pdvHandoffResponseSchema = z.object({
+  data: z.object({ url: z.string().url(), expiresAt: z.string() }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export const pdvHandoffRedeemRequestSchema = z.object({ code: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict();

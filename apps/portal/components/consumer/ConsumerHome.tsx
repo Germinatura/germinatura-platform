@@ -4,6 +4,7 @@ import { Badge, Card } from "@germinatura/ui";
 import type { SessionUser } from "@germinatura/contracts";
 import { BootstrapAdminCard } from "@/components/auth/BootstrapAdminCard";
 import { PublicGoalCard } from "@/components/goal/PublicGoalCard";
+import { OpenPdvButton } from "@/components/pdv/OpenPdvButton";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador", VENDEDOR: "Vendedor", ESTOQUE: "Estoque", FINANCEIRO: "Financeiro",
@@ -11,7 +12,6 @@ const roleLabels: Record<string, string> = {
 };
 
 export function ConsumerHome({ user }: { user: SessionUser }) {
-  const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
   const canAccessPdv = user.roles.some((role) => role === "ADMIN" || role === "VENDEDOR");
   const canBootstrap = user.email === "theo.martins@institutojef.org.br" && !user.roles.includes("ADMIN");
 
@@ -61,7 +61,7 @@ export function ConsumerHome({ user }: { user: SessionUser }) {
                 <span className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-status-success-soft)] text-[var(--g-status-success-foreground)]"><Store className="size-5" /></span>
                 <h4 className="mt-5 text-lg font-semibold text-[var(--g-text-primary)]">Ponto de venda</h4>
                 <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Entre no ambiente operacional para realizar vendas autorizadas.</p>
-                <Link href={pdvUrl} className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--g-brand-primary)]">Abrir PDV <ArrowRight className="size-4" /></Link>
+                <OpenPdvButton />
               </Card>
             )}
           </div>
