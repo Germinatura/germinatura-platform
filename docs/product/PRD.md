@@ -52,6 +52,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
   - **Base:** por decisão de 30/09/2026, o progresso é o lucro operacional desde o início da contagem, o mesmo número do indicador, e pode cair com despesas ou estornos.
   - **Configuração:** a comissão define, em Configurações, o valor da meta, o início da contagem e a data-alvo. Cada alteração fica na auditoria com antes e depois.
   - **Projeção:** estende a média diária do período até a data-alvo e indica se a meta está ao alcance.
+  - **Chaves funcionais (30/09/2026):** Configurações também mostra, só para administradores, as chaves funcionais (reservas, venda online, comunidade, comentários, notificações e meios de pagamento). Cada mudança exige motivo e usa o comando auditado existente. Chaves cuja descrição traz uma condição, como o link de pagamento, pedem a confirmação explícita de que ela foi cumprida antes de ligar.
   - **Visibilidade:** a meta aparece na visão geral do administrador. Na página inicial da turma, só aparece se a comissão publicar, e pode mostrar apenas percentuais, sem valores em reais. O servidor nunca envia os valores ocultos.
 - **AUD-001** — Ajuste, perda, cancelamento, reabertura, sorteio, login, falha de autorização e permissão são investigáveis por correlação.
   - **Explorador (spec 5.16, 30/09/2026):** a aba Auditoria, só para administradores (`audit.read`), pesquisa por período em dias de Brasília (até um ano), usuário, ação, tipo e identificador da entidade, correlação e severidade, com paginação. Nada ali altera o histórico.
