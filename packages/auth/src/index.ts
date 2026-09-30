@@ -27,6 +27,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "closeouts.manage",
     "communications.manage",
     "community.moderate",
+    "audit.read",
   ],
   VENDEDOR: [
     "portal.access",

@@ -53,6 +53,10 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
   - **Projeção:** estende a média diária do período até a data-alvo e indica se a meta está ao alcance.
   - **Visibilidade:** a meta aparece na visão geral do administrador. Na página inicial da turma, só aparece se a comissão publicar, e pode mostrar apenas percentuais, sem valores em reais. O servidor nunca envia os valores ocultos.
 - **AUD-001** — Ajuste, perda, cancelamento, reabertura, sorteio, login, falha de autorização e permissão são investigáveis por correlação.
+  - **Explorador (spec 5.16, 30/09/2026):** a aba Auditoria, só para administradores (`audit.read`), pesquisa por período em dias de Brasília (até um ano), usuário, ação, tipo e identificador da entidade, correlação e severidade, com paginação. Nada ali altera o histórico.
+  - **Severidade:** é derivada da ação. Estornos, cancelamentos, reaberturas, sorteios, papéis, acessos, desbloqueios, perdas e ajustes são altos; configurações, pagamentos, fechamentos e publicações, médios.
+  - **Correlação:** "Ver correlação" junta tudo o que compartilha a mesma correlação: ações auditadas, vendas, pagamentos, movimentos de estoque com itens, lançamentos financeiros, movimentos de caixa e eventos publicados.
+  - **Pendente:** registro de login e de falha de autorização.
 
 ### Pricing e promoções
 

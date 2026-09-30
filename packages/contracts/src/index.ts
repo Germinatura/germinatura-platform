@@ -18,6 +18,7 @@ export * from "./share-campaigns";
 export * from "./payment-links";
 export * from "./management-indicators";
 export * from "./fundraising-goal";
+export * from "./audit";
 
 export const moneyCentsSchema = z.number()
   .int()
@@ -1173,6 +1174,7 @@ export const permissionSchema = z.enum([
   "closeouts.manage",
   "communications.manage",
   "community.moderate",
+  "audit.read",
 ]);
 export type Permission = z.infer<typeof permissionSchema>;
 
