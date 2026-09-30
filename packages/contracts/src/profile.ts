@@ -14,3 +14,15 @@ export const privateProfileSchema = updateProfileSchema.omit({ expectedRevision:
   id: z.string().uuid(), email: z.string().email(), username: z.string(), avatarUrl: z.string().nullable(),
 });
 export type PrivateProfile = z.infer<typeof privateProfileSchema>;
+
+// Spec 4.8: the person's own signed-in sessions (no IP), current first.
+export const accountSessionSchema = z.object({
+  id: z.uuid(),
+  createdAt: z.string(),
+  lastActiveAt: z.string(),
+  userAgent: z.string().nullable(),
+  current: z.boolean(),
+}).strict();
+export type AccountSession = z.infer<typeof accountSessionSchema>;
+export const accountSessionsResponseSchema = z.object({ data: z.array(accountSessionSchema), request_id: z.string().min(1) }).strict();
+export const endAccountSessionsResponseSchema = z.object({ data: z.object({ ended: z.number().int().nonnegative() }).strict(), request_id: z.string().min(1) }).strict();

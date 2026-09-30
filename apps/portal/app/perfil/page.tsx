@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readPrivateProfile } from "@/lib/private-profile";
+import { AccountSessions } from "@/components/account/AccountSessions";
 import { ProfileEditor } from "@/components/account/ProfileEditor";
 export const dynamic = "force-dynamic";
 export default async function ProfilePage() {
@@ -9,5 +10,5 @@ export default async function ProfilePage() {
   if (!profile) {
     return <div role="alert" className="p-8">Não foi possível carregar seu perfil. <a href="/perfil" className="underline">Tentar novamente</a></div>;
   }
-  return <ProfileEditor initial={profile} />;
+  return <><ProfileEditor initial={profile} /><AccountSessions /></>;
 }
