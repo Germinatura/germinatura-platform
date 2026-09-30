@@ -9,7 +9,7 @@ Revisão de 30/09/2026 para a promoção `develop → main`. Este documento não
 | 1–6 — Catálogo, estoque, compras, promoções, PDV/caixa, financeiro | Integradas em staging | ver `docs/product/ROADMAP.md` |
 | 7 — Payment Link | Código completo; **homologação bloqueada externamente** (sandbox PicPay com timeout/502 e sem chave de webhook). Flag `payment_link` desligada | #103–#113; `docs/operations/payment-link-runbook.md` |
 | 8 — Compra, reservas e rifas | Integrada: ciclo de vida da rifa, compra online, venda no PDV, estorno, avisos e compradores, entrega de pedido pago online | #114–#119 |
-| 9 — Gestão e indicadores | Integrada ou em integração: indicadores por período, meta de arrecadação, auditoria e registro de segurança, desbloqueios, chaves funcionais, abertura do PDV pelo Portal, sessões ativas | #120–#128 e seguintes |
+| 9 — Gestão e indicadores | Integrada: indicadores por período, meta de arrecadação, auditoria e registro de segurança, desbloqueios, chaves funcionais, abertura do PDV pelo Portal, sessões ativas | #120–#124, #127–#129 |
 | Dívidas pré-RC | Resolvidas: testes unitários do Portal na CI (#125) e foundation E2E em banco limpo (#126) | `docs/product/GAP_ANALYSIS.md` |
 
 ## Portões de qualidade
