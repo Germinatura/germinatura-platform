@@ -17,6 +17,7 @@ export * from "./raffle-pdv";
 export * from "./share-campaigns";
 export * from "./payment-links";
 export * from "./management-indicators";
+export * from "./fundraising-goal";
 
 export const moneyCentsSchema = z.number()
   .int()

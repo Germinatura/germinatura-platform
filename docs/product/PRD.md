@@ -47,6 +47,11 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
   - **Definições:** receita bruta = vendas (PDV, online, reserva, rifa) + receitas manuais; receita líquida = bruta − estornos − taxas ± divergências de conciliação; custo das mercadorias = custo dos lotes consumidos pelas vendas − custo devolvido por estornos; lucro operacional estimado = líquida − custo das mercadorias − custo das perdas − despesas manuais. Pagamentos a fornecedores são saída de caixa: o custo entra no resultado pela venda. O saldo financeiro é o total de entradas e saídas do extrato. Unidades de lotes sem custo conhecido são informadas, e o painel avisa que custo, margem e lucro não as incluem.
   - **Quebras:** receita por canal (PDV, venda online, reserva, rifa, evento, lançamento manual) e por forma de pagamento; produtos mais vendidos com unidades, giro por dia, receita, custo e margem (rifas ficam fora); vendedores com receita, vendas, estornos, unidades e ticket médio; perdas por produto, motivo e local; despesas por categoria; série diária de receita e margem; pendências atuais.
   - **Visão geral:** passa a mostrar receita líquida, vendas e lucro do mês a partir desse cálculo, no lugar da amostra das 100 vendas recentes.
+- **ADMIN-002** — Meta de arrecadação (spec 4.1, 5.1 e 5.17, 30/09/2026).
+  - **Base:** por decisão de 30/09/2026, o progresso é o lucro operacional desde o início da contagem, o mesmo número do indicador, e pode cair com despesas ou estornos.
+  - **Configuração:** a comissão define, em Configurações, o valor da meta, o início da contagem e a data-alvo. Cada alteração fica na auditoria com antes e depois.
+  - **Projeção:** estende a média diária do período até a data-alvo e indica se a meta está ao alcance.
+  - **Visibilidade:** a meta aparece na visão geral do administrador. Na página inicial da turma, só aparece se a comissão publicar, e pode mostrar apenas percentuais, sem valores em reais. O servidor nunca envia os valores ocultos.
 - **AUD-001** — Ajuste, perda, cancelamento, reabertura, sorteio, login, falha de autorização e permissão são investigáveis por correlação.
 
 ### Pricing e promoções
