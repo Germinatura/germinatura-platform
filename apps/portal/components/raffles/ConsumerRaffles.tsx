@@ -25,6 +25,8 @@ export interface RaffleTicket {
   campaignName: string;
   numbers: number[];
   saleStatus: "DRAFT" | "AWAITING_PAYMENT" | "CONFIRMED" | "CANCELLED";
+  /** RAF-005: the paid purchase was refunded and its numbers left the draw. */
+  refunded?: boolean;
   totalCents: number;
   expiresAt: string | null;
   openPaymentLinkId: string | null;
@@ -115,7 +117,7 @@ export function ConsumerRaffles({ raffles, tickets: initialTickets, enabled, onl
                 <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{ticket.campaignName}</p>
                   {ticket.saleStatus === "CONFIRMED" && <Badge tone="success">Pago</Badge>}
                   {ticket.saleStatus === "AWAITING_PAYMENT" && <Badge tone="warning">Aguardando pagamento{ticket.expiresAt ? ` até ${time.format(new Date(ticket.expiresAt))}` : ""}</Badge>}
-                  {ticket.saleStatus === "CANCELLED" && <Badge tone="neutral">Cancelado ou expirado</Badge>}
+                  {ticket.saleStatus === "CANCELLED" && <Badge tone="neutral">{ticket.refunded ? "Estornado" : "Cancelado ou expirado"}</Badge>}
                   {ticket.won && <Badge tone="success">Premiado</Badge>}
                 </div>
                 <p className="mt-1 text-sm">Números: <span className="g-money font-semibold">{ticket.numbers.join(", ")}</span> · {money.format(ticket.totalCents / 100)}</p>

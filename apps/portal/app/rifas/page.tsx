@@ -25,7 +25,7 @@ const ticketsSchema = z.array(z.object({
   sale_id: z.uuid(), campaign_id: z.uuid(), campaign_name: z.string(), numbers: z.array(z.number().int()),
   sale_status: z.enum(["DRAFT", "AWAITING_PAYMENT", "CONFIRMED", "CANCELLED"]), total_cents: z.number().int(),
   expires_at: z.string().nullable(), open_payment_link_id: z.uuid().nullable(),
-  payment: z.object({ confirmation_source: z.string().nullable() }).passthrough().nullable(), won: z.boolean(),
+  payment: z.object({ status: z.string().optional(), confirmation_source: z.string().nullable() }).passthrough().nullable(), won: z.boolean(),
 }).passthrough());
 
 export default async function RafflesPage() {
@@ -51,6 +51,7 @@ export default async function RafflesPage() {
     saleId: row.sale_id, campaignId: row.campaign_id, campaignName: row.campaign_name, numbers: row.numbers, saleStatus: row.sale_status,
     totalCents: row.total_cents, expiresAt: row.expires_at, openPaymentLinkId: row.open_payment_link_id,
     confirmationSource: row.payment?.confirmation_source ?? null, won: row.won,
+    refunded: row.payment?.status === "REFUNDED",
   })) : [];
 
   return <ConsumerRaffles raffles={raffles} tickets={tickets} enabled={enabledKeys.has("raffles")}

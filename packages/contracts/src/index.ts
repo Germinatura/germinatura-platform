@@ -340,7 +340,7 @@ export const salesCancelResponseSchema = z.object({
       status: z.literal("REFUNDED"),
     }).strict(),
     reversal: z.object({
-      stockMovementId: z.uuid(),
+      stockMovementId: z.uuid().nullable(),
       refundEntryId: z.uuid(),
       amountCents: moneyCentsSchema,
       refundReference: z.string().min(4).max(128),
@@ -349,6 +349,7 @@ export const salesCancelResponseSchema = z.object({
         shiftId: z.uuid(),
         amountCents: moneyCentsSchema,
       }).strict().nullable(),
+      raffle: z.object({ campaignId: z.uuid(), numbers: z.array(z.number().int().positive()) }).strict().nullable(),
     }).strict(),
     correlationId: z.uuid(),
   }).strict()]),
@@ -484,6 +485,13 @@ export const adminSaleDetailSchema = adminSaleSchema.extend({
     blockedReason: z.string().nullable(),
     cashPayoutAllowed: z.boolean(),
   }).strict(),
+  // RAF-005: numbers held (or refunded) by a raffle sale.
+  raffle: z.object({
+    campaignId: z.uuid(),
+    campaignName: z.string(),
+    campaignStatus: z.string(),
+    numbers: z.array(z.number().int().positive()),
+  }).strict().nullable(),
 }).strict();
 export type AdminSaleDetail = z.infer<typeof adminSaleDetailSchema>;
 

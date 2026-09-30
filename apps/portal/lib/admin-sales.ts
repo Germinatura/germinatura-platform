@@ -31,6 +31,7 @@ export const databaseAdminSaleDetailSchema = databaseAdminSaleSchema.extend({
     from_status: z.string().nullable(), to_status: z.string(), reason: z.string().nullable(), created_at: z.string(),
   })),
   reversal: z.object({ allowed: z.boolean(), blocked_reason: z.string().nullable(), cash_payout_allowed: z.boolean() }),
+  raffle: z.object({ campaign_id: z.uuid(), campaign_name: z.string(), campaign_status: z.string(), numbers: z.array(z.number().int()).nullable() }).nullable(),
 });
 
 function summary(value: z.infer<typeof databaseAdminSaleSchema>) {
@@ -71,6 +72,8 @@ export function toAdminSaleDetail(value: z.infer<typeof databaseAdminSaleDetailS
       allowed: value.reversal.allowed, blockedReason: value.reversal.blocked_reason,
       cashPayoutAllowed: value.reversal.cash_payout_allowed,
     },
+    raffle: value.raffle && { campaignId: value.raffle.campaign_id, campaignName: value.raffle.campaign_name,
+      campaignStatus: value.raffle.campaign_status, numbers: value.raffle.numbers ?? [] },
   });
 }
 
