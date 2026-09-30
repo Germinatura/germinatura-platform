@@ -36,7 +36,7 @@ const reversalDatabaseResultSchema = z.object({
     status: z.literal("REFUNDED"),
   }),
   reversal: z.object({
-    stock_movement_id: z.uuid(),
+    stock_movement_id: z.uuid().nullable(), // Raffle refunds move no stock (RAF-005).
     refund_entry_id: z.uuid(),
     amount_cents: z.number().int().nonnegative(),
     refund_reference: z.string().min(4).max(128),
@@ -45,6 +45,7 @@ const reversalDatabaseResultSchema = z.object({
       shift_id: z.uuid(),
       amount_cents: z.number().int().nonnegative(),
     }).nullish(), // Absent in replays stored before PAY-009a payouts.
+    raffle: z.object({ campaign_id: z.uuid(), numbers: z.array(z.number().int().positive()) }).optional(),
   }),
   correlation_id: z.uuid(),
 });
@@ -68,6 +69,12 @@ function databaseErrorResponse(message: string, requestId: string) {
   }
   if (message.includes("PAID_RAFFLE_REVERSAL_REQUIRED")) {
     return errorResponse("PAID_RAFFLE_REVERSAL_REQUIRED", "Venda de rifa paga exige reversão específica", requestId, 409);
+  }
+  if (message.includes("RAFFLE_CLOSED_REFUND_REQUIRES_CANCELLATION")) {
+    return errorResponse("RAFFLE_CLOSED_REFUND_REQUIRES_CANCELLATION", "Rifa encerrada só estorna vendas se for cancelada antes do sorteio", requestId, 409);
+  }
+  if (message.includes("RAFFLE_ALREADY_DRAWN")) {
+    return errorResponse("RAFFLE_ALREADY_DRAWN", "Rifa já sorteada não pode ter vendas estornadas", requestId, 409);
   }
   if (message.includes("STOCK_REVERSAL_CONFLICT") || message.includes("SALE_MOVEMENT_ALREADY_REVERSED")) {
     return errorResponse("STOCK_REVERSAL_CONFLICT", "O estoque mudou e a reversão não pôde ser concluída", requestId, 409);
@@ -168,6 +175,7 @@ export async function POST(request: Request, context: RouteContext) {
             shiftId: value.reversal.cash_payout.shift_id,
             amountCents: value.reversal.cash_payout.amount_cents,
           } : null,
+          raffle: value.reversal.raffle ? { campaignId: value.reversal.raffle.campaign_id, numbers: value.reversal.raffle.numbers } : null,
         },
         correlationId: value.correlation_id,
       },

@@ -35,6 +35,8 @@ const movementLabels: Record<string, string> = { SALE_RECEIPT: "Entrada no caixa
 const blockedLabels: Record<string, string> = {
   SALE_NOT_CONFIRMED: "Só vendas concluídas podem ser estornadas.",
   PAID_RAFFLE_REVERSAL_REQUIRED: "Venda de rifa paga exige a reversão específica de rifas.",
+  RAFFLE_CLOSED_REFUND_REQUIRES_CANCELLATION: "Rifa encerrada: o estorno só é possível cancelando a rifa inteira antes do sorteio.",
+  RAFFLE_ALREADY_DRAWN: "Rifa já sorteada: nenhuma venda pode ser estornada.",
   PAYMENT_ATTEMPT_NOT_REFUNDABLE: "O pagamento desta venda não pode ser estornado.",
 };
 
@@ -142,6 +144,7 @@ function SaleDetail({ saleId, onChanged }: { saleId: string; onChanged: () => vo
   return <div className="grid gap-5 border-t border-[var(--g-border-subtle)] bg-[var(--g-surface-default)] p-5 lg:grid-cols-2">
     <section aria-label="Itens"><h3 className="text-sm font-semibold">Itens</h3><ul className="mt-2 space-y-1 text-sm">{detail.items.map((item) => <li key={item.productSku} className="flex justify-between gap-3"><span>{item.quantity}× {item.productName}{item.discountCents > 0 ? ` (desconto ${formatMoney(item.discountCents)})` : ""}</span><span className="g-money">{formatMoney(item.totalCents)}</span></li>)}</ul>
       <p className="mt-2 text-xs text-[var(--g-text-muted)]">{detail.locationName} · venda {detail.saleId}</p></section>
+    {detail.raffle && <section aria-label="Rifa" className="lg:col-span-2"><h3 className="text-sm font-semibold">Rifa</h3><p className="mt-2 text-sm">{detail.raffle.campaignName} · números <span className="g-money font-semibold">{detail.raffle.numbers.join(", ")}</span></p></section>}
     <section aria-label="Pagamento"><h3 className="text-sm font-semibold">Pagamento</h3><p className="mt-2 text-sm">{paymentLine(detail.payment)}{detail.payment?.proofReference ? ` · ref. ${detail.payment.proofReference}` : ""}</p>
       {detail.payment?.confirmedAt && <p className="text-xs text-[var(--g-text-muted)]">Confirmado em {formatDate(detail.payment.confirmedAt)}</p>}</section>
     <section aria-label="Lançamentos financeiros"><h3 className="text-sm font-semibold">Lançamentos</h3><ul className="mt-2 space-y-1 text-sm">{detail.ledger.length === 0 ? <li className="text-[var(--g-text-muted)]">Nenhum lançamento.</li> : detail.ledger.map((entry) => <li key={entry.id} className="flex justify-between gap-3"><span>{ledgerLabels[entry.entryType] ?? entry.entryType}{entry.refundMethod ? ` (${entry.refundMethod === "CASH_DRAWER" ? "dinheiro do caixa" : "outro meio"})` : ""}{entry.reference ? ` · ${entry.reference}` : ""}</span><span className="g-money">{formatMoney(entry.amountCents)}</span></li>)}</ul>
@@ -196,7 +199,8 @@ function ReversalForm({ detail, onDone }: { detail: AdminSaleDetail; onDone: () 
 
   return <form aria-label="Estornar venda" className="grid gap-4 rounded-[var(--g-radius-card)] border border-[var(--g-border-default)] p-4" onSubmit={(event) => { event.preventDefault(); if (confirming) void submit(); else if (valid) setConfirming(true); }}>
     <h3 className="font-semibold">Estornar venda</h3>
-    <p className="text-sm text-[var(--g-text-secondary)]">O estoque volta ao local da venda e o lançamento de estorno fica vinculado ao pagamento original, que não é alterado.</p>
+    <p className="text-sm text-[var(--g-text-secondary)]">{detail.raffle ? "Os números saem do sorteio (e voltam ao quadro se a rifa estiver aberta)" : "O estoque volta ao local da venda"} e o lançamento de estorno fica vinculado ao pagamento original, que não é alterado.</p>
+    {detail.payment?.integrationChannel === "PAYMENT_LINK" && <p className="text-sm text-[var(--g-text-secondary)]">Pago pelo link de pagamento: peça a devolução ao PicPay em Financeiro › Pagamentos online e use aqui a referência desse pedido.</p>}
     <div className="grid gap-4 sm:grid-cols-2">
       <Field id={`reversal-reason-${detail.saleId}`} label="Motivo"><Input id={`reversal-reason-${detail.saleId}`} minLength={8} maxLength={500} value={reason} onChange={(event) => { setReason(event.target.value); setConfirming(false); }} /></Field>
       <Field id={`reversal-reference-${detail.saleId}`} label="Referência do estorno" description="Identificador não sensível (nunca número de cartão)."><Input id={`reversal-reference-${detail.saleId}`} maxLength={128} value={reference} onChange={(event) => { setReference(event.target.value); setConfirming(false); }} /></Field>
