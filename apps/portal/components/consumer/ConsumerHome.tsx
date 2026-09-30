@@ -3,6 +3,7 @@ import { ArrowRight, Bell, ShieldCheck, ShoppingBag, Store, UserRound } from "lu
 import { Badge, Card } from "@germinatura/ui";
 import type { SessionUser } from "@germinatura/contracts";
 import { BootstrapAdminCard } from "@/components/auth/BootstrapAdminCard";
+import { PublicGoalCard } from "@/components/goal/PublicGoalCard";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador", VENDEDOR: "Vendedor", ESTOQUE: "Estoque", FINANCEIRO: "Financeiro",
@@ -28,6 +29,8 @@ export function ConsumerHome({ user }: { user: SessionUser }) {
         </header>
 
         {canBootstrap && <BootstrapAdminCard />}
+
+        <PublicGoalCard />
 
         <section aria-labelledby="quick-actions-title">
           <div className="mb-4"><h3 id="quick-actions-title" className="text-xl font-bold text-[var(--g-text-primary)]">Comece por aqui</h3><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Atalhos disponíveis para a sua conta.</p></div>

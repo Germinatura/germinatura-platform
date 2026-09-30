@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CircleDollarSign, ClipboardCheck, ReceiptText, ShoppingBag, UsersRound } from "lucide-react";
 import { Badge, Card } from "@germinatura/ui";
+import { FundraisingGoalProgress } from "@/components/goal/FundraisingGoalProgress";
+import { toFundraisingGoal } from "@/lib/fundraising-goal";
 import { currentMonthToDate, loadManagementIndicators } from "@/lib/management-indicators";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -22,10 +24,13 @@ export async function AdminOverview({ name }: { name: string }) {
   const client = await createSupabaseServerClient();
   // ADMIN-001: month-to-date figures come from the ledgers, not from a sample of recent sales.
   const month = currentMonthToDate();
-  const [indicators, salesResult] = await Promise.all([
+  const [indicators, salesResult, goalResult] = await Promise.all([
     loadManagementIndicators(client, month.from, month.to).catch(() => null),
     client.from("sales").select("id,status,total_cents,created_at,channel").order("created_at", { ascending: false }).limit(8),
+    client.rpc("get_fundraising_goal_admin"),
   ]);
+  let goal = null;
+  try { goal = goalResult.error ? null : toFundraisingGoal(goalResult.data); } catch { goal = null; }
   const unavailable = !indicators || Boolean(salesResult.error);
   const sales = salesResult.data ?? [];
   const pending = indicators?.pending ?? { awaitingPayment: 0, divergentReconciliations: 0, reopenedCloseouts: 0, openPaymentRecoveries: 0 };
@@ -59,6 +64,8 @@ export async function AdminOverview({ name }: { name: string }) {
             <div><p className="font-semibold">Parte do resumo está indisponível</p><p className="mt-1 text-sm">Atualize a página. Os valores abaixo não devem ser usados para fechamento enquanto este aviso estiver visível.</p></div>
           </div>
         )}
+
+        {goal && <Card className="p-6"><FundraisingGoalProgress goal={goal} title="Meta de arrecadação" /></Card>}
 
         <section aria-label="Indicadores do mês" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {kpis.map(({ label, value, hint, icon: Icon }) => (
