@@ -49,6 +49,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/entries", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/entries/:id/reverse", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/statement", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/indicators", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/settlements/:id/reverse", methods: ["POST"], access: "finance" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },

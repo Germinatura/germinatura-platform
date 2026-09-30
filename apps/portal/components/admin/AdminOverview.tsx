@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CircleDollarSign, ClipboardCheck, ReceiptText, ShoppingBag, UsersRound } from "lucide-react";
 import { Badge, Card } from "@germinatura/ui";
+import { currentMonthToDate, loadManagementIndicators } from "@/lib/management-indicators";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -19,22 +20,22 @@ function formatMoney(cents: number) {
 
 export async function AdminOverview({ name }: { name: string }) {
   const client = await createSupabaseServerClient();
-  const [salesResult, pendingResult, divergentResult, closeoutResult] = await Promise.all([
-    client.from("sales").select("id,status,total_cents,created_at,channel").order("created_at", { ascending: false }).limit(100),
-    client.from("sales").select("id", { count: "exact", head: true }).eq("status", "AWAITING_PAYMENT"),
-    client.from("payment_reconciliations").select("id", { count: "exact", head: true }).eq("outcome", "DIVERGENT"),
-    client.from("seller_closeouts").select("id", { count: "exact", head: true }).eq("status", "REOPENED"),
+  // ADMIN-001: month-to-date figures come from the ledgers, not from a sample of recent sales.
+  const month = currentMonthToDate();
+  const [indicators, salesResult] = await Promise.all([
+    loadManagementIndicators(client, month.from, month.to).catch(() => null),
+    client.from("sales").select("id,status,total_cents,created_at,channel").order("created_at", { ascending: false }).limit(8),
   ]);
-  const unavailable = Boolean(salesResult.error || pendingResult.error || divergentResult.error || closeoutResult.error);
+  const unavailable = !indicators || Boolean(salesResult.error);
   const sales = salesResult.data ?? [];
-  const confirmed = sales.filter((sale) => sale.status === "CONFIRMED");
-  const revenueCents = confirmed.reduce((total, sale) => total + Number(sale.total_cents), 0);
-  const pendingCount = (pendingResult.count ?? 0) + (divergentResult.count ?? 0) + (closeoutResult.count ?? 0);
+  const pending = indicators?.pending ?? { awaitingPayment: 0, divergentReconciliations: 0, reopenedCloseouts: 0, openPaymentRecoveries: 0 };
+  const pendingCount = pending.awaitingPayment + pending.divergentReconciliations + pending.reopenedCloseouts + pending.openPaymentRecoveries;
+  const totals = indicators?.totals;
   const kpis = [
-    { label: "Receita", value: formatMoney(revenueCents), hint: "nas últimas vendas registradas", icon: CircleDollarSign },
-    { label: "Vendas", value: String(confirmed.length), hint: "confirmadas entre os 100 registros recentes", icon: ShoppingBag },
-    { label: "Ticket médio", value: confirmed.length ? formatMoney(Math.round(revenueCents / confirmed.length)) : formatMoney(0), hint: "sobre vendas confirmadas", icon: ReceiptText },
-    { label: "Pendências", value: String(pendingCount), hint: "pagamentos, divergências e reaberturas", icon: ClipboardCheck },
+    { label: "Receita líquida", value: formatMoney(totals?.netRevenueCents ?? 0), hint: "no mês, após estornos e taxas", icon: CircleDollarSign },
+    { label: "Vendas", value: String(totals?.salesCount ?? 0), hint: "confirmadas no mês", icon: ShoppingBag },
+    { label: "Lucro operacional", value: formatMoney(totals?.operatingProfitCents ?? 0), hint: totals && !totals.costComplete ? "estimado; há unidades sem custo conhecido" : "estimado no mês", icon: ReceiptText },
+    { label: "Pendências", value: String(pendingCount), hint: "pagamentos, divergências, reaberturas e recuperações", icon: ClipboardCheck },
   ];
 
   return (
@@ -46,9 +47,10 @@ export async function AdminOverview({ name }: { name: string }) {
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--g-text-primary)]">Olá, {name}</h1>
             <p className="mt-2 max-w-2xl text-base leading-6 text-[var(--g-text-secondary)]">Resumo da operação e dos pontos que precisam de atenção.</p>
           </div>
+          <div className="flex flex-wrap gap-2"><Link href="/admin/financeiro/indicadores" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] px-4 text-sm font-semibold text-[var(--g-text-primary)] hover:bg-[var(--g-surface-hover)]">Ver indicadores</Link>
           <Link href="/admin/usuarios" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--g-brand-primary-hover)]">
             <UsersRound className="size-5" /> Gerenciar usuários
-          </Link>
+          </Link></div>
         </header>
 
         {unavailable && (
@@ -58,7 +60,7 @@ export async function AdminOverview({ name }: { name: string }) {
           </div>
         )}
 
-        <section aria-label="Indicadores da operação recente" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Indicadores do mês" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {kpis.map(({ label, value, hint, icon: Icon }) => (
             <Card key={label} className="p-5">
               <div className="flex items-start justify-between gap-4"><p className="text-sm font-semibold text-[var(--g-text-secondary)]">{label}</p><span className="flex size-10 items-center justify-center rounded-[var(--g-radius-control)] bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]"><Icon className="size-5" /></span></div>
@@ -77,9 +79,10 @@ export async function AdminOverview({ name }: { name: string }) {
                 <div className="rounded-[var(--g-radius-control)] bg-[var(--g-status-success-soft)] p-4 text-sm text-[var(--g-status-success-foreground)]"><p className="font-semibold">Nenhuma pendência aberta</p><p className="mt-1">Pagamentos, conciliações e fechamentos estão sem alertas.</p></div>
               ) : (
                 <>
-                  <AlertRow label="Pagamentos aguardando confirmação" value={pendingResult.count ?? 0} />
-                  <AlertRow label="Conciliações divergentes" value={divergentResult.count ?? 0} />
-                  <AlertRow label="Fechamentos reabertos" value={closeoutResult.count ?? 0} />
+                  <AlertRow label="Pagamentos aguardando confirmação" value={pending.awaitingPayment} />
+                  <AlertRow label="Conciliações divergentes" value={pending.divergentReconciliations} />
+                  <AlertRow label="Fechamentos reabertos" value={pending.reopenedCloseouts} />
+                  <AlertRow label="Recuperações de pagamento online" value={pending.openPaymentRecoveries} />
                 </>
               )}
             </div>

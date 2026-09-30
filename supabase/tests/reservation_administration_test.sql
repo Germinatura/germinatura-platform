@@ -19,7 +19,8 @@ set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000003';
 create temp table res as select label, (public.create_commercial_reservation('50000000-0000-4000-8000-000000000001',
   '[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":1}]'::jsonb,'res-admin-'||label,gen_random_uuid())->>'reservation_id')::uuid as reservation_id
 from unnest(array['ready','other']) label;
-select is((select extract(epoch from (expires_at - created_at))::integer from public.commercial_reservations where id=(select reservation_id from res where label='ready')),86400,'a new reservation follows the configured hold');
+-- created_at is the transaction start and expires_at the clock at insert, so a slow run adds a few seconds.
+select ok((select extract(epoch from (expires_at - created_at)) from public.commercial_reservations where id=(select reservation_id from res where label='ready')) between 86400 and 86460,'a new reservation follows the configured hold');
 select throws_ok($$select public.mark_commercial_reservation_ready((select reservation_id from res where label='ready'),null,'res-ready-consumer',gen_random_uuid())$$,'42501','RESERVATIONS_MANAGE_REQUIRED','a consumer cannot prepare a reservation');
 select throws_ok($$select public.list_commercial_reservations_admin()$$,'42501','RESERVATIONS_MANAGE_REQUIRED','a consumer cannot list every reservation');
 
