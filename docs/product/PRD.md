@@ -43,6 +43,10 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 - **CAT-001** — Produtos e categorias são normalizados, inativáveis, publicáveis por canal e mantêm histórico de preço.
 - **CAT-002** — A API pública versionada lista somente produtos publicados em categoria ativa e com preço vigente, usando visão anônima consistente, paginação por cursor e limite máximo de 50 itens.
 - **ADMIN-001** — Dashboard deriva indicadores de eventos conciliados e ledger, nunca de números manuais desconectados.
+  - **Indicadores por período (spec 5.1 e 5.9, 30/09/2026):** Financeiro › Indicadores calcula, no servidor e para qualquer período de dias de Brasília (até um ano), a partir do extrato financeiro, dos lançamentos de venda, do custo real alocado aos lotes e das perdas aplicadas. Nada é digitado ou guardado no painel.
+  - **Definições:** receita bruta = vendas (PDV, online, reserva, rifa) + receitas manuais; receita líquida = bruta − estornos − taxas ± divergências de conciliação; custo das mercadorias = custo dos lotes consumidos pelas vendas − custo devolvido por estornos; lucro operacional estimado = líquida − custo das mercadorias − custo das perdas − despesas manuais. Pagamentos a fornecedores são saída de caixa: o custo entra no resultado pela venda. O saldo financeiro é o total de entradas e saídas do extrato. Unidades de lotes sem custo conhecido são informadas, e o painel avisa que custo, margem e lucro não as incluem.
+  - **Quebras:** receita por canal (PDV, venda online, reserva, rifa, evento, lançamento manual) e por forma de pagamento; produtos mais vendidos com unidades, giro por dia, receita, custo e margem (rifas ficam fora); vendedores com receita, vendas, estornos, unidades e ticket médio; perdas por produto, motivo e local; despesas por categoria; série diária de receita e margem; pendências atuais.
+  - **Visão geral:** passa a mostrar receita líquida, vendas e lucro do mês a partir desse cálculo, no lugar da amostra das 100 vendas recentes.
 - **AUD-001** — Ajuste, perda, cancelamento, reabertura, sorteio, login, falha de autorização e permissão são investigáveis por correlação.
 
 ### Pricing e promoções
