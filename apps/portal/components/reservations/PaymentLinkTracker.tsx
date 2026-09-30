@@ -1,7 +1,7 @@
 "use client";
 
 import { paymentLinkChargeResponseSchema, type PaymentLinkCharge } from "@germinatura/contracts";
-import { Badge, Button, Card } from "@germinatura/ui";
+import { Badge, Card } from "@germinatura/ui";
 import { CircleAlert, CircleCheck, ExternalLink, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
@@ -56,10 +56,10 @@ export function PaymentLinkTracker({ chargeId }: { chargeId: string }) {
       <CircleCheck className="mx-auto size-12 text-[var(--g-status-success-foreground)]" />
       <h2 className="text-2xl font-bold">Pagamento confirmado</h2>
       <p className="text-sm text-[var(--g-text-secondary)]">O PicPay confirmou o pagamento. Pedido {charge.orderNumber}.</p>
-      <Link href="/reservas" className="text-sm font-semibold underline">Ver minhas reservas</Link>
+      <p className="flex justify-center gap-4 text-sm font-semibold"><Link href="/reservas" className="underline">Minhas reservas</Link><Link href="/rifas" className="underline">Meus bilhetes</Link></p>
     </div>}
     {charge?.status === "UNCERTAIN" && <p role="status" className="flex items-start gap-2 text-sm"><CircleAlert className="mt-0.5 size-4 shrink-0 text-[var(--g-status-warning)]" /> Estamos confirmando com o PicPay se o pagamento foi preparado. Não pague de novo; a comissão vai conferir e esta página atualiza sozinha.</p>}
-    {charge?.status === "FAILED" && <div role="alert" className="grid gap-3 text-sm"><p className="flex items-start gap-2"><CircleAlert className="mt-0.5 size-4 shrink-0 text-[var(--g-status-danger)]" /> O PicPay não conseguiu preparar este pagamento.</p><Link href="/reservas"><Button variant="secondary">Voltar às reservas e tentar de novo</Button></Link></div>}
+    {charge?.status === "FAILED" && <div role="alert" className="grid gap-3 text-sm"><p className="flex items-start gap-2"><CircleAlert className="mt-0.5 size-4 shrink-0 text-[var(--g-status-danger)]" /> O PicPay não conseguiu preparar este pagamento.</p><p className="flex gap-4 font-semibold"><Link href="/reservas" className="underline">Minhas reservas</Link><Link href="/rifas" className="underline">Meus bilhetes</Link></p></div>}
     {charge?.status === "INACTIVE" && <p role="status" className="text-sm text-[var(--g-text-secondary)]">Este pagamento não está mais disponível: a reserva expirou, foi cancelada ou já foi paga de outra forma.</p>}
     {error && <p role="alert" className="flex items-start gap-2 text-sm text-[var(--g-status-danger)]"><CircleAlert className="mt-0.5 size-4 shrink-0" /> {error}</p>}
   </Card>;
