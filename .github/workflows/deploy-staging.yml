@@ -78,7 +78,7 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.payment_link_sandbox_check }}
         # Sandbox only (the worker refuses other hosts); writes nothing to the database; prints step outcomes only.
         run: |
-          status=$(curl --silent --show-error --output result.json --write-out '%{http_code}' --max-time 120 \
+          status=$(curl --silent --show-error --output result.json --write-out '%{http_code}' --max-time 420 \
             -X POST -H "Authorization: Bearer $SUPABASE_SECRET_KEY" "${JOBS_URL}/diagnostics/payment-link-sandbox")
           echo "HTTP $status"
           jq . result.json
