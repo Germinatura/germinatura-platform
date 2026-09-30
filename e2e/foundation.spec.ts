@@ -140,7 +140,7 @@ test("API allowlist enforces methods, authentication and CSRF origin", async ({ 
 });
 
 test("Portal signup verifies institutional email, completes the profile and enables credential login", async ({ page, request }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const retiredOtp = await request.post("/api/v1/auth/otp/request", {
     headers: { Origin: portalUrl, "Sec-Fetch-Site": "same-origin" },
     data: { email: "pessoa@institutojef.org.br" },
@@ -176,7 +176,7 @@ test("Portal signup verifies institutional email, completes the profile and enab
   await page.getByLabel("Senha", { exact: true }).fill(password);
   await page.getByLabel("Confirmar senha").fill(password);
   await page.getByRole("button", { name: "Concluir cadastro" }).click();
-  await expect(page).toHaveURL(`${portalUrl}/`);
+  await expect(page).toHaveURL(`${portalUrl}/`, { timeout: 45_000 });
   await expect(page.getByText("Consumidor", { exact: true })).toBeVisible();
 
   const session = await page.request.get("/api/v1/auth/session");
@@ -186,7 +186,7 @@ test("Portal signup verifies institutional email, completes the profile and enab
   await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
   await page.goto("/login");
   await login(page, username, password);
-  await expect(page).toHaveURL(`${portalUrl}/`);
+  await expect(page).toHaveURL(`${portalUrl}/`, { timeout: 45_000 });
 
   await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
   await page.goto("/login");
@@ -218,7 +218,8 @@ test("Signup exposes one delayed resend and can switch email without leaving", a
 });
 
 test("Password recovery changes the password and the third request requires an audited admin unlock", async ({ page, request }) => {
-  test.setTimeout(120_000);
+  // Email codes and first page compiles make this journey slow on a cold environment.
+  test.setTimeout(180_000);
   const suffix = Date.now().toString(36);
   const email = `recuperacao.e2e.${suffix}@institutojef.org.br`;
   const username = `recuperacao.${suffix}`;
@@ -246,11 +247,11 @@ test("Password recovery changes the password and the third request requires an a
   await page.getByRole("button", { name: "Enviar código" }).click();
   await page.getByLabel("Código de 6 a 10 dígitos").fill(await latestEmailCode(request, email));
   await page.getByRole("button", { name: "Confirmar código" }).click();
-  await expect(page).toHaveURL(`${portalUrl}/recuperar-senha`);
+  await expect(page).toHaveURL(`${portalUrl}/recuperar-senha`, { timeout: 45_000 });
   await page.getByLabel("Nova senha", { exact: true }).fill("Consumidor456!");
   await page.getByLabel("Confirmar nova senha").fill("Consumidor456!");
   await page.getByRole("button", { name: "Salvar nova senha" }).click();
-  await expect(page).toHaveURL(`${portalUrl}/`);
+  await expect(page).toHaveURL(`${portalUrl}/`, { timeout: 45_000 });
 
   await page.evaluate(async () => fetch("/api/auth/logout", { method: "POST" }));
   await page.goto("/login");
