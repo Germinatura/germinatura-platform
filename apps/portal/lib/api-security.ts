@@ -59,6 +59,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
   { path: "/api/v1/sales/:id/payments/cash", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/pdv/raffles", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/raffles/buyer", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/raffles/:id/numbers/reserve", methods: ["POST"], access: "seller" },
   { path: "/api/v1/sales/:id/payments/payment-link", methods: ["POST"], access: "seller" },
   { path: "/api/v1/payments/payment-links/:id", methods: ["GET"], access: "authenticated" },
   { path: "/api/v1/pdv/shifts", methods: ["GET", "POST"], access: "seller" },
@@ -133,6 +136,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/pdv/pickups/:id/complete") {
       return /^\/api\/v1\/pdv\/pickups\/[0-9a-f-]+\/complete$/i.test(path);
+    }
+    if (rule.path === "/api/v1/pdv/raffles/:id/numbers/reserve") {
+      return /^\/api\/v1\/pdv\/raffles\/[0-9a-f-]+\/numbers\/reserve$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/reservations/:id/ready") {
       return /^\/api\/v1\/admin\/reservations\/[0-9a-f-]+\/ready$/i.test(path);

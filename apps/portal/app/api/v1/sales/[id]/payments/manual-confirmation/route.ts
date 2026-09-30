@@ -27,11 +27,10 @@ const databaseResultSchema = z.object({
     card_method: z.enum(["CREDITO", "DEBITO", "VOUCHER_ALIMENTACAO", "VOUCHER_REFEICAO"]).nullish(),
     terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).nullish(),
   }),
-  stock: z.object({
-    reservation_id: z.uuid(),
-    status: z.literal("CONSUMED"),
-    sale_movement_id: z.uuid(),
-  }),
+  stock: z.union([
+    z.object({ reservation_id: z.uuid(), status: z.literal("CONSUMED"), sale_movement_id: z.uuid() }),
+    z.object({ status: z.literal("RAFFLE_TICKETS"), raffle_numbers: z.array(z.number().int().positive()) }),
+  ]),
   financial_ledger_entry_id: z.uuid(),
   correlation_id: z.uuid(),
 });
@@ -148,11 +147,9 @@ export async function POST(request: Request, context: RouteContext) {
         cardMethod: value.payment_attempt.card_method ?? null,
         terminal: value.payment_attempt.terminal ?? null,
       },
-      stock: {
-        reservationId: value.stock.reservation_id,
-        status: value.stock.status,
-        saleMovementId: value.stock.sale_movement_id,
-      },
+      stock: value.stock.status === "RAFFLE_TICKETS"
+        ? { status: value.stock.status, raffleNumbers: value.stock.raffle_numbers }
+        : { reservationId: value.stock.reservation_id, status: value.stock.status, saleMovementId: value.stock.sale_movement_id },
       financialLedgerEntryId: value.financial_ledger_entry_id,
       correlationId: value.correlation_id,
     },
