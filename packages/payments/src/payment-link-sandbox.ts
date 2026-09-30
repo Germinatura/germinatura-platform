@@ -17,7 +17,8 @@ export function isPaymentLinkSandbox(config: PaymentLinkConfig): boolean {
 }
 
 const codeOf = (error: unknown) => error instanceof PaymentLinkProviderError
-  ? `${error.code}${error.status ? ` (HTTP ${error.status})` : ""}${error.uncertain ? " incerto" : ""}` : "UNEXPECTED_ERROR";
+  ? `${error.code}${error.status ? ` (HTTP ${error.status})` : ""}${error.uncertain ? " incerto" : ""}${error.reason ? ` [${error.reason}]` : ""}`
+  : "UNEXPECTED_ERROR";
 
 /**
  * Exercises the sandbox without the webhook and without touching the database: OAuth, creation, lookups,
@@ -27,12 +28,17 @@ const codeOf = (error: unknown) => error instanceof PaymentLinkProviderError
 export async function runPaymentLinkSandboxCheck(gateway: PaymentLinkGateway, today: string): Promise<SandboxCheckResult> {
   const steps: SandboxCheckStep[] = [];
   const record = async (step: string, run: () => Promise<[boolean, string]>) => {
-    try { const [ok, detail] = await run(); steps.push({ step, ok, detail }); }
-    catch (error) { steps.push({ step, ok: false, detail: codeOf(error) }); }
+    const started = Date.now();
+    const took = () => ` (${Date.now() - started} ms)`;
+    try { const [ok, detail] = await run(); steps.push({ step, ok, detail: detail + took() }); }
+    catch (error) { steps.push({ step, ok: false, detail: codeOf(error) + took() }); }
   };
+  // Only a real answer from the provider counts as the documented rejection; no answer is a failure.
   const expectRejected = async (run: () => Promise<unknown>): Promise<[boolean, string]> => {
     try { await run(); return [false, "respondeu com sucesso"]; }
-    catch (error) { return [error instanceof PaymentLinkProviderError && !error.uncertain, codeOf(error)]; }
+    catch (error) {
+      return [error instanceof PaymentLinkProviderError && !error.uncertain && error.status !== undefined && !error.code.startsWith("AUTH_"), codeOf(error)];
+    }
   };
 
   await record("oauth_and_missing_link", async () => {

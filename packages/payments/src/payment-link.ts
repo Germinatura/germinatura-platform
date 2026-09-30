@@ -41,11 +41,17 @@ export function paymentLinkConfigFromEnv(env: PaymentLinkEnv, timeoutMs = 10_000
  * mutation). Such an operation must not be repeated automatically; it goes to recovery.
  */
 export class PaymentLinkProviderError extends Error {
-  constructor(readonly code: string, readonly uncertain: boolean, readonly status?: number) {
+  /** For network failures: the runtime error name and a short message (never request data), for diagnostics. */
+  readonly reason?: string;
+  constructor(readonly code: string, readonly uncertain: boolean, readonly status?: number, reason?: string) {
     super(`Payment Link provider error: ${code}`);
     this.name = "PaymentLinkProviderError";
+    this.reason = reason;
   }
 }
+
+const networkReason = (error: unknown) => error instanceof Error
+  ? `${error.name}: ${error.message}`.replace(/\s+/g, " ").slice(0, 120) : "unknown";
 
 export interface CreatePaymentLinkInput {
   orderNumber: string;
@@ -150,7 +156,7 @@ export class PicPayPaymentLinkClient implements PaymentLinkGateway {
         body: JSON.stringify({ grant_type: "client_credentials", client_id: this.config.clientId, client_secret: this.config.clientSecret }),
         signal: AbortSignal.timeout(this.config.timeoutMs),
       });
-    } catch { throw new PaymentLinkProviderError("AUTH_UNAVAILABLE", false); }
+    } catch (error) { throw new PaymentLinkProviderError("AUTH_UNAVAILABLE", false, undefined, networkReason(error)); }
     if (!response.ok) throw new PaymentLinkProviderError(response.status >= 500 ? "AUTH_UNAVAILABLE" : "AUTH_REJECTED", false, response.status);
     const body = await response.json().catch(() => null) as unknown;
     if (!isRecord(body) || typeof body.access_token !== "string" || !body.access_token) {
@@ -173,8 +179,8 @@ export class PicPayPaymentLinkClient implements PaymentLinkGateway {
           body: body ? JSON.stringify(body) : undefined,
           signal: AbortSignal.timeout(this.config.timeoutMs),
         });
-      } catch {
-        throw new PaymentLinkProviderError(mutation ? "PROVIDER_NO_RESPONSE" : "PROVIDER_UNAVAILABLE", mutation);
+      } catch (error) {
+        throw new PaymentLinkProviderError(mutation ? "PROVIDER_NO_RESPONSE" : "PROVIDER_UNAVAILABLE", mutation, undefined, networkReason(error));
       }
       // An expired token is rejected before anything happens, so one retry with a fresh token is safe.
       if (response.status === 401 && attempt === 0) { this.token = null; continue; }

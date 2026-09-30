@@ -176,3 +176,12 @@ describe("Payment Link webhook", () => {
     ])).toEqual([{ type: "PAYMENT", data: { transaction: { id: "afd2901c-db02-3fda-bba4-30023baeb2a2", status: "PAYED", amount: 2590 }, charge: { paymentLinkId: "1688060808649dc38881cdc" } } }]);
   });
 });
+
+describe("Payment Link network failures", () => {
+  it("keeps the runtime error name for diagnostics without request data", async () => {
+    const fetchImpl = vi.fn(() => Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError"))) as unknown as typeof fetch;
+    const error = await new PicPayPaymentLinkClient(config, fetchImpl).findCharge("1688060808649dc38881cdc").catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ code: "AUTH_UNAVAILABLE", reason: "TimeoutError: The operation was aborted due to timeout" });
+    expect(String((error as PaymentLinkProviderError).reason)).not.toContain("secret");
+  });
+});

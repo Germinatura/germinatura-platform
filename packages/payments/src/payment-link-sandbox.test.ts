@@ -41,8 +41,20 @@ describe("Payment Link sandbox check", () => {
       refundTransaction: vi.fn(() => Promise.reject(new PaymentLinkProviderError("PROVIDER_NO_RESPONSE", true))),
     }), "2026-09-29");
     expect(result.ok).toBe(false);
-    expect(result.steps.find((step) => step.step === "create")).toEqual({ step: "create", ok: false, detail: "AUTH_REJECTED (HTTP 401)" });
+    const create = result.steps.find((step) => step.step === "create");
+    expect(create?.ok).toBe(false);
+    expect(create?.detail).toMatch(/^AUTH_REJECTED \(HTTP 401\) \(\d+ ms\)$/);
     expect(result.steps.some((step) => step.step === "find_created")).toBe(false);
     expect(result.steps.find((step) => step.step === "refund_rejected")?.ok).toBe(false);
+  });
+
+  it("does not accept a missing answer as the documented rejection", async () => {
+    const unreachable = new PaymentLinkProviderError("AUTH_UNAVAILABLE", false, undefined, "TimeoutError: The operation was aborted due to timeout");
+    const result = await runPaymentLinkSandboxCheck(sandboxGateway({
+      findCharge: vi.fn(() => Promise.reject(unreachable)), listTransactions: vi.fn(() => Promise.reject(unreachable)),
+      createCharge: vi.fn(() => Promise.reject(unreachable)), refundTransaction: vi.fn(() => Promise.reject(unreachable)),
+    }), "2026-09-29");
+    expect(result.steps.every((step) => !step.ok)).toBe(true);
+    expect(result.steps[0].detail).toContain("[TimeoutError: The operation was aborted due to timeout]");
   });
 });
