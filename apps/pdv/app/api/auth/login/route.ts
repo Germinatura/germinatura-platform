@@ -53,6 +53,7 @@ export async function POST(request: Request) {
         p_subject_hash: await loginSubjectHash(parsed.data.identifier, request),
       });
       if (limitError || typeof allowed !== "boolean") throw new Error("LOGIN_RATE_LIMIT_UNAVAILABLE");
+      await admin.rpc("record_login_failure", { p_identifier: parsed.data.identifier, p_app: "PDV", p_rate_limited: !allowed, p_request_id: null }).then(() => undefined, () => undefined);
       if (!allowed) return response("RATE_LIMITED", "Muitas tentativas. Aguarde antes de tentar novamente.", 429);
       return response("INVALID_CREDENTIALS", genericMessage, 401);
     }
@@ -71,9 +72,12 @@ export async function POST(request: Request) {
         p_subject_hash: await loginSubjectHash(parsed.data.identifier, request),
       });
       if (limitError || typeof allowed !== "boolean") throw new Error("LOGIN_RATE_LIMIT_UNAVAILABLE");
+      await admin.rpc("record_login_failure", { p_identifier: parsed.data.identifier, p_app: "PDV", p_rate_limited: !allowed, p_request_id: null }).then(() => undefined, () => undefined);
       if (!allowed) return response("RATE_LIMITED", "Muitas tentativas. Aguarde antes de tentar novamente.", 429);
       return response("INVALID_CREDENTIALS", genericMessage, 401);
     }
+    // AUD-001: best effort; recording a login never changes its outcome.
+    await client.rpc("record_login_success", { p_app: "PDV", p_request_id: null }).then(() => undefined, () => undefined);
     return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return response("AUTH_UNAVAILABLE", "Autenticação temporariamente indisponível", 503);

@@ -55,3 +55,36 @@ export const auditCorrelationSchema = z.object({
 export type AuditCorrelation = z.infer<typeof auditCorrelationSchema>;
 
 export const auditCorrelationResponseSchema = z.object({ data: auditCorrelationSchema, request_id: z.string().min(1) }).strict();
+
+// AUD-001: logins, failed logins and authorization denials (no passwords, tokens or IPs).
+export const securityEventKindSchema = z.enum(["LOGIN_SUCCEEDED", "LOGIN_FAILED", "LOGIN_RATE_LIMITED", "AUTHORIZATION_DENIED"]);
+export type SecurityEventKind = z.infer<typeof securityEventKindSchema>;
+
+export const securityEventsQuerySchema = z.object({
+  from: isoDate,
+  to: isoDate,
+  kind: securityEventKindSchema.optional(),
+  actor: z.string().trim().max(80).optional(),
+  cursorCreatedAt: z.string().optional(),
+  cursorId: z.uuid().optional(),
+}).strict().refine((value) => value.from <= value.to, { message: "Período inválido", path: ["to"] });
+
+export const securityEventSchema = z.object({
+  id: z.uuid(),
+  createdAt: z.string(),
+  kind: securityEventKindSchema,
+  app: z.enum(["PORTAL", "PDV"]),
+  actorId: z.uuid().nullable(),
+  actorName: z.string().nullable(),
+  route: z.string().nullable(),
+  method: z.string().nullable(),
+  requestId: z.string().nullable(),
+  subjectHashPrefix: z.string().nullable(),
+}).strict();
+export type SecurityEvent = z.infer<typeof securityEventSchema>;
+
+export const securityEventsResponseSchema = z.object({
+  data: z.array(securityEventSchema),
+  nextCursor: z.object({ createdAt: z.string(), id: z.uuid() }).strict().nullable(),
+  request_id: z.string().min(1),
+}).strict();
