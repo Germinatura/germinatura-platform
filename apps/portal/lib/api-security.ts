@@ -89,6 +89,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/raffles/:id/cancel", methods: ["POST"], access: "admin" },
   { path: "/api/v1/raffles/:id/numbers/reserve", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/raffles/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/raffles/:id/numbers", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/raffles/sales/:id/payment-link", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/signup/request", methods: ["POST"], access: "public" },
@@ -244,6 +246,12 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/raffles/sales/:id/cancel") {
       return /^\/api\/v1\/raffles\/sales\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/:id/numbers") {
+      return /^\/api\/v1\/raffles\/[0-9a-f-]+\/numbers$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/sales/:id/payment-link") {
+      return /^\/api\/v1\/raffles\/sales\/[0-9a-f-]+\/payment-link$/i.test(path);
     }
     return false;
   });
