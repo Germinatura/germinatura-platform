@@ -57,6 +57,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/settlements/:id/reverse", methods: ["POST"], access: "finance" },
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
+  { path: "/api/v1/account/sessions", methods: ["GET", "DELETE"], access: "authenticated" },
+  { path: "/api/v1/account/sessions/:id", methods: ["DELETE"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
   { path: "/api/v1/pricing/quote", methods: ["POST"], access: "public" },
@@ -141,6 +143,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/users/:id/roles") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
+    }
+    if (rule.path === "/api/v1/account/sessions/:id") {
+      return /^\/api\/v1\/account\/sessions\/[0-9a-f-]+$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/audit/correlations/:id") {
       return /^\/api\/v1\/admin\/audit\/correlations\/[0-9a-f-]+$/i.test(path);
