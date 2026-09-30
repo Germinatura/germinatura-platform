@@ -21,7 +21,7 @@ declare
   v_end timestamptz;
   v_days integer;
 begin
-  if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 366 then
+  if p_from is null or p_to is null or p_to < p_from then
     raise exception using errcode = '22023', message = 'INVALID_INDICATORS_PERIOD';
   end if;
   v_start := p_from::timestamp at time zone 'America/Sao_Paulo';
@@ -224,6 +224,10 @@ returns jsonb language plpgsql stable security definer set search_path = '' as $
 begin
   if auth.uid() is null or not public.has_permission('finance.manage') then
     raise exception using errcode = '42501', message = 'FINANCE_MANAGE_REQUIRED';
+  end if;
+  -- The report is limited to a year; the fundraising goal may count a longer window through the private computation.
+  if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 366 then
+    raise exception using errcode = '22023', message = 'INVALID_INDICATORS_PERIOD';
   end if;
   return private.compute_management_indicators(p_from, p_to);
 end;
