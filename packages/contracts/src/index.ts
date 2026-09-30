@@ -1140,6 +1140,8 @@ export const adminUserSchema = z.object({
   active: z.boolean(),
   onboardingCompleted: z.boolean(),
   roles: z.array(appRoleSchema),
+  // Spec 5.17: requests blocked after too many attempts, which only an administrator unlocks.
+  locks: z.object({ passwordRecovery: z.boolean(), signupCode: z.boolean() }).strict().optional(),
 }).strict();
 export type AdminUser = z.infer<typeof adminUserSchema>;
 

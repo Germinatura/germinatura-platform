@@ -5,19 +5,24 @@ import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-export async function GET() {
+export async function GET(request: Request) {
   const requestId = crypto.randomUUID();
   try {
     await requirePermission("users.manage");
     const admin = createSupabaseAdminClient();
-    const [profilesResult, rolesResult, assignmentsResult] = await Promise.all([
+    const client = await createAuthenticatedSupabaseClient(request);
+    const [profilesResult, rolesResult, assignmentsResult, locksResult] = await Promise.all([
       admin.from("profiles").select("id,email,display_name,username,active,onboarding_completed_at").order("display_name").limit(200),
       admin.from("roles").select("id,key"),
       admin.from("user_roles").select("user_id,role_id"),
+      client.rpc("list_user_locks"),
     ]);
-    if (profilesResult.error || rolesResult.error || assignmentsResult.error) {
+    if (profilesResult.error || rolesResult.error || assignmentsResult.error || locksResult.error) {
       throw new Error("ADMIN_USERS_QUERY_FAILED");
     }
+    const locks = (locksResult.data ?? {}) as { password_recovery?: string[]; signup_code?: string[] };
+    const recoveryLocked = new Set(locks.password_recovery ?? []);
+    const signupLocked = new Set(locks.signup_code ?? []);
     const roleById = new Map((rolesResult.data ?? []).map((role) => [role.id, role.key]));
     const rolesByUser = new Map<string, string[]>();
     for (const assignment of assignmentsResult.data ?? []) {
@@ -32,6 +37,7 @@ export async function GET() {
       active: profile.active,
       onboardingCompleted: Boolean(profile.onboarding_completed_at),
       roles: (rolesByUser.get(profile.id) ?? []).sort(),
+      locks: { passwordRecovery: recoveryLocked.has(profile.id), signupCode: signupLocked.has(profile.id) },
     }));
     return NextResponse.json({ data: users, request_id: requestId }, {
       headers: { "Cache-Control": "no-store", "x-request-id": requestId },
