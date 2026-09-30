@@ -56,7 +56,9 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
   - **Explorador (spec 5.16, 30/09/2026):** a aba Auditoria, só para administradores (`audit.read`), pesquisa por período em dias de Brasília (até um ano), usuário, ação, tipo e identificador da entidade, correlação e severidade, com paginação. Nada ali altera o histórico.
   - **Severidade:** é derivada da ação. Estornos, cancelamentos, reaberturas, sorteios, papéis, acessos, desbloqueios, perdas e ajustes são altos; configurações, pagamentos, fechamentos e publicações, médios.
   - **Correlação:** "Ver correlação" junta tudo o que compartilha a mesma correlação: ações auditadas, vendas, pagamentos, movimentos de estoque com itens, lançamentos financeiros, movimentos de caixa e eventos publicados.
-  - **Pendente:** registro de login e de falha de autorização.
+  - **Registro de segurança (30/09/2026):** logins, logins recusados, bloqueios por excesso de tentativas e acessos negados pelas regras da API ficam num registro próprio, imutável, com aplicativo (Portal ou PDV), rota, método e requisição. Nenhuma senha, token ou IP é guardado. Tentativas com identificadores sem cadastro guardam só o hash do identificador, e o gravador público nunca revela se a conta existe.
+  - **Limites de gravação:** até 30 falhas por identificador e 1.000 falhas sem cadastro a cada 15 minutos, 60 negações por usuário e um login bem-sucedido por usuário a cada 5 segundos. Gravar nunca muda o resultado do login ou da negação.
+  - **Consulta:** a aba Segurança da Auditoria filtra por período, tipo e usuário ou identificador exato.
 
 ### Pricing e promoções
 

@@ -9,6 +9,7 @@ interface ApiAccessRule {
 export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/catalog/categories", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/audit", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/audit/security", methods: ["GET"], access: "admin" },
   { path: "/api/v1/admin/audit/correlations/:id", methods: ["GET"], access: "admin" },
   { path: "/api/v1/admin/promotions", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/catalog/products", methods: ["POST"], access: "admin" },

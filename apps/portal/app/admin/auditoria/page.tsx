@@ -1,6 +1,6 @@
 import { hasPermission } from "@germinatura/auth";
 import { redirect } from "next/navigation";
-import { AuditExplorer } from "@/components/admin/AuditExplorer";
+import { AuditTabs } from "@/components/admin/AuditTabs";
 import { requireSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,6 @@ export default async function AuditPage() {
       <h1 className="mt-1 text-3xl font-bold tracking-tight">Auditoria</h1>
       <p className="mt-2 max-w-2xl text-base text-[var(--g-text-secondary)]">Investigue quem fez o quê, quando e em qual registro, e siga uma operação pela venda, pagamento, estoque e financeiro. Nada aqui altera o histórico.</p>
     </header>
-    <AuditExplorer />
+    <AuditTabs />
   </div></div>;
 }

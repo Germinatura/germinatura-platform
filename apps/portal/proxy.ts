@@ -17,7 +17,7 @@ function apiError(code: string, message: string, requestId: string, status: numb
 export default async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith("/api/");
-  const { response, session } = await updateSession(request);
+  const { response, session, client } = await updateSession(request);
 
   if (isApi) {
     const requestId = createRequestId(request.headers);
@@ -30,6 +30,9 @@ export default async function proxy(request: NextRequest) {
       return apiError("UNAUTHENTICATED", "Autenticação obrigatória", requestId, 401);
     }
     if (rule && session && !rolesSatisfyAccess(session.user.roles, rule.access)) {
+      // AUD-001: best effort; the denial stands whether or not it is recorded.
+      await client?.rpc("record_authorization_denied", { p_app: "PORTAL", p_route: path, p_method: request.method, p_request_id: requestId })
+        .then(() => undefined, () => undefined);
       return apiError("FORBIDDEN", "Permissão insuficiente", requestId, 403);
     }
     if (!safeMethods.has(request.method) && !isTrustedMutation(request)) {

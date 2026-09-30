@@ -143,7 +143,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) return { response, session: null };
+  if (!url || !publishableKey) return { response, session: null, client: null };
 
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) {
@@ -152,7 +152,7 @@ export async function updateSession(request: NextRequest) {
       auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
       global: { headers: { Authorization: authorization } },
     });
-    return { response, session: await resolveSession(client, accessToken) };
+    return { response, session: await resolveSession(client, accessToken), client };
   }
 
   const client = createServerClient(url, publishableKey, {
@@ -165,5 +165,5 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
-  return { response, session: await resolveSession(client) };
+  return { response, session: await resolveSession(client), client };
 }

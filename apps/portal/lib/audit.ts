@@ -1,4 +1,4 @@
-import { auditCorrelationSchema, auditEntrySchema, type AuditCorrelation, type AuditEntry } from "@germinatura/contracts";
+import { auditCorrelationSchema, auditEntrySchema, securityEventSchema, type AuditCorrelation, type AuditEntry, type SecurityEvent } from "@germinatura/contracts";
 import { z } from "zod";
 
 const n = z.coerce.number();
@@ -63,4 +63,26 @@ export function toAuditCorrelation(data: unknown): AuditCorrelation | null {
     outbox: value.outbox.map((row) => ({ topic: row.topic, status: row.status, aggregateType: row.aggregate_type,
       aggregateId: row.aggregate_id, createdAt: row.created_at })),
   });
+}
+
+const securitySchema = z.object({
+  rows: z.array(z.object({
+    id: z.uuid(), created_at: z.string(), kind: z.enum(["LOGIN_SUCCEEDED", "LOGIN_FAILED", "LOGIN_RATE_LIMITED", "AUTHORIZATION_DENIED"]),
+    app: z.enum(["PORTAL", "PDV"]), actor_id: z.uuid().nullable(), actor_name: z.string().nullable(), route: z.string().nullable(),
+    method: z.string().nullable(), request_id: z.string().nullable(), subject_hash_prefix: z.string().nullable(),
+  })),
+  next_cursor: z.object({ created_at: z.string(), id: z.uuid() }).nullable(),
+});
+
+/** AUD-001: maps one page of security events. */
+export function toSecurityEvents(data: unknown): { rows: SecurityEvent[]; nextCursor: { createdAt: string; id: string } | null } | null {
+  const parsed = securitySchema.safeParse(data);
+  if (!parsed.success) return null;
+  return {
+    rows: parsed.data.rows.map((row) => securityEventSchema.parse({
+      id: row.id, createdAt: row.created_at, kind: row.kind, app: row.app, actorId: row.actor_id, actorName: row.actor_name,
+      route: row.route, method: row.method, requestId: row.request_id, subjectHashPrefix: row.subject_hash_prefix,
+    })),
+    nextCursor: parsed.data.next_cursor && { createdAt: parsed.data.next_cursor.created_at, id: parsed.data.next_cursor.id },
+  };
 }
