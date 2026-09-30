@@ -13,6 +13,7 @@ import {
   manualPaymentConfirmationResponseSchema,
   mySalesResponseSchema,
   completePickupResponseSchema,
+  deliverPaidPickupResponseSchema,
   pickupReservationsResponseSchema,
   paymentTerminalsResponseSchema,
   sellerShiftResponseSchema,
@@ -230,6 +231,15 @@ export async function loadPickups(query: string): Promise<PickupReservation[]> {
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as retiradas."));
   const parsed = pickupReservationsResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("As retiradas retornaram dados inválidos.");
+  return parsed.data.data;
+}
+
+/** RES-005: hands over an order already paid online; the server charges nothing again. */
+export async function deliverPaidPickup(reservationId: string, idempotencyKey: string) {
+  const response = await apiFetch(`/api/v1/pdv/pickups/${reservationId}/deliver`, { method: "POST", headers: { "Idempotency-Key": idempotencyKey } });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível registrar a entrega."));
+  const parsed = deliverPaidPickupResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A entrega retornou dados inválidos.");
   return parsed.data.data;
 }
 

@@ -51,7 +51,7 @@ test("o operador entrega a reserva separada no PDV cobrando o preço congelado",
     data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
   await page.goto(`${pdvUrl}/`);
   await page.getByRole("button", { name: "Retiradas" }).click();
-  const pickup = page.getByRole("list", { name: "Reservas prontas para retirada" }).getByRole("listitem").filter({ hasText: `Balcão ${tag}` });
+  const pickup = page.getByRole("list", { name: "Reservas e pedidos para entregar" }).getByRole("listitem").filter({ hasText: `Balcão ${tag}` });
   await expect(pickup).toBeVisible();
   await pickup.getByRole("button", { name: "Entregar e cobrar" }).click();
   await expect(page.getByText("Preço congelado na reserva; não é recalculado na retirada.")).toBeVisible();
