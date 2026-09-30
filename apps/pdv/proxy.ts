@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 export default async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   // Only these session-free PWA assets bypass Auth. Operational pages still validate it.
-  if (["/offline", "/offline/brand.svg", "/offline.js", "/offline.css", "/sw.js", "/manifest.webmanifest"].includes(path)) {
+  // Spec 6.1: the Portal handoff page opens its own session, replacing any other one in this browser.
+  if (["/offline", "/offline/brand.svg", "/offline.js", "/offline.css", "/sw.js", "/manifest.webmanifest", "/acesso"].includes(path)) {
     return NextResponse.next();
   }
   const isLogin = path === "/login";
