@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, Link2, Megaphone, Share2, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, Settings, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, FileSearch, Link2, Megaphone, Share2, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, Settings, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -89,6 +89,12 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
           <Link href="/admin/usuarios" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/usuarios"))} title={collapsed ? "Usuários e vendedores" : undefined}>
             {pathname.startsWith("/admin/usuarios") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
             <UserRoundCog className="size-5 shrink-0" />{!collapsed && <span>Usuários e vendedores</span>}
+          </Link>
+        )}
+        {isAdmin && (
+          <Link href="/admin/auditoria" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/auditoria"))} title={collapsed ? "Auditoria" : undefined}>
+            {pathname.startsWith("/admin/auditoria") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+            <FileSearch className="size-5 shrink-0" />{!collapsed && <span>Auditoria</span>}
           </Link>
         )}
         {(isAdmin || canInspectInventory) && (
