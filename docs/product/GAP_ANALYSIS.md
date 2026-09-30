@@ -44,5 +44,5 @@ Quarenta e sete migrations formam o schema integrado atual (a mais recente é `2
 
 Registradas em 30/09/2026; cada uma em PR própria antes do RC, sem bloquear as entregas em andamento.
 
-- **Testes unitários do Portal fora da CI:** o `pnpm test:unit` da raiz inclui só `packages/`, `apps/jobs` e `apps/pdv`, e o `vitest` do próprio Portal não inicia sem o ambiente do Vinext. Por isso testes como `apps/portal/lib/api-security.test.ts` não são executados.
+- **Testes unitários do Portal fora da CI (resolvida em 30/09/2026):** o `pnpm test:unit` da raiz passou a incluir `apps/portal/**/*.test.ts`, com `.next`, `dist` e `node_modules` excluídos. Os testes do Portal rodam na CI pelo vitest da raiz, sem depender do ambiente do Vinext.
 - **E2E foundation com estado compartilhado:** alguns cenários de `e2e/foundation.spec.ts` dependem de dados deixados por outras suítes (por exemplo, o fechamento do vendedor depende das sobras da integração) e falham em banco recém-resetado.
