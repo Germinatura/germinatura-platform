@@ -274,7 +274,8 @@ export async function handlePaymentLinkSandboxCheck(
     return Response.json({ status: "unauthorized" }, { status: 401, headers });
   }
   const settings = Object.fromEntries(paymentLinkSettings.map((name) => [name, Boolean(env[name]?.trim())]));
-  const config = paymentLinkConfigFromEnv(env);
+  // A longer per-call limit than production (10 s) tells a slow sandbox from one that never answers.
+  const config = paymentLinkConfigFromEnv(env, 30_000);
   if (!config) return Response.json({ status: "unconfigured", settings }, { status: 503, headers });
   if (!isPaymentLinkSandbox(config)) return Response.json({ status: "not_sandbox", settings }, { status: 409, headers });
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now());
