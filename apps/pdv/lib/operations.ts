@@ -1,4 +1,11 @@
 import {
+  pdvRafflesResponseSchema,
+  raffleBuyerLookupResponseSchema,
+  raffleNumberBoardResponseSchema,
+  raffleNumberReservationResponseSchema,
+  type PdvRaffle,
+  type PdvRaffleReservationRequest,
+  type RaffleNumberReservationResponse,
   featureFlagsResponseSchema,
   paymentLinkChargeResponseSchema,
   type PaymentLinkCharge,
@@ -464,4 +471,46 @@ export async function loadPaymentLink(chargeId: string): Promise<PaymentLinkChar
   const parsed = paymentLinkChargeResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("O link de pagamento retornou dados inválidos.");
   return parsed.data.data;
+}
+
+/** Spec 6.15: open raffles the seller can sell. */
+export async function loadPdvRaffles(): Promise<PdvRaffle[]> {
+  const response = await apiFetch("/api/v1/pdv/raffles");
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as rifas."));
+  const parsed = pdvRafflesResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("As rifas retornaram dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function loadRaffleBoard(campaignId: string) {
+  const response = await apiFetch(`/api/v1/raffles/${campaignId}/numbers`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar os números."));
+  const parsed = raffleNumberBoardResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("Os números retornaram dados inválidos.");
+  return parsed.data.data;
+}
+
+/** Finds a registered buyer only by exact email or username. */
+export async function findRaffleBuyer(identifier: string) {
+  const response = await apiFetch(`/api/v1/pdv/raffles/buyer?identifier=${encodeURIComponent(identifier.trim())}`);
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível buscar o comprador."));
+  const parsed = raffleBuyerLookupResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A busca retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+export async function reservePdvRaffle(campaignId: string, request: PdvRaffleReservationRequest, idempotencyKey: string): Promise<RaffleNumberReservationResponse["data"]> {
+  const response = await apiFetch(`/api/v1/pdv/raffles/${campaignId}/numbers/reserve`, {
+    method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify(request),
+  });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível reservar os números."));
+  const parsed = raffleNumberReservationResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("A reserva retornou dados inválidos.");
+  return parsed.data.data;
+}
+
+/** Releases an unpaid raffle sale created by this seller. */
+export async function cancelRaffleSale(saleId: string, idempotencyKey: string) {
+  const response = await apiFetch(`/api/v1/raffles/sales/${saleId}/cancel`, { method: "POST", headers: { "Idempotency-Key": idempotencyKey } });
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível cancelar a reserva dos números."));
 }

@@ -13,6 +13,7 @@ export * from "./inventory-counts";
 export * from "./cash-shifts";
 export * from "./finance-entries";
 export * from "./payment-link-admin";
+export * from "./raffle-pdv";
 export * from "./share-campaigns";
 export * from "./payment-links";
 
@@ -806,11 +807,11 @@ export const manualPaymentConfirmationResponseSchema = z.object({
       cardMethod: cardPaymentMethodSchema.nullable(),
       terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).strict().nullable(),
     }).strict(),
-    stock: z.object({
-      reservationId: z.uuid(),
-      status: z.literal("CONSUMED"),
-      saleMovementId: z.uuid(),
-    }).strict(),
+    // Raffle tickets hold numbers, not stock, so their confirmation reports the numbers instead of a stock movement.
+    stock: z.union([
+      z.object({ reservationId: z.uuid(), status: z.literal("CONSUMED"), saleMovementId: z.uuid() }).strict(),
+      z.object({ status: z.literal("RAFFLE_TICKETS"), raffleNumbers: z.array(z.number().int().positive()).min(1) }).strict(),
+    ]),
     financialLedgerEntryId: z.uuid(),
     correlationId: z.uuid(),
   }).strict(),
