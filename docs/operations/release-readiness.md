@@ -38,7 +38,7 @@ Cada PR integrado passou por: `pnpm lint` (com orçamento de warnings), `pnpm ty
 
 ## Acessibilidade
 
-`e2e/accessibility.spec.ts` roda o axe (WCAG 2.1 A/AA) nas telas principais de cada papel: login, início, catálogo, reservas, rifas e perfil do consumidor; visão geral, indicadores, vendas, auditoria, configurações, usuários e rifas do administrador; PDV do vendedor. Falha em qualquer violação séria ou crítica. Na revisão de 30/09/2026 havia uma (contraste do subtítulo do login), corrigida.
+`e2e/accessibility.spec.ts` roda o axe (WCAG 2.1 A/AA) nas telas principais de cada papel: login, início, catálogo, reservas, rifas e perfil do consumidor; visão geral, indicadores, vendas, auditoria, configurações, usuários e rifas do administrador; PDV do vendedor. Antes de auditar, cria e publica uma rifa, para que as telas mostrem dados e não só o estado vazio. Falha em qualquer violação séria ou crítica. Na revisão de 30/09/2026 havia quatro, todas corrigidas: contraste do subtítulo do login; lista de definições inválida no cartão da rifa; área de rolagem principal sem acesso por teclado; rótulo ARIA sem papel no carregamento de usuários.
 
 ## Pendências que dependem do responsável
 
