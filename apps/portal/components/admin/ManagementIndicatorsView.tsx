@@ -119,6 +119,7 @@ export function ManagementIndicatorsView() {
             <li>Conciliações divergentes: <strong>{data.pending.divergentReconciliations}</strong></li>
             <li>Fechamentos reabertos: <strong>{data.pending.reopenedCloseouts}</strong></li>
             <li>Recuperações de pagamento online abertas: <strong>{data.pending.openPaymentRecoveries}</strong></li>
+            <li>Linhas de extrato PicPay a revisar: <strong>{data.pending.statementLinesPending}</strong></li>
           </ul>
         </Card>
       </div>

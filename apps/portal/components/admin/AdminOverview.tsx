@@ -33,8 +33,8 @@ export async function AdminOverview({ name }: { name: string }) {
   try { goal = goalResult.error ? null : toFundraisingGoal(goalResult.data); } catch { goal = null; }
   const unavailable = !indicators || Boolean(salesResult.error);
   const sales = salesResult.data ?? [];
-  const pending = indicators?.pending ?? { awaitingPayment: 0, divergentReconciliations: 0, reopenedCloseouts: 0, openPaymentRecoveries: 0 };
-  const pendingCount = pending.awaitingPayment + pending.divergentReconciliations + pending.reopenedCloseouts + pending.openPaymentRecoveries;
+  const pending = indicators?.pending ?? { awaitingPayment: 0, divergentReconciliations: 0, reopenedCloseouts: 0, openPaymentRecoveries: 0, statementLinesPending: 0 };
+  const pendingCount = pending.awaitingPayment + pending.divergentReconciliations + pending.reopenedCloseouts + pending.openPaymentRecoveries + pending.statementLinesPending;
   const totals = indicators?.totals;
   const kpis = [
     { label: "Receita líquida", value: formatMoney(totals?.netRevenueCents ?? 0), hint: "no mês, após estornos e taxas", icon: CircleDollarSign },
@@ -90,6 +90,7 @@ export async function AdminOverview({ name }: { name: string }) {
                   <AlertRow label="Conciliações divergentes" value={pending.divergentReconciliations} />
                   <AlertRow label="Fechamentos reabertos" value={pending.reopenedCloseouts} />
                   <AlertRow label="Recuperações de pagamento online" value={pending.openPaymentRecoveries} />
+                  <AlertRow label="Linhas de extrato a revisar" value={pending.statementLinesPending} />
                 </>
               )}
             </div>

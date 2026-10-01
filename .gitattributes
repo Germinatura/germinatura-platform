@@ -1,0 +1,2 @@
+# Statement fixtures reproduce the exact bytes of the PicPay export (LF header, CRLF lines).
+e2e/fixtures/*.csv -text

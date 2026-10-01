@@ -17,7 +17,7 @@ const databaseStatementSchema = z.object({
     by_account: z.record(z.string(), z.number().int()), by_category: z.record(z.string(), z.number().int()),
   }),
 });
-const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual" };
+const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay" };
 
 /** FIN-006: consolidated statement of a São Paulo period, as JSON or as a real CSV file. */
 export async function GET(request: Request) {

@@ -8,5 +8,5 @@ export const financeCategoryLabels: Record<FinanceCategory, string> = {
 
 export const financeAccountLabels: Record<FinanceAccount, string> = {
   PICPAY_EMPRESAS: "PicPay Empresas", DINHEIRO_FISICO: "Dinheiro físico",
-  RECEBIVEIS_PICPAY: "Recebíveis PicPay", PENDENTE_LIQUIDACAO: "Pendente de liquidação",
+  RECEBIVEIS_PICPAY: "Recebíveis PicPay", PENDENTE_LIQUIDACAO: "Pendente de liquidação", COFRINHO_PICPAY: "Cofrinho PicPay",
 };
