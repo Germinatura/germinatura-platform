@@ -37,6 +37,8 @@ function pageTitle(pathname: string, user: SidebarUser | null) {
   if (pathname.startsWith("/admin/reservas")) return "Gestão de reservas";
   if (pathname.startsWith("/admin/comunicacao/avisos")) return "Avisos";
   if (pathname.startsWith("/admin/comunicacao/divulgacao")) return "Divulgação";
+  if (pathname.startsWith("/admin/comunicacao/eventos")) return "Eventos e campanhas";
+  if (pathname.startsWith("/eventos")) return "Eventos e campanhas";
   if (pathname === "/inicio") return "Início";
   if (pathname === "/perfil") return "Perfil";
   if (pathname === "/catalogo") return "Catálogo";

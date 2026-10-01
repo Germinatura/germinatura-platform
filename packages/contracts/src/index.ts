@@ -19,6 +19,7 @@ export * from "./payment-links";
 export * from "./management-indicators";
 export * from "./fundraising-goal";
 export * from "./audit";
+export * from "./portal-events";
 
 export const moneyCentsSchema = z.number()
   .int()
@@ -1209,6 +1210,8 @@ export const notificationKindSchema = z.enum([
   "RAFFLE_CANCELLED",
   "RAFFLE_REFUNDS_PENDING",
   "RAFFLE_REFUNDED",
+  "EVENT_PUBLISHED",
+  "EVENT_CANCELLED",
 ]);
 
 // Spec 4.7 (NOTIF-004): optional notification categories each user can turn off.
