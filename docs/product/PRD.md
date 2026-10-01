@@ -79,7 +79,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 ### Estoque, compras e fornecedores
 
 - **INV-001** — Estoque é ledger imutável; saldo deriva de movimentos e correções usam reversão/ajuste motivado.
-- **INV-002** — Há estoque central e localizações por vendedor; transferência é uma operação atômica.
+- **INV-002** — Há estoque central e localizações por vendedor; transferência é uma operação atômica. O local central vem com o schema, e conceder o papel de vendedor cria o local dele, ou o reativa se já existir. Revogar o papel mantém o local e o histórico (correção de go-live de 01/10/2026: antes os locais só existiam no seed local).
 - **INV-003** — Reserva reduz disponível, expira e é consumida/liberada idempotentemente; nenhum saldo fica negativo.
 - **INV-004** — Venda, transferência e inventário concorrentes usam lock ou atualização condicional no banco.
 - **PROC-001** — Fornecedor, compra, itens, custos, lote e recebimento parcial explicam origem e custo do estoque.
