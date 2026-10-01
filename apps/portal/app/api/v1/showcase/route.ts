@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { databasePortalEventSchema, eventDatabaseError, eventErrorResponse, toPortalEvent } from "@/lib/portal-events";
 import { databaseHighlightSchema, toHighlight } from "@/lib/portal-showcase";
 
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
   try {
     await requirePermission("portal.access");
     const client = await createAuthenticatedSupabaseClient(request);
-    const { data, error } = await client.rpc("get_portal_showcase");
+    const [{ data, error }, eventsEnabled] = await Promise.all([client.rpc("get_portal_showcase"), isFeatureEnabled("events", client)]);
     if (error) return eventDatabaseError(error.message, requestId);
     const row = databaseShowcaseSchema.safeParse(data);
     if (!row.success) return eventErrorResponse("SHOWCASE_UNAVAILABLE", "Vitrine temporariamente indisponível.", requestId, 503);
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
           imageUrl: product.image_path ? images.getPublicUrl(product.image_path).data.publicUrl : null, imageAlt: product.image_alt,
         })),
         promotions: row.data.promotions.map((promotion) => ({ id: promotion.id, name: promotion.name, description: promotion.description, validTo: promotion.valid_to })),
-        events: row.data.events.map((event) => toPortalEvent(event, (path) => covers.getPublicUrl(path).data.publicUrl)),
+        events: (eventsEnabled ? row.data.events : []).map((event) => toPortalEvent(event, (path) => covers.getPublicUrl(path).data.publicUrl)),
         raffles: row.data.raffles.map((raffle) => ({
           id: raffle.id, name: raffle.name, endsAt: raffle.ends_at, numberCount: raffle.number_count, availableCount: raffle.available_count,
         })),

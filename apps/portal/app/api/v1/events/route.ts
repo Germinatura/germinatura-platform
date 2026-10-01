@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { databasePortalEventSchema, eventDatabaseError, eventErrorResponse, toPortalEvent } from "@/lib/portal-events";
 
 /** Spec 4.5: published events and campaigns, upcoming in date order or the archive of past ones. */
@@ -14,6 +15,10 @@ export async function GET(request: Request) {
   try {
     await requirePermission("portal.access");
     const client = await createAuthenticatedSupabaseClient(request);
+    // Module off: consumers see no events (the management screen keeps the history).
+    if (!await isFeatureEnabled("events", client)) {
+      return NextResponse.json(portalEventsResponseSchema.parse({ data: [], request_id: requestId }), { headers: { "Cache-Control": "no-store", "x-request-id": requestId } });
+    }
     const { data, error } = await client.rpc("list_portal_events", { p_archive: query.data.archive === "true", p_limit: 20 });
     if (error) return eventDatabaseError(error.message, requestId);
     const rows = z.object({ items: z.array(databasePortalEventSchema) }).safeParse(data);
