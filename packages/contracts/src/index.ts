@@ -21,6 +21,7 @@ export * from "./fundraising-goal";
 export * from "./audit";
 export * from "./picpay-statement";
 export * from "./portal-events";
+export * from "./portal-showcase";
 
 export const moneyCentsSchema = z.number()
   .int()

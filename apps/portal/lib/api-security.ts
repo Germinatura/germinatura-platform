@@ -127,6 +127,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/events/:id/cover", methods: ["POST"], access: "communications" },
   { path: "/api/v1/events", methods: ["GET"], access: "authenticated" },
   { path: "/api/v1/events/:id", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/showcase", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/admin/showcase/highlight", methods: ["GET", "PUT"], access: "communications" },
   { path: "/api/v1/admin/reservations/settings", methods: ["GET", "PUT"], access: "admin" },
   { path: "/api/v1/admin/reservations/:id/ready", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },

@@ -2,9 +2,11 @@ import Link from "next/link";
 import { ArrowRight, Bell, ShieldCheck, ShoppingBag, Store, UserRound } from "lucide-react";
 import { Badge, Card } from "@germinatura/ui";
 import type { SessionUser } from "@germinatura/contracts";
+import { hasPermission } from "@germinatura/auth";
 import { BootstrapAdminCard } from "@/components/auth/BootstrapAdminCard";
 import { PublicGoalCard } from "@/components/goal/PublicGoalCard";
 import { OpenPdvButton } from "@/components/pdv/OpenPdvButton";
+import { PortalShowcase } from "@/components/consumer/PortalShowcase";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Administrador", VENDEDOR: "Vendedor", ESTOQUE: "Estoque", FINANCEIRO: "Financeiro",
@@ -28,7 +30,15 @@ export function ConsumerHome({ user }: { user: SessionUser }) {
           <div className="flex flex-wrap gap-2" aria-label="Papéis do usuário">{user.roles.map((role) => <Badge key={role} tone="info">{roleLabels[role] ?? role}</Badge>)}</div>
         </header>
 
+        <nav aria-label="Acesso rápido" className="flex flex-wrap gap-2">
+          {hasPermission(user, "reservations.manage.own") && <Link href="/reservas" className="inline-flex min-h-11 items-center gap-2 rounded-[var(--g-radius-control)] border border-[var(--g-border-subtle)] px-4 text-sm font-semibold text-[var(--g-brand-primary)]">Minhas reservas</Link>}
+          {hasPermission(user, "raffles.buy") && <Link href="/rifas" className="inline-flex min-h-11 items-center gap-2 rounded-[var(--g-radius-control)] border border-[var(--g-border-subtle)] px-4 text-sm font-semibold text-[var(--g-brand-primary)]">Meus bilhetes</Link>}
+          <Link href="/eventos" className="inline-flex min-h-11 items-center gap-2 rounded-[var(--g-radius-control)] border border-[var(--g-border-subtle)] px-4 text-sm font-semibold text-[var(--g-brand-primary)]">Eventos e campanhas</Link>
+        </nav>
+
         {canBootstrap && <BootstrapAdminCard />}
+
+        <PortalShowcase />
 
         <PublicGoalCard />
 
