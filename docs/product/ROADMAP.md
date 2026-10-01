@@ -153,7 +153,7 @@ Branches curtas de develop, Conventional Commits, PR e squash; nunca force push.
 
 ## Evoluções condicionais
 
-App nativo, chat privado, cards automáticos, Web Push, SFTP, Open Finance e integração remota de terminal não bloqueiam o lançamento não opcional. Tap/V.A./V.R. exigem habilitação e processo próprios; permanecem indisponíveis até comprovação. Notificações in-app e campanhas necessárias a cardápio, pedidos, reservas e vendas fazem parte do primeiro go-live (Marco 1). O mural moderado e demais recursos da Rede Social Germinare são Marco 2, depois do site operacional em produção. Dinheiro físico foi aprovado com conta/controle próprios (ADR 0010).
+App nativo, chat privado, cards automáticos, Web Push, SFTP, Open Finance e integração remota de terminal não bloqueiam o lançamento não opcional. Tap exige habilitação e processo próprios e permanece indisponível até comprovação. Cartões de benefício (V.A./V.R.) aceitos pela PicPay Mini passam pela função Crédito e entram como crédito no Marco 1, sem método, relatório ou anúncio próprios; a flag `meal_voucher` segue desligada e o método próprio (PAY-006) é evolução futura. Notificações in-app e campanhas necessárias a cardápio, pedidos, reservas e vendas fazem parte do primeiro go-live (Marco 1). O mural moderado e demais recursos da Rede Social Germinare são Marco 2, depois do site operacional em produção. Dinheiro físico foi aprovado com conta/controle próprios (ADR 0010).
 
 ## Incremento de categorias — 08/09/2026
 
