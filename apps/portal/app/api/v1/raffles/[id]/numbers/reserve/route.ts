@@ -33,6 +33,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
   const result = resultSchema.safeParse(data); if (!result.success) return fail("RAFFLE_INVALID_DATA", "Rifa temporariamente indisponível", requestId, 503);
   const value = result.data;
+  // GROW-002: an online sale made after a tracked link is attributed to that campaign (best effort).
+  const origin = request.headers.get("cookie")?.match(/(?:^|;\s*)germinatura_origin=([a-z0-9]{8})(?:;|$)/)?.[1];
+  if (origin) await supabase.rpc("attribute_online_sale", { p_sale_id: value.sale_id, p_code: origin });
   return NextResponse.json(raffleNumberReservationResponseSchema.parse({ data: {
     campaignId: value.campaign_id, numbers: value.numbers, status: value.status, saleId: value.sale_id,
     saleStatus: value.sale_status, paymentAttemptId: value.payment_attempt_id, totalCents: value.total_cents,

@@ -115,7 +115,7 @@ export function ShareCampaignsManagement() {
           return <li key={campaign.id} aria-label={`Divulgação ${campaign.title}`} className="p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0"><p className="font-semibold">{campaign.title}</p><p className="text-xs text-[var(--g-text-muted)]">{channelLabels[campaign.channel]} · {dateTime.format(new Date(campaign.createdAt))} · {campaign.createdByName}</p></div>
-              <div className="flex flex-wrap gap-2"><Badge tone="info">{campaign.visits} visita(s)</Badge><Badge tone="success">{campaign.reservations} reserva(s) · {money.format(campaign.reservedTotalCents / 100)}</Badge></div>
+              <div className="flex flex-wrap gap-2"><Badge tone="info">{campaign.visits} visita(s)</Badge><Badge tone="success">{campaign.reservations} reserva(s) · {money.format(campaign.reservedTotalCents / 100)}</Badge><Badge tone="success">{campaign.paidSales} venda(s) paga(s) · {money.format(campaign.paidTotalCents / 100)}</Badge>{campaign.sellerName && <Badge tone="neutral">Link de {campaign.sellerName}</Badge>}</div>
             </div>
             <Button type="button" size="sm" variant="ghost" className="mt-2" aria-expanded={openId === campaign.id} onClick={() => setOpenId(openId === campaign.id ? null : campaign.id)}>{openId === campaign.id ? "Ocultar material" : "Ver texto e QR Code"}</Button>
             {openId === campaign.id && <div className="mt-3 grid gap-4 sm:grid-cols-[1fr_auto]">
