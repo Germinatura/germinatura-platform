@@ -11,6 +11,7 @@ Revisão de 30/09/2026, atualizada em 01/10/2026, para a promoção `develop →
 | 7 — Payment Link | Código completo; **homologação bloqueada externamente** (sandbox PicPay com timeout/502 e sem chave de webhook). Flag `payment_link` desligada | #103–#113; `docs/operations/payment-link-runbook.md` |
 | 8 — Compra, reservas e rifas | Integrada: ciclo de vida da rifa, compra online, venda no PDV, estorno, avisos e compradores, entrega de pedido pago online | #114–#119 |
 | 9 — Gestão e indicadores | Integrada: indicadores por período, meta de arrecadação, auditoria e registro de segurança, desbloqueios, chaves funcionais, abertura do PDV pelo Portal, sessões ativas | #120–#124, #127–#129 |
+| 10 — Campanhas operacionais | Código completo após auditoria: avisos, preferências, divulgação rastreável, eventos e campanhas, vitrine do Início e atribuição de vendas pagas e do PDV | #98–#102 e as PRs de eventos, vitrine e atribuição; `docs/product/ROADMAP.md` |
 | Dívidas pré-RC | Resolvidas: testes unitários do Portal na CI (#125) e foundation E2E em banco limpo (#126) | `docs/product/GAP_ANALYSIS.md` |
 
 ## Portões de qualidade
@@ -19,7 +20,7 @@ Cada PR integrado passou por: `pnpm lint` (com orçamento de warnings), `pnpm ty
 
 ## Revisão de migrations (`main..develop`)
 
-- 81 migrations novas desde `main`; **nenhuma migration já integrada foi alterada ou removida**.
+- 84 migrations novas desde `main`; **nenhuma migration já integrada foi alterada ou removida**.
 - **Nenhuma operação destrutiva de dados:** não há `drop table`, `drop column`, `truncate` nem `delete` fora de funções.
 - Ocorrências revisadas, todas seguras:
   - `drop constraint` seguido da mesma constraint recriada em forma atualizada (compras, caixa, reservas, rifas);

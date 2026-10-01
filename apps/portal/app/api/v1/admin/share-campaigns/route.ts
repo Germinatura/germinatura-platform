@@ -6,14 +6,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { databaseShareCampaignSchema, toShareCampaign } from "@/lib/share-campaigns";
 
 const headers = (requestId: string) => ({ "Cache-Control": "no-store", "x-request-id": requestId });
 const fail = (code: string, message: string, requestId: string, status: number) =>
   NextResponse.json(createApiError(code, message, requestId), { status, headers: headers(requestId) });
-const rowsSchema = z.array(z.object({
-  id: z.uuid(), code: z.string(), title: z.string(), channel: z.string(), product_ids: z.array(z.uuid()), created_at: z.string(),
-  created_by_name: z.string(), visits: z.number().int(), reservations: z.number().int(), reserved_total_cents: z.number().int(),
-}));
+const rowsSchema = z.array(databaseShareCampaignSchema);
 const createdSchema = z.object({ id: z.uuid(), code: z.string(), title: z.string(), channel: z.string(), product_ids: z.array(z.uuid()) });
 
 /** GROW-001: share campaigns with visits and attributed reservations. */
@@ -26,10 +24,7 @@ export async function GET(request: Request) {
     const rows = rowsSchema.safeParse(data);
     if (error || !rows.success) return fail("SHARE_UNAVAILABLE", "Divulgações temporariamente indisponíveis.", requestId, 503);
     return NextResponse.json(shareCampaignsResponseSchema.parse({
-      data: rows.data.map((row) => ({
-        id: row.id, code: row.code, title: row.title, channel: row.channel, productIds: row.product_ids, createdAt: row.created_at,
-        createdByName: row.created_by_name, visits: row.visits, reservations: row.reservations, reservedTotalCents: row.reserved_total_cents,
-      })),
+      data: rows.data.map(toShareCampaign),
       request_id: requestId,
     }), { headers: headers(requestId) });
   } catch (error) {

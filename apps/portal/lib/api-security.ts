@@ -81,6 +81,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/pdv/pickups/:id/complete", methods: ["POST"], access: "seller" },
   { path: "/api/v1/pdv/pickups/:id/deliver", methods: ["POST"], access: "seller" },
   { path: "/api/v1/pdv/sales", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/sales/:id/origin", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/pdv/share-links", methods: ["GET", "POST"], access: "seller" },
   { path: "/api/v1/pdv/terminals", methods: ["GET"], access: "seller" },
   { path: "/api/v1/pdv/shifts/:id/close", methods: ["POST"], access: "seller" },
   { path: "/api/v1/payments/:id/reconciliations", methods: ["POST"], access: "finance" },
