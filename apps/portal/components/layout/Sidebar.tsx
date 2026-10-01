@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, FileSearch, FileUp, Link2, Megaphone, Share2, PartyPopper, CalendarDays, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, Settings, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, X } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useSyncExternalStore, type KeyboardEvent } from "react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Search, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
+import { activeSection, navigationFor, type NavigationItem } from "@/lib/navigation";
 import { BrandMark } from "@/components/brand/BrandMark";
+import { useCollapsedSections } from "./navigation-state";
 
 export interface SidebarUser { nome: string; perfil: string; roles: string[]; avatarUrl?: string | null; }
 interface SidebarProps {
@@ -13,28 +16,63 @@ interface SidebarProps {
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   onNavigate?: () => void;
+  onOpenSearch?: () => void;
   enabledFeatures?: string[];
 }
 
-export function Sidebar({ user, experience = "admin", collapsed = false, onToggleCollapsed, onNavigate, enabledFeatures = [] }: SidebarProps) {
+export const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
+const subscribeNothing = () => () => {};
+
+export function Sidebar({ user, experience = "admin", collapsed = false, onToggleCollapsed, onNavigate, onOpenSearch, enabledFeatures = [] }: SidebarProps) {
   const pathname = usePathname();
-  const pdvUrl = process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001";
-  const canAccessPdv = user?.roles.some((role) => role === "ADMIN" || role === "VENDEDOR") ?? false;
-  const hasAdminRole = user?.roles.includes("ADMIN") ?? false;
+  const baseId = useId();
+  const roles = useMemo(() => user?.roles ?? [], [user]);
+  const hasAdminRole = roles.includes("ADMIN");
   const isAdmin = hasAdminRole && experience === "admin";
   const home = isAdmin ? "/" : "/inicio";
-  const canInspectInventory = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false);
-  const canManageProcurement = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "ESTOQUE") ?? false);
-  const canManageCloseouts = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "FINANCEIRO") ?? false);
-  const canCommunicate = (experience !== "consumer" || !hasAdminRole) && (user?.roles.some((role) => role === "ADMIN" || role === "COMUNICACAO") ?? false);
-  const canBrowseCatalog = !isAdmin && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR" || role === "ESTOQUE") ?? false);
-  const canManageOwnReservations = !isAdmin && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
-  const canBrowseRaffles = !isAdmin && enabledFeatures.includes("raffles") && (user?.roles.some((role) => role === "ADMIN" || role === "CONSUMIDOR" || role === "VENDEDOR") ?? false);
+  const sections = useMemo(() => navigationFor({ roles, experience, features: enabledFeatures, pdvUrl }), [roles, experience, enabledFeatures]);
+  const currentSection = activeSection(sections, pathname);
+  const { collapsed: collapsedSections, setCollapsed } = useCollapsedSections();
+  const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const openedFor = useRef<string | null>(null);
+
+  // Arriving at a route opens its section once; the person may collapse it again afterwards.
+  useEffect(() => {
+    if (!hydrated || !currentSection || openedFor.current === pathname) return;
+    openedFor.current = pathname;
+    if (collapsedSections.has(currentSection)) setCollapsed(currentSection, false);
+  }, [hydrated, pathname, currentSection, collapsedSections, setCollapsed]);
+
   const itemClass = (active: boolean) => [
     "group relative flex min-h-11 items-center rounded-[var(--g-radius-control)] text-sm font-semibold transition-colors",
     collapsed ? "justify-center px-2" : "gap-3 px-3",
     active ? "bg-[var(--g-brand-primary-soft)] text-[var(--g-brand-primary)]" : "text-[var(--g-text-secondary)] hover:bg-[var(--g-surface-hover)] hover:text-[var(--g-brand-primary)]",
   ].join(" ");
+
+  function renderItem(item: NavigationItem) {
+    const active = item.active(pathname);
+    const Icon = item.icon;
+    return (
+      <Link key={item.id} href={item.href} onClick={item.external ? undefined : onNavigate} className={itemClass(active)} title={collapsed ? item.label : undefined} aria-current={active ? "page" : undefined}>
+        {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+        <Icon className="size-5 shrink-0" />{!collapsed && <span>{item.label}</span>}
+      </Link>
+    );
+  }
+
+  // WAI-ARIA accordion: arrows, Home and End move between section headers.
+  function moveBetweenHeaders(event: KeyboardEvent<HTMLButtonElement>) {
+    const headers = Array.from(event.currentTarget.closest("nav")?.querySelectorAll<HTMLButtonElement>("[data-nav-section-toggle]") ?? []);
+    const index = headers.indexOf(event.currentTarget);
+    const target = event.key === "ArrowDown" ? headers[(index + 1) % headers.length]
+      : event.key === "ArrowUp" ? headers[(index - 1 + headers.length) % headers.length]
+      : event.key === "Home" ? headers[0]
+      : event.key === "End" ? headers[headers.length - 1]
+      : undefined;
+    if (!target) return;
+    event.preventDefault();
+    target.focus();
+  }
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col border-r border-[var(--g-border-subtle)] bg-[var(--g-surface-default)]">
@@ -49,156 +87,33 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
       {hasAdminRole && <Link href={experienceHome(isAdmin ? "consumer" : "admin")} onClick={onNavigate} title={isAdmin ? "Visão do consumidor" : "Visão administrativa"} className="mx-3 mb-2 flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-[var(--g-border-default)] px-3 text-sm font-semibold text-[var(--g-brand-primary)]">
         {collapsed ? <UserRoundCog className="size-5" /> : isAdmin ? "Visão do consumidor" : "Visão administrativa"}
       </Link>}
-      <nav data-testid="sidebar-scroll-container" className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Navegação principal">
-        {!collapsed && <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">{isAdmin ? "Operação" : "Conta"}</p>}
-        <Link href={home} onClick={onNavigate} className={itemClass((pathname === home || (!hasAdminRole && pathname === "/")))} title={collapsed ? "Início" : undefined}>
-          {(pathname === home || (!hasAdminRole && pathname === "/")) && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-          <LayoutDashboard className="size-5 shrink-0" />{!collapsed && <span>{isAdmin ? "Visão geral" : "Início"}</span>}
-        </Link>
-        {canBrowseCatalog && (
-          <Link href="/catalogo" onClick={onNavigate} className={itemClass(pathname === "/catalogo")} title={collapsed ? "Catálogo" : undefined}>
-            {pathname === "/catalogo" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-            <ShoppingBag className="size-5 shrink-0" />{!collapsed && <span>Catálogo</span>}
-          </Link>
-        )}
-        {canManageOwnReservations && (
-          <Link href="/reservas" onClick={onNavigate} className={itemClass(pathname === "/reservas")} title={collapsed ? "Minhas reservas" : undefined}>
-            {pathname === "/reservas" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-            <CalendarClock className="size-5 shrink-0" />{!collapsed && <span>Minhas reservas</span>}
-          </Link>
-        )}
-        {canBrowseRaffles && (
-          <Link href="/rifas" onClick={onNavigate} className={itemClass(pathname === "/rifas")} title={collapsed ? "Rifas" : undefined}>
-            {pathname === "/rifas" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-            <Ticket className="size-5 shrink-0" />{!collapsed && <span>Rifas</span>}
-          </Link>
-        )}
-        <Link href="/eventos" onClick={onNavigate} className={itemClass(pathname.startsWith("/eventos"))} title={collapsed ? "Eventos e campanhas" : undefined}>
-          {pathname.startsWith("/eventos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-          <PartyPopper className="size-5 shrink-0" />{!collapsed && <span>Eventos e campanhas</span>}
-        </Link>
-        {isAdmin && enabledFeatures.includes("reservations") && (
-          <Link href="/admin/reservas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/reservas"))} title={collapsed ? "Gestão de reservas" : undefined}>
-            {pathname.startsWith("/admin/reservas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-            <CalendarClock className="size-5 shrink-0" />{!collapsed && <span>Gestão de reservas</span>}
-          </Link>
-        )}
-        {isAdmin && enabledFeatures.includes("raffles") && (
-          <Link href="/admin/rifas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/rifas"))} title={collapsed ? "Gestão de rifas" : undefined}>
-            {pathname.startsWith("/admin/rifas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-            <Ticket className="size-5 shrink-0" />{!collapsed && <span>Gestão de rifas</span>}
-          </Link>
-        )}
-        {isAdmin && (
-          <Link href="/admin/usuarios" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/usuarios"))} title={collapsed ? "Usuários e vendedores" : undefined}>
-            {pathname.startsWith("/admin/usuarios") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-            <UserRoundCog className="size-5 shrink-0" />{!collapsed && <span>Usuários e vendedores</span>}
-          </Link>
-        )}
-        {isAdmin && (
-          <Link href="/admin/auditoria" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/auditoria"))} title={collapsed ? "Auditoria" : undefined}>
-            {pathname.startsWith("/admin/auditoria") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-            <FileSearch className="size-5 shrink-0" />{!collapsed && <span>Auditoria</span>}
-          </Link>
-        )}
-        {(isAdmin || canInspectInventory) && (
-          <>
-            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Catálogo e estoque</p>}
-            {isAdmin && <Link href="/admin/catalogo" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/catalogo"))} title={collapsed ? "Catálogo" : undefined}>
-              {pathname.startsWith("/admin/catalogo") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <PackageSearch className="size-5 shrink-0" />{!collapsed && <span>Catálogo</span>}
-            </Link>}
-            {isAdmin && <Link href="/admin/promocoes" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/promocoes"))} title={collapsed ? "Promoções" : undefined}>
-              {pathname.startsWith("/admin/promocoes") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Percent className="size-5 shrink-0" />{!collapsed && <span>Promoções</span>}
-            </Link>}
-            {canInspectInventory && <Link href="/admin/estoque" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/estoque"))} title={collapsed ? "Estoque" : undefined}>
-              {pathname.startsWith("/admin/estoque") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Boxes className="size-5 shrink-0" />{!collapsed && <span>Estoque</span>}
-            </Link>}
-            {canManageProcurement && <Link href="/admin/compras" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/compras"))} title={collapsed ? "Compras e fornecedores" : undefined}>
-              {pathname.startsWith("/admin/compras") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Truck className="size-5 shrink-0" />{!collapsed && <span>Compras e fornecedores</span>}
-            </Link>}
-          </>
-        )}
-        {canManageCloseouts && (
-          <>
-            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Financeiro</p>}
-            <Link href="/admin/financeiro/indicadores" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/indicadores"))} title={collapsed ? "Indicadores" : undefined}>
-              {pathname.startsWith("/admin/financeiro/indicadores") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <TrendingUp className="size-5 shrink-0" />{!collapsed && <span>Indicadores</span>}
-            </Link>
-            <Link href="/admin/configuracoes" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/configuracoes"))} title={collapsed ? "Configurações" : undefined}>
-              {pathname.startsWith("/admin/configuracoes") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Settings className="size-5 shrink-0" />{!collapsed && <span>Configurações</span>}
-            </Link>
-            <Link href="/admin/financeiro/vendas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/vendas"))} title={collapsed ? "Vendas" : undefined}>
-              {pathname.startsWith("/admin/financeiro/vendas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Receipt className="size-5 shrink-0" />{!collapsed && <span>Vendas</span>}
-            </Link>
-            <Link href="/admin/financeiro/lancamentos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/lancamentos"))} title={collapsed ? "Lançamentos" : undefined}>
-              {pathname.startsWith("/admin/financeiro/lancamentos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <BookOpenText className="size-5 shrink-0" />{!collapsed && <span>Lançamentos</span>}
-            </Link>
-            <Link href="/admin/financeiro/extrato" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/extrato"))} title={collapsed ? "Extrato" : undefined}>
-              {pathname.startsWith("/admin/financeiro/extrato") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <ChartNoAxesColumn className="size-5 shrink-0" />{!collapsed && <span>Extrato</span>}
-            </Link>
-            <Link href="/admin/financeiro/importar-extrato" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/importar-extrato"))} title={collapsed ? "Extrato PicPay" : undefined}>
-              {pathname.startsWith("/admin/financeiro/importar-extrato") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <FileUp className="size-5 shrink-0" />{!collapsed && <span>Extrato PicPay</span>}
-            </Link>
-            <Link href="/admin/fechamentos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/fechamentos"))} title={collapsed ? "Fechamentos" : undefined}>
-              {pathname.startsWith("/admin/fechamentos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <ClipboardCheck className="size-5 shrink-0" />{!collapsed && <span>Fechamentos</span>}
-            </Link>
-            <Link href="/admin/financeiro/contas-a-pagar" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/contas-a-pagar"))} title={collapsed ? "Contas a pagar" : undefined}>
-              {pathname.startsWith("/admin/financeiro/contas-a-pagar") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Banknote className="size-5 shrink-0" />{!collapsed && <span>Contas a pagar</span>}
-            </Link>
-            <Link href="/admin/financeiro/turnos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/turnos"))} title={collapsed ? "Turnos de caixa" : undefined}>
-              {pathname.startsWith("/admin/financeiro/turnos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <HandCoins className="size-5 shrink-0" />{!collapsed && <span>Turnos de caixa</span>}
-            </Link>
-            <Link href="/admin/financeiro/maquininhas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/maquininhas"))} title={collapsed ? "Maquininhas" : undefined}>
-              {pathname.startsWith("/admin/financeiro/maquininhas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <CreditCard className="size-5 shrink-0" />{!collapsed && <span>Maquininhas</span>}
-            </Link>
-            <Link href="/admin/financeiro/pagamentos-online" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/pagamentos-online"))} title={collapsed ? "Pagamentos online" : undefined}>
-              {pathname.startsWith("/admin/financeiro/pagamentos-online") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Link2 className="size-5 shrink-0" />{!collapsed && <span>Pagamentos online</span>}
-            </Link>
-          </>
-        )}
-        {canCommunicate && (
-          <>
-            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Comunicação</p>}
-            <Link href="/admin/comunicacao/avisos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/avisos"))} title={collapsed ? "Avisos" : undefined}>
-              {pathname.startsWith("/admin/comunicacao/avisos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Megaphone className="size-5 shrink-0" />{!collapsed && <span>Avisos</span>}
-            </Link>
-            <Link href="/admin/comunicacao/divulgacao" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/divulgacao"))} title={collapsed ? "Divulgação" : undefined}>
-              {pathname.startsWith("/admin/comunicacao/divulgacao") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <Share2 className="size-5 shrink-0" />{!collapsed && <span>Divulgação</span>}
-            </Link>
-            <Link href="/admin/comunicacao/eventos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/eventos"))} title={collapsed ? "Gestão de eventos" : undefined}>
-              {pathname.startsWith("/admin/comunicacao/eventos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-              <CalendarDays className="size-5 shrink-0" />{!collapsed && <span>Gestão de eventos</span>}
-            </Link>
-          </>
-        )}
-        {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">Conta</p>}
-        <Link href="/perfil" onClick={onNavigate} className={itemClass(pathname === "/perfil")} title={collapsed ? "Perfil e segurança" : undefined}>
-          {pathname === "/perfil" && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-          <ShieldCheck className="size-5 shrink-0" />{!collapsed && <span>Perfil e segurança</span>}
-        </Link>
-        {canAccessPdv && (
-          <>
-            {!collapsed && <p className="mb-2 mt-6 px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)]">PDV</p>}
-            <Link href={pdvUrl} className={itemClass(false)} title={collapsed ? "Abrir PDV" : undefined}><Store className="size-5 shrink-0" />{!collapsed && <span>Abrir PDV</span>}</Link>
-          </>
-        )}
+      {onOpenSearch && user && (
+        <button type="button" onClick={onOpenSearch} title={collapsed ? "Pesquisar no menu (Ctrl+K)" : undefined} aria-keyshortcuts="Control+K Meta+K" className={`mx-3 mb-1 flex min-h-11 shrink-0 items-center rounded-[var(--g-radius-control)] border border-[var(--g-border-subtle)] text-sm text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)] ${collapsed ? "justify-center px-2" : "gap-3 px-3"}`}>
+          <Search className="size-5 shrink-0" />
+          {collapsed ? <span className="sr-only">Pesquisar no menu</span> : <><span className="flex-1 text-left">Pesquisar no menu</span><kbd className="rounded border border-[var(--g-border-default)] px-1.5 text-xs font-semibold">Ctrl K</kbd></>}
+        </button>
+      )}
+      <nav data-testid="sidebar-scroll-container" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4" aria-label="Navegação principal">
+        {collapsed ? (
+          // Fully collapsed sidebar: icons only, every section listed as before.
+          <div className="space-y-1">{sections.flatMap((section) => section.items.filter((item) => !item.searchOnly).map(renderItem))}</div>
+        ) : sections.map((section, index) => {
+          const items = section.items.filter((item) => !item.searchOnly);
+          const expanded = !collapsedSections.has(section.id);
+          const headerId = `${baseId}-${section.id}-header`;
+          const panelId = `${baseId}-${section.id}-items`;
+          // A collapsed section still shows its active route, so the current page is never hidden.
+          const shown = expanded ? items : items.filter((item) => item.active(pathname));
+          return (
+            <div key={section.id} className={index === 0 ? "" : "mt-4"}>
+              <button type="button" id={headerId} data-nav-section-toggle aria-expanded={expanded} aria-controls={panelId} onClick={() => setCollapsed(section.id, expanded)} onKeyDown={moveBetweenHeaders} className="flex min-h-9 w-full items-center justify-between rounded-[var(--g-radius-control)] px-3 text-xs font-semibold uppercase tracking-wider text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)] hover:text-[var(--g-text-secondary)]">
+                <span>{section.label}</span>
+                <ChevronDown aria-hidden className={`size-4 transition-transform ${expanded ? "" : "-rotate-90"}`} />
+              </button>
+              <div id={panelId} className="mt-1 space-y-1">{shown.map(renderItem)}</div>
+            </div>
+          );
+        })}
       </nav>
 
       {onToggleCollapsed && (

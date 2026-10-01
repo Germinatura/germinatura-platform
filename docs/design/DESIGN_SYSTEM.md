@@ -114,6 +114,13 @@ Peso 800 é excepcional. Não usar texto abaixo de 12px. Valores monetários usa
 
 - sidebar clara: 264px expandida e 76px recolhida;
 - item ativo: fundo azul suave, texto/ícone azul e indicador aqua lateral;
+- seções da sidebar (Operação/Explorar, Catálogo e estoque, Financeiro, Comunicação, Conta, PDV) são um accordion:
+  - cabeçalho é botão com `aria-expanded`; setas, Home e End movem entre cabeçalhos;
+  - a escolha fica guardada no navegador;
+  - chegar a uma rota abre a seção dela, e uma seção recolhida ainda mostra a rota ativa;
+  - recolhida por inteiro, a sidebar mostra todos os ícones;
+- busca de navegação (`Ctrl+K`/`⌘K` ou "Pesquisar no menu"): procura só telas e ações do menu, nunca dados;
+  - nome, seção e palavras-chave vêm do mesmo registro da sidebar (`apps/portal/lib/navigation.ts`), com os mesmos papéis, experiência e flags;
 - topbar branca de 64px sob faixa azul de 4px;
 - conteúdo central: máximo de 1280px; páginas administrativas densas podem usar 1440px;
 - mobile consumidor: bottom navigation para Início, Catálogo, Reservas, Rifas e Menu;
@@ -178,7 +185,7 @@ Referências implementadas no Portal:
 
 O comportamento deve ser testado pelo menos em 390×844, tablet e desktop.
 
-Identidade do usuário, avatar e saída pertencem ao menu de conta da topbar. A sidebar contém somente marca, navegação e controle de recolhimento; não repetir o perfil nas duas regiões.
+Identidade do usuário, avatar e saída pertencem ao menu de conta da topbar. A sidebar contém somente marca, navegação, busca de navegação e controle de recolhimento; não repetir o perfil nas duas regiões.
 
 Ações globais já presentes na topbar não são repetidas na sidebar. Notificações usam um único sino na topbar, com acesso à central completa pelo próprio menu do sino.
 

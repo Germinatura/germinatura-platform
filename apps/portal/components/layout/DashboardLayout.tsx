@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Sidebar, type SidebarUser } from "./Sidebar";
+import { pdvUrl, Sidebar, type SidebarUser } from "./Sidebar";
+import { CommandPalette } from "./CommandPalette";
+import { navigationFor } from "@/lib/navigation";
 import { experienceForPath, type PortalExperience } from "@/lib/portal-experience";
 import { Topbar } from "./Topbar";
 
@@ -71,6 +73,21 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const isPublic = publicPaths.includes(pathname) || pathname.startsWith("/cadastro") || pathname.startsWith("/pdv");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const navigation = useMemo(() => navigationFor({ roles: user?.roles ?? [], experience, features: enabledFeatures, pdvUrl }), [user, experience, enabledFeatures]);
+
+  useEffect(() => {
+    if (isPublic || !user) return;
+    function openSearch(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsSidebarOpen(false);
+        setIsSearchOpen(true);
+      }
+    }
+    window.addEventListener("keydown", openSearch);
+    return () => window.removeEventListener("keydown", openSearch);
+  }, [isPublic, user]);
 
   useEffect(() => {
     if (isPublic) return;
@@ -103,12 +120,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden bg-[var(--g-surface-canvas)] text-[var(--g-text-primary)]">
       <aside className={`hidden h-full min-h-0 shrink-0 transition-[width] duration-200 lg:flex ${isCollapsed ? "w-[var(--g-sidebar-collapsed)]" : "w-[var(--g-sidebar-expanded)]"}`}>
-        <Sidebar experience={experience} user={user} collapsed={isCollapsed} enabledFeatures={enabledFeatures} onToggleCollapsed={() => setIsCollapsed(!isCollapsed)} />
+        <Sidebar experience={experience} user={user} collapsed={isCollapsed} enabledFeatures={enabledFeatures} onToggleCollapsed={() => setIsCollapsed(!isCollapsed)} onOpenSearch={() => setIsSearchOpen(true)} />
       </aside>
 
       {isSidebarOpen && <button type="button" className="fixed inset-0 z-40 bg-[var(--g-surface-overlay)] lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Fechar navegação" />}
       <div data-testid="mobile-sidebar" inert={!isSidebarOpen} className={`fixed inset-y-0 left-0 z-50 w-[min(var(--g-sidebar-expanded),calc(100vw-3rem))] transform bg-[var(--g-surface-default)] transition-transform duration-200 lg:hidden ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <Sidebar experience={experience} user={user} enabledFeatures={enabledFeatures} onNavigate={() => setIsSidebarOpen(false)} />
+        <Sidebar experience={experience} user={user} enabledFeatures={enabledFeatures} onNavigate={() => setIsSidebarOpen(false)} onOpenSearch={() => { setIsSidebarOpen(false); setIsSearchOpen(true); }} />
       </div>
 
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -116,6 +133,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         {/* WCAG 2.1.1: the scrollable region must be reachable by keyboard even when a page has nothing focusable. */}
         <main data-testid="dashboard-scroll-container" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</main>
       </div>
+      {isSearchOpen && user && <CommandPalette sections={navigation} onClose={() => setIsSearchOpen(false)} />}
     </div>
   );
 }
