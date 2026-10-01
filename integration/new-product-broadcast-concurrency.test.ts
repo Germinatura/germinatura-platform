@@ -46,17 +46,25 @@ it("a new product is announced exactly once under concurrent publication and sto
     return showcase.new_products.filter((product) => product.id === productId).length;
   }
 
-  // Two stock entries at once for a product published with zero stock.
-  const draft = await createDraft();
-  const empty = await saveProduct(draft.id, draft.revision, true);
-  expect(await announcedTimes(empty.id)).toBe(0);
-  await Promise.all([adjust(empty.id, 3), adjust(empty.id, 4)]);
-  expect(await announcedTimes(empty.id)).toBe(1);
+  // Products published here leave the public catalog at the end: later suites (E2E) page through it.
+  const published: Array<{ id: string; revision: number }> = [];
+  try {
+    // Two stock entries at once for a product published with zero stock.
+    const draft = await createDraft();
+    const empty = await saveProduct(draft.id, draft.revision, true);
+    published.push(empty);
+    expect(await announcedTimes(empty.id)).toBe(0);
+    await Promise.all([adjust(empty.id, 3), adjust(empty.id, 4)]);
+    expect(await announcedTimes(empty.id)).toBe(1);
 
-  // Publication racing the first stock entry: whichever commits last still sees the other and announces.
-  for (let round = 0; round < 3; round += 1) {
-    const racing = await createDraft();
-    await Promise.all([saveProduct(racing.id, racing.revision, true), adjust(racing.id, 5)]);
-    expect(await announcedTimes(racing.id)).toBe(1);
+    // Publication racing the first stock entry: whichever commits last still sees the other and announces.
+    for (let round = 0; round < 3; round += 1) {
+      const racing = await createDraft();
+      const [publication] = await Promise.all([saveProduct(racing.id, racing.revision, true), adjust(racing.id, 5)]);
+      published.push(publication);
+      expect(await announcedTimes(racing.id)).toBe(1);
+    }
+  } finally {
+    for (const product of published) await saveProduct(product.id, product.revision, false);
   }
 });
