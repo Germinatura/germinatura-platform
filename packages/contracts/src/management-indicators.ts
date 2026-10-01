@@ -36,7 +36,7 @@ export const managementIndicatorsSchema = z.object({
   daily: z.array(z.object({ day: isoDate, revenueCents: cents, netRevenueCents: cents, cogsCents: cents, grossMarginCents: cents }).strict()),
   pending: z.object({
     awaitingPayment: z.number().int(), divergentReconciliations: z.number().int(), reopenedCloseouts: z.number().int(),
-    openPaymentRecoveries: z.number().int(),
+    openPaymentRecoveries: z.number().int(), statementLinesPending: z.number().int(),
   }).strict(),
 }).strict();
 export type ManagementIndicators = z.infer<typeof managementIndicatorsSchema>;

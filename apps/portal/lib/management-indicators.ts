@@ -31,7 +31,7 @@ const databaseSchema = z.object({
     units: n, cost_cents: nullableNumber, unknown_cost_units: n,
   })),
   daily: z.array(z.object({ day: z.string(), revenue_cents: n, net_revenue_cents: n, cogs_cents: n, gross_margin_cents: n })),
-  pending: z.object({ awaiting_payment: n, divergent_reconciliations: n, reopened_closeouts: n, open_payment_recoveries: n }),
+  pending: z.object({ awaiting_payment: n, divergent_reconciliations: n, reopened_closeouts: n, open_payment_recoveries: n, statement_lines_pending: n }),
 });
 
 export class IndicatorsError extends Error {
@@ -86,6 +86,7 @@ export async function loadManagementIndicators(client: SupabaseClient, from: str
     pending: {
       awaitingPayment: value.pending.awaiting_payment, divergentReconciliations: value.pending.divergent_reconciliations,
       reopenedCloseouts: value.pending.reopened_closeouts, openPaymentRecoveries: value.pending.open_payment_recoveries,
+      statementLinesPending: value.pending.statement_lines_pending,
     },
   });
 }

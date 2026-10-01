@@ -19,6 +19,7 @@ export * from "./payment-links";
 export * from "./management-indicators";
 export * from "./fundraising-goal";
 export * from "./audit";
+export * from "./picpay-statement";
 export * from "./portal-events";
 
 export const moneyCentsSchema = z.number()

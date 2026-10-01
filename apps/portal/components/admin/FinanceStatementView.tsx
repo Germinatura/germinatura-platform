@@ -10,7 +10,7 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const formatMoney = (cents: number) => money.format(cents / 100);
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 const formatDay = (value: string) => value.split("-").reverse().join("/");
-const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual" };
+const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay" };
 
 /** FIN-006: consolidated statement by treasury account and category, exportable as CSV. */
 export function FinanceStatementView() {
