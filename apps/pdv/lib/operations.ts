@@ -464,6 +464,18 @@ export async function loadEnabledFeatures(): Promise<Set<string>> {
   return new Set(parsed.success ? parsed.data.data.filter((flag) => flag.enabled).map((flag) => flag.key) : []);
 }
 
+/** Flags known to be off. A failed read hides nothing: the database still refuses what is switched off. */
+export async function loadDisabledFeatures(): Promise<Set<string>> {
+  try {
+    const response = await apiFetch("/api/v1/feature-flags");
+    if (!response.ok) return new Set();
+    const parsed = featureFlagsResponseSchema.safeParse(await response.json());
+    return new Set(parsed.success ? parsed.data.data.filter((flag) => !flag.enabled).map((flag) => flag.key) : []);
+  } catch {
+    return new Set();
+  }
+}
+
 /** ADR 0010: asks for a Payment Link; the link itself is created by the jobs worker. */
 export async function requestPaymentLink(saleId: string, idempotencyKey: string): Promise<PaymentLinkCharge> {
   const response = await apiFetch(`/api/v1/sales/${saleId}/payments/payment-link`, {

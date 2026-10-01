@@ -1267,6 +1267,8 @@ export const featureFlagKeySchema = z.enum([
   "meal_voucher",
   "community",
   "comments",
+  "procurement",
+  "events",
 ]);
 
 export const featureFlagSchema = z.object({

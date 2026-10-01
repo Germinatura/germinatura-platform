@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activeSection, navigationFor, searchNavigation, type NavigationContext } from "./navigation";
 
-const base: NavigationContext = { roles: [], experience: "admin", features: ["reservations", "raffles"], pdvUrl: "http://pdv.test" };
+const base: NavigationContext = { roles: [], experience: "admin", features: ["reservations", "raffles", "procurement", "events"], pdvUrl: "http://pdv.test" };
 const ids = (context: NavigationContext) => navigationFor(context).flatMap((section) => section.items.map((item) => item.id));
 const sectionIds = (context: NavigationContext) => navigationFor(context).map((section) => section.id);
 
@@ -39,6 +39,11 @@ describe("portal navigation", () => {
     expect(admin).not.toContain("admin-reservations");
     expect(admin).not.toContain("admin-raffles");
     expect(ids({ ...base, roles: ["CONSUMIDOR"], features: [] })).not.toContain("raffles");
+    expect(admin).not.toContain("procurement");
+    expect(admin).not.toContain("admin-events");
+    expect(admin).not.toContain("events");
+    expect(admin).toContain("payables");
+    expect(admin).toContain("shifts");
   });
 
   it("finds the section of the current route", () => {

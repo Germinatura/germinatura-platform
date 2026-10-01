@@ -56,6 +56,7 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
   - **Projeção:** estende a média diária do período até a data-alvo e indica se a meta está ao alcance.
   - **Chaves funcionais (30/09/2026):** Configurações também mostra, só para administradores, as chaves funcionais (reservas, venda online, comunidade, comentários, notificações e meios de pagamento). Cada mudança exige motivo e usa o comando auditado existente. Chaves cuja descrição traz uma condição, como o link de pagamento, pedem a confirmação explícita de que ela foi cumprida antes de ligar.
   - **Visibilidade:** a meta aparece na visão geral do administrador. Na página inicial da turma, só aparece se a comissão publicar, e pode mostrar apenas percentuais, sem valores em reais. O servidor nunca envia os valores ocultos.
+- **ADMIN-003** — Flags de módulos gerenciais (01/10/2026): `cash_payment` também governa os turnos de caixa, e `procurement` e `events` desligam compras e eventos para operações mais simples, sem esconder o histórico nem deixar operação pela metade (ver "Flags de módulos gerenciais").
 - **AUD-001** — Ajuste, perda, cancelamento, reabertura, sorteio, login, falha de autorização e permissão são investigáveis por correlação.
   - **Explorador (spec 5.16, 30/09/2026):** a aba Auditoria, só para administradores (`audit.read`), pesquisa por período em dias de Brasília (até um ano), usuário, ação, tipo e identificador da entidade, correlação e severidade, com paginação. Nada ali altera o histórico.
   - **Severidade:** é derivada da ação. Estornos, cancelamentos, reaberturas, sorteios, papéis, acessos, desbloqueios, perdas e ajustes são altos; configurações, pagamentos, fechamentos e publicações, médios.
@@ -181,7 +182,26 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
 
 ## Feature flags e dependências externas
 
-Flags mínimas: `online_checkout`, `picpay_checkout`, `pix_area_manual`, `card_present`, `picpay_tap`, `meal_voucher`, `reservations`, `raffles`, `community`, `comments`, `notifications`. Flags não substituem autorização, credenciamento ou configuração válida.
+Flags: `online_checkout`, `picpay_checkout`, `pix_area_manual`, `card_present`, `cash_payment`, `payment_link`, `picpay_tap`, `meal_voucher`, `reservations`, `raffles`, `procurement`, `events`, `community`, `comments`, `notifications`. Flags não substituem autorização, credenciamento ou configuração válida. Configurações › Chaves funcionais explica o efeito de cada uma ao ligar e ao desligar.
+
+### Flags de módulos gerenciais (decisão de 01/10/2026)
+
+Objetivo: permitir que uma operação mais simples deixe de usar módulos gerenciais sem perder histórico.
+
+Regras de qualquer flag de módulo:
+- Desligada, ela impede **novas** operações do módulo no banco (`private.require_feature`) e tira do menu e da busca as telas de operação do módulo. Telas de consulta financeira, como Turnos de caixa e Contas a pagar, continuam no menu.
+- Nunca bloqueia o que encerra ou corrige algo já começado. Assim, desligar não deixa estado transacional pela metade.
+- O histórico continua consultável: a tela do módulo abre em modo consulta pelo link em Configurações › Chaves funcionais, e também ficam a auditoria, o extrato e os indicadores.
+- Flag não substitui papel, permissão nem RLS.
+
+| Módulo | Decisão | Desligada impede | Continua permitido |
+| --- | --- | --- | --- |
+| Turnos de caixa | Reusa `cash_payment`, sem flag nova. O turno só existe para o dinheiro físico | Receber em dinheiro (já impedia) e abrir turno novo; o PDV esconde Dinheiro e a aba Caixa | Fechar o turno que estiver aberto; conferência e histórico em Financeiro › Turnos; devolução física de estorno (PAY-009a) |
+| Compras e fornecedores | Flag nova `procurement`, ligada por padrão | Cadastrar ou editar fornecedor, criar pedido de compra, registrar recebimento | Cancelar pedido aberto; pagar e estornar contas a pagar (Contas a pagar segue no menu); consultar pedidos e recebimentos |
+| Eventos e campanhas | Flag nova `events`, ligada por padrão | Criar, editar, publicar e trocar a capa; o Portal deixa de mostrar eventos (lista, detalhe, vitrine) | Cancelar evento publicado; consultar a gestão |
+| Controles avançados de estoque | Sem flag | — | Lotes já são opcionais por produto (`tracks_lots`). Contagens, perdas, devoluções e transferências só acontecem quando alguém as inicia, e desligá-las deixaria pedidos pendentes sem saída |
+| Financeiro avançado | Sem flag | — | Lançamentos, extrato e indicadores sustentam o lucro operacional. Importar o extrato PicPay é opcional por natureza. Fechamentos fazem parte da operação do PDV. Contas a pagar seguem `procurement` só na criação |
+
 
 Bloqueados externamente: conta/KYC e representante legal; termos e habilitação do PicPay Checkout; credenciais/sandbox oficiais; Maquininha/terminais; credenciamento Alelo/Ticket; SFTP ou integração privada/TEF/SDK. Nenhuma credencial financeira pertence a vendedor.
 

@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PaymentLinkPanel } from "@/components/operations/PaymentLinkPanel";
 import { useToast } from "@/components/ui/Toast";
 import {
-  cancelRaffleSale, cashChange, confirmCashPayment, confirmManualPayment, findRaffleBuyer, formatMoney, loadEnabledFeatures,
+  cancelRaffleSale, cashChange, confirmCashPayment, confirmManualPayment, findRaffleBuyer, formatMoney, loadDisabledFeatures, loadEnabledFeatures,
   loadPaymentTerminals, loadPdvRaffles, loadRaffleBoard, parseMoneyInput, reservePdvRaffle,
 } from "@/lib/operations";
 
@@ -39,6 +39,7 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
   const [terminalId, setTerminalId] = useState("");
   const [tendered, setTendered] = useState("");
   const [paymentLink, setPaymentLink] = useState(false);
+  const [cashOff, setCashOff] = useState(false);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +53,7 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
     const timer = window.setTimeout(() => {
       void refresh();
       void loadEnabledFeatures().then((flags) => setPaymentLink(flags.has("payment_link")), () => setPaymentLink(false));
+      void loadDisabledFeatures().then((disabled) => setCashOff(disabled.has("cash_payment")));
       void loadPaymentTerminals().then(setTerminals, () => setTerminals([]));
     }, 0);
     return () => window.clearTimeout(timer);
@@ -159,7 +161,7 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
       <div className="flex items-center justify-between gap-3"><div><Badge tone="warning">Aguardando pagamento</Badge><h2 className="mt-2 text-xl font-semibold">Números {reservation.numbers.join(", ")}</h2></div><p className="g-money text-2xl font-bold">{formatMoney(reservation.totalCents)}</p></div>
       <p className="text-xs text-[var(--g-text-muted)]">Reserva válida até {new Date(reservation.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Meio de pagamento">
-        {(["MAQUININHA", "PIX_AREA", "DINHEIRO", ...(paymentLink ? ["PAYMENT_LINK" as const] : [])] as Channel[]).map((item) => <Button key={item} type="button" variant={channel === item ? "brand" : "secondary"} aria-pressed={channel === item} onClick={() => { setChannel(item); payKey.current = operationKey("pdv-raffle-pay"); }}>{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro", PAYMENT_LINK: "Link de pagamento" }[item]}</Button>)}
+        {(["MAQUININHA", "PIX_AREA", ...(cashOff ? [] : ["DINHEIRO" as const]), ...(paymentLink ? ["PAYMENT_LINK" as const] : [])] as Channel[]).map((item) => <Button key={item} type="button" variant={channel === item ? "brand" : "secondary"} aria-pressed={channel === item} onClick={() => { setChannel(item); payKey.current = operationKey("pdv-raffle-pay"); }}>{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro", PAYMENT_LINK: "Link de pagamento" }[item]}</Button>)}
       </div>
       {channel === "PAYMENT_LINK" ? <PaymentLinkPanel saleId={reservation.saleId} totalCents={reservation.totalCents} online={online} onPaid={() => { setDone(true); showToast("Pagamento confirmado pelo PicPay.", "success"); }} />
         : <>
