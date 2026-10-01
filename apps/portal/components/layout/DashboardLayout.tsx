@@ -110,7 +110,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar title={pageTitle(pathname, user)} user={user} loading={loading} onOpenMenu={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
-        <main data-testid="dashboard-scroll-container" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</main>
+        {/* WCAG 2.1.1: the scrollable region must be reachable by keyboard even when a page has nothing focusable. */}
+        <main data-testid="dashboard-scroll-container" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</main>
       </div>
     </div>
   );

@@ -24,9 +24,10 @@
     "supabase:reset": "node tools/run-supabase.mjs db reset"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.34.0",
-    "@types/node": "^20",
     "@playwright/test": "^1.55.0",
+    "@types/node": "^20",
     "eslint": "^9.34.0",
     "supabase": "^2.39.2",
     "turbo": "^2.5.8",

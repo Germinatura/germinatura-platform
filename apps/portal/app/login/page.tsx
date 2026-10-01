@@ -50,7 +50,7 @@ export default function LoginPage() {
         <header className="mb-8 text-center">
           <BrandMark title="Germinatura" className="mx-auto mb-4 size-16" />
           <h1 className="text-3xl font-black tracking-tight text-slate-900">Germinatura</h1>
-          <p className="mt-2 font-medium text-slate-500">Acesso da comunidade Germinare</p>
+          <p className="mt-2 font-medium text-slate-600">Acesso da comunidade Germinare</p>
         </header>
         <section className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-xl shadow-slate-200/50">
           <form onSubmit={submit} className="space-y-5 p-8">

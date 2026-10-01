@@ -141,4 +141,4 @@ function UnlockSection({ user, onComplete }: { user: AdminUser; onComplete: () =
   </section>;
 }
 
-function UsersSkeleton() { return <div className="space-y-3 p-5" aria-label="Carregando usuários">{[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)]" />)}</div>; }
+function UsersSkeleton() { return <div role="status" className="space-y-3 p-5" aria-label="Carregando usuários">{[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)]" />)}</div>; }

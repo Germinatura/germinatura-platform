@@ -192,9 +192,9 @@ function RaffleCard({ raffle, canBuy, won, onReserved }: { raffle: ConsumerRaffl
     <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{raffle.productName}{raffle.unitPriceCents !== null ? ` · ${money.format(raffle.unitPriceCents / 100)} por número` : ""}</p>
     {raffle.description && <p className="mt-2 text-sm">{raffle.description}</p>}
     <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-      <div className="flex items-start gap-2"><Hash className="mt-0.5 size-4 shrink-0 text-[var(--g-brand-primary)]" /><div><dt className="text-[var(--g-text-muted)]">Numeração</dt><dd className="mt-0.5 font-semibold">1 a {raffle.numberCount}</dd></div></div>
-      <div className="flex items-start gap-2"><Ticket className="mt-0.5 size-4 shrink-0 text-[var(--g-brand-primary)]" /><div><dt className="text-[var(--g-text-muted)]">Disponíveis</dt><dd className="mt-0.5 font-semibold">{raffle.availableCount}</dd></div></div>
-      <div className="flex items-start gap-2"><CalendarClock className="mt-0.5 size-4 shrink-0 text-[var(--g-brand-primary)]" /><div><dt className="text-[var(--g-text-muted)]">Período</dt><dd className="mt-0.5 font-semibold">{dateTime.format(new Date(raffle.startsAt))} até {dateTime.format(new Date(raffle.endsAt))}</dd></div></div>
+      <div><dt className="flex items-center gap-2 text-[var(--g-text-muted)]"><Hash aria-hidden className="size-4 shrink-0 text-[var(--g-brand-primary)]" />Numeração</dt><dd className="mt-0.5 pl-6 font-semibold">1 a {raffle.numberCount}</dd></div>
+      <div><dt className="flex items-center gap-2 text-[var(--g-text-muted)]"><Ticket aria-hidden className="size-4 shrink-0 text-[var(--g-brand-primary)]" />Disponíveis</dt><dd className="mt-0.5 pl-6 font-semibold">{raffle.availableCount}</dd></div>
+      <div><dt className="flex items-center gap-2 text-[var(--g-text-muted)]"><CalendarClock aria-hidden className="size-4 shrink-0 text-[var(--g-brand-primary)]" />Período</dt><dd className="mt-0.5 pl-6 font-semibold">{dateTime.format(new Date(raffle.startsAt))} até {dateTime.format(new Date(raffle.endsAt))}</dd></div>
     </dl>
     {canBuy && <Button className="mt-4" variant="secondary" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? "Fechar números" : "Escolher números"}</Button>}
     {open && <div className="mt-4 space-y-3">
