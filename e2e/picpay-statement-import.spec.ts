@@ -23,7 +23,7 @@ test("financeiro importa o extrato PicPay com prévia, recusa o mesmo arquivo e 
   ]) expect((await request).status()).toBeLessThan(500);
   await page.goto(`${portalUrl}/admin/financeiro/importar-extrato`);
   // The import list is loaded by the client: once it shows, the file input has its handler.
-  await expect(page.getByText(/aguardando revisão em todas as importações|Nenhum extrato importado/)).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText(/aguardando revisão em todas as importações|Nenhum extrato importado/).first()).toBeVisible({ timeout: 90_000 });
 
   // A partially invalid file shows each problem and cannot be imported.
   const broken = content.replace("2026-09-01;Pix recebido;Cliente Exemplo Dois", "2026-02-30;Pix recebido;Cliente Exemplo Dois");
