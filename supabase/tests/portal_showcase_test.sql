@@ -29,6 +29,8 @@ select public.transition_portal_event((select (result ->> 'id')::uuid from party
 create temp table raffle as select public.create_raffle_campaign('Rifa da vitrine', '33f00000-0000-4000-8000-000000000001',
   '50000000-0000-4000-8000-000000000001', 10, now() - interval '1 minute', now() + interval '1 day', 'showcase-raffle', gen_random_uuid()) as result;
 select public.transition_raffle_campaign((select (result ->> 'campaign_id')::uuid from raffle), 'PUBLISH', 'showcase-raffle-publish', gen_random_uuid());
+-- A new product reaches the showcase once it is published with central stock (NOTIF-005).
+select public.adjust_stock('50000000-0000-4000-8000-000000000001', '33f00000-0000-4000-8000-000000000002', 2, 'Estoque da novidade', 'showcase-new-stock', gen_random_uuid());
 reset role;
 update public.products set published = true where id = '33f00000-0000-4000-8000-000000000002';
 
