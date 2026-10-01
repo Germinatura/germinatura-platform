@@ -14,9 +14,9 @@ A evidência atual do branch `develop` foi registrada em documentação do produ
 
 | Situação | Etapas | Leitura operacional |
 | --- | --- | --- |
-| `DONE` | 0 | Planejamento, matriz, ADR de Payment Link/dinheiro e regras de release reconciliados |
-| `IN PROGRESS` | 1, 2, 3, 4, 5, 6, 8, 9 | Há backend ou interface útil, mas ainda faltam jornadas, testes ou homologação para fechar o marco |
-| `TODO` | 7, 10, 11 | Trabalho substancial ainda não iniciado ou não disponível como jornada completa |
+| `DONE` | 0, 9 | Planejamento reconciliado; gestão e indicadores entregues |
+| `CODE COMPLETE` | 6, 7 | Código integrado; falta só homologar com dados ou serviço externo reais |
+| `IN PROGRESS` | 1, 2, 3, 4, 5, 8, 10, 11 | Há jornadas integradas, mas ainda faltam auditoria de requisitos, homologação física ou autorização |
 
 ```mermaid
 flowchart LR
@@ -26,26 +26,26 @@ flowchart LR
     E2 --> E3["3 · Compras e custos<br/>IN PROGRESS"]
     E2 --> E5["5 · PDV e caixa<br/>IN PROGRESS"]
     E4 --> E5
-    E3 --> E6["6 · Comercial e financeiro<br/>IN PROGRESS"]
+    E3 --> E6["6 · Comercial e financeiro<br/>CODE COMPLETE"]
     E5 --> E6
-    E6 --> E7["7 · Payment Link<br/>TODO"]
+    E6 --> E7["7 · Payment Link<br/>CODE COMPLETE"]
     E4 --> E8["8 · Compra, reservas e rifas<br/>IN PROGRESS"]
     E7 --> E8
-    E3 --> E9["9 · Gestão e indicadores<br/>IN PROGRESS"]
+    E3 --> E9["9 · Gestão e indicadores<br/>DONE"]
     E6 --> E9
     E8 --> E9
-    E8 --> E10["10 · Campanhas operacionais<br/>TODO"]
+    E8 --> E10["10 · Campanhas operacionais<br/>IN PROGRESS"]
     E9 --> E10
-    E10 --> E11["11 · Homologação e release<br/>TODO"]
+    E10 --> E11["11 · Homologação e release<br/>IN PROGRESS"]
     S["Sandbox/credenciais<br/>validação externa"] -. habilita .-> E7
 
     classDef done fill:#d1fae5,stroke:#047857,color:#064e3b;
     classDef progress fill:#fef3c7,stroke:#b45309,color:#78350f;
     classDef todo fill:#e5e7eb,stroke:#4b5563,color:#111827;
     classDef external fill:#ede9fe,stroke:#6d28d9,color:#4c1d95;
-    class E0 done;
-    class E1,E2,E3,E4,E5,E6,E8,E9 progress;
-    class E7,E10,E11 todo;
+    class E0,E9 done;
+    class E1,E2,E3,E4,E5,E8,E10,E11 progress;
+    class E6,E7 external;
     class S external;
 ```
 
@@ -59,12 +59,12 @@ flowchart LR
 | 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de contas a pagar integrados em staging; rastreabilidade do lote até venda integrada em staging; homologação física e indicadores consolidados de custo/margem pendentes |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada. Integrado: `QUANTIDADE_PRECO` na cotação/checkout e sua administração versionada (PR #74). `PERCENTUAL` (piso por unidade, a favor do cliente) e `VALOR_FIXO_UNITARIO` integrados (PR #78). Política de concorrência/cumulatividade registrada como PROMO-004 e coberta por testes (PR #79). `LEVE_PAGUE` integrado (PR #80). `ESCALONADA` integrada (PR #82). `COMBO_MIX` integrado com rateio PROMO-005 (PR #84). Cupons (PROMO-006) e limites concorrentes com ledger (PROMO-007) integrados (PR #85); entrada única `get_pricing_inputs` com as versões antigas removidas. A trilha de implementação de promoções está fechada; falta a homologação autenticada em staging (etapa permanece `IN PROGRESS` até ela) e a variante de leve/pague com item descontado |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo. Integrado: turno do vendedor e dinheiro físico com troco e fechamento contado (PAY-009a, #87); devolução física no estorno (`REFUND_PAYOUT`) e conferência financeira dos turnos (#88). "Minhas vendas" e pendências (PDV-002, #89). Método do cartão e terminal da Maquininha (PAY-005a, #90). Restante: homologação física |
-| 6 — Administração comercial/financeira | IN PROGRESS | 3, 5 | Vendas, reversões comuns e contas a pagar com liquidação parcial/reversão integradas; tela Financeiro › Vendas com filtros, detalhe e estorno (SALE-004, #91); plano de categorias, contas/caixas e lançamentos manuais auditados (FIN-005, #92); extrato consolidado com CSV (FIN-006, #94); faltam contas/categorias gerais, despesas, taxas, recebíveis, importação validada por arquivo oficial e CSV real |
+| 6 — Administração comercial/financeira | CODE COMPLETE | 3, 5 | Vendas, reversões comuns e contas a pagar com liquidação parcial/reversão integradas; tela Financeiro › Vendas com filtros, detalhe e estorno (SALE-004, #91); plano de categorias, contas/caixas, despesas e outras receitas auditadas (FIN-005, #92); taxas e recebíveis pela conciliação; extrato consolidado com CSV (FIN-006, #94); importação do extrato PicPay Empresas no formato real exportado, com prévia, hash do arquivo, conciliação Pix, Cofrinho e recebíveis como transferências e revisão das pendências (FIN-007). Restante: importar os extratos reais em produção |
 | 7 — Payment Link | CODE COMPLETE — homologação externa bloqueada | 0, 6, sandbox autorizado | Código completo, com flag `payment_link` desligada. Integrados: fundação (#103), ciclo de vida (#104), verificação do sandbox (#105, #107, #110–#112), tela do vendedor (#106), Financeiro › Pagamentos online (#108), pagamento online de reserva pelo consumidor (#109) e resultados do sandbox (#113). Bloqueio externo: a API de links do sandbox PicPay não responde (timeout/502, OAuth funciona) e o webhook depende da `PICPAY_PAYMENT_LINK_WEBHOOK_KEY`, que exige a URL de notificação habilitada pela PicPay. Enquanto isso só runbook e testes são mantidos |
-| 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Administração de reservas com prazos configuráveis e preparo para retirada (RES-002, #95). Retirada no PDV com cobrança pelo preço congelado (RES-003, #96). Carrinho de reserva no catálogo do Portal (RES-004, #97). Pagamento online da reserva (#109). Ciclo de vida da rifa e privacidade dos compradores (RAF-002, #114). Compra online de números pelo consumidor e Meus bilhetes (RAF-003, #115). Venda de números no PDV (RAF-004, #116). Estorno de venda de rifa paga (RAF-005, #117). Avisos da rifa pelo cliente da venda e lista de compradores (RAF-006, #118). Em PR: entrega no PDV de pedido pago online (RES-005). Restante: homologação física com o PicPay (Etapa 7) |
+| 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Administração de reservas com prazos configuráveis e preparo para retirada (RES-002, #95). Retirada no PDV com cobrança pelo preço congelado (RES-003, #96). Carrinho de reserva no catálogo do Portal (RES-004, #97). Pagamento online da reserva (#109). Ciclo de vida da rifa e privacidade dos compradores (RAF-002, #114). Compra online de números pelo consumidor e Meus bilhetes (RAF-003, #115). Venda de números no PDV (RAF-004, #116). Estorno de venda de rifa paga (RAF-005, #117). Avisos da rifa pelo cliente da venda e lista de compradores (RAF-006, #118). Entrega no PDV de pedido pago online (RES-005, #119). Restante: homologação física com o PicPay (Etapa 7) |
 | 9 — Gestão e indicadores | DONE | 3, 6, 8 | Indicadores por período (ADMIN-001, #120). Meta de arrecadação medida pelo lucro operacional (ADMIN-002, #121). Explorador da auditoria (AUD-001, #122) e registro de segurança (#123). Desbloqueios na gestão de usuários (#124). Chaves funcionais em Configurações (#127). Abertura do PDV pelo Portal por código único (#128). Sessões ativas em Minha conta (#129) |
 | 10 — Campanhas operacionais | IN PROGRESS | 8, 9 | Avisos operacionais automáticos (NOTIF-002, #98). Avisos manuais segmentados (NOTIF-003, #99). Preferências e avise-me (NOTIF-004, #100). Novidades de produtos, promoções e rifas (NOTIF-005, #101). Divulgação rastreável com texto, link, QR Code e atribuição de reservas (GROW-001, #102). Marco 1: vitrine, eventos, links/QR, atribuição, divulgação, preferências/avise-me e segmentação ligados a cardápio, pedidos, reservas e vendas. A Rede Social Germinare (mural, posts, comentários, sugestões, enquetes, denúncias e moderação social) é Marco 2 |
-| 11 — Homologação e release | IN PROGRESS | 1–10 | Revisão de prontidão em `docs/operations/release-readiness.md`: migrations revisadas (76 desde `main`, nenhuma destrutiva), auditoria de acessibilidade automatizada por papel (axe, WCAG 2.1 AA) e roteiro de promoção e reversão. Dependem do responsável: backup restaurado, alertas, carga, homologação física, PicPay, SMTP de produção e autorização da promoção |
+| 11 — Homologação e release | IN PROGRESS | 1–10 | Revisão de prontidão em `docs/operations/release-readiness.md`: migrations revisadas (76 desde `main`, nenhuma destrutiva), auditoria de acessibilidade automatizada por papel (axe, WCAG 2.1 AA) e roteiro de promoção e reversão. Dependem do responsável: carga, homologação física, PicPay, SMTP de produção, configuração dos alertas para `germinatura@gmail.com` e autorização da promoção. Backup e restauração passam a ser obrigação depois que houver dados reais |
 
 ## Plano paralelo de conclusão
 
@@ -414,3 +414,7 @@ Spec 6.1. "Abrir PDV" no Portal leva o vendedor ao PDV já autenticado por um c�
 ## Incremento de sessões ativas — 30/09/2026
 
 Spec 4.8. Perfil e segurança lista as sessões da própria pessoa, sem IP, e permite encerrar uma sessão não reconhecida ou todas as outras. A sessão atual se encerra saindo, e cada encerramento é auditado.
+
+## Incremento de importação do extrato PicPay — 01/10/2026
+
+Spec 5.8 (FIN-007). Financeiro › Extrato PicPay importa o CSV exportado pela conta PicPay Empresas, no formato real observado num arquivo da própria conta. O arquivo serviu só de referência de formato; os testes usam uma fixture anonimizada. A prévia mostra período, totais, movimentos e o que será automático antes de gravar. Uma linha inválida recusa o arquivo inteiro, e o mesmo arquivo (SHA-256) não entra duas vezes. Linhas iguais continuam distintas, identificadas pelo arquivo e pelo número da linha. Cofrinho e recebíveis viram transferências sem efeito no lucro; Pix recebido concilia uma venda Área Pix só com candidata única; estornos e devoluções são reversões na direção real. O resto fica para revisão, onde o financeiro concilia, classifica, marca como já registrado ou reabre. Com isso a Etapa 6 fica com o código completo.

@@ -8,7 +8,7 @@ export const financeCategorySchema = z.enum([
 export type FinanceCategory = z.infer<typeof financeCategorySchema>;
 /** Sale, reservation and raffle revenue only comes from automatic financial events. */
 export const automaticFinanceCategories: readonly FinanceCategory[] = ["VENDA_PDV", "VENDA_ONLINE", "RESERVA", "RIFA"];
-export const financeAccountSchema = z.enum(["PICPAY_EMPRESAS", "DINHEIRO_FISICO", "RECEBIVEIS_PICPAY", "PENDENTE_LIQUIDACAO"]);
+export const financeAccountSchema = z.enum(["PICPAY_EMPRESAS", "DINHEIRO_FISICO", "RECEBIVEIS_PICPAY", "PENDENTE_LIQUIDACAO", "COFRINHO_PICPAY"]);
 export type FinanceAccount = z.infer<typeof financeAccountSchema>;
 
 const cents = z.number().int().refine(Number.isSafeInteger, "Money must be a safe integer");
@@ -97,7 +97,7 @@ export const financeStatementQuerySchema = z.object({
 
 export const financeStatementRowSchema = z.object({
   occurredOn: calendarDay,
-  source: z.enum(["SALE", "PAYABLE", "MANUAL"]),
+  source: z.enum(["SALE", "PAYABLE", "MANUAL", "IMPORT"]),
   sourceId: z.uuid(),
   category: financeCategorySchema.nullable(),
   account: financeAccountSchema,

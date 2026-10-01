@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, FileSearch, Link2, Megaphone, Share2, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, Settings, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, FileSearch, FileUp, Link2, Megaphone, Share2, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, Settings, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -140,6 +140,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Link href="/admin/financeiro/extrato" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/extrato"))} title={collapsed ? "Extrato" : undefined}>
               {pathname.startsWith("/admin/financeiro/extrato") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <ChartNoAxesColumn className="size-5 shrink-0" />{!collapsed && <span>Extrato</span>}
+            </Link>
+            <Link href="/admin/financeiro/importar-extrato" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/financeiro/importar-extrato"))} title={collapsed ? "Extrato PicPay" : undefined}>
+              {pathname.startsWith("/admin/financeiro/importar-extrato") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <FileUp className="size-5 shrink-0" />{!collapsed && <span>Extrato PicPay</span>}
             </Link>
             <Link href="/admin/fechamentos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/fechamentos"))} title={collapsed ? "Fechamentos" : undefined}>
               {pathname.startsWith("/admin/fechamentos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
