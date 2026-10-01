@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, FileSearch, FileUp, Link2, Megaphone, Share2, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, Settings, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, X } from "lucide-react";
+import { Banknote, BookOpenText, Boxes, ChartNoAxesColumn, FileSearch, FileUp, Link2, Megaphone, Share2, PartyPopper, CalendarDays, CalendarClock, ClipboardCheck, CreditCard, HandCoins, Receipt, LayoutDashboard, PackageSearch, PanelLeftClose, PanelLeftOpen, Percent, Settings, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, X } from "lucide-react";
 import { experienceHome, type PortalExperience } from "@/lib/portal-experience";
 import { BrandMark } from "@/components/brand/BrandMark";
 
@@ -73,6 +73,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Ticket className="size-5 shrink-0" />{!collapsed && <span>Rifas</span>}
           </Link>
         )}
+        <Link href="/eventos" onClick={onNavigate} className={itemClass(pathname.startsWith("/eventos"))} title={collapsed ? "Eventos e campanhas" : undefined}>
+          {pathname.startsWith("/eventos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+          <PartyPopper className="size-5 shrink-0" />{!collapsed && <span>Eventos e campanhas</span>}
+        </Link>
         {isAdmin && enabledFeatures.includes("reservations") && (
           <Link href="/admin/reservas" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/reservas"))} title={collapsed ? "Gestão de reservas" : undefined}>
             {pathname.startsWith("/admin/reservas") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
@@ -177,6 +181,10 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
             <Link href="/admin/comunicacao/divulgacao" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/divulgacao"))} title={collapsed ? "Divulgação" : undefined}>
               {pathname.startsWith("/admin/comunicacao/divulgacao") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
               <Share2 className="size-5 shrink-0" />{!collapsed && <span>Divulgação</span>}
+            </Link>
+            <Link href="/admin/comunicacao/eventos" onClick={onNavigate} className={itemClass(pathname.startsWith("/admin/comunicacao/eventos"))} title={collapsed ? "Gestão de eventos" : undefined}>
+              {pathname.startsWith("/admin/comunicacao/eventos") && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
+              <CalendarDays className="size-5 shrink-0" />{!collapsed && <span>Gestão de eventos</span>}
             </Link>
           </>
         )}
