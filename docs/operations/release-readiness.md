@@ -49,7 +49,10 @@ Cada PR integrado passou por: `pnpm lint` (com orçamento de warnings), `pnpm ty
 Nenhuma destas foi feita pelo agente, por exigir acesso, custo ou autorização externos:
 
 1. **Alertas:** o destino escolhido é `germinatura@gmail.com`. Cadastrá-lo só como destinatário, sem guardar a senha dele em lugar nenhum do projeto: (a) nas notificações da conta Cloudflare, para os Workers `germinatura-portal-production`, `germinatura-pdv-production` e `germinatura-jobs-production`; (b) como membro da organização Supabase de produção, para receber os avisos de uso, saúde e backups; (c) nas notificações de falha dos workflows `deploy-production.yml` e `quality.yml`, pela conta GitHub que os dispara (Settings › Notifications › Actions) ou encaminhando-as a esse endereço. Outbox parada continua visível nas pendências de Indicadores e nos smokes; um alerta ativo para ela exige um serviço de envio de e-mail e fica para depois do primeiro deploy.
-2. **Carga:** um teste de carga em staging, com volume e janela combinados (não executado para não afetar o ambiente compartilhado).
+2. **Carga e estabilidade:** executadas em staging em 02/10/2026 (`docs/operations/stability-report.md`).
+   - A integridade foi aprovada, com 0 violações.
+   - Bloqueiam o Release Candidate duas decisões de plano: Workers pago da Cloudflare, porque o limite de CPU por requisição derruba as páginas renderizadas no servidor, e a capacidade do Supabase, por causa da degradação no soak.
+   - Depois delas, repetir A e D pelo job `load` do `Deploy Staging`.
 3. **Homologação física:** PDV nos dispositivos-alvo, maquininha e Área Pix, fechamento de caixa com contagem real. Cartão de benefício (V.A./V.R.) é cobrado na função Crédito da maquininha e registrado como Crédito no PDV (PAY-006); a flag `meal_voucher` fica desligada.
 4. **PicPay:** homologação do link de pagamento no sandbox (bloqueio externo). As credenciais de produção **não** foram usadas nem configuradas; a flag `payment_link` segue desligada, e o Worker `germinatura-jobs-production` será criado no primeiro deploy de produção sem os segredos do PicPay.
 5. **E-mail institucional:** homologar o SMTP de produção para códigos de cadastro e recuperação.
