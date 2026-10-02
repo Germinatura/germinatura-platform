@@ -184,7 +184,12 @@ export async function soak(context) {
   const samples = [];
   const sampler = (async () => {
     while (Date.now() < deadline) {
-      const [row] = await sql("select count(*) filter (where status = 'PENDING')::int as pending, count(*) filter (where status = 'PROCESSING')::int as processing, count(*) filter (where status = 'FAILED')::int as failed, coalesce(extract(epoch from now() - min(created_at) filter (where status = 'PENDING')), 0)::int as oldest_pending_seconds from public.outbox_events")
+      const [row] = await sql(`select count(*) filter (where status = 'PENDING')::int as pending, count(*) filter (where status = 'PROCESSING')::int as processing, count(*) filter (where status = 'FAILED')::int as failed, coalesce(extract(epoch from now() - min(created_at) filter (where status = 'PENDING')), 0)::int as oldest_pending_seconds,
+        (select count(*) from pg_stat_activity where datname = current_database() and state = 'active')::int as db_active,
+        (select count(*) from pg_stat_activity where datname = current_database())::int as db_connections,
+        (select count(*) from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock')::int as db_lock_waits,
+        (select coalesce(max(extract(epoch from now() - query_start)), 0)::int from pg_stat_activity where datname = current_database() and state = 'active' and pid <> pg_backend_pid()) as db_longest_active_seconds
+        from public.outbox_events`)
         .catch(() => [null]);
       samples.push({ minute: Math.floor((Date.now() - metrics.started) / 60000), ...(row ?? { error: true }) });
       await think(60000, 60000);
