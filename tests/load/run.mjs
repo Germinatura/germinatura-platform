@@ -8,7 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stagingTarget } from "./lib/guard.mjs";
 import { stagingSql } from "./lib/staging-sql.mjs";
-import { browsing, contention, operating, soak } from "./scenarios.mjs";
+import { browsing, contention, loginLog, operating, soak } from "./scenarios.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const option = (name, fallback) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.split("=")[1] ?? fallback;
@@ -31,7 +31,13 @@ async function main() {
   console.log(`Execução ${run}: preparando dados isolados…`);
   await sql(readFileSync(join(here, "fixtures.sql"), "utf8"));
   const [{ prepare: fixtures }] = await sql(`select loadtest.prepare('${run}', '${password.replaceAll("'", "''")}', 15, 70) as prepare`);
-  const context = { target, fixtures, password, sql, run };
+  // Direct Supabase Auth check for a refused login: tells a rate limit from a credential or profile problem.
+  const emails = new Map([...fixtures.consumers, ...fixtures.sellers, fixtures.admin].map((person) => [person.username, person.email]));
+  const diagnose = async (username) => target.publishableKey ? fetch(`${target.supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST", headers: { apikey: target.publishableKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: emails.get(username), password }),
+  }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).error_code ?? null })).catch(() => ({ status: 0 })) : null;
+  const context = { target, fixtures, password, sql, run, diagnose };
   await preflight(target, fixtures, password, sql);
   const results = { run, startedAt: new Date().toISOString(), stagingVersion: sha ?? null, scenarios: {} };
   const save = () => writeFileSync(join(output, "results.json"), JSON.stringify(results, null, 2));
@@ -41,13 +47,14 @@ async function main() {
     if (scenarios.includes("B")) { console.log("B — 15 vendedores no PDV…"); results.scenarios.B = await operating({ ...context, minutes: Number(option("minutes-b", 10)) }); save(); }
     if (scenarios.includes("C")) { console.log("C — concorrência controlada…"); results.scenarios.C = await contention(context); save(); }
     if (scenarios.includes("D")) { console.log("D — soak…"); results.scenarios.D = await soak({ ...context, minutes: Number(option("minutes-d", 30)) }); save(); }
+    results.logins = summarizeLogins();
     results.finalInvariants = (await sql(`select check_name, violations from loadtest.check('${run}')`)).map((row) => ({ check: row.check_name, violations: Number(row.violations) }));
   } finally {
     results.retired = await sql(`select loadtest.retire('${run}') as retired`).then(([row]) => row?.retired ?? null).catch((error) => ({ error: error.message }));
     results.finishedAt = new Date().toISOString();
     save();
   }
-  console.log(JSON.stringify(digest(results), null, 2));
+  console.log(JSON.stringify({ logins: { ...results.logins, timeline: undefined }, ...digest(results) }, null, 2));
   const violations = (results.finalInvariants ?? []).reduce((sum, row) => sum + row.violations, 0);
   if (violations > 0) process.exit(2);
 }
@@ -69,6 +76,15 @@ async function preflight(target, fixtures, password, sql) {
   }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).code ?? null }));
   console.log(`Preflight: perfil ${JSON.stringify(profile)}; Auth ${JSON.stringify(auth)}; Portal ${JSON.stringify(portal)}`);
   if (portal.status !== 200) throw new Error("Preflight: o login de carga falhou; veja os códigos acima.");
+}
+
+function summarizeLogins() {
+  const attempts = loginLog.attempts;
+  const refused = attempts.filter((attempt) => attempt.status !== 200);
+  return { attempts: attempts.length, succeeded: attempts.length - refused.length, refused: refused.length,
+    refusedStatuses: refused.reduce((counts, attempt) => ({ ...counts, [`${attempt.status}:${attempt.code}`]: (counts[`${attempt.status}:${attempt.code}`] ?? 0) + 1 }), {}),
+    firstRefusalAfter: refused.length ? attempts.findIndex((attempt) => attempt.status !== 200) : null,
+    diagnostics: loginLog.diagnostics, timeline: attempts };
 }
 
 // Compact view for the job log: per route counts and percentiles, per case outcome.

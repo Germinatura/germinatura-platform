@@ -1,12 +1,41 @@
 import { randomUUID } from "node:crypto";
 import { Metrics, trend } from "./lib/metrics.mjs";
-import { think, VirtualUser } from "./lib/client.mjs";
+import { sleep, think, VirtualUser } from "./lib/client.mjs";
 
 const contended = [409, 422];
 
-async function loggedIn(origin, metrics, username, password) {
-  const user = new VirtualUser(origin, metrics);
-  await user.login(username, password);
+// One session per user for the whole run (as a browser keeps it). Logins go through a single queue spaced by
+// LOGIN_SPACING_MS and retry with backoff, so the run measures how fast accounts can sign in instead of
+// aborting; every attempt is kept in loginLog, and the first refusal is diagnosed against Supabase Auth.
+const sessions = new Map();
+const LOGIN_SPACING_MS = 1000;
+let loginQueue = Promise.resolve();
+export const loginLog = { attempts: [], diagnostics: [] };
+
+async function signIn(user, username, password, diagnose) {
+  for (let attempt = 1; ; attempt += 1) {
+    const turn = loginQueue.then(() => sleep(LOGIN_SPACING_MS));
+    loginQueue = turn;
+    await turn;
+    const started = Date.now();
+    const result = await user.request("auth.login", "POST", "/api/auth/login", { body: { identifier: username, password } });
+    loginLog.attempts.push({ at: new Date(started).toISOString(), origin: user.origin, attempt, status: result.status, code: result.body?.code ?? null });
+    if (result.status === 200) return;
+    if (loginLog.diagnostics.length < 3 && diagnose) loginLog.diagnostics.push({ at: new Date().toISOString(), portal: { status: result.status, code: result.body?.code ?? null }, auth: await diagnose(username) });
+    if (attempt >= 8) throw new Error(`Login de carga recusado após ${attempt} tentativas (${result.status}).`);
+    await sleep(Math.min(60000, 5000 * 2 ** (attempt - 1)));
+  }
+}
+
+async function loggedIn(origin, metrics, username, password, diagnose) {
+  const key = `${origin}|${username}`;
+  let user = sessions.get(key);
+  if (!user) {
+    user = new VirtualUser(origin, null);
+    await signIn(user, username, password, diagnose);
+    sessions.set(key, user);
+  }
+  user.metrics = metrics;
   return user;
 }
 
@@ -15,14 +44,16 @@ async function untilDeadline(deadline, body) {
 }
 
 // A — consumers browsing: Início, catalog pages, events, promotions (quote), raffles and notifications.
-export async function browsing({ target, fixtures, password, users = 50, minutes = 10 }) {
+export async function browsing(context) {
+  const { target, fixtures, password, users = 50, minutes = 10 } = context;
   const metrics = new Metrics("A — navegação e leitura");
-  const deadline = Date.now() + minutes * 60000;
   const consumers = fixtures.consumers.slice(0, users);
   const coupon = fixtures.products.coupon;
-  await Promise.all(consumers.map(async (consumer, index) => {
+  const sessionsReady = await Promise.all(consumers.map((consumer) => loggedIn(target.portal, metrics, consumer.username, password, context.diagnose)));
+  const deadline = Date.now() + minutes * 60000;
+  metrics.started = Date.now();
+  await Promise.all(sessionsReady.map(async (user, index) => {
     await think(0, Math.min(10000, index * 200));
-    const user = await loggedIn(target.portal, metrics, consumer.username, password);
     await untilDeadline(deadline, async () => {
       await user.request("page /inicio", "GET", "/inicio");
       await user.request("api showcase", "GET", "/api/v1/showcase");
@@ -44,12 +75,14 @@ export async function browsing({ target, fixtures, password, users = 50, minutes
 
 // B — sellers operating the PDV (through the PDV host and its service binding): catalog, own stock, history,
 // pickups, raffles, shift and terminals. No external payment confirmation is simulated here.
-export async function operating({ target, fixtures, password, users = 15, minutes = 10 }) {
+export async function operating(context) {
+  const { target, fixtures, password, users = 15, minutes = 10 } = context;
   const metrics = new Metrics("B — operação autenticada do PDV");
+  const sellersReady = await Promise.all(fixtures.sellers.slice(0, users).map((seller) => loggedIn(target.pdv, metrics, seller.username, password, context.diagnose)));
   const deadline = Date.now() + minutes * 60000;
-  await Promise.all(fixtures.sellers.slice(0, users).map(async (seller, index) => {
+  metrics.started = Date.now();
+  await Promise.all(sellersReady.map(async (user, index) => {
     await think(0, index * 300);
-    const user = await loggedIn(target.pdv, metrics, seller.username, password);
     await untilDeadline(deadline, async () => {
       await user.request("pdv page /", "GET", "/");
       await user.request("pdv catalog", "GET", "/api/v1/catalog/products?limit=50");
@@ -69,16 +102,17 @@ export async function operating({ target, fixtures, password, users = 15, minute
 }
 
 // C — controlled contention on the run's own products. Each case reports what won and the invariants after it.
-export async function contention({ target, fixtures, password, sql, run }) {
+export async function contention(context) {
+  const { target, fixtures, password, sql, run } = context;
   const metrics = new Metrics("C — concorrência transacional");
   const cases = [];
   const check = async () => (await sql(`select check_name, violations from loadtest.check('${run}')`)).map((row) => ({ check: row.check_name, violations: Number(row.violations) }));
-  const consumers = await Promise.all(fixtures.consumers.slice(0, 20).map((consumer) => loggedIn(target.portal, metrics, consumer.username, password)));
+  const consumers = await Promise.all(fixtures.consumers.slice(0, 20).map((consumer) => loggedIn(target.portal, metrics, consumer.username, password, context.diagnose)));
   const [s1, s2, s3] = fixtures.sellers;
-  const seller1 = await loggedIn(target.pdv, metrics, s1.username, password);
-  const seller2 = await loggedIn(target.pdv, metrics, s2.username, password);
-  const seller3 = await loggedIn(target.pdv, metrics, s3.username, password);
-  const admin = await loggedIn(target.pdv, metrics, fixtures.admin.username, password);
+  const seller1 = await loggedIn(target.pdv, metrics, s1.username, password, context.diagnose);
+  const seller2 = await loggedIn(target.pdv, metrics, s2.username, password, context.diagnose);
+  const seller3 = await loggedIn(target.pdv, metrics, s3.username, password, context.diagnose);
+  const admin = await loggedIn(target.pdv, metrics, fixtures.admin.username, password, context.diagnose);
   const key = (tag) => `load-${run}-${tag}-${randomUUID()}`;
   const record = async (name, expectation, results, winners, extra = {}) => {
     cases.push({ name, expectation, attempts: results.length, successes: winners, statuses: tally(results), ...extra, invariants: await check() });
@@ -138,9 +172,13 @@ export async function contention({ target, fixtures, password, sql, run }) {
 }
 
 // D — moderate soak: readers plus a steady trickle of real sales (checkout + Área Pix) and reservation cycles.
-export async function soak({ target, fixtures, password, sql, run, minutes = 30, readers = 20, sellers = 5 }) {
+export async function soak(context) {
+  const { target, fixtures, password, sql, run, minutes = 30, readers = 20, sellers = 5 } = context;
   const metrics = new Metrics("D — soak");
+  const readerSessions = await Promise.all(fixtures.consumers.slice(20, 20 + readers).map((consumer) => loggedIn(target.portal, metrics, consumer.username, password, context.diagnose)));
+  const sellerSessions = await Promise.all(fixtures.sellers.slice(5, 5 + sellers).map((seller) => loggedIn(target.pdv, metrics, seller.username, password, context.diagnose)));
   const deadline = Date.now() + minutes * 60000;
+  metrics.started = Date.now();
   const samples = [];
   const sampler = (async () => {
     while (Date.now() < deadline) {
@@ -150,9 +188,8 @@ export async function soak({ target, fixtures, password, sql, run, minutes = 30,
       await think(60000, 60000);
     }
   })();
-  const reading = Promise.all(fixtures.consumers.slice(20, 20 + readers).map(async (consumer, index) => {
+  const reading = Promise.all(readerSessions.map(async (user, index) => {
     await think(0, index * 300);
-    const user = await loggedIn(target.portal, metrics, consumer.username, password);
     let cycle = 0;
     await untilDeadline(deadline, async () => {
       cycle += 1;
@@ -169,9 +206,10 @@ export async function soak({ target, fixtures, password, sql, run, minutes = 30,
       await think(3000, 6000);
     });
   }));
-  const selling = Promise.all(fixtures.sellers.slice(5, 5 + sellers).map(async (seller, index) => {
+  const sellingSellers = fixtures.sellers.slice(5, 5 + sellers);
+  const selling = Promise.all(sellerSessions.map(async (user, index) => {
+    const seller = sellingSellers[index];
     await think(0, index * 1000);
-    const user = await loggedIn(target.pdv, metrics, seller.username, password);
     await untilDeadline(deadline, async () => {
       const sale = await user.request("soak checkout", "POST", "/api/v1/sales/checkout",
         { body: { channel: "PDV", locationId: seller.locationId, items: [{ productId: fixtures.products.volume_b, quantity: 1 }] }, headers: { "Idempotency-Key": `load-${run}-soak-sale-${randomUUID()}` }, expected: contended });
