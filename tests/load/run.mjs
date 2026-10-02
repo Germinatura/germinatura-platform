@@ -32,6 +32,7 @@ async function main() {
   await sql(readFileSync(join(here, "fixtures.sql"), "utf8"));
   const [{ prepare: fixtures }] = await sql(`select loadtest.prepare('${run}', '${password.replaceAll("'", "''")}', 15, 70) as prepare`);
   const context = { target, fixtures, password, sql, run };
+  await preflight(target, fixtures, password, sql);
   const results = { run, startedAt: new Date().toISOString(), stagingVersion: sha ?? null, scenarios: {} };
   const save = () => writeFileSync(join(output, "results.json"), JSON.stringify(results, null, 2));
 
@@ -49,6 +50,25 @@ async function main() {
   console.log(JSON.stringify(digest(results), null, 2));
   const violations = (results.finalInvariants ?? []).reduce((sum, row) => sum + row.violations, 0);
   if (violations > 0) process.exit(2);
+}
+
+// One user before the load: Supabase Auth directly, then the Portal login, with only statuses and error codes.
+async function preflight(target, fixtures, password, sql) {
+  const consumer = fixtures.consumers[0];
+  const [profile] = await sql(`select profile.active, profile.onboarding_completed_at is not null as onboarded, profile.username,
+    users.email_confirmed_at is not null as confirmed, left(users.encrypted_password, 4) as hash_prefix,
+    (select count(*) from auth.identities identity where identity.user_id = users.id)::int as identities
+    from public.profiles profile join auth.users users on users.id = profile.id where profile.id = '${consumer.id}'`);
+  const auth = target.publishableKey ? await fetch(`${target.supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST", headers: { apikey: target.publishableKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: consumer.email, password }),
+  }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).error_code ?? null })) : null;
+  const portal = await fetch(`${target.portal}/api/auth/login`, {
+    method: "POST", headers: { Origin: target.portal, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier: consumer.username, password }),
+  }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).code ?? null }));
+  console.log(`Preflight: perfil ${JSON.stringify(profile)}; Auth ${JSON.stringify(auth)}; Portal ${JSON.stringify(portal)}`);
+  if (portal.status !== 200) throw new Error("Preflight: o login de carga falhou; veja os códigos acima.");
 }
 
 // Compact view for the job log: per route counts and percentiles, per case outcome.

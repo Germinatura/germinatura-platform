@@ -26,5 +26,5 @@ export function stagingTarget(env = process.env) {
   if (!supabaseUrl || new URL(supabaseUrl).hostname !== `${projectRef}.supabase.co`) throw new Error("A URL do Supabase não corresponde ao projeto de staging informado.");
   if (env.LOAD_PRODUCTION_SUPABASE_PROJECT_ID && env.LOAD_PRODUCTION_SUPABASE_PROJECT_ID === projectRef) throw new Error("O projeto informado é o de produção.");
   if (!env.LOAD_SUPABASE_ACCESS_TOKEN) throw new Error("Credencial de gestão do Supabase ausente.");
-  return { ...urls, projectRef, supabaseUrl, accessToken: env.LOAD_SUPABASE_ACCESS_TOKEN };
+  return { ...urls, projectRef, supabaseUrl, accessToken: env.LOAD_SUPABASE_ACCESS_TOKEN, publishableKey: env.LOAD_SUPABASE_PUBLISHABLE_KEY ?? null };
 }
