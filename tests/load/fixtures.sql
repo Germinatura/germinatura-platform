@@ -100,7 +100,8 @@ begin
   end loop;
   for i in 1 .. p_consumers loop
     v_user := loadtest.person(p_run, 'c' || lpad(i::text, 2, '0'), p_password);
-    v_consumers := v_consumers || jsonb_build_object('id', v_user, 'username', 'load' || p_run || 'c' || lpad(i::text, 2, '0'));
+    v_consumers := v_consumers || jsonb_build_object('id', v_user, 'username', 'load' || p_run || 'c' || lpad(i::text, 2, '0'),
+      'email', 'load.' || p_run || '.c' || lpad(i::text, 2, '0') || '@institutojef.org.br');
   end loop;
   return jsonb_build_object('admin', jsonb_build_object('id', v_admin, 'username', 'load' || p_run || 'admin'), 'central', v_central,
     'category', v_category, 'products', v_products, 'raffle', v_raffle, 'coupon', upper('CARGA' || p_run), 'terminal', v_terminal,
