@@ -14,6 +14,8 @@
   "env": {
     "staging": {
       "name": "germinatura-pdv-staging",
+      // Session resolution timings in the tail (docs/operations/stability-report.md); never in production.
+      "vars": { "AUTH_TIMING_LOG": "1" },
       "services": [{ "binding": "PORTAL_API", "service": "germinatura-portal-staging" }],
       "workers_dev": true,
       "images": { "binding": "IMAGES" },

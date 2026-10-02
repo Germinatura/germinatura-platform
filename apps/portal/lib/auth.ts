@@ -1,80 +1,19 @@
-import { hasPermission, primaryRole } from "@germinatura/auth";
-import { appRoleSchema, type AppRole, type Permission, type SessionUser } from "@germinatura/contracts";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { hasPermission } from "@germinatura/auth";
+import type { Permission, SessionUser } from "@germinatura/contracts";
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { resolveSupabaseSession, type SupabaseSession } from "@/lib/session-resolution";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const sessionRpcSchema = z.object({
-  auth_id: z.string().uuid(),
-  email: z.string().email(),
-  display_name: z.string().nullable(),
-  username: z.string().nullable(),
-  avatar_path: z.string().nullable(),
-  active: z.boolean(),
-  onboarding_completed: z.boolean(),
-  roles: z.array(appRoleSchema),
-});
-
-export interface SupabaseSession {
-  user: {
-    id: string;
-    authId: string;
-    email: string;
-    perfil: AppRole;
-    nome: string;
-    username: string | null;
-    avatarPath: string | null;
-    roles: AppRole[];
-    active: true;
-    onboardingCompleted: boolean;
-    needsPasswordReset: false;
-  };
-}
+export type { SupabaseSession };
 
 export class AuthorizationError extends Error {
   constructor(public readonly status: 401 | 403, message: string) {
     super(message);
     this.name = "AuthorizationError";
   }
-}
-
-async function resolveSession(client: SupabaseClient, accessToken?: string): Promise<SupabaseSession | null> {
-  const { data: userData, error: userError } = await client.auth.getUser(accessToken);
-  if (userError || !userData.user?.email) return null;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  const rpcClient = accessToken && url && publishableKey
-    ? createClient(url, publishableKey, {
-        auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
-      })
-    : client;
-  const { data, error } = await rpcClient.rpc("get_my_session");
-  if (error || !data) return null;
-  const parsed = sessionRpcSchema.safeParse(data);
-  if (!parsed.success || !parsed.data.active) return null;
-
-  const roles = parsed.data.roles.length > 0 ? parsed.data.roles : ["CONSUMIDOR" as const];
-  const perfil = primaryRole(roles);
-  return {
-    user: {
-      id: parsed.data.auth_id,
-      authId: parsed.data.auth_id,
-      email: parsed.data.email,
-      perfil,
-      nome: parsed.data.display_name ?? parsed.data.email,
-      username: parsed.data.username,
-      avatarPath: parsed.data.avatar_path,
-      roles,
-      active: true,
-      onboardingCompleted: parsed.data.onboarding_completed,
-      needsPasswordReset: false,
-    },
-  };
 }
 
 export async function getSession(): Promise<SupabaseSession | null> {
@@ -88,9 +27,9 @@ export async function getSession(): Promise<SupabaseSession | null> {
         auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
         global: { headers: { Authorization: authorization } },
       });
-      return await resolveSession(client, accessToken);
+      return await resolveSupabaseSession(client, accessToken, "route");
     }
-    return await resolveSession(await createSupabaseServerClient());
+    return await resolveSupabaseSession(await createSupabaseServerClient(), undefined, "route");
   } catch {
     return null;
   }
@@ -128,7 +67,7 @@ export async function loginLocalFixture(credentials: { email: string; password: 
   const client = await createSupabaseServerClient();
   const { data, error } = await client.auth.signInWithPassword(credentials);
   if (error) throw new AuthorizationError(401, "Credenciais locais inválidas");
-  const session = await resolveSession(client, data.session?.access_token);
+  const session = await resolveSupabaseSession(client, data.session?.access_token, "login");
   if (!session) throw new AuthorizationError(401, "Perfil local indisponível");
   return session;
 }
@@ -152,7 +91,7 @@ export async function updateSession(request: NextRequest) {
       auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
       global: { headers: { Authorization: authorization } },
     });
-    return { response, session: await resolveSession(client, accessToken), client };
+    return { response, session: await resolveSupabaseSession(client, accessToken, "proxy"), client };
   }
 
   const client = createServerClient(url, publishableKey, {
@@ -165,5 +104,5 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
-  return { response, session: await resolveSession(client), client };
+  return { response, session: await resolveSupabaseSession(client, undefined, "proxy"), client };
 }
