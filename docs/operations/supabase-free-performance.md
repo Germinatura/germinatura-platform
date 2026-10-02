@@ -49,3 +49,49 @@ No banco local, nenhuma RPC transacional tem N+1 nem chama pricing duas vezes: o
 | 4 — leituras e jobs (se necessário) | Leitura de flags junto da consulta principal, frequência das RPCs do Worker de jobs. | Menos idas ao banco por leitura |
 
 Depois das PRs relevantes integradas: uma rodada D de 10 min. Se ela ficar estável, D de 30 min. Se houver de novo uma parada global, a rodada para, e o relatório traz a capacidade medida, sem propor plano pago.
+
+## Resultado (2026-10-02, `develop` `61dd7f1`, PRs 1 a 3 integradas)
+
+**D de 10 min** ([run 37072188193](https://github.com/Germinatura/germinatura-platform/actions/runs/37072188193)) — estável:
+
+- 10.593 requisições, nenhuma falha (nenhum 5xx, timeout ou erro de rede), ~17 req/s.
+- p95 por minuto das leituras ficou entre 144 e 208 ms. Em 8 das 9 rotas o p95 caiu ao longo da rodada; na vitrine ficou estável (+0,4 ms/min).
+- Outbox drenando: no máximo 279 pendentes, o mais antigo com 78 s, nenhum em processamento.
+- Nenhuma espera de lock; nenhum Worker excedeu CPU ou memória.
+- `get_my_session` agora vai ao banco 1 vez por requisição autenticada: a rota reaproveitou o contexto do proxy em 3.023 de 3.044 requisições.
+
+**D de 30 min** ([run 37073377077](https://github.com/Germinatura/germinatura-platform/actions/runs/37073377077), início 22:37 UTC) — não estabilizou:
+
+- **Minutos 0 a 16 (22:37–22:53 UTC):** ~16 req/s; p95 das leituras entre 220 e 480 ms; um pico breve nos min 3 e 13.
+- **Minutos 18 a 28 (22:55–23:06 UTC):** parada geral e intermitente do banco.
+  - Todas as rotas foram afetadas, inclusive as leituras simples, com p95 de até 30 s (o timeout do harness) e vazão média de 9,4 req/s.
+  - `get_my_session` chegou a 49 s no proxy (p99 10 s).
+  - A própria amostragem pela API de gestão do Supabase falhou nos min 19, 23 e 28.
+  - Mesmo durante a parada, no máximo 3 esperas de lock e no máximo 13 conexões ativas.
+- **Minuto 29:** recuperação completa, com p95 voltando aos valores iniciais.
+- **No total:** 24.307 requisições.
+  - 0,6% falharam: 44 respostas 503 de indisponibilidade das rotas, 60 timeouts e 2 respostas 401, ambas quando a sessão não pôde ser resolvida no prazo.
+  - Os Workers não excederam CPU nem memória.
+- **Invariantes finais: 0 violações nas 8 verificações:**
+  - estoque negativo ou reservado além do saldo;
+  - unidade disputada consumida duas vezes;
+  - número de rifa com dois donos;
+  - venda com mais de um pagamento confirmado;
+  - pagamento lançado duas vezes no ledger;
+  - chave de idempotência com dois resultados;
+  - cupom usado além do limite global;
+  - evento da outbox preso em processamento.
+
+**Leitura:**
+
+- A degradação atinge o banco inteiro ao mesmo tempo, sem fila de locks nem excesso de conexões. Com PRs 1 a 3, o custo por requisição caiu:
+  - a primeira parada passou do minuto 8 da rodada anterior para o minuto 18;
+  - a rodada de 10 min passou inteira.
+- O padrão (estável por um período de carga sustentada, parada generalizada e recuperação sem intervenção) é compatível com o esgotamento de um limite de recurso da instância Free (CPU ou E/S com crédito de burst), e não com uma consulta específica. A confirmação depende das métricas do projeto de staging na janela 22:55–23:06 UTC.
+
+**Capacidade medida no Supabase Free com o código atual:**
+
+- ~16 req/s na mistura do cenário D (leituras autenticadas, reservas, checkout e confirmação Pix) por ~17 min seguidos, com p95 das leituras abaixo de 0,5 s.
+- Acima dessa duração em carga contínua, o banco entra em paradas intermitentes de até ~30 s. Não há perda de consistência e há recuperação espontânea.
+- A rodada D de 30 min continua reprovada, e o `release-readiness.md` não muda.
+- A PR 4 (flags e frequência do Worker de jobs) reduz idas ao banco em poucos pontos por cento. Ela não muda o perfil acima e fica sem prioridade até a análise das métricas.
