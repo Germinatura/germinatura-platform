@@ -4,6 +4,7 @@ Homologação de 02/10/2026, feita antes do congelamento do Release Candidate. *
 - Faltam duas decisões do responsável, ambas de plano e custo de infraestrutura (seção "Conclusão de prontidão").
 - Nada foi promovido para `main` e nada rodou contra produção.
 - **Atualização (02/10/2026, tarde):** com o Workers Paid contratado, A passou sem nenhum 503 de CPU, mas o soak continua degradando. Veja "Workers Paid — rodada de validação" no fim. As seções anteriores a ela registram as rodadas no plano gratuito e ficam para comparação.
+- **Atualização (02/10/2026, noite):** depois da #152, a resolução de sessão não chama mais o Supabase Auth. O soak de 10 min ficou estável até o minuto 7 e travou nos minutos 8 e 9, numa parada do banco que atingiu todas as rotas ao mesmo tempo. Veja "Otimização da resolução de sessão — soak de 10 min" no fim.
 
 ## Identificação
 
@@ -319,3 +320,136 @@ Observações que orientam a análise, sem confirmar a causa:
 
 - O bloqueio da Cloudflare foi resolvido: o limite de CPU e memória não aparece mais e A passa nos critérios.
 - O Release Candidate continua bloqueado pela degradação no soak. O próximo passo é a análise do Supabase e da autenticação descrita acima, antes de decidir entre otimização (por exemplo, validar o JWT localmente no lugar de `auth.getUser`) e capacidade do Supabase. Nenhuma das duas foi feita nesta rodada.
+
+## Otimização da resolução de sessão — soak de 10 min
+
+Rodada de 02/10/2026, à noite, depois da #152, que removeu as chamadas ao Supabase Auth da resolução de sessão sem mudar autorização nem segurança. Como combinado, só D, por 10 min. O soak apresentou degradação clara no fim, então a rodada de 30 min **não** foi feita e nenhuma capacidade foi contratada.
+
+### Identificação
+
+| | |
+| --- | --- |
+| SHA | `79bcc09` (#152), depois de Quality pós-merge, Deploy Staging e smokes verdes |
+| Carga | Rodada 37047189386: `gh workflow run deploy-staging.yml --ref develop -f load_scenarios=D -f load_minutes=10,10,10` |
+| Observação | Tail do Portal, do PDV e do Worker de jobs (#151); outbox e banco amostrados por minuto; tempos de resolução de sessão no tail (`AUTH_TIMING_LOG=1`, só em staging) |
+| Fora do escopo | A não foi repetido; nenhum e-mail enviado, nenhuma chamada ao PicPay, `payment_link` desligada |
+| Invariantes | **0 violações** nas 8 conferências finais; logins 25 de 25 |
+
+### Chamadas de autenticação por requisição
+
+| Requisição | Antes: `auth.getUser` (Auth) | Antes: `get_my_session` | Depois: chamadas ao Auth | Depois: `get_my_session` |
+| --- | --- | --- | --- | --- |
+| API autenticada do Portal (proxy + rota) | 2 | 2 | **0** (assinatura ES256 conferida localmente) | 2 |
+| API do PDV (encaminhada ao Portal pelo service binding) | 2 | 2 | **0** | 2 |
+| Página autenticada do Portal | 2 | 2 | **0** | 2 |
+| Página do PDV | 1 | 1 | **0** | 1 |
+
+- Cada `getUser` era uma ida HTTP ao Supabase Auth, que também consulta o usuário e a sessão no mesmo banco.
+- `get_my_session` passou a recusar uma sessão encerrada (logout, "Sessões ativas"), como o Auth fazia. Os tokens alterados, expirados ou assinados por outra chave continuam recusados.
+- O tail confirma o comportamento:
+  - 2.327 requisições do Portal tiveram 2 resoluções (proxy e rota) e 497 tiveram 1 (a API pública de catálogo, resolvida só no proxy);
+  - a verificação do token levou 0 ms na mediana, com máximo de 609 ms quando um isolate novo busca as chaves públicas;
+  - não houve nenhum 401 inesperado (eram 4 na rodada anterior) nem erro do Auth.
+- O tail do PDV não registra resoluções, porque as APIs dele são encaminhadas ao Portal e o soak não abre páginas do PDV.
+
+| Resolução (tail do Portal) | Qtde. | `get_my_session` p50 | p95 | p99 | máx. |
+| --- | --- | --- | --- | --- | --- |
+| no proxy | 2.802 | 86 ms | 272 ms | 2.384 ms | 13.361 ms |
+| na rota | 2.327 | 81 ms | 149 ms | 1.349 ms | 18.452 ms |
+
+### D — 10 min
+
+| Rota ou mutação | Req. | OK | 5xx | Rede | p50 | p95 | p99 | Inclinação do p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| vitrine | 1.864 | 1.864 | 0 | 0 | 306 | 1.192 | 6.389 | +981 ms/min |
+| catálogo | 1.864 | 1.864 | 0 | 0 | 307 | 519 | 2.449 | +639 ms/min |
+| eventos | 1.864 | 1.864 | 0 | 0 | 341 | 486 | 1.174 | +69 ms/min |
+| notificações | 1.864 | 1.864 | 0 | 0 | 267 | 400 | 1.134 | +62 ms/min |
+| minhas vendas (PDV) | 133 | 133 | 0 | 0 | 339 | 5.546 | 11.944 | +1.360 ms/min |
+| checkout (PDV) | 133 | 131 | 2 | 0 | 485 | 3.700 | 21.318 | +1.058 ms/min |
+| confirmação Área Pix | 131 | 129 | 2 | 0 | 459 | 4.521 | 10.760 | +1.069 ms/min |
+| criar reserva | 300 | 299 | 1 | 0 | 427 | 2.674 | 4.610 | +1.817 ms/min |
+| cancelar reserva | 299 | 297 | 2 | 0 | 323 | 2.085 | 7.307 | +1.272 ms/min |
+
+- Total: 8.452 requisições, 7 respostas 5xx (todas 503 da aplicação nos minutos 9 e 10), **0 erros de rede e 0 tempos-limite**.
+- Vazão por rota de leitura: 2,88 req/s, contra 1,19 req/s no soak anterior. O harness espera cada resposta antes de enviar a próxima, então a vazão maior reflete respostas mais rápidas.
+
+#### p95 por minuto (ms)
+
+| Rota | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| vitrine | 3.204 | 388 | 367 | 366 | 400 | 351 | 353 | 418 | 1.910 | **19.978** |
+| catálogo | 701 | 384 | 370 | 346 | 363 | 364 | 390 | 399 | 844 | **12.027** |
+| notificações | 1.028 | 316 | 300 | 294 | 307 | 291 | 297 | 327 | 533 | 1.988 |
+| checkout | 1.477 | 1.240 | 746 | 1.317 | 1.204 | 701 | 654 | 1.513 | 4.764 | **22.267** |
+| criar reserva | 589 | 814 | 693 | 573 | 781 | 612 | 552 | 2.674 | 4.610 | **29.871** |
+
+O minuto 0 inclui o aquecimento dos isolates.
+
+**O comportamento não é um crescimento contínuo.** Do minuto 1 ao 7, as leituras ficaram estáveis entre 0,3 e 0,45 s e as mutações entre 0,5 e 1,5 s. Nos minutos 8 e 9, todas as rotas travaram juntas. A inclinação positiva vem desse degrau final.
+
+#### Outbox e banco
+
+| Medida | Soak de 10 min (depois) | Soak de 30 min anterior (antes) |
+| --- | --- | --- |
+| Outbox pendente | 0 a 124 até o minuto 8; 263 no minuto 9 | 0 a 234 |
+| Evento pendente mais antigo | 18 a 39 s até o minuto 8; 103 s no minuto 9 | até 273 s |
+| Presos em `PROCESSING` / `FAILED` | 0 / 0 | 0 / 0 |
+| Conexões PostgreSQL | 9 a 16 | 22 a 27 |
+| Consultas ativas | 1 a 7 | até 11 |
+| Esperas por lock | 0, exceto 2 no minuto 8 | até 5 |
+| Consulta ativa mais longa | ~0 s nas amostras | até 19 s |
+
+- O Worker de jobs rodou o cron 11 vezes, todas `ok`, sem exceção nem limite.
+- A outbox só acumulou durante a parada final.
+
+#### Cloudflare
+
+| Worker | Eventos no tail | Resultado | `exceededCpu` / `exceededMemory` / subrequisições | Exceções |
+| --- | --- | --- | --- | --- |
+| Portal | 2.824 | todos `ok` | 0 / 0 / 0 | nenhuma |
+| PDV | 403 | todos `ok` | 0 / 0 / 0 | nenhuma |
+| jobs | 11 (cron) | todos `ok` | 0 / 0 / 0 | nenhuma |
+
+### Comparação com a rodada anterior
+
+As janelas são diferentes: 10 min agora, 30 min antes, logo depois de A. A comparação vale para a ordem de grandeza.
+
+| Medida | Antes (Workers Paid, 30 min) | Depois da #152 (10 min) |
+| --- | --- | --- |
+| Chamadas ao Supabase Auth por requisição autenticada | 2 | 0 |
+| Erros de rede / tempos-limite | 307 | **0** |
+| 5xx | 120 | 7 |
+| 401 inesperados (falha ao resolver a sessão) | 4 | 0 |
+| p95 da vitrine / catálogo | 30,0 s / 17,6 s | 1,19 s / 0,52 s |
+| p95 do checkout / criar reserva | 30,0 s / 24,0 s | 3,7 s / 2,7 s |
+| Vazão por rota de leitura | 1,19 req/s | 2,88 req/s |
+| Inclinação do p95 | +70 a +325 ms/min, crescimento contínuo | estável até o minuto 7, degrau nos minutos 8 e 9 |
+
+### Gargalo restante (para análise; nada foi alterado)
+
+No fim do soak, o banco de staging parou de forma geral. Isso não parece disputa de aplicação:
+- `get_my_session`, uma consulta por chave primária que não toca estoque, chegou a 13 e 18 s na mesma janela em que o checkout e as reservas chegaram a 20–30 s.
+- A própria amostra do banco, que entra pela API de gestão do Supabase e não pelo Worker, atrasou ~11 s no minuto 9. É o valor negativo da "consulta mais longa": a amostra começou 11 s antes de conseguir ler `pg_stat_activity`.
+- As amostras não mostram fila de consultas, esperas por lock relevantes (no máximo 2) nem consultas longas, e as conexões ficaram em 16.
+- O Cloudflare ficou limpo nos três Workers, e o Auth não está mais no caminho.
+
+A hipótese mais provável é **limite de recursos da instância do Supabase de staging** (CPU, E/S ou crédito de burst esgotado após alguns minutos de escrita contínua), ou o pool de conexões dela. A aplicação e a autenticação não explicam o padrão. Para confirmar:
+- olhar as métricas do projeto Supabase de staging entre 18:33 e 18:36 UTC de 02/10/2026 (CPU, E/S de disco, saldo de burst, memória, conexões do PostgREST e do pooler);
+- conferir em `pg_stat_statements` se alguma consulta concentrou tempo nesse intervalo.
+
+Nada disso foi feito nesta rodada: a carga parou no soak de 10 min, sem a rodada de 30 min e sem compra de capacidade.
+
+### Critérios de aceite — depois da #152
+
+| Critério | Resultado |
+| --- | --- |
+| 0 violações de integridade | **Atendido** |
+| 0 duplicação financeira ou de estoque | **Atendido** |
+| 0 5xx nas jornadas normais | **Não atendido**: 7, todos durante a parada do banco |
+| p95 de leitura pública < 1,5 s | **Atendido** no total da rodada: 0,40 a 1,19 s |
+| p95 de mutações normais < 2,5 s | **Atendido do minuto 1 ao 7; não atendido na rodada**: 2,1 a 4,5 s no total, por causa da parada |
+| Sem tendência crescente de latência no soak | **Não atendido**: degrau nos minutos 8 e 9 |
+| Outbox drenando normalmente | **Atendido**, com acúmulo só durante a parada |
+
+`release-readiness.md` não mudou: o bloqueio de carga continua até a causa da parada do banco ser confirmada.
