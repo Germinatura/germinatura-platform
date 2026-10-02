@@ -92,7 +92,8 @@ function digest(results) {
   return Object.fromEntries(Object.entries(results.scenarios).map(([name, scenario]) => [name, {
     durationSeconds: scenario.durationSeconds,
     routes: scenario.routes.map((route) => `${route.label}: ${route.requests} req, ok ${route.ok}, 4xx esperado ${route.expected4xx}, 4xx ${route.unexpected4xx}, 5xx ${route.server5xx}, rede ${route.network}, p50 ${route.p50} p95 ${route.p95} p99 ${route.p99} ms, ${route.throughputPerSecond}/s`),
-    ...(scenario.cases ? { cases: scenario.cases.map((item) => `${item.name}: ${item.successes} sucesso(s) de ${item.attempts} (${item.expectation}); violações ${item.invariants.reduce((sum, row) => sum + row.violations, 0)}`) } : {}),
+    failures: scenario.routes.filter((route) => route.samples?.length).map((route) => ({ route: route.label, samples: route.samples })),
+    ...(scenario.cases ? { cases: scenario.cases.map((item) => `${item.name}: ${item.successes} sucesso(s) de ${item.attempts} (${item.expectation}); violações ${item.invariants.reduce((sum, row) => sum + row.violations, 0)}${item.redemptions !== undefined ? `; resgates ${item.redemptions} de ${item.reservations} reservas` : ""}`) } : {}),
     ...(scenario.trends ? { trends: scenario.trends, outbox: scenario.outbox } : {}),
   }]));
 }

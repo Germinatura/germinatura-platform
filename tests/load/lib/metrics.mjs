@@ -9,13 +9,15 @@ export class Metrics {
 
   route(label) {
     if (!this.routes.has(label)) {
-      this.routes.set(label, { label, requests: 0, ok: 0, expected4xx: 0, unexpected4xx: 0, server5xx: 0, network: 0, latencies: [], minutes: new Map() });
+      this.routes.set(label, { label, requests: 0, ok: 0, expected4xx: 0, unexpected4xx: 0, server5xx: 0, network: 0, latencies: [], minutes: new Map(), samples: [] });
     }
     return this.routes.get(label);
   }
 
-  record(label, status, elapsedMs, expected = []) {
+  record(label, status, elapsedMs, expected = [], sample = null) {
     const route = this.route(label);
+    // A few raw failures per route, to tell platform limits from application errors.
+    if (sample && (status === 0 || status >= 500 || (status >= 400 && !expected.includes(status))) && route.samples.length < 3) route.samples.push({ status, ...sample });
     route.requests += 1;
     route.latencies.push(elapsedMs);
     if (status === 0) route.network += 1;
@@ -51,6 +53,7 @@ export class Metrics {
       p99: percentile(route.latencies, 99),
       max: route.latencies.length ? Math.max(...route.latencies) : null,
       throughputPerSecond: round(route.requests / Math.max(durationSeconds, 1)),
+      samples: route.samples,
       minutes: [...route.minutes.entries()].sort(([left], [right]) => left - right)
         .map(([minute, bucket]) => ({ minute, requests: bucket.latencies.length, p95: percentile(bucket.latencies, 95), errors: bucket.errors })),
     }));

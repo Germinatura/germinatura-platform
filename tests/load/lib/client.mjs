@@ -28,6 +28,7 @@ export class VirtualUser {
     const started = performance.now();
     let status = 0;
     let payload = null;
+    let sample = null;
     try {
       const response = await fetch(`${this.origin}${path}`, {
         method,
@@ -39,13 +40,15 @@ export class VirtualUser {
       status = response.status;
       this.keepCookies(response);
       const text = await response.text();
+      if (status >= 400) sample = { ray: response.headers.get("cf-ray"), contentType: response.headers.get("content-type"), body: text.replace(/s+/g, " ").slice(0, 300) };
       if ((response.headers.get("content-type") ?? "").includes("application/json")) {
         try { payload = JSON.parse(text); } catch { payload = null; }
       }
-    } catch {
+    } catch (error) {
       status = 0;
+      sample = { error: error instanceof Error ? error.name : "error" };
     }
-    this.metrics?.record(label, status, performance.now() - started, expected);
+    this.metrics?.record(label, status, performance.now() - started, expected, sample);
     return { status, body: payload };
   }
 

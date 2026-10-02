@@ -135,6 +135,7 @@ create or replace function loadtest.check(p_run text) returns table (check_name 
   union all
   select 'coupon redeemed over its global limit', greatest(0, count(*) - 5) from public.promotion_redemptions redemption
     join public.promotions promotion on promotion.id = redemption.promotion_id where promotion.code = upper('CARGA' || p_run)
+      and redemption.status in ('RESERVED', 'CONSUMED')
   union all
   select 'outbox stuck in processing for more than 10 minutes', count(*) from public.outbox_events
     where status = 'PROCESSING' and locked_at < now() - interval '10 minutes';

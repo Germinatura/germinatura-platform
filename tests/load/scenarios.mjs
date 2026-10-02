@@ -61,7 +61,7 @@ export async function browsing(context) {
       await user.request("page /catalogo", "GET", "/catalogo");
       const first = await user.request("api catalog p1", "GET", "/api/v1/catalog/products?limit=24");
       if (first.body?.nextCursor) await user.request("api catalog p2", "GET", `/api/v1/catalog/products?limit=24&cursor=${first.body.nextCursor}`);
-      await user.request("api pricing quote", "POST", "/api/v1/pricing/quote", { body: { channel: "RESERVA", items: [{ productId: coupon, quantity: 2 }] } });
+      await user.request("api pricing quote", "POST", "/api/v1/pricing/quote", { body: { channel: "PORTAL", items: [{ productId: coupon, quantity: 2 }] } });
       await think(1000, 3000);
       await user.request("api events", "GET", "/api/v1/events");
       await user.request("page /eventos", "GET", "/eventos");
@@ -165,8 +165,10 @@ export async function contention(context) {
   // 7. Coupon with a global limit of 5, fifteen reservations at once.
   const coupon = await Promise.all(consumers.slice(0, 15).map((user) => user.request("C7 coupon at the limit", "POST", "/api/v1/reservations",
     { body: { couponCode: fixtures.coupon, items: [{ productId: fixtures.products.coupon, quantity: 1 }] }, headers: { "Idempotency-Key": key("coupon") }, expected: contended })));
-  const [redemptions] = await sql(`select count(*)::int as total from public.promotion_redemptions redemption join public.promotions promotion on promotion.id = redemption.promotion_id where promotion.code = '${fixtures.coupon}'`);
-  await record("cupom no limite global (5)", "no máximo 5 resgates", coupon, coupon.filter((result) => result.status < 300).length, { redemptions: redemptions?.total ?? null });
+  // PROMO-007: past the limit the coupon simply stops applying; reservations still go through at full price.
+  const [redemptions] = await sql(`select count(*)::int as total from public.promotion_redemptions redemption join public.promotions promotion on promotion.id = redemption.promotion_id where promotion.code = '${fixtures.coupon}' and redemption.status in ('RESERVED', 'CONSUMED')`);
+  const discounted = coupon.filter((result) => result.status < 300 && Number(result.body?.data?.quote?.discountTotal?.amountCents ?? result.body?.data?.quote?.discountTotalCents ?? 0) > 0).length;
+  await record("cupom no limite global (5)", "no máximo 5 com desconto", coupon, discounted, { reservations: coupon.filter((result) => result.status < 300).length, redemptions: redemptions?.total ?? null });
 
   return { ...metrics.finish().summary(), cases };
 }
