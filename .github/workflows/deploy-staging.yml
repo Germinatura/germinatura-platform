@@ -9,6 +9,14 @@ on:
         description: Run the PicPay Payment Link sandbox check after deploying (docs/operations/payment-link-runbook.md)
         type: boolean
         default: false
+      load_scenarios:
+        description: Staging load homologation instead of a deploy (A,B,C,D; empty deploys as usual). See tests/load/README.md
+        type: string
+        default: ""
+      load_minutes:
+        description: Load durations in minutes as A,B,D (default 10,10,30)
+        type: string
+        default: "10,10,30"
 
 concurrency:
   group: germinatura-staging
@@ -20,6 +28,7 @@ permissions:
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'push' || inputs.load_scenarios == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment:
@@ -84,3 +93,40 @@ jobs:
           jq . result.json
           test "$status" = "200"
           jq -e '.ok == true' result.json > /dev/null
+
+  # Stability, load and soak homologation (docs/operations/stability-report.md), only when dispatched with
+  # load_scenarios. The harness refuses any host but the staging Workers and prepares its own isolated data.
+  load:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.load_scenarios != '' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment:
+      name: staging
+    permissions:
+      contents: read
+    env:
+      LOAD_TARGET: staging
+      LOAD_PORTAL_URL: ${{ vars.NEXT_PUBLIC_PORTAL_URL }}
+      LOAD_PDV_URL: ${{ vars.NEXT_PUBLIC_PDV_URL }}
+      LOAD_SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+      LOAD_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      LOAD_SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      LOAD_SHA: ${{ github.sha }}
+      SCENARIOS: ${{ inputs.load_scenarios }}
+      MINUTES: ${{ inputs.load_minutes }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Run the load harness
+        run: |
+          IFS=, read -r minutes_a minutes_b minutes_d <<< "$MINUTES"
+          node tests/load/run.mjs --scenarios="$SCENARIOS" --minutes-a="${minutes_a:-10}" --minutes-b="${minutes_b:-10}" --minutes-d="${minutes_d:-30}"
+      - name: Publish the results in the job summary
+        if: always()
+        run: |
+          for file in tests/load/results/*/results.json; do
+            [ -f "$file" ] || continue
+            { echo "### $(dirname "$file" | xargs basename)"; echo '```json'; cat "$file"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
