@@ -4,9 +4,35 @@
 import { readFileSync } from "node:fs";
 
 const file = process.argv[2];
-const events = readFileSync(file, "utf8").split("\n").filter(Boolean).flatMap((line) => {
-  try { return [JSON.parse(line)]; } catch { return []; }
-});
+// wrangler writes pretty-printed objects back to back, so split on balanced top-level braces (outside strings).
+function splitObjects(text) {
+  const objects = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === "\"") inString = false;
+      continue;
+    }
+    if (char === "\"") inString = true;
+    else if (char === "{") {
+      if (depth === 0) start = index;
+      depth += 1;
+    } else if (char === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0) {
+        try { objects.push(JSON.parse(text.slice(start, index + 1))); } catch { /* partial object at the cut */ }
+      }
+    }
+  }
+  return objects;
+}
+const events = splitObjects(readFileSync(file, "utf8"));
 const outcomes = {};
 const byPath = {};
 const exceptions = {};
