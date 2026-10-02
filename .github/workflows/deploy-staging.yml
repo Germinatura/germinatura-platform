@@ -124,26 +124,33 @@ jobs:
           node-version: 22
       - run: npm i -g pnpm@11.19.0
       - run: pnpm install --frozen-lockfile
-      # Platform view of the staging Portal during the run (outcomes such as exceededCpu or exception).
-      - name: Start the Portal tail
+      # Platform view of the staging Workers during the run (outcomes such as exceededCpu or exception, cron runs and
+      # the session resolution timings).
+      - name: Start the Worker tails
         working-directory: apps/portal
         run: |
-          nohup pnpm exec wrangler tail germinatura-portal-staging --format json > "$RUNNER_TEMP/portal-tail.jsonl" 2> "$RUNNER_TEMP/portal-tail.err" &
-          sleep 15
+          for worker in portal pdv jobs; do
+            nohup pnpm exec wrangler tail "germinatura-$worker-staging" --format json > "$RUNNER_TEMP/$worker-tail.jsonl" 2> "$RUNNER_TEMP/$worker-tail.err" &
+          done
+          sleep 20
       - name: Run the load harness
         run: |
           IFS=, read -r minutes_a minutes_b minutes_d <<< "$MINUTES"
           node tests/load/run.mjs --scenarios="$SCENARIOS" --minutes-a="${minutes_a:-10}" --minutes-b="${minutes_b:-10}" --minutes-d="${minutes_d:-30}"
-      - name: Summarize the Portal tail
+      - name: Summarize the Worker tails
         if: always()
         run: |
           pkill -f "wrangler tail" || true
-          node tests/load/summarize-tail.mjs "$RUNNER_TEMP/portal-tail.jsonl" | tee "$RUNNER_TEMP/portal-tail-summary.json"
-          { echo "### Portal tail"; echo '```json'; cat "$RUNNER_TEMP/portal-tail-summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          for worker in portal pdv jobs; do
+            echo "### $worker tail"
+            node tests/load/summarize-tail.mjs "$RUNNER_TEMP/$worker-tail.jsonl" | tee "$RUNNER_TEMP/$worker-tail-summary.json"
+            { echo "### $worker tail"; echo '```json'; cat "$RUNNER_TEMP/$worker-tail-summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
       - name: Publish the results in the job summary
         if: always()
         run: |
           for file in tests/load/results/*/results.json; do
             [ -f "$file" ] || continue
-            { echo "### $(dirname "$file" | xargs basename)"; echo '```json'; cat "$file"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            # Also in the job log, which can be read without signing in to GitHub.
+            { echo "### $(dirname "$file" | xargs basename)"; echo '```json'; cat "$file"; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
           done
