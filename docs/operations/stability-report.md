@@ -3,6 +3,7 @@
 Homologação de 02/10/2026, feita antes do congelamento do Release Candidate. **Conclusão: a integridade transacional está aprovada, mas o Release Candidate não está pronto na infraestrutura atual.**
 - Faltam duas decisões do responsável, ambas de plano e custo de infraestrutura (seção "Conclusão de prontidão").
 - Nada foi promovido para `main` e nada rodou contra produção.
+- **Atualização (02/10/2026, tarde):** com o Workers Paid contratado, A passou sem nenhum 503 de CPU, mas o soak continua degradando. Veja "Workers Paid — rodada de validação" no fim. As seções anteriores a ela registram as rodadas no plano gratuito e ficam para comparação.
 
 ## Identificação
 
@@ -189,3 +190,132 @@ O Release Candidate **não** está pronto na infraestrutura atual. Recomendaçõ
 4. **Login em pico:** confirmar e, se preciso, ajustar o limite de taxa de login do Supabase Auth, e fazer o Portal distinguir "muitas tentativas" de "credencial inválida".
 
 O critério de aceite numérico continua uma referência: depois da troca de plano, o limite adequado deve sair da nova medição, não deste relatório.
+
+## Workers Paid — rodada de validação
+
+Rodada de 02/10/2026, à tarde, para medir só o efeito da troca para o plano pago de Workers da Cloudflare. Código, harness, dataset, rotas e critérios iguais aos da rodada anterior; nenhuma otimização foi feita.
+
+**Conclusão: os problemas da Cloudflare desapareceram e A passou. O soak não estabilizou e a latência continua crescendo.** Como combinado, a rodada para aqui: o gargalo restante está documentado abaixo para a análise do Supabase e da autenticação, sem concluir que o Supabase precisa de upgrade.
+
+### Identificação
+
+| | |
+| --- | --- |
+| SHA | `96f71de` (`develop` sem mudanças desde a homologação anterior) |
+| Deploy | Deploy Staging normal 37016417720 no mesmo SHA, já com o plano pago ativo |
+| Carga | Rodada 37016802870: `gh workflow run deploy-staging.yml --ref develop -f load_scenarios=A,D -f load_minutes=10,30` (A por 10 min, seguido do soak D por 30 min) |
+| Plano | Cloudflare Workers Paid; Supabase de staging sem mudança de plano |
+| Fora do escopo | Nenhum e-mail enviado, nenhuma chamada ao PicPay, `payment_link` desligada |
+| Invariantes | Conferidas ao fim pelo harness (`loadtest.check`), que termina com erro se alguma falhar: a rodada terminou com sucesso, com **0 violações** |
+
+### A — 50 consumidores, 10 min
+
+| Rota | Req. | OK | 4xx | 5xx | Rede | p50 | p95 | p99 | /s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| página `/inicio` | 3.160 | 3.160 | 0 | 0 | 0 | 232 | 1.394 | 3.644 | 5,19 |
+| página `/catalogo` | 3.160 | 3.159 | 0 | 0 | 1 | 197 | 1.282 | 4.191 | 5,19 |
+| página `/eventos` | 3.160 | 3.160 | 0 | 0 | 0 | 180 | 1.223 | 2.944 | 5,19 |
+| página `/rifas` | 3.160 | 3.160 | 0 | 0 | 0 | 212 | 1.229 | 2.374 | 5,19 |
+| API vitrine | 3.160 | 3.160 | 0 | 0 | 0 | 205 | 1.049 | 2.766 | 5,19 |
+| API catálogo | 3.160 | 3.160 | 0 | 0 | 0 | 134 | 710 | 2.536 | 5,19 |
+| API cotação | 3.160 | 3.159 | 0 | 1 | 0 | 137 | 1.148 | 3.065 | 5,19 |
+| API eventos | 3.160 | 3.159 | 0 | 0 | 1 | 243 | 1.347 | 5.352 | 5,19 |
+| API notificações | 3.160 | 3.160 | 0 | 0 | 0 | 194 | 907 | 2.384 | 5,19 |
+
+- Total: 28.440 requisições, 46,7 req/s, 28.437 com sucesso.
+- O único 5xx é um `PRICING_UNAVAILABLE` da própria aplicação (a RPC de cotação devolveu erro). Os 2 erros de rede são conexões interrompidas (`TypeError` no cliente).
+- Logins: 55 de 55, sem nenhuma recusa.
+
+### D — soak de 30 min (20 leitores e 5 vendedores)
+
+| Rota ou mutação | Req. | OK | 4xx | 5xx | Rede | p50 | p95 | p99 | Inclinação do p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| vitrine | 2.208 | 2.063 | 2 | 1 | 142 | 637 | 30.000 | 30.001 | +238 ms/min |
+| catálogo | 2.208 | 2.178 | 0 | 3 | 27 | 363 | 17.564 | 30.000 | +325 ms/min |
+| eventos | 2.208 | 2.174 | 1 | 0 | 33 | 482 | 7.290 | 30.000 | +324 ms/min |
+| notificações | 2.208 | 2.183 | 1 | 0 | 24 | 352 | 6.066 | 29.999 | +211 ms/min |
+| minhas vendas (PDV) | 190 | 175 | 0 | 0 | 15 | 7.272 | 30.001 | 30.001 | +325 ms/min |
+| checkout (PDV) | 190 | 133 | 0 | 19 | 38 | 7.101 | 30.001 | 30.002 | +217 ms/min |
+| confirmação Área Pix | 133 | 108 | 0 | 16 | 9 | 4.402 | 30.000 | 30.001 | +70 ms/min |
+| criar reserva | 362 | 300 | 0 | 49 | 13 | 3.232 | 23.959 | 30.001 | +153 ms/min |
+| cancelar reserva | 300 | 262 | 0 | 32 | 6 | 1.984 | 20.133 | 30.000 | −141 ms/min |
+
+- Total: 10.007 requisições, 120 respostas 5xx e 307 erros de rede.
+- Quase todos os erros de rede são o tempo-limite de 30 s do harness (`TimeoutError`).
+- Os 5xx das mutações são 503 da própria aplicação (`RESERVATION_UNAVAILABLE`, `MANUAL_CONFIRMATION_UNAVAILABLE`), devolvidos quando a resolução da sessão ou a RPC falha.
+- Os 4 4xx inesperados são 401 no meio de sessões válidas, o que indica falha ao resolver a sessão (Supabase Auth `getUser` ou a RPC `get_my_session`).
+- A inclinação é positiva em 8 das 9 rotas.
+
+#### Outbox e banco, amostrados por minuto
+
+| Medida | Workers Paid | Gratuito, depois da #147 |
+| --- | --- | --- |
+| Outbox pendente | 0 a 234, em dente de serra: acumula por 3 a 5 min e cai para 3 a 64 (minutos 6, 10, 15, 20 e 24) | 2 a 135 |
+| Evento pendente mais antigo | até 273 s (~4,6 min) | até ~2,5 min |
+| Presos em `PROCESSING` / `FAILED` | 0 / 0 em todas as amostras | 0 |
+| Conexões PostgreSQL | 22 a 27 | 20 a 27 |
+| Consultas ativas | até 11 | até 12 |
+| Esperas por lock | até 5 (minutos 4, 18 e 25) | até 7 |
+| Consulta ativa mais longa | até 19 s (minuto 8); fora isso, ≤ 8 s | até ~8 s |
+
+- A outbox drena e não cresce entre os ciclos, mas a idade do evento mais antigo passou de 2,5 para 4,6 min. O Worker de jobs não teve tail nesta rodada, por isso a causa dos ciclos lentos não foi observada.
+- Valores negativos da consulta mais longa aparecem quando a consulta começou depois do início da transação da amostra; contam como ~0.
+- Faltam algumas amostras (minutos 7, 12, 16, 21 e 28), porque a própria consulta da amostra demorou.
+
+### Comparação Free × Paid
+
+| Medida | Gratuito | Workers Paid |
+| --- | --- | --- |
+| A: 5xx nas páginas | 1.935 a 2.382 por página (65 a 80%) | **0** |
+| A: 5xx nas APIs | 57 (vitrine) | 1 (cotação, erro da RPC) |
+| A: p95 das páginas | 759 a 1.796 ms, contando só as que responderam | 1.223 a 1.394 ms, todas respondendo |
+| A: p95 das APIs | 575 a 893 ms | 710 a 1.347 ms |
+| A: vazão por rota | 4,84 req/s | 5,19 req/s |
+| D: vitrine | 1.489 5xx, 38 rede, p95 17,6 s, +260 ms/min | 1 5xx, 142 rede, p95 30 s, +238 ms/min |
+| D: checkout | 26 5xx, 22 rede, p50 6,3 s, p95 30 s, +126 ms/min | 19 5xx, 38 rede, p50 7,1 s, p95 30 s, +217 ms/min |
+| D: criar reserva | 110 5xx, 12 rede, p50 4,8 s, p95 20,7 s, +294 ms/min | 49 5xx, 13 rede, p50 3,2 s, p95 24,0 s, +153 ms/min |
+| Tail: `exceededCpu` / `exceededMemory` | 1.941 / 15 | **0 / 0** |
+
+- As APIs de A ficaram um pouco mais lentas no Paid porque, sem os 503 de CPU, as páginas passaram a renderizar por inteiro. Cada renderização também consulta o Supabase, então o banco recebeu mais trabalho real no mesmo tempo.
+- No soak, a troca de plano converteu 503 de CPU em espera: as requisições agora chegam ao Supabase e ficam aguardando até o tempo-limite.
+
+### Cloudflare
+
+- Tail do Portal durante toda a rodada: 16.366 eventos (amostrados pela Cloudflare), sendo 16.284 `ok` e 82 `canceled`. Os `canceled` são o cliente desistindo no tempo-limite de 30 s.
+- **0 `exceededCpu`, 0 `exceededMemory` e nenhum erro de limite de subrequisições.**
+- Outros erros do runtime: apenas 10 "Network connection lost", uma conexão de saída interrompida.
+- Todos os 503 do soak saíram com o Worker em `ok`: são respostas da aplicação, não limites da plataforma.
+- O checkout e a confirmação do PDV executam no Portal pelo service binding e aparecem nesse tail.
+- **Limitação:** só o Portal teve tail, porque é o que o workflow captura. O `wrangler` local não estava autenticado, e o PDV e o Worker de jobs não foram observados diretamente.
+
+### Gargalo restante (para análise; nada foi alterado)
+
+A plataforma da Cloudflare deixou de ser o limite. O tempo perdido no soak está na espera pelo Supabase: o Worker termina em `ok`, sem CPU excedida, e a requisição fica aguardando até o tempo-limite ou volta 503/401 quando a chamada ao Supabase falha.
+
+Observações que orientam a análise, sem confirmar a causa:
+1. **A degradação não acompanha o volume de leitura.** A fez 4,4 vezes mais leituras por segundo por rota e manteve o p95 das APIs em ~1 s. D, com leitura menor mas com vendas, reservas e cancelamentos contínuos, degradou em todas as rotas, inclusive nas leituras. O soak isolado da rodada anterior, sem A antes, também degradou.
+2. **Pontos de suspeita a medir:**
+   - capacidade de computação do banco de staging sob escrita contínua (CPU, E/S e eventual crédito de burst esgotado);
+   - a resolução de sessão por requisição autenticada: `auth.getUser` no Supabase Auth mais a RPC `get_my_session`, no proxy e na rota;
+   - a disputa pelo produto do soak (esperas por lock até 5, uma consulta de 19 s).
+3. **Para confirmar**, numa próxima rodada:
+   - acompanhar as métricas do projeto Supabase de staging durante o soak (CPU, memória, E/S, conexões do PostgREST e latência do Auth);
+   - ver as consultas mais caras em `pg_stat_statements`;
+   - ter tail do PDV e do Worker de jobs.
+
+### Critérios de aceite — Workers Paid
+
+| Critério | Resultado |
+| --- | --- |
+| 0 violações de integridade | **Atendido** |
+| 0 duplicação financeira ou de estoque | **Atendido** |
+| 0 5xx nas jornadas normais | **Atendido em A** (1 erro de RPC em 28.440); **não atendido em D** (120) |
+| p95 de leitura pública < 1,5 s | **Atendido em A**: páginas 1,22 a 1,39 s, APIs 0,71 a 1,35 s |
+| p95 de mutações normais < 2,5 s | **Não atendido em D**: 20 a 30 s |
+| Sem tendência crescente de latência no soak | **Não atendido**: +70 a +325 ms/min em 8 das 9 rotas |
+| Outbox drenando normalmente | **Atendido**, com ressalva: drena e não acumula entre ciclos, mas o evento mais antigo chegou a ~4,6 min |
+
+### Prontidão depois desta rodada
+
+- O bloqueio da Cloudflare foi resolvido: o limite de CPU e memória não aparece mais e A passa nos critérios.
+- O Release Candidate continua bloqueado pela degradação no soak. O próximo passo é a análise do Supabase e da autenticação descrita acima, antes de decidir entre otimização (por exemplo, validar o JWT localmente no lugar de `auth.getUser`) e capacidade do Supabase. Nenhuma das duas foi feita nesta rodada.
