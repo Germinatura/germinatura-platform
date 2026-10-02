@@ -5,7 +5,9 @@ import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { z } from "zod";
+import Link from "next/link";
 import { useToast } from "@/components/ui/Toast";
+import { featureFlagEffects } from "@/lib/feature-flag-effects";
 
 type FeatureFlag = z.infer<typeof featureFlagSchema>;
 
@@ -59,7 +61,7 @@ export function FeatureFlagsSettings() {
     {flags === null ? !error && <p role="status" className="text-sm">Carregando…</p>
       : <ul aria-label="Chaves funcionais" className="divide-y divide-[var(--g-border-subtle)]">{flags.map((flag) => <li key={flag.key} aria-label={`Chave ${flag.key}`} className="grid gap-3 py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="font-semibold"><code>{flag.key}</code></p><p className="text-sm text-[var(--g-text-secondary)]">{flag.description}</p><p className="text-xs text-[var(--g-text-muted)]">Alterada em {dateTime.format(new Date(flag.updatedAt))}</p></div>
+          <div><p className="font-semibold"><code>{flag.key}</code></p><p className="text-sm text-[var(--g-text-secondary)]">{flag.description}</p>{featureFlagEffects[flag.key] && <dl className="mt-2 grid gap-1 text-sm"><div><dt className="inline font-semibold">Ao ligar: </dt><dd className="inline text-[var(--g-text-secondary)]">{featureFlagEffects[flag.key]?.on}</dd></div><div><dt className="inline font-semibold">Ao desligar: </dt><dd className="inline text-[var(--g-text-secondary)]">{featureFlagEffects[flag.key]?.off}</dd></div></dl>}{featureFlagEffects[flag.key]?.history && <Link href={featureFlagEffects[flag.key]?.history?.href ?? "/"} className="mt-1 inline-block text-sm font-semibold text-[var(--g-brand-primary)]">{featureFlagEffects[flag.key]?.history?.label}</Link>}<p className="text-xs text-[var(--g-text-muted)]">Alterada em {dateTime.format(new Date(flag.updatedAt))}</p></div>
           <div className="flex items-center gap-2"><Badge tone={flag.enabled ? "success" : "neutral"}>{flag.enabled ? "Ligada" : "Desligada"}</Badge>
             <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => start(flag)}>{flag.enabled ? "Desligar" : "Ligar"}</Button></div>
         </div>

@@ -5,7 +5,7 @@ import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
 import { AlertTriangle, Banknote, CircleCheck, Clock, CreditCard, Search, Wallet } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
-import { cashChange, completePickup, deliverPaidPickup, formatMoney, loadPaymentTerminals, loadPickups, parseMoneyInput } from "@/lib/operations";
+import { cashChange, completePickup, deliverPaidPickup, formatMoney, loadDisabledFeatures, loadPaymentTerminals, loadPickups, parseMoneyInput } from "@/lib/operations";
 
 /** With registered Maquininhas, the operator must name the one used. */
 const terms = (terminals: PaymentTerminal[], terminalId: string) => terminals.length === 0 || terminalId !== "";
@@ -22,6 +22,7 @@ export function PickupWorkspace({ online }: { online: boolean }) {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<PickupReservation | null>(null);
   const [channel, setChannel] = useState<Channel>("DINHEIRO");
+  const [cashOff, setCashOff] = useState(false);
   const [tendered, setTendered] = useState("");
   const [proof, setProof] = useState("");
   const [cardMethod, setCardMethod] = useState<CardPaymentMethod | null>(null);
@@ -39,9 +40,10 @@ export function PickupWorkspace({ online }: { online: boolean }) {
   }, [query]);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
   useEffect(() => { void loadPaymentTerminals().then(setTerminals, () => setTerminals([])); }, []);
+  useEffect(() => { void loadDisabledFeatures().then((disabled) => setCashOff(disabled.has("cash_payment"))); }, []);
 
   function choose(pickup: PickupReservation) {
-    setSelected(pickup); setDone(null); setChannel("DINHEIRO"); setTendered(""); setProof(""); setCardMethod(null); setTerminalId(""); setError("");
+    setSelected(pickup); setDone(null); setChannel(cashOff ? "MAQUININHA" : "DINHEIRO"); setTendered(""); setProof(""); setCardMethod(null); setTerminalId(""); setError("");
   }
 
   const change = selected ? cashChange(selected.totalCents, parseMoneyInput(tendered)) : null;
@@ -103,7 +105,7 @@ export function PickupWorkspace({ online }: { online: boolean }) {
       <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Entregar reserva de {selected.customerName}</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{selected.items.map((item) => `${item.quantity}× ${item.productName}`).join(", ")}</p></div><p className="g-money text-2xl font-bold">{formatMoney(selected.totalCents)}</p></div>
       <p className="mt-2 text-xs text-[var(--g-text-muted)]">Preço congelado na reserva; não é recalculado na retirada.</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-3" role="group" aria-label="Forma de pagamento">
-        {([["DINHEIRO", "Dinheiro", Wallet], ["MAQUININHA", "Maquininha", CreditCard], ["PIX_AREA", "Área Pix", Banknote]] as const).map(([value, label, Icon]) => <button key={value} type="button" aria-pressed={channel === value} onClick={() => setChannel(value)} className={`flex min-h-12 items-center justify-center gap-2 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${channel === value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)]"}`}><Icon className="size-4" />{label}</button>)}
+        {([["DINHEIRO", "Dinheiro", Wallet], ["MAQUININHA", "Maquininha", CreditCard], ["PIX_AREA", "Área Pix", Banknote]] as const).filter(([value]) => !cashOff || value !== "DINHEIRO").map(([value, label, Icon]) => <button key={value} type="button" aria-pressed={channel === value} onClick={() => setChannel(value)} className={`flex min-h-12 items-center justify-center gap-2 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${channel === value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)]"}`}><Icon className="size-4" />{label}</button>)}
       </div>
       {channel === "DINHEIRO" ? <><Field id="pickup-tendered" label="Valor recebido (R$)" className="mt-4"><Input id="pickup-tendered" inputMode="decimal" value={tendered} onChange={(event) => setTendered(event.target.value)} /></Field>
         <p role="status" className="mt-2 text-sm">{change === null ? "O valor recebido precisa cobrir o total." : <>Troco: <strong className="g-money">{formatMoney(change)}</strong></>}</p></>

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { databasePortalEventSchema, eventDatabaseError, eventErrorResponse, toPortalEvent } from "@/lib/portal-events";
 
 interface RouteContext { params: Promise<{ id: string }>; }
@@ -16,6 +17,7 @@ export async function GET(request: Request, context: RouteContext) {
   try {
     await requirePermission("portal.access");
     const client = await createAuthenticatedSupabaseClient(request);
+    if (!await isFeatureEnabled("events", client)) return eventErrorResponse("NOT_FOUND", "Evento não encontrado.", requestId, 404);
     const { data, error } = await client.rpc("get_portal_event", { p_event_id: id });
     if (error) return eventDatabaseError(error.message, requestId);
     const row = databasePortalEventSchema.safeParse(data);

@@ -4,7 +4,11 @@ select plan(9);
 
 select ok(not has_table_privilege('authenticated','public.broadcast_notices','SELECT'),'the notice ledger is internal');
 
--- A product is published, withdrawn and published again: announced only once.
+-- A product with central stock is published, withdrawn and published again: announced only once.
+set local role authenticated;
+set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
+select public.adjust_stock('50000000-0000-4000-8000-000000000001','33f00000-0000-4000-8000-000000000002',3,'Estoque para a novidade','broadcast-stock',gen_random_uuid());
+reset role;
 update public.products set published = true where id = '33f00000-0000-4000-8000-000000000002';
 update public.products set published = false where id = '33f00000-0000-4000-8000-000000000002';
 update public.products set published = true where id = '33f00000-0000-4000-8000-000000000002';
