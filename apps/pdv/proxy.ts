@@ -25,10 +25,21 @@ export default async function proxy(request: NextRequest) {
       },
     },
   });
-  const { data } = await client.auth.getUser();
-  if (!data.user) return isLogin ? response : NextResponse.redirect(new URL("/login", request.url));
+  // Identity from the access token, verified locally against the project's signing keys (no Auth round trip with
+  // asymmetric keys); `get_my_session` stays the authority for the rest. As with `getUser`, an ended session counts
+  // as signed out: the function returns no row for it.
+  const started = Date.now();
+  const subject = await client.auth.getClaims()
+    .then(({ data, error }) => (error ? null : data?.claims.sub), () => null);
+  const verified = Date.now();
+  const { data: sessionData, error: sessionError } = typeof subject === "string"
+    ? await client.rpc("get_my_session")
+    : { data: null, error: null };
+  recordTiming(subject, sessionData, started, verified);
+  if (typeof subject !== "string" || (!sessionError && sessionData === null)) {
+    return isLogin ? response : NextResponse.redirect(new URL("/login", request.url));
+  }
 
-  const { data: sessionData } = await client.rpc("get_my_session");
   const roles = sessionData && typeof sessionData === "object" && "roles" in sessionData
     ? (sessionData.roles as unknown[])
     : [];
@@ -47,6 +58,15 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", portalUrl));
   }
   return response;
+}
+
+// Staging measurement only (AUTH_TIMING_LOG=1): durations and outcome, never tokens, cookies or who the person is.
+function recordTiming(subject: unknown, sessionData: unknown, started: number, verified: number) {
+  if (process.env.AUTH_TIMING_LOG !== "1") return;
+  const finished = Date.now();
+  const outcome = typeof subject !== "string" ? "unauthenticated" : sessionData ? "resolved" : "session_rejected";
+  console.info(JSON.stringify({ level: "info", event: "auth.session_resolution", source: "pdv-proxy", outcome,
+    verifyMs: verified - started, sessionMs: finished - verified, totalMs: finished - started }));
 }
 
 export const config = {
