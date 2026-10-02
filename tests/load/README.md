@@ -56,3 +56,11 @@ gh workflow run deploy-staging.yml --ref develop -f load_scenarios=A,B,C,D -f lo
 ```
 
 `load_minutes` traz as durações de A, B e D. Para um ensaio curto, use `-f load_minutes=1,1,2`. O resumo do job traz o JSON completo da rodada.
+
+Durante a rodada, o job captura o `wrangler tail` do Portal, do PDV e do Worker de jobs, e `summarize-tail.mjs` resume cada um:
+- resultado por caminho ou cron;
+- limites da plataforma (`exceededCpu`, `exceededMemory`, subrequisições);
+- exceções mais frequentes;
+- tempos de resolução de sessão que os apps registram com `AUTH_TIMING_LOG=1` (só em staging), e quantas resoluções cada requisição fez.
+
+O resumo dos tails e o JSON da rodada saem também no log do job.
