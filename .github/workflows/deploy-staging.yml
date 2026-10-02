@@ -114,16 +114,32 @@ jobs:
       LOAD_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       LOAD_SHA: ${{ github.sha }}
       SCENARIOS: ${{ inputs.load_scenarios }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       MINUTES: ${{ inputs.load_minutes }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      - run: npm i -g pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      # Platform view of the staging Portal during the run (outcomes such as exceededCpu or exception).
+      - name: Start the Portal tail
+        working-directory: apps/portal
+        run: |
+          nohup pnpm exec wrangler tail germinatura-portal-staging --format json > "$RUNNER_TEMP/portal-tail.jsonl" 2> "$RUNNER_TEMP/portal-tail.err" &
+          sleep 15
       - name: Run the load harness
         run: |
           IFS=, read -r minutes_a minutes_b minutes_d <<< "$MINUTES"
           node tests/load/run.mjs --scenarios="$SCENARIOS" --minutes-a="${minutes_a:-10}" --minutes-b="${minutes_b:-10}" --minutes-d="${minutes_d:-30}"
+      - name: Summarize the Portal tail
+        if: always()
+        run: |
+          pkill -f "wrangler tail" || true
+          node tests/load/summarize-tail.mjs "$RUNNER_TEMP/portal-tail.jsonl" | tee "$RUNNER_TEMP/portal-tail-summary.json"
+          { echo "### Portal tail"; echo '```json'; cat "$RUNNER_TEMP/portal-tail-summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Publish the results in the job summary
         if: always()
         run: |

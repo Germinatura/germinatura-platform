@@ -71,7 +71,7 @@ begin
     v_products := v_products || jsonb_build_object(v_name, v_product);
   end loop;
   v_coupon_product := (v_products ->> 'coupon')::uuid;
-  v_promotion := public.save_promotion(null, null, upper('CARGA' || p_run), 'Cupom da carga ' || p_run, 'Limite global para o teste de concorrência', true, false, 990, true,
+  v_promotion := public.save_promotion(null, null, upper('CARGA' || p_run), 'Cupom da carga ' || p_run, 'Limite global para o teste de concorrência', true, true, 990, true,
     now() - interval '1 minute', now() + interval '1 day', 5, null, array[v_coupon_product], array['RESERVA', 'PORTAL', 'PDV']::public.promotion_channel[],
     jsonb_build_object('type', 'CUPOM', 'code', upper('CARGA' || p_run), 'discount', jsonb_build_object('kind', 'PERCENTUAL', 'percentageBasisPoints', 1000)),
     'Teste de carga em staging', 'load:' || p_run || ':coupon', gen_random_uuid());
