@@ -72,6 +72,8 @@ test("headers sent by the client never grant a role or a session", async ({ play
     "x-middleware-subrequest": "middleware:middleware:middleware:middleware:middleware",
     "x-user-id": adminId, "x-user-roles": "ADMIN", "x-germinatura-session": JSON.stringify({ roles: ["ADMIN"] }),
     "x-supabase-auth": adminId, "x-forwarded-user": "admin.teste",
+    // The proxy's own session context (lib/session-context.ts): a client value is always dropped.
+    "x-germinatura-session-context": `${encode({ v: 1, t: "forged", e: Date.now() + 10_000, s: { user: { id: adminId, roles: ["ADMIN"] } } })}.${encode("forged")}`,
   };
   const anonymous = await playwright.request.newContext();
   expect((await anonymous.get(`${portalUrl}/api/v1/admin/users`, { headers: forgedContext })).status()).toBe(401);

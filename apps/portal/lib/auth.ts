@@ -4,7 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { resolveSupabaseSession, type SupabaseSession } from "@/lib/session-resolution";
+import { createSessionContext, forwardSessionContext, SESSION_CONTEXT_HEADER } from "@/lib/session-context";
+import { resolveSession, resolveSupabaseSession, type SupabaseSession } from "@/lib/session-resolution";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type { SupabaseSession };
@@ -18,7 +19,10 @@ export class AuthorizationError extends Error {
 
 export async function getSession(): Promise<SupabaseSession | null> {
   try {
-    const authorization = (await headers()).get("authorization");
+    const requestHeaders = await headers();
+    const authorization = requestHeaders.get("authorization");
+    // Set by the proxy for this same request (and stripped from what the client sent); see lib/session-context.ts.
+    const sessionContext = requestHeaders.get(SESSION_CONTEXT_HEADER);
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (authorization?.startsWith("Bearer ") && url && publishableKey) {
@@ -27,9 +31,9 @@ export async function getSession(): Promise<SupabaseSession | null> {
         auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
         global: { headers: { Authorization: authorization } },
       });
-      return await resolveSupabaseSession(client, accessToken, "route");
+      return await resolveSupabaseSession(client, accessToken, "route", sessionContext);
     }
-    return await resolveSupabaseSession(await createSupabaseServerClient(), undefined, "route");
+    return await resolveSupabaseSession(await createSupabaseServerClient(), undefined, "route", sessionContext);
   } catch {
     return null;
   }
@@ -82,7 +86,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) return { response, session: null, client: null };
+  if (!url || !publishableKey) return { response: withSessionContext(request, response, null), session: null, client: null };
 
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) {
@@ -91,7 +95,8 @@ export async function updateSession(request: NextRequest) {
       auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
       global: { headers: { Authorization: authorization } },
     });
-    return { response, session: await resolveSupabaseSession(client, accessToken, "proxy"), client };
+    const resolved = await resolveSession(client, accessToken, "proxy");
+    return { response: withSessionContext(request, response, await contextFor(resolved)), session: resolved.session, client };
   }
 
   const client = createServerClient(url, publishableKey, {
@@ -104,5 +109,18 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
-  return { response, session: await resolveSupabaseSession(client, undefined, "proxy"), client };
+  const resolved = await resolveSession(client, undefined, "proxy");
+  return { response: withSessionContext(request, response, await contextFor(resolved)), session: resolved.session, client };
+}
+
+async function contextFor({ session, accessToken }: { session: SupabaseSession | null; accessToken: string | null }) {
+  return session && accessToken ? createSessionContext(session, accessToken) : null;
+}
+
+// The route sees the request headers with the client's context header removed and, when a session was resolved,
+// the proxy's own signed context. Cookies refreshed by Supabase stay on the response.
+function withSessionContext(request: NextRequest, response: NextResponse, context: string | null) {
+  const next = NextResponse.next({ request: { headers: forwardSessionContext(request.headers, context) } });
+  for (const cookie of response.cookies.getAll()) next.cookies.set(cookie);
+  return next;
 }
