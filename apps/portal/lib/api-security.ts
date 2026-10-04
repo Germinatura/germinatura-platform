@@ -1,4 +1,4 @@
-export type ApiAccessLevel = "public" | "authenticated" | "seller" | "admin";
+export type ApiAccessLevel = "public" | "authenticated" | "seller" | "stock" | "finance" | "inventory" | "procurement" | "communications" | "admin";
 
 interface ApiAccessRule {
   path: string;
@@ -7,9 +7,135 @@ interface ApiAccessRule {
 }
 
 export const apiAccessRules: readonly ApiAccessRule[] = [
+  { path: "/api/v1/admin/catalog/categories", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/audit", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/audit/security", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/audit/correlations/:id", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/promotions", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/catalog/products", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/catalog/product-prices", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/catalog/product-images", methods: ["POST", "PUT"], access: "admin" },
+  { path: "/api/v1/admin/catalog/product-images/:id", methods: ["DELETE"], access: "admin" },
+  { path: "/api/v1/admin/catalog/products/:id/prices", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/inventory/distributions", methods: ["POST"], access: "inventory" },
+  { path: "/api/v1/admin/inventory/lots", methods: ["GET"], access: "inventory" },
+  { path: "/api/v1/inventory/transfer-requests", methods: ["GET", "POST"], access: "seller" },
+  { path: "/api/v1/inventory/transfer-requests/:id", methods: ["PATCH"], access: "seller" },
+  { path: "/api/v1/inventory/returns", methods: ["GET", "POST"], access: "seller" },
+  { path: "/api/v1/inventory/returns/:id", methods: ["PATCH"], access: "seller" },
+  { path: "/api/v1/admin/inventory/returns", methods: ["GET"], access: "inventory" },
+  { path: "/api/v1/admin/inventory/returns/:id", methods: ["PATCH"], access: "inventory" },
+  { path: "/api/v1/inventory/losses", methods: ["GET", "POST"], access: "seller" },
+  { path: "/api/v1/inventory/losses/:id", methods: ["PATCH"], access: "seller" },
+  { path: "/api/v1/admin/inventory/losses", methods: ["GET"], access: "inventory" },
+  { path: "/api/v1/admin/inventory/losses/:id", methods: ["PATCH"], access: "inventory" },
+  { path: "/api/v1/admin/inventory/loss-settings", methods: ["PATCH"], access: "inventory" },
+  { path: "/api/v1/inventory/counts", methods: ["GET", "POST"], access: "stock" },
+  { path: "/api/v1/inventory/counts/:id", methods: ["PATCH"], access: "stock" },
+  { path: "/api/v1/admin/inventory/counts/:id", methods: ["PATCH"], access: "inventory" },
+  { path: "/api/v1/admin/procurement/suppliers", methods: ["GET", "POST"], access: "procurement" },
+  { path: "/api/v1/admin/procurement/orders", methods: ["GET", "POST"], access: "procurement" },
+  { path: "/api/v1/admin/procurement/receipts", methods: ["GET", "POST"], access: "procurement" },
+  { path: "/api/v1/admin/procurement/orders/:id/cancel", methods: ["POST"], access: "procurement" },
+  { path: "/api/v1/admin/finance/payables", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/shifts", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/recovery/:id/resolve", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/receipts/:id/replay", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/links/:id/reconcile", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/refunds", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/online-payments/refunds/:id/reconcile", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/terminals", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/terminals/:id", methods: ["PATCH"], access: "finance" },
+  { path: "/api/v1/admin/finance/sales", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/sales/:id", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/entries", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/entries/:id/reverse", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-imports", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-imports/preview", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-imports/:id/lines", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-lines/:id/resolve", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/indicators", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/settings/fundraising-goal", methods: ["GET", "PUT"], access: "finance" },
+  { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/payables/settlements/:id/reverse", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
+  { path: "/api/v1/account/sessions", methods: ["GET", "DELETE"], access: "authenticated" },
+  { path: "/api/v1/account/sessions/:id", methods: ["DELETE"], access: "authenticated" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
   { path: "/api/v1/pricing/quote", methods: ["POST"], access: "public" },
+  { path: "/api/v1/sales/checkout", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/sales/:id/payments/cash", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/pdv/raffles", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/raffles/buyer", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/raffles/:id/numbers/reserve", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/sales/:id/payments/payment-link", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/payments/payment-links/:id", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/pdv/shifts", methods: ["GET", "POST"], access: "seller" },
+  { path: "/api/v1/pdv/pickups", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/handoff", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/pdv/pickups/:id/complete", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/pdv/pickups/:id/deliver", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/pdv/sales", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/sales/:id/origin", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/pdv/share-links", methods: ["GET", "POST"], access: "seller" },
+  { path: "/api/v1/pdv/terminals", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/shifts/:id/close", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/payments/:id/reconciliations", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/closeouts", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/closeouts/:id/reopen", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/reservations", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/reservations/:id/cancel", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/reservations/:id/payment-link", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/reservations/:id/convert", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/notifications", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/notifications/:id/read", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/notifications/preferences", methods: ["GET", "PUT"], access: "authenticated" },
+  { path: "/api/v1/catalog/stock-alerts", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/catalog/products/:id/stock-alert", methods: ["PUT"], access: "authenticated" },
+  { path: "/api/v1/feature-flags", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/admin/feature-flags/:key", methods: ["PATCH"], access: "admin" },
+  { path: "/api/v1/admin/raffles", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/close", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/draw", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id", methods: ["PATCH"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/transition", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/cancel", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/raffles/:id/buyers", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/raffles/:id/numbers/reserve", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/raffles/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/raffles/:id/numbers", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/raffles/sales/:id/payment-link", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/auth/otp/request", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/otp/verify", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/signup/request", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/signup/verify", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/signup/complete", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/password-recovery/request", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/password-recovery/verify", methods: ["POST"], access: "public" },
+  { path: "/api/v1/auth/password-recovery/complete", methods: ["POST"], access: "public" },
+  { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin" },
+  { path: "/api/v1/admin/reservations", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/announcements", methods: ["GET", "POST"], access: "communications" },
+  { path: "/api/v1/admin/share-campaigns", methods: ["GET", "POST"], access: "communications" },
+  { path: "/api/v1/admin/events", methods: ["GET", "POST"], access: "communications" },
+  { path: "/api/v1/admin/events/:id", methods: ["PUT"], access: "communications" },
+  { path: "/api/v1/admin/events/:id/transition", methods: ["POST"], access: "communications" },
+  { path: "/api/v1/admin/events/:id/cover", methods: ["POST"], access: "communications" },
+  { path: "/api/v1/events", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/events/:id", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/showcase", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/admin/showcase/highlight", methods: ["GET", "PUT"], access: "communications" },
+  { path: "/api/v1/admin/reservations/settings", methods: ["GET", "PUT"], access: "admin" },
+  { path: "/api/v1/admin/reservations/:id/ready", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },
+  { path: "/api/v1/admin/users/:id/password-recovery", methods: ["POST"], access: "admin" },
+  { path: "/api/v1/admin/users/:id/signup-code", methods: ["POST"], access: "admin" },
   { path: "/api/auth/login", methods: ["POST"], access: "public" },
   { path: "/api/auth/logout", methods: ["POST"], access: "authenticated" },
   { path: "/api/auth/me", methods: ["GET"], access: "authenticated" },
@@ -18,12 +144,169 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
 ];
 
 export function apiAccessRule(path: string): ApiAccessRule | undefined {
-  return apiAccessRules.find((rule) => rule.path === path);
+  return apiAccessRules.find((rule) => {
+    if (rule.path === path) return true;
+    if (rule.path === "/api/v1/admin/procurement/orders/:id/cancel") {
+      return /^\/api\/v1\/admin\/procurement\/orders\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/payables/:id/settlements") {
+      return /^\/api\/v1\/admin\/finance\/payables\/[0-9a-f-]+\/settlements$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/payables/settlements/:id/reverse") {
+      return /^\/api\/v1\/admin\/finance\/payables\/settlements\/[0-9a-f-]+\/reverse$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/users/:id/roles") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
+    }
+    if (rule.path === "/api/v1/account/sessions/:id") {
+      return /^\/api\/v1\/account\/sessions\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/audit/correlations/:id") {
+      return /^\/api\/v1\/admin\/audit\/correlations\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/pdv/pickups/:id/deliver") {
+      return /^\/api\/v1\/pdv\/pickups\/[0-9a-f-]+\/deliver$/i.test(path);
+    }
+    if (rule.path === "/api/v1/pdv/pickups/:id/complete") {
+      return /^\/api\/v1\/pdv\/pickups\/[0-9a-f-]+\/complete$/i.test(path);
+    }
+    if (rule.path === "/api/v1/pdv/raffles/:id/numbers/reserve") {
+      return /^\/api\/v1\/pdv\/raffles\/[0-9a-f-]+\/numbers\/reserve$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/reservations/:id/ready") {
+      return /^\/api\/v1\/admin\/reservations\/[0-9a-f-]+\/ready$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/catalog/products/:id/prices") {
+      return /^\/api\/v1\/admin\/catalog\/products\/[0-9a-f-]+\/prices$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/catalog/product-images/:id") {
+      return /^\/api\/v1\/admin\/catalog\/product-images\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/inventory/transfer-requests/:id") {
+      return /^\/api\/v1\/inventory\/transfer-requests\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/inventory/returns/:id") {
+      return /^\/api\/v1\/inventory\/returns\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/inventory/returns/:id") {
+      return /^\/api\/v1\/admin\/inventory\/returns\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/inventory/losses/:id") {
+      return /^\/api\/v1\/inventory\/losses\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/inventory/losses/:id") {
+      return /^\/api\/v1\/admin\/inventory\/losses\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/inventory/counts/:id") {
+      return /^\/api\/v1\/inventory\/counts\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/inventory/counts/:id") {
+      return /^\/api\/v1\/admin\/inventory\/counts\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/users/:id/password-recovery") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/password-recovery$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/users/:id/signup-code") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/signup-code$/i.test(path);
+    }
+    if (rule.path === "/api/v1/sales/:id/cancel") {
+      return /^\/api\/v1\/sales\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/sales/:id/payments/manual-confirmation") {
+      return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/manual-confirmation$/i.test(path);
+    }
+    if (rule.path === "/api/v1/sales/:id/payments/cash") {
+      return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/cash$/i.test(path);
+    }
+    if (rule.path === "/api/v1/sales/:id/payments/payment-link") {
+      return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/payment-link$/i.test(path);
+    }
+    if (rule.path === "/api/v1/payments/payment-links/:id") {
+      return /^\/api\/v1\/payments\/payment-links\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/pdv/shifts/:id/close") {
+      return /^\/api\/v1\/pdv\/shifts\/[0-9a-f-]+\/close$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/terminals/:id") {
+      return /^\/api\/v1\/admin\/finance\/terminals\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path.startsWith("/api/v1/admin/finance/online-payments/") && rule.path.includes("/:id/")) {
+      const [prefix, suffix] = rule.path.split("/:id/");
+      return path.startsWith(`${prefix}/`) && path.endsWith(`/${suffix}`)
+        && /^[0-9a-f-]+$/i.test(path.slice(prefix.length + 1, path.length - suffix.length - 1));
+    }
+    if (rule.path === "/api/v1/admin/finance/sales/:id") {
+      return /^\/api\/v1\/admin\/finance\/sales\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/entries/:id/reverse") {
+      return /^\/api\/v1\/admin\/finance\/entries\/[0-9a-f-]+\/reverse$/i.test(path);
+    }
+    if (rule.path === "/api/v1/payments/:id/reconciliations") {
+      return /^\/api\/v1\/payments\/[0-9a-f-]+\/reconciliations$/i.test(path);
+    }
+    if (rule.path === "/api/v1/closeouts/:id/reopen") {
+      return /^\/api\/v1\/closeouts\/[0-9a-f-]+\/reopen$/i.test(path);
+    }
+    if (rule.path === "/api/v1/reservations/:id/payment-link") {
+      return /^\/api\/v1\/reservations\/[0-9a-f-]+\/payment-link$/i.test(path);
+    }
+    if (rule.path === "/api/v1/reservations/:id/cancel") {
+      return /^\/api\/v1\/reservations\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/reservations/:id/convert") {
+      return /^\/api\/v1\/reservations\/[0-9a-f-]+\/convert$/i.test(path);
+    }
+    if (rule.path === "/api/v1/catalog/products/:id/stock-alert") {
+      return /^\/api\/v1\/catalog\/products\/[0-9a-f-]+\/stock-alert$/i.test(path);
+    }
+    if (rule.path === "/api/v1/notifications/:id/read") {
+      return /^\/api\/v1\/notifications\/[0-9a-f-]+\/read$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/feature-flags/:key") {
+      return /^\/api\/v1\/admin\/feature-flags\/[a-z0-9_]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/close") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/close$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/draw") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/draw$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/transition") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/transition$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/cancel") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/raffles/:id/buyers") {
+      return /^\/api\/v1\/admin\/raffles\/[0-9a-f-]+\/buyers$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/:id/numbers/reserve") {
+      return /^\/api\/v1\/raffles\/[0-9a-f-]+\/numbers\/reserve$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/sales/:id/cancel") {
+      return /^\/api\/v1\/raffles\/sales\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/:id/numbers") {
+      return /^\/api\/v1\/raffles\/[0-9a-f-]+\/numbers$/i.test(path);
+    }
+    if (rule.path === "/api/v1/raffles/sales/:id/payment-link") {
+      return /^\/api\/v1\/raffles\/sales\/[0-9a-f-]+\/payment-link$/i.test(path);
+    }
+    return false;
+  });
 }
 
 export function rolesSatisfyAccess(roles: readonly string[], access: ApiAccessLevel): boolean {
   if (access === "public" || access === "authenticated") return true;
   if (access === "admin") return roles.includes("ADMIN");
+  if (access === "finance") return roles.includes("ADMIN") || roles.includes("FINANCEIRO");
+  if (access === "inventory") return roles.includes("ADMIN") || roles.includes("ESTOQUE");
+  if (access === "procurement") return roles.includes("ADMIN") || roles.includes("ESTOQUE");
+  if (access === "stock") return roles.includes("ADMIN") || roles.includes("VENDEDOR") || roles.includes("ESTOQUE");
+  if (access === "communications") return roles.includes("ADMIN") || roles.includes("COMUNICACAO");
   return roles.includes("ADMIN") || roles.includes("VENDEDOR");
 }
 

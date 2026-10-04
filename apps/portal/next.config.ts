@@ -26,7 +26,7 @@ const securityHeaders = [
       "object-src 'none'",
       scriptSource,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https:",
+      `img-src 'self' data: blob: https: ${supabaseOrigin}`,
       `connect-src 'self' ${supabaseOrigin} ${pdvOrigin}`,
       "font-src 'self' data:",
       "worker-src 'self' blob:",

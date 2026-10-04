@@ -8,6 +8,11 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "catalog.manage",
     "inventory.read",
     "inventory.manage",
+    "inventory.transfer.own",
+    "inventory.return.own",
+    "inventory.loss.own",
+    "inventory.count.own",
+    "procurement.manage",
     "sales.create",
     "sales.read.own",
     "sales.read.all",
@@ -18,29 +23,40 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "raffles.manage",
     "users.manage",
     "finance.manage",
+    "closeouts.create",
+    "closeouts.manage",
     "communications.manage",
     "community.moderate",
+    "audit.read",
   ],
   VENDEDOR: [
     "portal.access",
     "catalog.read",
     "inventory.read",
+    "inventory.transfer.own",
+    "inventory.return.own",
+    "inventory.loss.own",
+    "inventory.count.own",
     "sales.create",
     "sales.read.own",
     "reservations.manage.own",
     "raffles.buy",
     "raffles.sell",
+    "closeouts.create",
   ],
   ESTOQUE: [
     "portal.access",
     "catalog.read",
     "inventory.read",
     "inventory.manage",
+    "inventory.count.own",
+    "procurement.manage",
   ],
   FINANCEIRO: [
     "portal.access",
     "sales.read.all",
     "finance.manage",
+    "closeouts.manage",
   ],
   COMUNICACAO: [
     "portal.access",
@@ -53,6 +69,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
   CONSUMIDOR: [
     "portal.access",
     "catalog.read",
+    "sales.read.own",
     "reservations.manage.own",
     "raffles.buy",
   ],
@@ -68,13 +85,23 @@ const rolePriority: Readonly<Record<AppRole, number>> = {
   CONSUMIDOR: 1,
 };
 
-export function primaryRole(roles: readonly AppRole[]): AppRole {
-  return [...roles].sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
+function isKnownRole(role: unknown): role is AppRole {
+  return typeof role === "string" && Object.hasOwn(rolePermissions, role);
 }
 
+function knownRoles(roles: unknown): AppRole[] {
+  return Array.isArray(roles) ? roles.filter(isKnownRole) : [];
+}
+
+/** Fail-closed: unknown, malformed or missing roles grant nothing. */
+export function primaryRole(roles: readonly unknown[] | null | undefined): AppRole {
+  return knownRoles(roles).sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
+}
+
+/** Fail-closed: only known roles contribute permissions. */
 export function hasPermission(
-  user: { roles: readonly AppRole[] },
+  user: { roles?: readonly unknown[] | null } | null | undefined,
   permission: Permission,
 ): boolean {
-  return user.roles.some((role) => rolePermissions[role].includes(permission));
+  return knownRoles(user?.roles).some((role) => rolePermissions[role].includes(permission));
 }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   addMoney,
+  allocateComboDiscount,
+  applyBuyPayPromotion,
   applyQuantityFixedPricePromotion,
+  applyTieredPromotion,
+  applyUnitPromotion,
   compareMoney,
   DomainError,
   formatMoneyBrl,
@@ -10,6 +14,7 @@ import {
   multiplyMoney,
   parseBrlToCents,
   priceBaseCart,
+  priceCartWithPromotions,
   priceCartWithQuantityPromotions,
   subtractMoney,
 } from "./index";
@@ -85,6 +90,69 @@ describe("MoneyCents", () => {
       () => addMoney(moneyFromCents(Number.MAX_SAFE_INTEGER), moneyFromCents(1)),
       "INVALID_MONEY_CENTS",
     );
+  });
+});
+
+describe("unit promotions", () => {
+  const item = { productId: "product-a", unitPriceCents: moneyFromCents(999), quantity: 3 };
+
+  it("floors the discounted unit price in favor of the customer", () => {
+    // 10% on R$ 15,05 = R$ 13,545 per unit -> R$ 13,54 (half-up would charge R$ 13,55).
+    expect(applyUnitPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_505), quantity: 2 }, {
+      promotionId: "percent-a", productId: "product-a", type: "PERCENTUAL", percentageBasisPoints: 1_000,
+    })).toMatchObject({
+      originalSubtotalCents: 3_010, discountCents: 302, effectiveSubtotalCents: 2_708,
+      appliedPromotion: { discountedUnitPriceCents: 1_354, savingsCents: 302 },
+      rounding: "FLOOR_PER_UNIT",
+    });
+    // 0.01% on R$ 0,99 floors to R$ 0,98: the smallest percentage still yields a saving.
+    expect(applyUnitPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(99), quantity: 1 }, {
+      promotionId: "percent-a", productId: "product-a", type: "PERCENTUAL", percentageBasisPoints: 1,
+    })).toMatchObject({ discountCents: 1, effectiveSubtotalCents: 98 });
+  });
+
+  it("applies percentage in basis points per unit", () => {
+    expect(applyUnitPromotion(item, {
+      promotionId: "percent-a", productId: "product-a", type: "PERCENTUAL",
+      percentageBasisPoints: 1_250,
+    })).toEqual({
+      productId: "product-a", unitPriceCents: 999, quantity: 3,
+      originalSubtotalCents: 2_997, discountCents: 375, effectiveSubtotalCents: 2_622,
+      appliedPromotion: {
+        promotionId: "percent-a", type: "PERCENTUAL", percentageBasisPoints: 1_250,
+        discountedUnitPriceCents: 874, savingsCents: 375,
+      },
+      rounding: "FLOOR_PER_UNIT",
+    });
+  });
+
+  it("replaces the eligible unit price in integer cents", () => {
+    expect(applyUnitPromotion(item, {
+      promotionId: "fixed-a", productId: "product-a", type: "VALOR_FIXO_UNITARIO",
+      fixedUnitPriceCents: moneyFromCents(800),
+    })).toMatchObject({
+      discountCents: 597, effectiveSubtotalCents: 2_400,
+      appliedPromotion: { type: "VALOR_FIXO_UNITARIO", fixedUnitPriceCents: 800, savingsCents: 597 },
+      rounding: "NONE",
+    });
+  });
+
+  it("keeps priority before best price across different rule types", () => {
+    const quote=priceCartWithPromotions([item],[
+      { promotionId:"percent-high",productId:"product-a",type:"PERCENTUAL",percentageBasisPoints:1_000,priority:20 },
+      { promotionId:"fixed-low",productId:"product-a",type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:moneyFromCents(100),priority:10 },
+    ]);
+    expect(quote.lines[0].appliedPromotion?.promotionId).toBe("percent-high");
+    expect(quote.rounding).toBe("FLOOR_PER_UNIT");
+  });
+
+  it("rejects invalid percentages and non-promotional fixed prices", () => {
+    expectDomainError(() => applyUnitPromotion(item, {
+      promotionId:"bad",productId:"product-a",type:"PERCENTUAL",percentageBasisPoints:10_000,
+    }), "INVALID_PROMOTION_PERCENTAGE");
+    expectDomainError(() => applyUnitPromotion(item, {
+      promotionId:"bad",productId:"product-a",type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:moneyFromCents(999),
+    }), "INVALID_PROMOTION_FIXED_PRICE");
   });
 });
 
@@ -378,5 +446,224 @@ describe("promoted cart pricing", () => {
       { ...common, promotionId: "promo-a", groupPriceCents: moneyFromCents(1_000) },
     ]);
     expect(stableWinner.lines[0].appliedPromotion?.promotionId).toBe("promo-a");
+  });
+});
+
+describe("PROMO-004 non-cumulative precedence", () => {
+  // Mirrors supabase/tests/promotion_precedence_test.sql: R$ 25,90 x 2.
+  const item = { productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity: 2 };
+  const fixedA = { promotionId: "7a000000-0000-4000-8000-000000000002", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(2_000), priority: 300 };
+  const fixedB = { ...fixedA, promotionId: "7a000000-0000-4000-8000-000000000001" };
+  const percent = { promotionId: "7a000000-0000-4000-8000-000000000003", productId: "product-a", type: "PERCENTUAL" as const, percentageBasisPoints: 2_000, priority: 300 };
+  const cheaperLowPriority = { promotionId: "7a000000-0000-4000-8000-000000000004", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(100), priority: 100 };
+  const quantity = { promotionId: "7a000000-0000-4000-8000-000000000006", productId: "product-a", type: "QUANTIDADE_PRECO" as const, groupQuantity: 2, groupPriceCents: moneyFromCents(3_000), maxGroupsPerLine: null, priority: 300 };
+
+  function permutations<T>(values: readonly T[]): T[][] {
+    return values.length <= 1 ? [[...values]] : values.flatMap((value, index) =>
+      permutations([...values.slice(0, index), ...values.slice(index + 1)]).map((rest) => [value, ...rest]));
+  }
+
+  it("prefers higher priority, then the lowest customer total", () => {
+    const quote = priceCartWithPromotions([item], [fixedA, percent, cheaperLowPriority]);
+    expect(quote.lines[0].appliedPromotion?.promotionId).toBe(fixedA.promotionId);
+    expect(quote).toMatchObject({ originalTotalCents: 5_180, discountTotalCents: 1_180, totalCents: 4_000 });
+  });
+
+  it("breaks exact ties by code-unit promotion ID, like PostgreSQL UUID order", () => {
+    expect(priceCartWithPromotions([item], [fixedA, fixedB]).lines[0].appliedPromotion?.promotionId).toBe(fixedB.promotionId);
+    // Locale collation would put "a…" before "B…"; code-unit order must not.
+    const upper = { ...fixedA, promotionId: "B-promo" };
+    const lower = { ...fixedA, promotionId: "a-promo" };
+    expect(priceCartWithPromotions([item], [lower, upper]).lines[0].appliedPromotion?.promotionId).toBe("B-promo");
+  });
+
+  it("is independent of the order in which candidates are read", () => {
+    const rules = [fixedA, fixedB, percent, cheaperLowPriority, quantity];
+    const expected = priceCartWithPromotions([item], rules);
+    expect(expected.lines[0].appliedPromotion?.promotionId).toBe(quantity.promotionId);
+    for (const order of permutations(rules)) expect(priceCartWithPromotions([item], order)).toEqual(expected);
+  });
+
+  it("applies exactly one rule per line even with duplicate candidates", () => {
+    const quote = priceCartWithPromotions([item], [fixedB, fixedB, fixedA, percent]);
+    expect(quote.lines).toHaveLength(1);
+    expect(quote.lines[0]).toMatchObject({ discountCents: 1_180, effectiveSubtotalCents: 4_000 });
+    expect(quote.discountTotalCents).toBe(quote.originalTotalCents - quote.totalCents);
+  });
+
+  it("skips candidates that do not apply instead of blocking lower ones", () => {
+    const single = { ...item, quantity: 1 };
+    expect(priceCartWithPromotions([single], [quantity, fixedA]).lines[0].appliedPromotion?.promotionId).toBe(fixedA.promotionId);
+  });
+
+  it("never produces a negative price or a price increase", () => {
+    expectDomainError(() => priceCartWithPromotions([item], [{ ...fixedA, fixedUnitPriceCents: moneyFromCents(2_590) }]), "INVALID_PROMOTION_FIXED_PRICE");
+    expectDomainError(() => priceCartWithPromotions([item], [{ ...quantity, groupPriceCents: moneyFromCents(5_180) }]), "INVALID_PROMOTION_GROUP_PRICE");
+    expectDomainError(() => priceCartWithPromotions([item], [{ ...percent, percentageBasisPoints: 10_000 }]), "INVALID_PROMOTION_PERCENTAGE");
+    const deepest = priceCartWithPromotions([{ ...item, unitPriceCents: moneyFromCents(1) }], [{ ...percent, percentageBasisPoints: 9_999 }]);
+    expect(deepest.totalCents).toBe(0);
+    expect(deepest.discountTotalCents).toBe(2);
+  });
+});
+
+describe("LEVE_PAGUE promotions", () => {
+  const rule = { promotionId: "buy-pay", productId: "product-a", type: "LEVE_PAGUE" as const, buyQuantity: 3, payQuantity: 2, maxGroupsPerLine: null };
+
+  it("charges only the paid units of each complete group", () => {
+    // Leve 3, pague 2 sobre R$ 15,00: 7 unidades = 2 grupos (2 grátis) + 1 avulsa = R$ 75,00.
+    expect(applyBuyPayPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 7 }, rule)).toEqual({
+      productId: "product-a", unitPriceCents: 1_500, quantity: 7,
+      originalSubtotalCents: 10_500, discountCents: 3_000, effectiveSubtotalCents: 7_500,
+      appliedPromotion: { promotionId: "buy-pay", type: "LEVE_PAGUE", buyQuantity: 3, payQuantity: 2, groups: 2, freeQuantity: 2, savingsCents: 3_000 },
+      rounding: "NONE",
+    });
+  });
+
+  it("does not apply below one complete group and honors the group limit", () => {
+    expect(applyBuyPayPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 2 }, rule).appliedPromotion).toBeNull();
+    expect(applyBuyPayPromotion({ productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 9 }, { ...rule, maxGroupsPerLine: 1 }))
+      .toMatchObject({ discountCents: 1_500, appliedPromotion: { groups: 1, freeQuantity: 1 } });
+  });
+
+  it("competes with other rules under PROMO-004 precedence", () => {
+    const item = { productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 3 };
+    const fixed = { promotionId: "fixed", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(1_200), priority: 10 };
+    // Same priority: leve/pague (3000) beats R$ 12,00 x 3 (3600).
+    expect(priceCartWithPromotions([item], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("LEVE_PAGUE");
+    expect(priceCartWithPromotions([item], [{ ...fixed, priority: 20 }, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("VALOR_FIXO_UNITARIO");
+  });
+
+  it("rejects groups that would not charge anything or would not discount", () => {
+    const item = { productId: "product-a", unitPriceCents: moneyFromCents(1_500), quantity: 3 };
+    expectDomainError(() => applyBuyPayPromotion(item, { ...rule, payQuantity: 0 }), "INVALID_PROMOTION_PAY_QUANTITY");
+    expectDomainError(() => applyBuyPayPromotion(item, { ...rule, payQuantity: 3 }), "INVALID_PROMOTION_PAY_QUANTITY");
+    expectDomainError(() => applyBuyPayPromotion(item, { ...rule, buyQuantity: 1, payQuantity: 1 }), "INVALID_PROMOTION_BUY_QUANTITY");
+  });
+});
+
+describe("ESCALONADA promotions", () => {
+  // Mirrors supabase/tests/promotion_tiered_test.sql: R$ 25,90 with 3+ = 5% and 6+ = 8%.
+  const rule = { promotionId: "tiered", productId: "product-a", type: "ESCALONADA" as const,
+    tiers: [{ minQuantity: 3, percentageBasisPoints: 500 }, { minQuantity: 6, percentageBasisPoints: 800 }] };
+  const line = (quantity: number) => ({ productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity });
+
+  it("applies the highest reached tier to every unit, floored per unit", () => {
+    expect(applyTieredPromotion(line(2), rule).appliedPromotion).toBeNull();
+    // 5%: R$ 24,605 -> R$ 24,60 per unit.
+    expect(applyTieredPromotion(line(3), rule)).toMatchObject({ effectiveSubtotalCents: 7_380, discountCents: 390,
+      appliedPromotion: { minQuantity: 3, percentageBasisPoints: 500, discountedUnitPriceCents: 2_460, savingsCents: 390 }, rounding: "FLOOR_PER_UNIT" });
+    // 8%: R$ 23,828 -> R$ 23,82 per unit.
+    expect(applyTieredPromotion(line(6), rule)).toMatchObject({ effectiveSubtotalCents: 14_292, discountCents: 1_248,
+      appliedPromotion: { minQuantity: 6, percentageBasisPoints: 800, discountedUnitPriceCents: 2_382 } });
+  });
+
+  it("rejects tiers that do not grow in quantity and discount", () => {
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [] }), "INVALID_PROMOTION_TIERS");
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [{ minQuantity: 6, percentageBasisPoints: 800 }, { minQuantity: 3, percentageBasisPoints: 900 }] }), "INVALID_PROMOTION_TIERS");
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [{ minQuantity: 3, percentageBasisPoints: 800 }, { minQuantity: 6, percentageBasisPoints: 800 }] }), "INVALID_PROMOTION_TIERS");
+    expectDomainError(() => applyTieredPromotion(line(3), { ...rule, tiers: [{ minQuantity: 1, percentageBasisPoints: 500 }] }), "INVALID_PROMOTION_TIERS");
+  });
+
+  it("competes under PROMO-004 precedence", () => {
+    const fixed = { promotionId: "fixed", productId: "product-a", type: "VALOR_FIXO_UNITARIO" as const, fixedUnitPriceCents: moneyFromCents(2_400), priority: 10 };
+    expect(priceCartWithPromotions([line(6)], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("ESCALONADA");
+    expect(priceCartWithPromotions([line(3)], [fixed, { ...rule, priority: 10 }]).lines[0].appliedPromotion?.type).toBe("VALOR_FIXO_UNITARIO");
+  });
+});
+
+describe("COMBO_MIX promotions", () => {
+  // Mirrors supabase/tests/promotion_combo_test.sql: A R$ 25,90 x 3, B R$ 19,90 x 2, A+B por R$ 35,00.
+  const itemA = { productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity: 3 };
+  const itemB = { productId: "product-b", unitPriceCents: moneyFromCents(1_990), quantity: 2 };
+  const combo = { promotionId: "7c000000-0000-4000-8000-000000000001", type: "COMBO_MIX" as const,
+    components: [{ productId: "product-a", quantity: 1 }, { productId: "product-b", quantity: 1 }],
+    comboPriceCents: moneyFromCents(3_500), maxCombosPerCart: null, priority: 300 };
+
+  it("allocates the discount proportionally with the largest remainder", () => {
+    // 2 combos: discount 2160 over values 5180 (A) and 3980 (B) -> 1221.48 / 938.52; the spare cent goes to B.
+    const quote = priceCartWithPromotions([itemA, itemB], [combo]);
+    expect(quote).toMatchObject({ originalTotalCents: 11_750, discountTotalCents: 2_160, totalCents: 9_590 });
+    expect(quote.lines[0]).toMatchObject({ discountCents: 1_221, effectiveSubtotalCents: 6_549,
+      appliedPromotion: { type: "COMBO_MIX", combos: 2, componentQuantity: 2, savingsCents: 1_221 } });
+    expect(quote.lines[1]).toMatchObject({ discountCents: 939, effectiveSubtotalCents: 3_041,
+      appliedPromotion: { combos: 2, componentQuantity: 2, savingsCents: 939 } });
+    expect(allocateComboDiscount(moneyFromCents(2_160), [{ productId: "product-a", valueCents: moneyFromCents(5_180) }, { productId: "product-b", valueCents: moneyFromCents(3_980) }]))
+      .toEqual(new Map([["product-a", 1_221], ["product-b", 939]]));
+  });
+
+  it("breaks equal remainders by higher value, then product ID", () => {
+    expect(allocateComboDiscount(moneyFromCents(1), [{ productId: "b", valueCents: moneyFromCents(100) }, { productId: "a", valueCents: moneyFromCents(100) }]))
+      .toEqual(new Map([["b", 0], ["a", 1]]));
+  });
+
+  it("needs every component in the cart and honors the combo limit", () => {
+    expect(priceCartWithPromotions([itemA], [combo]).lines[0].appliedPromotion).toBeNull();
+    expect(priceCartWithPromotions([itemA, itemB], [{ ...combo, maxCombosPerCart: 1 }])).toMatchObject({ discountTotalCents: 1_080 });
+  });
+
+  it("competes with line rules under PROMO-004", () => {
+    const percentA = { promotionId: "7c000000-0000-4000-8000-000000000009", productId: "product-a", type: "PERCENTUAL" as const, percentageBasisPoints: 1_000, priority: 300 };
+    // Same priority: combo cart 9590 beats 10% on A (6993 + 3980 = 10973).
+    expect(priceCartWithPromotions([itemA, itemB], [percentA, combo]).lines[0].appliedPromotion?.type).toBe("COMBO_MIX");
+    // Higher line priority keeps the line rule and leaves B at full price.
+    const quote = priceCartWithPromotions([itemA, itemB], [{ ...percentA, priority: 400 }, combo]);
+    expect(quote.lines[0].appliedPromotion?.type).toBe("PERCENTUAL");
+    expect(quote.lines[1].appliedPromotion).toBeNull();
+  });
+
+  it("lets a line join at most one combo and stays independent of rule order", () => {
+    const cheaper = { ...combo, promotionId: "7c000000-0000-4000-8000-000000000002", comboPriceCents: moneyFromCents(3_000), priority: 100 };
+    const expected = priceCartWithPromotions([itemA, itemB], [combo, cheaper]);
+    expect(expected.lines.every((line) => line.appliedPromotion?.promotionId === combo.promotionId)).toBe(true);
+    expect(priceCartWithPromotions([itemA, itemB], [cheaper, combo, combo])).toEqual(expected);
+  });
+
+  it("fails closed on a combo that does not save", () => {
+    expectDomainError(() => priceCartWithPromotions([itemA, itemB], [{ ...combo, comboPriceCents: moneyFromCents(4_580) }]), "INVALID_PROMOTION_COMBO_PRICE");
+    expectDomainError(() => priceCartWithPromotions([itemA, itemB], [{ ...combo, components: [combo.components[0]] }]), "INVALID_PROMOTION_COMBO");
+  });
+});
+
+describe("CUPOM promotions", () => {
+  // Mirrors supabase/tests/promotion_coupon_limits_test.sql: A R$ 25,90, B R$ 19,90.
+  const a = (quantity: number) => ({ productId: "product-a", unitPriceCents: moneyFromCents(2_590), quantity });
+  const b = (quantity: number) => ({ productId: "product-b", unitPriceCents: moneyFromCents(1_990), quantity });
+  const coupon = { promotionId: "7d000000-0000-4000-8000-000000000001", type: "CUPOM" as const, code: "FORMANDO10",
+    productIds: ["product-a"], discount: { kind: "PERCENTUAL" as const, percentageBasisPoints: 1_000 }, cumulative: false, priority: 300 };
+  const lineRule = { promotionId: "7d000000-0000-4000-8000-000000000009", productId: "product-a", type: "PERCENTUAL" as const, percentageBasisPoints: 2_000, priority: 300 };
+
+  it("applies a non-cumulative percentage coupon per unit, floored", () => {
+    expect(priceCartWithPromotions([a(2)], [coupon])).toMatchObject({ totalCents: 4_662, discountTotalCents: 518, rounding: "FLOOR_PER_UNIT",
+      lines: [{ appliedPromotion: { type: "CUPOM", code: "FORMANDO10", discountKind: "PERCENTUAL", savingsCents: 518 } }] });
+  });
+
+  it("splits a fixed coupon across eligible lines with PROMO-005", () => {
+    const fixed = { ...coupon, productIds: ["product-a", "product-b"], discount: { kind: "VALOR_FIXO" as const, amountCents: moneyFromCents(1_000) } };
+    const quote = priceCartWithPromotions([a(1), b(1)], [fixed]);
+    expect(quote).toMatchObject({ totalCents: 3_580, discountTotalCents: 1_000 });
+    expect(quote.lines.map((line) => line.discountCents)).toEqual([566, 434]);
+  });
+
+  it("competes with line promotions when not cumulative", () => {
+    expect(priceCartWithPromotions([a(2)], [coupon, lineRule]).lines[0].appliedPromotion?.type).toBe("PERCENTUAL");
+    expect(priceCartWithPromotions([a(2)], [{ ...coupon, priority: 400 }, lineRule]).lines[0].appliedPromotion?.type).toBe("CUPOM");
+  });
+
+  it("stacks a cumulative coupon on the winning promotion, flooring the line", () => {
+    // 20% line rule: 2072 x 3 = 6216; cumulative 10% -> floor(5594.4) = 5594.
+    const quote = priceCartWithPromotions([a(3)], [{ ...coupon, cumulative: true }, lineRule]);
+    expect(quote).toMatchObject({ totalCents: 5_594, discountTotalCents: 2_176, rounding: "FLOOR_PER_UNIT_AND_LINE" });
+    expect(quote.lines[0]).toMatchObject({ appliedPromotion: { type: "PERCENTUAL", savingsCents: 1_554 },
+      appliedCoupon: { type: "CUPOM", cumulative: true, savingsCents: 622 } });
+  });
+
+  it("never makes a line negative", () => {
+    const fixed = { ...coupon, cumulative: true, discount: { kind: "VALOR_FIXO" as const, amountCents: moneyFromCents(5_000) } };
+    expect(priceCartWithPromotions([a(1)], [fixed])).toMatchObject({ totalCents: 0, discountTotalCents: 2_590 });
+  });
+
+  it("prices at most one coupon and ignores lines outside its scope", () => {
+    expect(priceCartWithPromotions([b(1)], [coupon]).lines[0].appliedPromotion).toBeNull();
+    expectDomainError(() => priceCartWithPromotions([a(1)], [coupon, { ...coupon, promotionId: "7d000000-0000-4000-8000-000000000002" }]), "MULTIPLE_COUPONS");
   });
 });

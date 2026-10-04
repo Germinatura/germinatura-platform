@@ -4,7 +4,7 @@ import { createRequestId } from "@germinatura/observability";
 import { apiAccessRule, isTrustedMutation, rolesSatisfyAccess } from "@/lib/api-security";
 import { updateSession } from "@/lib/auth";
 
-const publicRoutes = new Set(["/login"]);
+const publicRoutes = new Set(["/login", "/cadastro", "/cadastro/perfil", "/esqueci-senha", "/recuperar-senha"]);
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 
 function apiError(code: string, message: string, requestId: string, status: number, headers?: HeadersInit) {
@@ -17,7 +17,7 @@ function apiError(code: string, message: string, requestId: string, status: numb
 export default async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith("/api/");
-  const { response, session } = await updateSession(request);
+  const { response, session, client } = await updateSession(request);
 
   if (isApi) {
     const requestId = createRequestId(request.headers);
@@ -26,10 +26,13 @@ export default async function proxy(request: NextRequest) {
     if (rule && !rule.methods.includes(request.method)) {
       return apiError("METHOD_NOT_ALLOWED", "Método não permitido", requestId, 405, { Allow: rule.methods.join(", ") });
     }
-    if ((!rule || rule.access !== "public") && !session) {
+    if ((!rule || rule.access !== "public") && (!session || !session.user.onboardingCompleted)) {
       return apiError("UNAUTHENTICATED", "Autenticação obrigatória", requestId, 401);
     }
     if (rule && session && !rolesSatisfyAccess(session.user.roles, rule.access)) {
+      // AUD-001: best effort; the denial stands whether or not it is recorded.
+      await client?.rpc("record_authorization_denied", { p_app: "PORTAL", p_route: path, p_method: request.method, p_request_id: requestId })
+        .then(() => undefined, () => undefined);
       return apiError("FORBIDDEN", "Permissão insuficiente", requestId, 403);
     }
     if (!safeMethods.has(request.method) && !isTrustedMutation(request)) {
@@ -41,9 +44,16 @@ export default async function proxy(request: NextRequest) {
     return response;
   }
 
+  // GROW-001: tracked share links are public for everyone, signed in or not.
+  if (/^\/d\/[a-z0-9]{8}$/.test(path)) return response;
   const isPublicRoute = publicRoutes.has(path);
   if (!session && !isPublicRoute) return NextResponse.redirect(new URL("/login", request.url));
-  if (session && isPublicRoute) return NextResponse.redirect(new URL("/", request.url));
+  if (session && !session.user.onboardingCompleted && path !== "/cadastro/perfil") {
+    return NextResponse.redirect(new URL("/cadastro/perfil", request.url));
+  }
+  if (session?.user.onboardingCompleted && isPublicRoute && path !== "/recuperar-senha") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
   return response;
 }
 

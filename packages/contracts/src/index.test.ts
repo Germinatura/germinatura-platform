@@ -1,26 +1,228 @@
 import { describe, expect, it } from "vitest";
 import {
   apiErrorSchema,
+  adminUsersResponseSchema,
   catalogProductFlagsSchema,
   catalogSlugSchema,
+  commercialReservationCancelResponseSchema,
+  commercialReservationConvertResponseSchema,
+  commercialReservationCreateRequestSchema,
+  distributeStockSchema,
+  confirmedSaleReversalRequestSchema,
+  credentialLoginRequestSchema,
   createApiClient,
+  featureFlagUpdateRequestSchema,
+  featureFlagsResponseSchema,
   idempotencyKeySchema,
   idempotencyStatusSchema,
+  institutionalEmailSchema,
+  institutionalOtpVerifySchema,
+  inventoryCountQuerySchema,
+  submitInventoryCountSchema,
+  manualPaymentConfirmationRequestSchema,
+  manualPaymentConfirmationResponseSchema,
   moneyCentsSchema,
+  notificationsQuerySchema,
+  notificationsResponseSchema,
+  paymentReconciliationRequestSchema,
+  paymentReconciliationResponseSchema,
+  catalogProductPriceHistoryQuerySchema,
+  catalogProductPriceHistoryResponseSchema,
+  saveCatalogProductSchema,
+  saveCatalogProductResponseSchema,
+  saveSupplierResponseSchema,
+  saveSupplierSchema,
+  setCatalogProductPriceResponseSchema,
+  setCatalogProductPriceSchema,
+  passwordRecoveryRequestSchema,
+  passwordRecoveryVerifySchema,
+  passwordRecoveryUnlockSchema,
   productSkuSchema,
   pricingQuoteRequestSchema,
   pricingQuoteResponseSchema,
   publicCatalogProductsQuerySchema,
   publicCatalogProductsResponseSchema,
+  raffleCampaignCreateRequestSchema,
+  raffleDrawResponseSchema,
+  raffleNumberReservationRequestSchema,
+  saleSchema,
+  saleStatusSchema,
+  salesCancelResponseSchema,
+  salesCheckoutRequestSchema,
+  salesCheckoutResponseSchema,
+  sellerCloseoutRequestSchema,
+  sellerCloseoutResponseSchema,
+  reopenSellerCloseoutRequestSchema,
+  requestSellerStockTransferSchema,
+  resolveSellerStockTransferSchema,
+  sellerStockTransferContextResponseSchema,
+  sellerStockTransferQuerySchema,
   sessionUserSchema,
+  signupCompleteSchema,
+  signupRequestSchema,
   stockMovementTypeSchema,
   stockReservationItemSchema,
   stockReservationStatusSchema,
+  requestStockReturnSchema,
+  resolveStockReturnSchema,
+  stockReturnContextResponseSchema,
+  userAccessUpdateSchema,
+  usernameSchema,
 } from "./index";
 
 describe("shared contracts", () => {
+  it("validates physical inventory snapshots and rejects duplicate products", () => {
+    const item = { productId: "33f00000-0000-4000-8000-000000000001", expectedOnHandQuantity: 4, expectedReservedQuantity: 1, countedOnHandQuantity: 3 };
+    expect(submitInventoryCountSchema.parse({ observation: "Conferência física", items: [item] }).items[0]?.countedOnHandQuantity).toBe(3);
+    expect(submitInventoryCountSchema.safeParse({ observation: "Conferência física", items: [item, item] }).success).toBe(false);
+    expect(submitInventoryCountSchema.safeParse({ observation: "Conferência física", items: [{ ...item, expectedReservedQuantity: 5 }] }).success).toBe(false);
+    expect(inventoryCountQuerySchema.parse({})).toEqual({ limit: 20 });
+  });
+  it("validates stock return requests, decisions and paginated context", () => {
+    const productId = "33000000-0000-4000-8000-000000000001";
+    expect(requestStockReturnSchema.parse({ productId, quantity: 2, reason: "Sobras do evento" }).quantity).toBe(2);
+    expect(requestStockReturnSchema.safeParse({ productId, quantity: 0, reason: "Sobras do evento" }).success).toBe(false);
+    expect(resolveStockReturnSchema.safeParse({ action: "APPROVE", reason: "Quantidade conferida" }).success).toBe(false);
+    expect(stockReturnContextResponseSchema.parse({ data: {
+      ownLocationId: "50000000-0000-4000-8000-000000000002", options: [{ productId, productName: "Doce", productSku: "DOCE-1", availableQuantity: 3 }],
+      requests: [{ id: "63000000-0000-4000-8000-000000000001", fromLocationId: "50000000-0000-4000-8000-000000000002", fromLocationName: "Vendedor", toLocationId: "50000000-0000-4000-8000-000000000001", toLocationName: "Central", productId, productName: "Doce", productSku: "DOCE-1", quantity: 2, status: "REQUESTED", requestedBy: "10000000-0000-4000-8000-000000000002", requestReason: "Sobras do evento", decisionReason: null, movementId: null, createdAt: "2026-09-11T12:00:00.000Z", decidedAt: null }], nextCursor: null,
+    }, request_id: "request-return" }).data.requests[0]?.status).toBe("REQUESTED");
+  });
+
+  it("validates seller transfer requests, decisions and context", () => {
+    const source = "50000000-0000-4000-8000-000000000002";
+    const destination = "50000000-0000-4000-8000-000000000003";
+    const product = "33000000-0000-4000-8000-000000000001";
+    expect(requestSellerStockTransferSchema.parse({ fromLocationId: source, productId: product, quantity: 2, reason: "Reposição para venda" }).quantity).toBe(2);
+    expect(requestSellerStockTransferSchema.safeParse({ fromLocationId: source, productId: product, quantity: 1, reason: "ok", total: 10 }).success).toBe(false);
+    expect(resolveSellerStockTransferSchema.safeParse({ action: "APPROVE", reason: "Saldo conferido" }).success).toBe(false);
+    expect(sellerStockTransferQuerySchema.parse({ limit: "20" }).limit).toBe(20);
+    expect(sellerStockTransferQuerySchema.safeParse({ limit: "51" }).success).toBe(false);
+    expect(sellerStockTransferContextResponseSchema.parse({
+      data: {
+        ownLocationId: destination, nextCursor: null,
+        options: [{ fromLocationId: source, fromLocationName: "Vendedor origem", productId: product, productName: "Doce", productSku: "DOCE-1", availableQuantity: 3 }],
+        requests: [{
+          id: "63000000-0000-4000-8000-000000000001", fromLocationId: source, fromLocationName: "Vendedor origem",
+          toLocationId: destination, toLocationName: "Vendedor destino", productId: product, productName: "Doce", productSku: "DOCE-1",
+          quantity: 2, status: "REQUESTED", requestedBy: "10000000-0000-4000-8000-000000000004",
+          requestReason: "Reposição para venda", decisionReason: null, movementId: null,
+          createdAt: "2026-09-11T10:00:00.000Z", decidedAt: null,
+        }],
+      }, request_id: "request-transfer",
+    }).data.requests).toHaveLength(1);
+  });
+
+  it("validates a central stock distribution without accepting client balances", () => {
+    expect(distributeStockSchema.parse({
+      fromLocationId: "50000000-0000-4000-8000-000000000001",
+      toLocationId: "50000000-0000-4000-8000-000000000002",
+      productId: "33000000-0000-4000-8000-000000000001",
+      quantity: 3,
+      reason: "Distribuição para o vendedor",
+    }).quantity).toBe(3);
+    expect(distributeStockSchema.safeParse({
+      fromLocationId: "50000000-0000-4000-8000-000000000001",
+      toLocationId: "50000000-0000-4000-8000-000000000002",
+      productId: "33000000-0000-4000-8000-000000000001",
+      quantity: 3,
+      reason: "Distribuição para o vendedor",
+      availableQuantity: 999,
+    }).success).toBe(false);
+  });
+
+  it("validates the administrative user listing without credentials", () => {
+    const parsed = adminUsersResponseSchema.parse({
+      data: [{
+        id: "10000000-0000-4000-8000-000000000001",
+        email: "admin.teste@institutojef.org.br",
+        displayName: "Admin Local",
+        username: "admin.teste",
+        active: true,
+        onboardingCompleted: true,
+        roles: ["ADMIN", "CONSUMIDOR"],
+      }],
+      request_id: "20000000-0000-4000-8000-000000000001",
+    });
+    expect(parsed.data[0]?.roles).toEqual(["ADMIN", "CONSUMIDOR"]);
+    expect(JSON.stringify(parsed)).not.toContain("password");
+  });
+
   it("rejects an invalid session identity", () => {
     expect(() => sessionUserSchema.parse({ id: "1" })).toThrow();
+  });
+
+  it("accepts only the canonical institutional email domain", () => {
+    expect(institutionalEmailSchema.parse(" Pessoa@InstitutoJef.org.br ")).toBe("pessoa@institutojef.org.br");
+    for (const email of [
+      "pessoa@example.org",
+      "pessoa@sub.institutojef.org.br",
+      "pessoa@institutojef.org.br.example.org",
+      "pessoa@institutojeforgbr",
+    ]) {
+      expect(institutionalEmailSchema.safeParse(email).success).toBe(false);
+    }
+    expect(institutionalOtpVerifySchema.safeParse({
+      email: "pessoa@institutojef.org.br",
+      token: "123456",
+    }).success).toBe(true);
+    expect(institutionalOtpVerifySchema.safeParse({
+      email: "pessoa@institutojef.org.br",
+      token: "1234567890",
+    }).success).toBe(true);
+    for (const token of ["12345", "12345678901", "12345a"]) {
+      expect(institutionalOtpVerifySchema.safeParse({
+        email: "pessoa@institutojef.org.br",
+        token,
+      }).success).toBe(false);
+    }
+    expect(passwordRecoveryVerifySchema.safeParse({
+      identifier: "pessoa@institutojef.org.br",
+      token: "1234567890",
+    }).success).toBe(true);
+    expect(passwordRecoveryVerifySchema.safeParse({
+      identifier: "pessoa@institutojef.org.br",
+      token: "12345678901",
+    }).success).toBe(false);
+  });
+
+  it("separates credential login, verified signup and bounded recovery contracts", () => {
+    expect(usernameSchema.parse(" Pessoa.Teste ")).toBe("pessoa.teste");
+    expect(credentialLoginRequestSchema.parse({
+      identifier: "Pessoa.Teste",
+      password: "qualquer-valor",
+    })).toEqual({ identifier: "pessoa.teste", password: "qualquer-valor" });
+    expect(credentialLoginRequestSchema.parse({
+      identifier: "Pessoa@InstitutoJef.org.br",
+      password: "qualquer-valor",
+    }).identifier).toBe("pessoa@institutojef.org.br");
+    expect(credentialLoginRequestSchema.safeParse({
+      identifier: "pessoa@example.org",
+      password: "qualquer-valor",
+    }).success).toBe(false);
+
+    expect(signupRequestSchema.safeParse({ email: "pessoa@institutojef.org.br" }).success).toBe(true);
+    expect(signupCompleteSchema.parse({
+      displayName: "Pessoa Teste",
+      username: "pessoa.teste",
+      password: "Pessoa123!",
+    })).toMatchObject({ username: "pessoa.teste", avatarPath: null });
+    expect(signupCompleteSchema.safeParse({
+      displayName: "Pessoa Teste",
+      username: "pessoa.teste",
+      password: "sem-complexidade",
+    }).success).toBe(false);
+
+    expect(passwordRecoveryRequestSchema.parse({ identifier: "pessoa.teste" }))
+      .toEqual({ identifier: "pessoa.teste" });
+    expect(passwordRecoveryUnlockSchema.safeParse({ reason: "ok" }).success).toBe(false);
+    expect(passwordRecoveryUnlockSchema.safeParse({ reason: "Identidade validada pelo administrador" }).success).toBe(true);
+  });
+
+  it("validates cumulative user access updates", () => {
+    expect(userAccessUpdateSchema.parse({ roles: ["VENDEDOR", "CONSUMIDOR"], active: true }))
+      .toEqual({ roles: ["VENDEDOR", "CONSUMIDOR"], active: true });
+    expect(userAccessUpdateSchema.safeParse({ roles: ["SUPERADMIN"], active: true }).success).toBe(false);
   });
 
   it("accepts the standard API error envelope", () => {
@@ -35,6 +237,17 @@ describe("shared contracts", () => {
     for (const invalid of [-1, 12.9, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
       expect(moneyCentsSchema.safeParse(invalid).success).toBe(false);
     }
+  });
+
+  it("requires a reason and non-sensitive reference for confirmed sale reversal", () => {
+    expect(confirmedSaleReversalRequestSchema.parse({
+      reason: "Cliente solicitou o estorno integral",
+      refundReference: "ESTORNO-TESTE-0001",
+    })).toMatchObject({ refundReference: "ESTORNO-TESTE-0001" });
+    expect(confirmedSaleReversalRequestSchema.safeParse({
+      reason: "curto",
+      refundReference: "4111111111111111",
+    }).success).toBe(false);
   });
 
   it("validates portable idempotency keys and persisted statuses", () => {
@@ -68,6 +281,50 @@ describe("shared contracts", () => {
     })).toMatchObject({ active: true, published: false, sellablePdv: true });
   });
 
+  it("validates product commands without accepting a client SKU", () => {
+    const request = saveCatalogProductSchema.parse({
+      id: null,
+      expectedRevision: null,
+      categoryId: "23f00000-0000-4000-8000-000000000001",
+      slug: "doce-teste",
+      name: "Doce teste",
+      description: null,
+      active: true,
+      published: false,
+      sellablePdv: false,
+      reservable: true,
+      tracksLots: false,
+      reason: "Cadastro inicial do produto",
+    });
+    expect(request.id).toBeNull();
+    expect(saveCatalogProductSchema.safeParse({ ...request, sku: "FORGED-SKU" }).success).toBe(false);
+    expect(saveCatalogProductSchema.safeParse({ ...request, id: "33f00000-0000-4000-8000-000000000001", expectedRevision: null }).success).toBe(false);
+    expect(saveCatalogProductResponseSchema.parse({
+      data: { ...request, id: "33f00000-0000-4000-8000-000000000001", revision: 1, sku: "PROD-000001", correlationId: "99000000-0000-4000-8000-000000000001" },
+      request_id: "catalog-product-test",
+    }).data.sku).toBe("PROD-000001");
+  });
+
+  it("validates audited product price commands and chronological history cursors", () => {
+    const productId = "33f00000-0000-4000-8000-000000000001";
+    const request = setCatalogProductPriceSchema.parse({ productId, expectedProductRevision: 2, amountCents: 2590, reason: "Atualização de preço" });
+    expect(request.amountCents).toBe(2590);
+    expect(setCatalogProductPriceSchema.safeParse({ ...request, amountCents: 25.9 }).success).toBe(false);
+    expect(setCatalogProductPriceSchema.safeParse({ ...request, totalCents: 2590 }).success).toBe(false);
+    expect(catalogProductPriceHistoryQuerySchema.parse({ cursor: "2026-09-09T12:00:00.000Z", limit: "50" })).toMatchObject({ limit: 50 });
+    expect(catalogProductPriceHistoryQuerySchema.safeParse({ cursor: "not-a-date" }).success).toBe(false);
+    expect(setCatalogProductPriceResponseSchema.parse({
+      data: { id: "43f00000-0000-4000-8000-000000000001", productId, amountCents: 2590,
+        validFrom: "2026-09-09T12:00:00.000Z", validTo: null, previousPriceId: null, productRevision: 2,
+        correlationId: "99000000-0000-4000-8000-000000000001" }, request_id: "price-command-test",
+    }).data.amountCents).toBe(2590);
+    expect(catalogProductPriceHistoryResponseSchema.parse({
+      data: [{ id: "43f00000-0000-4000-8000-000000000001", productId, amountCents: 2590,
+        validFrom: "2026-09-09T12:00:00.000Z", validTo: null, createdBy: null, createdAt: "2026-09-09T12:00:00.000Z" }],
+      nextCursor: null, request_id: "price-history-test",
+    }).data).toHaveLength(1);
+  });
+
   it("bounds public catalog pagination and validates its response", () => {
     expect(publicCatalogProductsQuerySchema.parse({})).toEqual({ limit: 20 });
     expect(publicCatalogProductsQuerySchema.parse({ limit: "50" })).toEqual({ limit: 50 });
@@ -89,6 +346,7 @@ describe("shared contracts", () => {
         price: { amountCents: 2590, currency: "BRL" },
         sellablePdv: true,
         reservable: true,
+        images: [{ id: "53f00000-0000-4000-8000-000000000001", altText: "Produto em embalagem azul", sortOrder: 0, publicUrl: "https://example.test/product.webp" }],
       }],
       nextCursor: null,
       request_id: "req-catalog",
@@ -149,6 +407,7 @@ describe("shared contracts", () => {
         quotedAt: "2026-08-29T17:00:00.000Z",
         currency: "BRL",
         rounding: "NONE",
+        coupon: null,
         lines: [{
           productId: "33000000-0000-4000-8000-000000000001",
           name: "Produto",
@@ -167,6 +426,7 @@ describe("shared contracts", () => {
             remainderQuantity: 1,
             savingsCents: 2000,
           },
+          appliedCoupon: null,
         }],
         originalTotalCents: 4500,
         discountTotalCents: 2000,
@@ -174,5 +434,344 @@ describe("shared contracts", () => {
       },
       request_id: "req-pricing",
     }).data.totalCents).toBe(2500);
+  });
+
+  it("validates immutable sale snapshots and the closed status vocabulary", () => {
+    expect(saleStatusSchema.parse("AWAITING_PAYMENT")).toBe("AWAITING_PAYMENT");
+    expect(saleStatusSchema.safeParse("PAID").success).toBe(false);
+
+    const sale = saleSchema.parse({
+      id: "71000000-0000-4000-8000-000000000001",
+      channel: "PDV",
+      locationId: "50000000-0000-4000-8000-000000000002",
+      createdBy: "10000000-0000-4000-8000-000000000002",
+      customerId: null,
+      status: "DRAFT",
+      currency: "BRL",
+      originalTotalCents: 3000,
+      discountTotalCents: 500,
+      totalCents: 2500,
+      quotedAt: "2026-08-30T14:00:00.000Z",
+      correlationId: "72000000-0000-4000-8000-000000000001",
+      items: [{
+        id: "73000000-0000-4000-8000-000000000001",
+        productId: "33000000-0000-4000-8000-000000000001",
+        productSku: "CONCURRENCY-ITEM",
+        productName: "Item",
+        quantity: 2,
+        unitPriceCents: 1500,
+        originalSubtotalCents: 3000,
+        discountCents: 500,
+        totalCents: 2500,
+        promotionId: null,
+        promotionSnapshot: null,
+      }],
+    });
+    expect(sale.totalCents).toBe(2500);
+    expect(saleSchema.safeParse({ ...sale, totalCents: 1, authoritativeTotal: 2500 }).success).toBe(false);
+  });
+
+  it("accepts only non-authoritative checkout inputs and explained results", () => {
+    const productId = "33000000-0000-4000-8000-000000000001";
+    const locationId = "50000000-0000-4000-8000-000000000002";
+    expect(salesCheckoutRequestSchema.parse({
+      channel: "PDV",
+      locationId,
+      items: [{ productId, quantity: 2 }],
+    })).toMatchObject({ channel: "PDV", locationId });
+    expect(salesCheckoutRequestSchema.safeParse({
+      channel: "PDV",
+      locationId,
+      items: [{ productId, quantity: 2 }],
+      totalCents: 1,
+    }).success).toBe(false);
+
+    expect(salesCheckoutResponseSchema.parse({
+      data: {
+        saleId: "71000000-0000-4000-8000-000000000001",
+        status: "AWAITING_PAYMENT",
+        channel: "PDV",
+        locationId,
+        quote: {
+          channel: "PDV",
+          quotedAt: "2026-08-30T18:00:00.000Z",
+          currency: "BRL",
+          rounding: "NONE",
+          coupon: null,
+          lines: [{
+            productId,
+            name: "Item",
+            unitPriceCents: 1500,
+            quantity: 2,
+            originalSubtotalCents: 3000,
+            discountCents: 0,
+            totalCents: 3000,
+            appliedPromotion: null,
+            appliedCoupon: null,
+          }],
+          originalTotalCents: 3000,
+          discountTotalCents: 0,
+          totalCents: 3000,
+        },
+        reservation: {
+          reservationId: "74000000-0000-4000-8000-000000000001",
+          status: "ACTIVE",
+          expiresAt: "2026-08-30T18:10:00.000Z",
+          reservationMovementId: "75000000-0000-4000-8000-000000000001",
+        },
+        paymentAttempt: {
+          attemptId: "76000000-0000-4000-8000-000000000001",
+          status: "CREATED",
+          amountCents: 3000,
+          integrationChannel: null,
+          confirmationSource: null,
+        },
+        correlationId: "72000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-checkout",
+    }).data.paymentAttempt.status).toBe("CREATED");
+
+    expect(salesCancelResponseSchema.parse({
+      data: {
+        saleId: "71000000-0000-4000-8000-000000000001",
+        status: "CANCELLED",
+        reservation: {
+          reservationId: "74000000-0000-4000-8000-000000000001",
+          status: "RELEASED",
+          releaseMovementId: "75000000-0000-4000-8000-000000000002",
+        },
+        paymentAttempt: {
+          attemptId: "76000000-0000-4000-8000-000000000001",
+          status: "CANCELLED",
+        },
+        correlationId: "72000000-0000-4000-8000-000000000002",
+      },
+      request_id: "request-cancel",
+    }).data.status).toBe("CANCELLED");
+  });
+
+  it("accepts only controlled manual PicPay confirmation data", () => {
+    expect(manualPaymentConfirmationRequestSchema.parse({
+      integrationChannel: "MAQUININHA",
+      proofReference: "NSU-TEST-0001",
+      cardMethod: "CREDITO",
+    }).integrationChannel).toBe("MAQUININHA");
+    expect(manualPaymentConfirmationRequestSchema.safeParse({
+      integrationChannel: "TAP",
+      proofReference: "NSU-TEST-0002",
+    }).success).toBe(false);
+    expect(manualPaymentConfirmationRequestSchema.safeParse({
+      integrationChannel: "PIX_AREA",
+      proofReference: "4111111111111111",
+    }).success).toBe(false);
+
+    expect(manualPaymentConfirmationResponseSchema.parse({
+      data: {
+        saleId: "71000000-0000-4000-8000-000000000001",
+        saleStatus: "CONFIRMED",
+        paymentAttempt: {
+          attemptId: "76000000-0000-4000-8000-000000000001",
+          status: "APPROVED",
+          amountCents: 3000,
+          integrationChannel: "PIX_AREA",
+          confirmationSource: "MANUAL",
+          confirmedAt: "2026-08-30T19:00:00.000Z",
+          proofReference: "PIX-TEST-0001",
+          cardMethod: null,
+          terminal: null,
+        },
+        stock: {
+          reservationId: "74000000-0000-4000-8000-000000000001",
+          status: "CONSUMED",
+          saleMovementId: "75000000-0000-4000-8000-000000000001",
+        },
+        financialLedgerEntryId: "77000000-0000-4000-8000-000000000001",
+        correlationId: "72000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-manual-confirmation",
+    }).data.paymentAttempt.confirmationSource).toBe("MANUAL");
+  });
+
+  it("validates non-sensitive reconciliation observations and immutable result shapes", () => {
+    expect(paymentReconciliationRequestSchema.parse({
+      observedAmountCents: 3000,
+      feeAmountCents: 60,
+      externalReference: "SETTLEMENT-TEST-0001",
+    }).feeAmountCents).toBe(60);
+    expect(paymentReconciliationRequestSchema.safeParse({
+      observedAmountCents: 3000,
+      feeAmountCents: 3000,
+      externalReference: "SETTLEMENT-TEST-0002",
+    }).success).toBe(false);
+    expect(paymentReconciliationRequestSchema.safeParse({
+      observedAmountCents: 3000,
+      feeAmountCents: 60,
+      externalReference: "4111111111111111",
+    }).success).toBe(false);
+
+    expect(paymentReconciliationResponseSchema.parse({
+      data: {
+        reconciliationId: "78000000-0000-4000-8000-000000000001",
+        attemptId: "76000000-0000-4000-8000-000000000001",
+        paymentStatus: "RECONCILED",
+        outcome: "MATCHED",
+        expectedAmountCents: 3000,
+        observedAmountCents: 3000,
+        feeAmountCents: 60,
+        netAmountCents: 2940,
+        source: "MANUAL",
+        externalReference: "SETTLEMENT-TEST-0001",
+        ledger: {
+          feeEntryId: "79000000-0000-4000-8000-000000000001",
+          settlementEntryId: "79000000-0000-4000-8000-000000000002",
+          divergenceEntryId: null,
+        },
+        correlationId: "72000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-reconciliation",
+    }).data.outcome).toBe("MATCHED");
+  });
+
+  it("validates complete seller closeout snapshots and reopen reasons", () => {
+    const productId = "33f00000-0000-4000-8000-000000000001";
+    expect(sellerCloseoutRequestSchema.parse({
+      periodStart: "2026-08-31T08:00:00.000Z",
+      periodEnd: "2026-08-31T16:00:00.000Z",
+      stockCounts: [{ productId, countedQuantity: 3 }],
+      justification: null,
+    }).stockCounts).toHaveLength(1);
+    expect(sellerCloseoutRequestSchema.safeParse({
+      periodStart: "2026-08-31T16:00:00.000Z",
+      periodEnd: "2026-08-31T08:00:00.000Z",
+      stockCounts: [{ productId, countedQuantity: 3 }],
+    }).success).toBe(false);
+    expect(sellerCloseoutRequestSchema.safeParse({
+      periodStart: "2026-08-31T08:00:00.000Z",
+      periodEnd: "2026-08-31T16:00:00.000Z",
+      stockCounts: [{ productId, countedQuantity: 3 }, { productId, countedQuantity: 3 }],
+    }).success).toBe(false);
+    expect(reopenSellerCloseoutRequestSchema.safeParse({ reason: "x" }).success).toBe(false);
+
+    expect(sellerCloseoutResponseSchema.parse({
+      data: {
+        closeoutId: "81000000-0000-4000-8000-000000000001",
+        sellerId: "10000000-0000-4000-8000-000000000002",
+        locationId: "50000000-0000-4000-8000-000000000002",
+        status: "CLOSED",
+        periodStart: "2026-08-31T08:00:00.000Z",
+        periodEnd: "2026-08-31T16:00:00.000Z",
+        confirmedSalesCount: 1,
+        confirmedSalesTotalCents: 2590,
+        paymentCount: 1,
+        paymentTotalCents: 2590,
+        paymentDifferenceCents: 0,
+        stockDifferenceUnits: 0,
+        justification: null,
+        paymentSummaries: [{ integrationChannel: "PIX_AREA", paymentCount: 1, totalCents: 2590 }],
+        stockCounts: [{ productId, expectedQuantity: 3, countedQuantity: 3, differenceQuantity: 0 }],
+        correlationId: "82000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-closeout",
+    }).data.status).toBe("CLOSED");
+  });
+
+  it("validates commercial reservation lifecycle contracts", () => {
+    const productId = "33f00000-0000-4000-8000-000000000001";
+    const reservationId = "83000000-0000-4000-8000-000000000001";
+    const correlationId = "84000000-0000-4000-8000-000000000001";
+    expect(commercialReservationCreateRequestSchema.parse({
+      locationId: "50000000-0000-4000-8000-000000000001",
+      items: [{ productId, quantity: 2 }],
+    }).items[0]?.quantity).toBe(2);
+    expect(commercialReservationCreateRequestSchema.safeParse({
+      locationId: "50000000-0000-4000-8000-000000000001",
+      items: [{ productId, quantity: 1, totalCents: 1 }],
+    }).success).toBe(false);
+    expect(commercialReservationCancelResponseSchema.parse({
+      data: {
+        reservationId, status: "CANCELLED",
+        stockReservation: {
+          reservationId: "85000000-0000-4000-8000-000000000001",
+          status: "RELEASED", releaseMovementId: "86000000-0000-4000-8000-000000000001",
+        }, correlationId,
+      }, request_id: "request-reservation-cancel",
+    }).data.status).toBe("CANCELLED");
+    expect(commercialReservationConvertResponseSchema.parse({
+      data: {
+        reservationId, status: "CONVERTED", saleId: "87000000-0000-4000-8000-000000000001",
+        saleStatus: "AWAITING_PAYMENT", paymentAttemptId: "88000000-0000-4000-8000-000000000001",
+        stockReservationId: "85000000-0000-4000-8000-000000000001",
+        totalCents: 5180, correlationId,
+      }, request_id: "request-reservation-convert",
+    }).data.status).toBe("CONVERTED");
+  });
+
+  it("validates raffle campaign, unique numbers and audit proof", () => {
+    expect(raffleCampaignCreateRequestSchema.safeParse({
+      name: "Rifa institucional", productId: "33f00000-0000-4000-8000-000000000001",
+      locationId: "50000000-0000-4000-8000-000000000001", numberCount: 100,
+      startsAt: "2026-09-01T10:00:00.000Z", endsAt: "2026-09-02T10:00:00.000Z",
+    }).success).toBe(true);
+    expect(raffleNumberReservationRequestSchema.safeParse({ numbers: [1, 1] }).success).toBe(false);
+    expect(raffleDrawResponseSchema.parse({ data: {
+      drawId: "93000000-0000-4000-8000-000000000001",
+      campaignId: "94000000-0000-4000-8000-000000000001", eligibleNumbers: [1, 7],
+      randomMaterial: "a".repeat(64), auditHash: "b".repeat(64), winnerIndex: 2,
+      winnerNumber: 7, correlationId: "95000000-0000-4000-8000-000000000001",
+    }, request_id: "request-raffle-draw" }).data.winnerNumber).toBe(7);
+  });
+
+  it("validates notification pagination and feature flag changes", () => {
+    expect(notificationsQuerySchema.parse({ limit: "10", unreadOnly: "true" })).toEqual({ limit: 10, unreadOnly: true });
+    expect(notificationsQuerySchema.safeParse({ limit: "51" }).success).toBe(false);
+    expect(notificationsResponseSchema.parse({
+      data: [{
+        id: "96000000-0000-4000-8000-000000000001", kind: "RESERVATION_EXPIRED",
+        title: "Reserva expirada", body: "O estoque foi liberado.", data: {}, readAt: null,
+        createdAt: "2026-09-01T12:00:00.000Z",
+      }], nextCursor: null, request_id: "request-notifications",
+    }).data).toHaveLength(1);
+    expect(featureFlagUpdateRequestSchema.safeParse({ enabled: true, reason: "x" }).success).toBe(false);
+    expect(featureFlagsResponseSchema.parse({
+      data: [{
+        key: "reservations", description: "Reservas comerciais", enabled: true,
+        updatedAt: "2026-09-01T12:00:00.000Z", updatedBy: null,
+      }], request_id: "request-flags",
+    }).data[0]?.key).toBe("reservations");
+  });
+
+  it("validates supplier contacts and optimistic revisions", () => {
+    const supplier = {
+      id: null,
+      expectedRevision: null,
+      name: "Doces Exemplo",
+      contactName: "Ana Compras",
+      email: "ana@example.com",
+      phone: null,
+      document: "12345678000190",
+      notes: null,
+      active: true,
+      reason: "Cadastrar fornecedor homologado",
+    };
+    expect(saveSupplierSchema.safeParse(supplier).success).toBe(true);
+    expect(saveSupplierSchema.safeParse({ ...supplier, contactName: null, email: null }).success).toBe(false);
+    expect(saveSupplierSchema.safeParse({ ...supplier, id: crypto.randomUUID() }).success).toBe(false);
+    expect(saveSupplierResponseSchema.parse({
+      data: {
+        id: "97000000-0000-4000-8000-000000000001",
+        name: supplier.name,
+        contactName: supplier.contactName,
+        email: supplier.email,
+        phone: supplier.phone,
+        document: supplier.document,
+        notes: supplier.notes,
+        active: supplier.active,
+        revision: 1,
+        createdAt: "2026-09-15T12:00:00.000Z",
+        updatedAt: "2026-09-15T12:00:00.000Z",
+        correlationId: "98000000-0000-4000-8000-000000000001",
+      },
+      request_id: "request-supplier",
+    }).data.revision).toBe(1);
   });
 });

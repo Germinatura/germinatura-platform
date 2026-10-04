@@ -1,30 +1,14 @@
-import { hasPermission, primaryRole } from "@germinatura/auth";
-import { appRoleSchema, type AppRole, type Permission, type SessionUser } from "@germinatura/contracts";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { hasPermission } from "@germinatura/auth";
+import type { Permission, SessionUser } from "@germinatura/contracts";
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
+import { createSessionContext, forwardSessionContext, SESSION_CONTEXT_HEADER } from "@/lib/session-context";
+import { resolveSession, resolveSupabaseSession, type SupabaseSession } from "@/lib/session-resolution";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const sessionRpcSchema = z.object({
-  auth_id: z.string().uuid(),
-  email: z.string().email(),
-  display_name: z.string().nullable(),
-  roles: z.array(appRoleSchema),
-});
-
-export interface SupabaseSession {
-  user: {
-    id: string;
-    authId: string;
-    email: string;
-    perfil: AppRole;
-    nome: string;
-    roles: AppRole[];
-    needsPasswordReset: false;
-  };
-}
+export type { SupabaseSession };
 
 export class AuthorizationError extends Error {
   constructor(public readonly status: 401 | 403, message: string) {
@@ -33,41 +17,12 @@ export class AuthorizationError extends Error {
   }
 }
 
-async function resolveSession(client: SupabaseClient, accessToken?: string): Promise<SupabaseSession | null> {
-  const { data: userData, error: userError } = await client.auth.getUser(accessToken);
-  if (userError || !userData.user?.email) return null;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  const rpcClient = accessToken && url && publishableKey
-    ? createClient(url, publishableKey, {
-        auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
-      })
-    : client;
-  const { data, error } = await rpcClient.rpc("get_my_session");
-  if (error || !data) return null;
-  const parsed = sessionRpcSchema.safeParse(data);
-  if (!parsed.success) return null;
-
-  const roles = parsed.data.roles.length > 0 ? parsed.data.roles : ["CONSUMIDOR" as const];
-  const perfil = primaryRole(roles);
-  return {
-    user: {
-      id: parsed.data.auth_id,
-      authId: parsed.data.auth_id,
-      email: parsed.data.email,
-      perfil,
-      nome: parsed.data.display_name ?? parsed.data.email,
-      roles,
-      needsPasswordReset: false,
-    },
-  };
-}
-
 export async function getSession(): Promise<SupabaseSession | null> {
   try {
-    const authorization = (await headers()).get("authorization");
+    const requestHeaders = await headers();
+    const authorization = requestHeaders.get("authorization");
+    // Set by the proxy for this same request (and stripped from what the client sent); see lib/session-context.ts.
+    const sessionContext = requestHeaders.get(SESSION_CONTEXT_HEADER);
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (authorization?.startsWith("Bearer ") && url && publishableKey) {
@@ -76,21 +31,12 @@ export async function getSession(): Promise<SupabaseSession | null> {
         auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
         global: { headers: { Authorization: authorization } },
       });
-      return await resolveSession(client, accessToken);
+      return await resolveSupabaseSession(client, accessToken, "route", sessionContext);
     }
-    return await resolveSession(await createSupabaseServerClient());
+    return await resolveSupabaseSession(await createSupabaseServerClient(), undefined, "route", sessionContext);
   } catch {
     return null;
   }
-}
-
-export async function login(credentials: { email: string; password: string }) {
-  const client = await createSupabaseServerClient();
-  const { data, error } = await client.auth.signInWithPassword(credentials);
-  if (error) throw new AuthorizationError(401, "Credenciais inválidas");
-  const session = await resolveSession(client, data.session?.access_token);
-  if (!session) throw new AuthorizationError(401, "Perfil de acesso não configurado");
-  return session;
 }
 
 export async function logout() {
@@ -101,14 +47,33 @@ export async function logout() {
 export async function requireSession(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) throw new AuthorizationError(401, "Autenticação obrigatória");
+  if (!session.user.onboardingCompleted || !session.user.username) {
+    throw new AuthorizationError(403, "Cadastro incompleto");
+  }
   return {
     id: session.user.id,
     authId: session.user.authId,
     email: session.user.email,
     name: session.user.nome,
+    username: session.user.username,
+    avatarPath: session.user.avatarPath,
     role: session.user.perfil,
     roles: session.user.roles,
+    active: true,
   };
+}
+
+export async function loginLocalFixture(credentials: { email: string; password: string }) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  if (process.env.NODE_ENV === "production" || !/^http:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(url)) {
+    throw new AuthorizationError(403, "Login local indisponível");
+  }
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client.auth.signInWithPassword(credentials);
+  if (error) throw new AuthorizationError(401, "Credenciais locais inválidas");
+  const session = await resolveSupabaseSession(client, data.session?.access_token, "login");
+  if (!session) throw new AuthorizationError(401, "Perfil local indisponível");
+  return session;
 }
 
 export async function requirePermission(permission: Permission): Promise<SessionUser> {
@@ -121,7 +86,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) return { response, session: null };
+  if (!url || !publishableKey) return { response: withSessionContext(request, response, null), session: null, client: null };
 
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) {
@@ -130,7 +95,8 @@ export async function updateSession(request: NextRequest) {
       auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
       global: { headers: { Authorization: authorization } },
     });
-    return { response, session: await resolveSession(client, accessToken) };
+    const resolved = await resolveSession(client, accessToken, "proxy");
+    return { response: withSessionContext(request, response, await contextFor(resolved)), session: resolved.session, client };
   }
 
   const client = createServerClient(url, publishableKey, {
@@ -143,5 +109,18 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
-  return { response, session: await resolveSession(client) };
+  const resolved = await resolveSession(client, undefined, "proxy");
+  return { response: withSessionContext(request, response, await contextFor(resolved)), session: resolved.session, client };
+}
+
+async function contextFor({ session, accessToken }: { session: SupabaseSession | null; accessToken: string | null }) {
+  return session && accessToken ? createSessionContext(session, accessToken) : null;
+}
+
+// The route sees the request headers with the client's context header removed and, when a session was resolved,
+// the proxy's own signed context. Cookies refreshed by Supabase stay on the response.
+function withSessionContext(request: NextRequest, response: NextResponse, context: string | null) {
+  const next = NextResponse.next({ request: { headers: forwardSessionContext(request.headers, context) } });
+  for (const cookie of response.cookies.getAll()) next.cookies.set(cookie);
+  return next;
 }

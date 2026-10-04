@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { X, CheckCircle2, AlertCircle, Info, AlertTriangle, Loader2 } from "lucide-react";
+import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from "lucide-react";
 
 type ToastType = "success" | "error" | "warning" | "info";
 
@@ -22,23 +22,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
     const showToast = useCallback((message: string, type: ToastType = "info") => {
         const id = Math.random().toString(36).substring(2, 9);
-        setToasts((prev: any) => [...prev, { id, message, type }]);
+        setToasts((prev) => [...prev, { id, message, type }]);
 
         // Auto-dismiss after 4 seconds
         setTimeout(() => {
-            setToasts((prev: any) => prev.filter((t: any) => t.id !== id));
+            setToasts((prev) => prev.filter((t) => t.id !== id));
         }, 4000);
     }, []);
 
     const removeToast = (id: string) => {
-        setToasts((prev: any) => prev.filter((t: any) => t.id !== id));
+        setToasts((prev) => prev.filter((t) => t.id !== id));
     };
 
     return (
         <ToastContext.Provider value={{ showToast }}>
             {children}
             <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
-                {toasts.map((toast: any) => (
+                {toasts.map((toast) => (
                     <ToastComponent
                         key={toast.id}
                         toast={toast}

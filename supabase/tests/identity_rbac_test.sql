@@ -9,16 +9,24 @@ select has_table('public', 'role_permissions', 'role_permissions table exists');
 select has_function('public', 'has_permission', array['text'], 'permission function exists');
 select has_function('public', 'get_my_session', 'session function exists');
 select results_eq('select count(*)::bigint from public.roles', array[7::bigint], 'all v2.1 roles are seeded');
-select results_eq('select count(*)::bigint from public.permissions', array[18::bigint], 'permission catalog is seeded');
-select results_eq('select count(*)::bigint from public.profiles', array[3::bigint], 'local users receive profiles');
+select results_eq('select count(*)::bigint from public.permissions', array[26::bigint], 'permission catalog includes inventory, procurement and audit capabilities');
+select results_eq(
+  $$select count(*)::bigint from public.profiles where id in (
+    '10000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000003'
+  )$$,
+  array[3::bigint],
+  'local fixture users receive profiles'
+);
 
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ADMIN'$$, array[18::bigint], 'administrator receives every permission');
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'VENDEDOR'$$, array[8::bigint], 'seller permission matrix is seeded');
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ESTOQUE'$$, array[4::bigint], 'inventory permission matrix is seeded');
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'FINANCEIRO'$$, array[3::bigint], 'finance permission matrix is seeded');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ADMIN'$$, array[26::bigint], 'administrator receives every permission');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'VENDEDOR'$$, array[13::bigint], 'seller permission matrix includes own transfer, return, loss, count and closeout operations');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'ESTOQUE'$$, array[6::bigint], 'inventory permission matrix includes physical counts and procurement');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'FINANCEIRO'$$, array[4::bigint], 'finance permission matrix includes closeout management');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'COMUNICACAO'$$, array[2::bigint], 'communications permission matrix is seeded');
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'MODERADOR'$$, array[2::bigint], 'moderator permission matrix is seeded');
-select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'CONSUMIDOR'$$, array[4::bigint], 'consumer permission matrix is seeded');
+select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'CONSUMIDOR'$$, array[5::bigint], 'consumer permission matrix includes own sale history');
 
 select results_eq(
   $$select count(*)::bigint from pg_class where oid in ('public.profiles'::regclass, 'public.roles'::regclass, 'public.permissions'::regclass, 'public.user_roles'::regclass, 'public.role_permissions'::regclass) and relrowsecurity$$,
@@ -51,15 +59,15 @@ select ok(public.has_permission('inventory.manage'), 'a user can hold multiple r
 
 select results_eq($$select count(*)::bigint from storage.buckets where id = 'product-images'$$, array[1::bigint], 'product image bucket exists');
 select ok((select allowed_mime_types @> array['image/jpeg', 'image/png', 'image/webp'] from storage.buckets where id = 'product-images'), 'product image MIME types are restricted');
-select results_eq($$select file_size_limit from storage.buckets where id = 'product-images'$$, array[10485760::bigint], 'product image size is limited');
-select results_eq($$select count(*)::bigint from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'catalog_images_%'$$, array[4::bigint], 'storage policies cover read and managed writes');
+select results_eq($$select file_size_limit from storage.buckets where id = 'product-images'$$, array[5242880::bigint], 'product image size is limited');
+select results_eq($$select count(*)::bigint from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname like 'catalog_images_%'$$, array[2::bigint], 'storage policies allow immutable create and managed delete');
 select ok(
-  (select with_check like '%auth.uid()%' and with_check like '%storage.extension%' from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'catalog_images_admin_insert'),
-  'storage inserts require a generated user-scoped path and approved extension'
+  (select with_check like '%products/%' and with_check like '%storage.extension%' from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'catalog_images_admin_insert'),
+  'storage inserts require a canonical product path and approved extension'
 );
 select ok(
-  (select qual is not null and with_check is not null from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'catalog_images_admin_update'),
-  'storage updates validate both existing and resulting rows'
+  not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'catalog_images_admin_update'),
+  'storage overwrites remain unavailable'
 );
 
 select * from finish();

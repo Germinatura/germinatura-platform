@@ -1,70 +1,139 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
-import { Sidebar } from "./Sidebar";
-import { Menu, X } from "lucide-react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { pdvUrl, Sidebar, type SidebarUser } from "./Sidebar";
+import { CommandPalette } from "./CommandPalette";
+import { navigationFor } from "@/lib/navigation";
+import { experienceForPath, type PortalExperience } from "@/lib/portal-experience";
+import { Topbar } from "./Topbar";
+
+const publicPaths = ["/login", "/esqueci-senha", "/recuperar-senha"];
+const experienceEvent = "germinatura:experience-changed";
+function subscribeExperience(callback: () => void) {
+  window.addEventListener(experienceEvent, callback);
+  return () => window.removeEventListener(experienceEvent, callback);
+}
+function savedExperience(): PortalExperience {
+  return sessionStorage.getItem("portal-experience") === "consumer" ? "consumer" : "admin";
+}
+const serverExperience = (): PortalExperience => "admin";
+
+function pageTitle(pathname: string, user: SidebarUser | null) {
+  if (pathname === "/") return user?.roles.includes("ADMIN") ? "Visão geral" : "Início";
+  if (pathname.startsWith("/admin/usuarios")) return "Usuários e vendedores";
+  if (pathname.startsWith("/admin/catalogo")) return "Catálogo";
+  if (pathname.startsWith("/admin/estoque")) return "Estoque";
+  if (pathname.startsWith("/admin/compras")) return "Compras e fornecedores";
+  if (pathname.startsWith("/admin/financeiro/contas-a-pagar")) return "Contas a pagar";
+  if (pathname.startsWith("/admin/financeiro/turnos")) return "Turnos de caixa";
+  if (pathname.startsWith("/admin/financeiro/vendas")) return "Vendas";
+  if (pathname.startsWith("/admin/financeiro/lancamentos")) return "Lançamentos";
+  if (pathname.startsWith("/admin/financeiro/extrato")) return "Extrato financeiro";
+  if (pathname.startsWith("/admin/financeiro/importar-extrato")) return "Extrato PicPay";
+  if (pathname.startsWith("/admin/financeiro/indicadores")) return "Indicadores";
+  if (pathname.startsWith("/admin/configuracoes")) return "Configurações";
+  if (pathname.startsWith("/admin/auditoria")) return "Auditoria";
+  if (pathname.startsWith("/admin/financeiro/maquininhas")) return "Maquininhas";
+  if (pathname.startsWith("/admin/financeiro/pagamentos-online")) return "Pagamentos online";
+  if (pathname.startsWith("/admin/rifas")) return "Gestão de rifas";
+  if (pathname.startsWith("/admin/reservas")) return "Gestão de reservas";
+  if (pathname.startsWith("/admin/comunicacao/avisos")) return "Avisos";
+  if (pathname.startsWith("/admin/comunicacao/divulgacao")) return "Divulgação";
+  if (pathname.startsWith("/admin/comunicacao/eventos")) return "Eventos e campanhas";
+  if (pathname.startsWith("/eventos")) return "Eventos e campanhas";
+  if (pathname === "/inicio") return "Início";
+  if (pathname === "/perfil") return "Perfil";
+  if (pathname === "/catalogo") return "Catálogo";
+  if (pathname === "/reservas") return "Minhas reservas";
+  if (pathname === "/rifas") return "Rifas";
+  if (pathname === "/trocar-senha") return "Perfil e segurança";
+  if (pathname.startsWith("/notificacoes")) return "Notificações";
+  return "Germinatura";
+}
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [user, setUser] = useState<SidebarUser | null>(null);
+  const [profileRevision, setProfileRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setProfileRevision((value) => value + 1);
+    window.addEventListener("germinatura:profile-updated", refresh);
+    return () => window.removeEventListener("germinatura:profile-updated", refresh);
+  }, []);
+  const storedExperience = useSyncExternalStore(subscribeExperience, savedExperience, serverExperience);
+  const experience = experienceForPath(pathname) ?? storedExperience;
+  useEffect(() => {
+    const fromPath = experienceForPath(pathname);
+    if (fromPath) { sessionStorage.setItem("portal-experience", fromPath); window.dispatchEvent(new Event(experienceEvent)); }
+  }, [pathname]);
+  const [loading, setLoading] = useState(true);
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const isPublic = publicPaths.includes(pathname) || pathname.startsWith("/cadastro") || pathname.startsWith("/pdv");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const navigation = useMemo(() => navigationFor({ roles: user?.roles ?? [], experience, features: enabledFeatures, pdvUrl }), [user, experience, enabledFeatures]);
 
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
-    if (pathname === "/login" || pathname.startsWith("/pdv") || pathname === "/trocar-senha") {
-        return <>{children}</>;
+  useEffect(() => {
+    if (isPublic || !user) return;
+    function openSearch(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsSidebarOpen(false);
+        setIsSearchOpen(true);
+      }
     }
+    window.addEventListener("keydown", openSearch);
+    return () => window.removeEventListener("keydown", openSearch);
+  }, [isPublic, user]);
 
-    return (
-        <div className="flex min-h-screen">
-            {/* Sidebar - Desktop */}
-            <div className="hidden lg:flex w-64 sticky top-0 h-screen">
-                <Sidebar />
-            </div>
+  useEffect(() => {
+    if (isPublic) return;
+    const previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => { document.documentElement.style.overflow = previousOverflow; };
+  }, [isPublic]);
 
-            {/* Sidebar - Mobile Overlay */}
-            {isSidebarOpen && (
-                <div
-                    className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
-                    onClick={toggleSidebar}
-                />
-            )}
+  useEffect(() => {
+    if (isPublic) return;
+    let active = true;
+    Promise.all([
+      fetch("/api/auth/me").then(async (response) => response.ok ? response.json() as Promise<{ user: SidebarUser }> : null),
+      fetch("/api/v1/feature-flags").then(async (response) => response.ok ? response.json() as Promise<{ data: Array<{ key: string; enabled: boolean }> }> : null),
+    ])
+      .then(([data, flags]) => { if (active) { setUser(data?.user ?? null); setEnabledFeatures(flags?.data.filter((flag) => flag.enabled).map((flag) => flag.key) ?? []); } })
+      .catch(() => { if (active) { setUser(null); setEnabledFeatures([]); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [isPublic, pathname, profileRevision]);
 
-            {/* Sidebar - Mobile Drawer */}
-            <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out lg:hidden
-        ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
-      `}>
-                <div className="absolute top-4 right-4 lg:hidden">
-                    <button onClick={toggleSidebar} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
-                        <X className="size-6" />
-                    </button>
-                </div>
-                <Sidebar />
-            </div>
+  if (isPublic) return <>{children}</>;
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col h-screen min-w-0">
-                {/* Mobile Header */}
-                <header className="lg:hidden h-16 border-b border-slate-200 bg-white flex items-center justify-between px-4 shrink-0 z-30">
-                    <div className="flex items-center gap-3">
-                        <button onClick={toggleSidebar} className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg">
-                            <Menu className="size-6" />
-                        </button>
-                        <div className="flex items-center gap-2">
-                            <div className="size-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
-                                {/* <GraduationCap className="size-5" /> */}
-                                <img src="https://i.imgur.com/EnMI9CP.png" alt="G" className="rounded-lg" />
-                            </div>
-                            <h1 className="font-bold text-sm">Germinatura</h1>
-                        </div>
-                    </div>
-                </header>
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
-                <main className="flex-1 min-h-0 overflow-hidden">
-                    {children}
-                </main>
-            </div>
-        </div>
-    );
+  return (
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-[var(--g-surface-canvas)] text-[var(--g-text-primary)]">
+      <aside className={`hidden h-full min-h-0 shrink-0 transition-[width] duration-200 lg:flex ${isCollapsed ? "w-[var(--g-sidebar-collapsed)]" : "w-[var(--g-sidebar-expanded)]"}`}>
+        <Sidebar experience={experience} user={user} collapsed={isCollapsed} enabledFeatures={enabledFeatures} onToggleCollapsed={() => setIsCollapsed(!isCollapsed)} onOpenSearch={() => setIsSearchOpen(true)} />
+      </aside>
+
+      {isSidebarOpen && <button type="button" className="fixed inset-0 z-40 bg-[var(--g-surface-overlay)] lg:hidden" onClick={() => setIsSidebarOpen(false)} aria-label="Fechar navegação" />}
+      <div data-testid="mobile-sidebar" inert={!isSidebarOpen} className={`fixed inset-y-0 left-0 z-50 w-[min(var(--g-sidebar-expanded),calc(100vw-3rem))] transform bg-[var(--g-surface-default)] transition-transform duration-200 lg:hidden ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <Sidebar experience={experience} user={user} enabledFeatures={enabledFeatures} onNavigate={() => setIsSidebarOpen(false)} onOpenSearch={() => { setIsSidebarOpen(false); setIsSearchOpen(true); }} />
+      </div>
+
+      <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <Topbar title={pageTitle(pathname, user)} user={user} loading={loading} onOpenMenu={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
+        {/* WCAG 2.1.1: the scrollable region must be reachable by keyboard even when a page has nothing focusable. */}
+        <main data-testid="dashboard-scroll-container" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</main>
+      </div>
+      {isSearchOpen && user && <CommandPalette sections={navigation} onClose={() => setIsSearchOpen(false)} />}
+    </div>
+  );
 }

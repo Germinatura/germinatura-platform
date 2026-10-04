@@ -50,7 +50,7 @@ async function adminAccessToken(config: SupabaseConfig): Promise<string> {
       apikey: config.publishableKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email: "admin@germinatura.test", password: "Admin123!" }),
+    body: JSON.stringify({ email: "admin.teste@institutojef.org.br", password: "Admin123!" }),
   });
   const body = (await response.json()) as { access_token?: string; message?: string };
   if (!response.ok || !body.access_token) {
@@ -243,7 +243,7 @@ describe("concorrencia real de reservas", () => {
         "reserve_stock",
         reservationParameters(`integration-reserve-${randomUUID()}`, raceOrigin),
       ),
-      rpc(config, accessToken, "transfer_stock", {
+      rpc(config, accessToken, "distribute_stock", {
         p_from_location_id: CENTRAL_LOCATION_ID,
         p_to_location_id: SELLER_LOCATION_ID,
         p_product_id: PRODUCT_ID,

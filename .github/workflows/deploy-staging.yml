@@ -4,6 +4,23 @@ on:
   push:
     branches: [develop]
   workflow_dispatch:
+    inputs:
+      payment_link_sandbox_check:
+        description: Run the PicPay Payment Link sandbox check after deploying (docs/operations/payment-link-runbook.md)
+        type: boolean
+        default: false
+      load_scenarios:
+        description: Staging load homologation instead of a deploy (A,B,C,D; empty deploys as usual). See tests/load/README.md
+        type: string
+        default: ""
+      load_minutes:
+        description: Load durations in minutes as A,B,D (default 10,10,30)
+        type: string
+        default: "10,10,30"
+      load_rate_d:
+        description: Fixed total rate for D in requests per second, same mix (empty keeps the unthrottled soak)
+        type: string
+        default: ""
 
 concurrency:
   group: germinatura-staging
@@ -15,6 +32,7 @@ permissions:
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'push' || inputs.load_scenarios == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment:
@@ -26,11 +44,13 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       NEXT_PUBLIC_PORTAL_URL: ${{ vars.NEXT_PUBLIC_PORTAL_URL }}
       NEXT_PUBLIC_PDV_URL: ${{ vars.NEXT_PUBLIC_PDV_URL }}
+      JOBS_URL: https://germinatura-jobs-staging.germinatura.workers.dev
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -42,11 +62,100 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:unit
       - run: pnpm exec supabase link --project-ref "$SUPABASE_PROJECT_ID"
+      - run: node tools/configure-supabase-auth.mjs
       - run: pnpm exec supabase db push --dry-run
       - run: pnpm exec supabase db push
+      - name: Configure Portal server secret
+        working-directory: apps/portal
+        run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
+      - name: Configure PDV server secret
+        working-directory: apps/pdv
+        run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
+      - name: Configure Jobs server secret
+        working-directory: apps/jobs
+        run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
       - working-directory: apps/portal
         run: pnpm exec vinext-cloudflare deploy --env staging
       - working-directory: apps/pdv
         run: pnpm exec vinext-cloudflare deploy --env staging
+      - working-directory: apps/jobs
+        run: pnpm exec wrangler deploy --env staging --var SUPABASE_URL:$NEXT_PUBLIC_SUPABASE_URL
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PORTAL_URL}/api/v1/health"
       - run: curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/health"
+      - name: Smoke PDV to Portal service binding
+        run: |
+          curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/catalog/products?limit=1"
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${NEXT_PUBLIC_PDV_URL}/api/v1/auth/session")" = "401"
+      - run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "${JOBS_URL}/health"
+      - name: Payment Link sandbox check
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.payment_link_sandbox_check }}
+        # Sandbox only (the worker refuses other hosts); writes nothing to the database; prints step outcomes only.
+        run: |
+          status=$(curl --silent --show-error --output result.json --write-out '%{http_code}' --max-time 420 \
+            -X POST -H "Authorization: Bearer $SUPABASE_SECRET_KEY" "${JOBS_URL}/diagnostics/payment-link-sandbox")
+          echo "HTTP $status"
+          jq . result.json
+          test "$status" = "200"
+          jq -e '.ok == true' result.json > /dev/null
+
+  # Stability, load and soak homologation (docs/operations/stability-report.md), only when dispatched with
+  # load_scenarios. The harness refuses any host but the staging Workers and prepares its own isolated data.
+  load:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.load_scenarios != '' && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment:
+      name: staging
+    permissions:
+      contents: read
+    env:
+      LOAD_TARGET: staging
+      LOAD_PORTAL_URL: ${{ vars.NEXT_PUBLIC_PORTAL_URL }}
+      LOAD_PDV_URL: ${{ vars.NEXT_PUBLIC_PDV_URL }}
+      LOAD_SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+      LOAD_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      LOAD_SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      LOAD_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      LOAD_SHA: ${{ github.sha }}
+      SCENARIOS: ${{ inputs.load_scenarios }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      MINUTES: ${{ inputs.load_minutes }}
+      RATE_D: ${{ inputs.load_rate_d }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm i -g pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      # Platform view of the staging Workers during the run (outcomes such as exceededCpu or exception, cron runs and
+      # the session resolution timings).
+      - name: Start the Worker tails
+        working-directory: apps/portal
+        run: |
+          for worker in portal pdv jobs; do
+            nohup pnpm exec wrangler tail "germinatura-$worker-staging" --format json > "$RUNNER_TEMP/$worker-tail.jsonl" 2> "$RUNNER_TEMP/$worker-tail.err" &
+          done
+          sleep 20
+      - name: Run the load harness
+        run: |
+          IFS=, read -r minutes_a minutes_b minutes_d <<< "$MINUTES"
+          node tests/load/run.mjs --scenarios="$SCENARIOS" --minutes-a="${minutes_a:-10}" --minutes-b="${minutes_b:-10}" --minutes-d="${minutes_d:-30}" ${RATE_D:+--rate-d="$RATE_D"}
+      - name: Summarize the Worker tails
+        if: always()
+        run: |
+          pkill -f "wrangler tail" || true
+          for worker in portal pdv jobs; do
+            echo "### $worker tail"
+            node tests/load/summarize-tail.mjs "$RUNNER_TEMP/$worker-tail.jsonl" | tee "$RUNNER_TEMP/$worker-tail-summary.json"
+            { echo "### $worker tail"; echo '```json'; cat "$RUNNER_TEMP/$worker-tail-summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Publish the results in the job summary
+        if: always()
+        run: |
+          for file in tests/load/results/*/results.json; do
+            [ -f "$file" ] || continue
+            # Also in the job log, which can be read without signing in to GitHub.
+            { echo "### $(dirname "$file" | xargs basename)"; echo '```json'; cat "$file"; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          done

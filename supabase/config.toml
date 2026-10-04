@@ -23,7 +23,7 @@ api_url = "http://127.0.0.1"
 
 [local_smtp]
 enabled = true
-port = 54324
+port = 54325
 
 [storage]
 enabled = true
@@ -40,6 +40,16 @@ enable_signup = true
 enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
+otp_length = 6
+otp_expiry = 600
+
+[auth.email.template.magic_link]
+subject = "Seu código de verificação Germinatura"
+content_path = "./supabase/templates/institutional-otp.html"
+
+[auth.email.template.recovery]
+subject = "Seu código de recuperação Germinatura"
+content_path = "./supabase/templates/password-recovery-otp.html"
 
 [analytics]
 enabled = false

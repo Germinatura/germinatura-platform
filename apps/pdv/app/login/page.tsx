@@ -1,146 +1,61 @@
 "use client";
 
+import { credentialLoginRequestSchema } from "@germinatura/contracts";
+import { BrandMark, Button, Card, Field, Input } from "@germinatura/ui";
+import { LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { useState } from "react";
-import { Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
-import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
-    const { showToast } = useToast();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { showToast } = useToast();
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        setError("");
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const parsed = credentialLoginRequestSchema.safeParse({ identifier, password });
+      if (!parsed.success) throw new Error("Informe seu usuário/e-mail e senha");
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed.data),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message ?? "Usuário/e-mail ou senha inválidos");
+      window.location.assign("/");
+    } catch (loginError) {
+      const message = loginError instanceof Error ? loginError.message : "Erro ao conectar com o servidor";
+      setError(message);
+      showToast(message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-        try {
-            const client = getSupabaseBrowserClient();
-            const { error: signInError } = await client.auth.signInWithPassword({ email, password });
-            if (signInError) throw new Error("Credenciais inválidas");
-
-            const res = await apiFetch("/api/v1/auth/session");
-
-            if (res.ok) {
-                const data = await res.json();
-                if (data.user.perfil !== "ADMIN" && data.user.perfil !== "VENDEDOR") {
-                    showToast("Seu perfil não possui acesso ao PDV", "error");
-                    await client.auth.signOut();
-                    return;
-                }
-                if (data.user.perfil === "ADMIN") {
-                    const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
-                    window.location.assign(portalUrl);
-                } else {
-                    window.location.assign("/");
-                }
-            } else {
-                const data = await res.json();
-                await client.auth.signOut();
-                showToast(data.message || "Credenciais inválidas", "error");
-                setError(data.message || "Credenciais inválidas");
-            }
-        } catch (loginError) {
-            const message = loginError instanceof Error ? loginError.message : "Erro ao conectar com o servidor";
-            showToast(message, "error");
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-background-light flex items-center justify-center p-4 font-sans">
-            <div className="w-full max-w-md">
-                {/* Logo and Greeting */}
-                <div className="text-center mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl shadow-lg shadow-primary/20 text-white mb-4">
-                        {/* <GraduationCap className="size-8" /> */}
-                        <img src="https://i.imgur.com/EnMI9CP.png" alt="G" className="rounded-2xl" />
-                    </div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900">Germinatura</h1>
-                    <p className="text-slate-500 font-medium mt-2">Bem-vindo de volta!</p>
-                </div>
-
-                {/* Login Card */}
-                <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden animate-in fade-in zoom-in duration-500">
-                    <div className="p-8">
-                        <form onSubmit={handleLogin} className="space-y-6">
-                            {error && (
-                                <div className="bg-rose-50 border border-rose-100 text-rose-600 px-4 py-3 rounded-xl text-sm font-semibold animate-in shake duration-300">
-                                    {error}
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-bold text-slate-700 ml-1">Email</label>
-                                <div className="relative group">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        required
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="seu@email.com"
-                                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-slate-400 font-medium"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-sm font-bold text-slate-700 ml-1">Senha</label>
-                                <div className="relative group">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                                    <input
-                                        required
-                                        type={showPassword ? "text" : "password"}
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="••••••••"
-                                        className="w-full pl-12 pr-12 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-slate-400 font-medium"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
-                                    >
-                                        {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <button
-                                disabled={loading}
-                                type="submit"
-                                className="w-full py-4 bg-primary text-white text-lg font-bold rounded-2xl shadow-lg shadow-primary/30 hover:bg-primary/90 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                            >
-                                {loading ? (
-                                    <Loader2 className="size-6 animate-spin" />
-                                ) : (
-                                    <>
-                                        Entrar na Plataforma
-                                    </>
-                                )}
-                            </button>
-                        </form>
-
-                        <p className="pt-6 text-center text-sm font-medium text-slate-500">
-                            Acesso restrito a vendedores e administradores.
-                        </p>
-                    </div>
-
-                    <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
-                        <p className="text-sm text-slate-500 font-medium">
-                            Fundação autenticada do PDV v2.1
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+  const portalUrl = process.env.NEXT_PUBLIC_PORTAL_URL ?? "http://127.0.0.1:3000";
+  return (
+    <main className="grid min-h-screen place-items-center bg-[var(--g-surface-canvas)] p-4 font-sans">
+      <Card className="w-full max-w-md overflow-hidden shadow-[var(--g-shadow-raised)]">
+        <div className="h-1 bg-[var(--g-brand-primary)]" />
+        <header className="px-6 pb-5 pt-8 text-center sm:px-8">
+          <BrandMark title="Germinatura" tone="inverse" className="mx-auto mb-5 size-14 text-white" />
+          <h1 className="text-2xl font-bold tracking-tight">Acessar o PDV</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Entre com a conta operacional criada por um administrador.</p>
+        </header>
+        <form onSubmit={submit} className="space-y-5 px-6 pb-8 sm:px-8">
+          {error && <p role="alert" className="rounded-[var(--g-radius-control)] border border-[var(--g-status-danger)]/50 bg-[var(--g-surface-subtle)] px-4 py-3 text-sm font-semibold text-[var(--g-status-danger)]">{error}</p>}
+          <Field id="pdv-identifier" label="Usuário ou e-mail"><div className="relative"><UserRound aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input id="pdv-identifier" required autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="g-input--with-icon" /></div></Field>
+          <Field id="pdv-password" label="Senha"><div className="relative"><LockKeyhole aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input id="pdv-password" required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="g-input--with-icon" /></div></Field>
+          <Button type="submit" variant="brand" size="lg" className="w-full" loading={loading}>Entrar</Button>
+          <a href={`${portalUrl}/esqueci-senha`} className="block min-h-11 py-3 text-center text-sm font-semibold text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)] hover:underline">Esqueci minha senha</a>
+        </form>
+        <div className="flex items-center justify-center gap-2 border-t border-[var(--g-border-subtle)] bg-[var(--g-surface-subtle)] px-6 py-4 text-xs text-[var(--g-text-muted)]"><ShieldCheck className="size-4" /> Acesso restrito a vendedores ativos</div>
+      </Card>
+    </main>
+  );
 }

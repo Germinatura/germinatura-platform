@@ -1,60 +1,49 @@
-# Diagnóstico v2.2 — estado atual x estado-alvo
+# Diagnóstico v2.2 — estado atual e conclusão
 
-Data da auditoria: 2026-08-29. Base: `9e2ca83` em `main`, com CI pós-merge `33263783862` verde, mais a persistência em desenvolvimento na branch `feat/promotion-rules-schema`. Fonte-alvo: especificação v2.2. “Implementado” exige comportamento e teste; shells e nomes de pacotes não contam como domínio entregue.
+Auditoria atualizada em 28/09/2026: `main=95c4209`, `develop=1476741`; `main` é ancestral de `develop` desde a PR #75. As PRs #78–#82 integraram percentual, preço fixo, PROMO-004, leve/pague, a estabilização do E2E de checkout e a escalonada. A PR #73 integrou em staging a rastreabilidade por lote/local, custo consumido e histórico de movimentos (homologação física pendente). A PR #74 integrou a administração transacional de `QUANTIDADE_PRECO`. A PR #76 tornou o RBAC fail-closed. Produção não foi acessada.
 
-| Requisito | Estado atual | Gap | Prioridade | Dependências | Risco | Ação |
-| --- | --- | --- | --- | --- | --- | --- |
-| GOV-001 Fonte de verdade v2.2 | IMPLEMENTADO | — | P0 | PR/CI | Baixo | Preservar especificação, PRD, roadmap e ADRs versionados |
-| ARCH-001 Monorepo Portal + PDV | IMPLEMENTADO | Apps ainda são shells | P1 | Domínios | Baixo | Preservar estrutura e evoluir por módulos |
-| ARCH-002 Monólito modular | PARCIAL | Packages existem; casos de uso ausentes | P1 | Contratos | Médio | Introduzir módulos por fatias, sem microserviços |
-| AUTH-001 Supabase Auth | IMPLEMENTADO | Fluxos avançados/sessões ativas ausentes | P1 | Supabase | Médio | Manter e ampliar com testes |
-| AUTH-002 Autorização server-side/RLS e múltiplos papéis | PARCIAL | Fundação, catálogo e estoque estão cobertos; permissões dos domínios futuros ainda são genéricas | P0 | Cada nova tabela/rota | Alto | Entregar rota, permission, policy e teste juntos |
-| AUTH-003 Acesso institucional por código | AUSENTE | Login atual não oferece ingresso autocadastrado restrito ao domínio exato `@institutojef.org.br`, código de uso único nem testes de domínio/replay/expiração | P0 | Supabase Auth, e-mail, rate limit | Alto | Implementar OTP institucional fail-closed e conceder somente o papel base após verificação |
-| AUTH-004 Papel base e ativação do vendedor | PARCIAL | O schema aceita múltiplos papéis, mas não há onboarding que conceda `CONSUMIDOR` nem fluxo administrativo auditado para ativar `VENDEDOR`/PDV | P0 | AUTH-003, RBAC, auditoria | Alto | Separar elegibilidade do Portal de autorização do PDV e testar abuso |
-| AUTH-005 Primeiro administrador | AUSENTE | Não há bootstrap idempotente e auditável de `theo.martins@institutojef.org.br` | P0 | AUTH-003, procedimento seguro | Crítico | Conceder o primeiro `ADMIN` somente ao endereço verificado, sem senha/segredo no Git, e desabilitar o bootstrap após sucesso |
-| SEC-001 Secrets e proteção web | PARCIAL | Scan/headers/CSRF básicos; rate limit/monitoramento ausentes | P0 | Borda/staging | Alto | Preservar gates; completar por ambiente |
-| CAT-001 Catálogo normalizado | IMPLEMENTADO NA FUNDAÇÃO — categorias, produtos, histórico de preços, RLS e testes em `4898755` | Imagens e administração/UI ainda ausentes | P1 | Auth, storage | Médio | Preservar invariantes e evoluir a administração em fatia própria |
-| CAT-002 API pública versionada | IMPLEMENTADO — `GET /api/v1/catalog/products` em `1abd440` usa visão `anon`, preço vigente, cursor e limite máximo 50 | Busca, disponibilidade, promoções e ordenação editorial ficaram fora do contrato inicial | P1 | CAT-001, RLS | Médio | Evoluir o contrato somente com consumidor e testes correspondentes |
-| PRICE-001 Dinheiro sem Float | IMPLEMENTADO NA FUNDAÇÃO — `MoneyCents`, schema Zod, contratos e preços `BIGINT` limitados ao safe integer | Pricing de negócio ainda ausente | P0 | Catálogo | Médio | Manter validação nas fronteiras e histórico sem sobreposição |
-| PRICE-002 Pricing server authority | PARCIAL — `9e2ca83` calcula preço-base e `QUANTIDADE_PRECO` em centavos, com explicação e falha fechada | Preços e promoções vigentes ainda não são resolvidos juntos por uma API server-only | P0 | Catálogo | Crítico | Expor cotação autoritativa que rejeite valores enviados pelo cliente |
-| PROMO-001/002 Promoções por regras | PARCIAL — a branch atual persiste produto, canal, prioridade, cumulatividade, vigência `[)`, limites e `QUANTIDADE_PRECO`, com consulta vigente e RLS | Sem API de cotação, consumo de limites, administração transacional ou demais tipos | P1 | Catálogo, pricing | Alto | Integrar a visão vigente ao motor puro antes de ampliar tipos |
-| INV-001 Ledger imutável | IMPLEMENTADO NA FUNDAÇÃO — movimentos, itens, ajuste, transferência e reversão em `3db74fc` | Consumo por venda e reconciliação ampla ainda ausentes | P0 | Migration/RPC | Crítico | Manter saldo mutável somente pelo ledger e ampliar por movimentos atômicos |
-| INV-002 Localizações/vendedor | IMPLEMENTADO NA FUNDAÇÃO — central, localização por vendedor, saldo derivado e RLS em `77f7fc2` | Operação do vendedor ainda depende dos casos de uso seguintes | P0 | INV-001 | Alto | Preservar constraints e acesso restrito |
-| INV-003 Reserva concorrente | IMPLEMENTADO NA FUNDAÇÃO — `d4d1489` cria reserva, liberação e expiração idempotentes com locks determinísticos | Consumo pela venda permanece adiado | P0 | INV-001, SALE-001 | Alto | Preservar o teste concorrente da última unidade e integrar somente por casos de uso server-side |
-| SALE-001 Checkout idempotente | AUSENTE | Sem venda/checkout | P0 | Pricing, estoque | Crítico | Idempotency-Key + transação |
-| IDEM-001 Fundação idempotente | IMPLEMENTADO NA FUNDAÇÃO — persistência, replay e conflito consumidos pelo ledger e pelas reservas | Novos domínios ainda precisam adotar o contrato | P0 | RPCs de domínio | Alto | Integrar incrementalmente em cada mutação crítica |
-| SALE-002 Conclusão/cancelamento reversível | AUSENTE | Sem lifecycle | P0 | Outbox, financeiro | Crítico | Máquina de estados e reversões |
-| PAY-001 Provider neutro/PicPay em produção | IMPLEMENTADO NA ARQUITETURA — interfaces neutras, adapter fail-closed e ADR 0005; documentação v2.1 está histórica | Configuração e integração reais permanecem bloqueadas | P0 | Habilitação oficial | Alto | Preservar contratos e não configurar outro provider em produção |
-| PAY-002 Estados e transições | PARCIAL — estados e transições válidas estão testados no package de pagamentos | Persistência e máquina transacional ainda ausentes | P0 | Venda | Alto | Persistir tentativas e validar transições no servidor/banco |
-| PAY-003 Tentativa auditável | PARCIAL — contratos tipam valor, idempotência, canal, operador e origem | Nenhuma tentativa é persistida ou ligada a venda | P0 | Venda, idempotência | Alto | Criar tentativa junto do checkout sem alegar confirmação automática |
-| PAY-004 Checkout/API PicPay | BLOQUEADO POR DECISÃO EXTERNA | Sem adapter, docs, credenciais ou habilitação no repo | P1 | Contrato comercial, sandbox | Crítico | Implementar somente com documentação oficial |
-| PAY-005 Maquininha/Tap controlado | PARCIAL — contratos manuais e adapter indisponível existem | Sem tentativa persistida/confirmação manual auditada; iniciação remota bloqueada | P1 | Venda, permissões, operação | Alto | Modelar canal e origem manual sem iniciar terminal remotamente |
-| PAY-006 V.A./V.R. | BLOQUEADO POR DECISÃO EXTERNA | Sem credenciamento Alelo/Ticket | P1 | CNPJ/rede/Maquininha | Crítico | Flag desligada; não mascarar como crédito |
-| PAY-007 Webhook | BLOQUEADO POR DECISÃO EXTERNA | Sem receipt, assinatura, dedupe ou replay porque não há documentação/habilitação oficial | P1 | PicPay oficial, outbox | Crítico | Implementar somente com contrato verificável do provedor |
-| PAY-008 Adapter privado futuro | IMPLEMENTADO NA ARQUITETURA — borda substituível sem acoplar o domínio | Integração privada/TEF/SDK não ofertada | P3 | Oferta oficial | Alto | Manter indisponível até homologação |
-| FIN-001 Ledger financeiro/conciliação | AUSENTE | Nenhuma tabela/fluxo | P1 | Vendas/pagamentos | Crítico | Eventos idempotentes e pendências de conciliação |
-| RES-001 Reservas | PARCIAL — bloqueio de estoque atômico implementado em `d4d1489` | Snapshot de preço e lifecycle comercial dependem de pricing/venda | P2 | Estoque/pricing | Alto | Reutilizar a primitive sem confundir `reservable` comercial com hold de inventário |
-| RAF-001 Rifas | AUSENTE | Domínio removido no greenfield | P2 | Pagamentos/financeiro | Alto | Reserva concorrente e sorteio auditável |
-| PROC-001 Fornecedores/compras | AUSENTE | Sem origem/custo do estoque | P2 | Catálogo/ledger | Médio | Compras e recebimentos parciais |
-| CLOSE-001 Fechamento de vendedor | AUSENTE | Sem turnos/contagens | P2 | Estoque/vendas/financeiro | Alto | Conferência auditável e reabertura motivada |
-| OBS-001 Logs/auditoria/outbox | PARCIAL — audit log, outbox transacional e claim/ack/retry estão em `3db74fc` | Consumidor, retenção, alertas e monitoramento ainda ausentes | P0 | Worker/staging | Alto | Criar consumidor testável; ativação operacional depende de ambiente |
-| CI-001 Gates locais/CI | IMPLEMENTADO | CI não faz deploy; staging bloqueado | P1 | Docker para DB/E2E | Médio | Manter qualidade; provisionar staging separadamente |
-| PWA-001 PDV instalável | AUSENTE | Shell mobile-first, sem manifest/service worker | P2 | Fluxo PDV | Baixo | Implementar após checkout confiável |
-| COM-001 Rede Social Germinare/notificações | AUSENTE | Sem domínio | P3 | AUTH-003, outbox, moderação | Médio | Mural institucional moderado; recursos avançados no pós-MVP |
+A [matriz de requisitos](REQUIREMENTS_MATRIX.md) é a referência detalhada de evidência por camada; o [roadmap](ROADMAP.md) define ordem e critérios. O diagnóstico anterior misturava auditoria de agosto com incrementos de setembro e foi substituído por esta base explícita.
 
-## Riscos P0/P1
+| Área | Evidência atual | Lacuna real | Marco |
+| --- | --- | --- | --- |
+| Identidade | Cadastro verificado, credenciais, papéis, revogação, bootstrap e recuperação; gestão de usuários em staging | Homologação SMTP/bootstrap; UI de desbloqueio, conta/sessões e handoff seguro Portal→PDV | 9, 11 |
+| Catálogo | Categorias, produtos, preços, imagens Storage e GET anônimo integrados | Smoke autenticado de uma oferta completa em staging | 1 |
+| Estoque | Ledger, saldo/localizações, reservas, distribuição, transferência com aceite, devolução, perdas, inventário físico, ajustes aprovados e “Meu estoque” integrados em staging | Homologação física da rastreabilidade por lote | 2, 3, 11 |
+| Compras | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de obrigações integrados em staging; lote opcional conforme produto | Rastreabilidade integrada; homologar fisicamente e consolidar custo nos indicadores | 3 |
+| Pricing | QUANTIDADE_PRECO (PR #74), PERCENTUAL e VALOR_FIXO_UNITARIO (PR #78), LEVE_PAGUE (PR #80), ESCALONADA (PR #82), COMBO_MIX (PR #84) e CUPOM na cotação, checkout e administração versionada; política PROMO-004 | Homologação autenticada das jornadas de cupom e limites em staging | 4 |
+| PDV | Checkout, confirmação Maquininha/Área Pix, dinheiro físico com turno, troco e devolução física no estorno (PAY-009a), conferência financeira dos turnos, "Minhas vendas"/pendências, fechamento e PWA read-only | Dispositivos reais | 5 |
+| Financeiro | Recebível/taxa/liquidação/divergência e reversão de venda comum transacionais; contas a pagar parciais/reversíveis integradas em staging; consulta de vendas e estorno pela tela Financeiro › Vendas (#91); plano de categorias, contas e lançamentos manuais auditados (#92); extrato consolidado com CSV (em PR) | Contas/categorias gerais, despesas/importação/CSV e custo real consolidado nos relatórios | 3, 6 |
+| Reservas | Backend ACTIVE/CONVERTED/CANCELLED/EXPIRED e consulta/cancelamento próprio | Compra/pagamento, preparação, pronta retirada e entrega | 8 |
+| Rifas | Reserva concorrente, financeiro, sorteio auditável, ciclo de vida completo e privacidade dos compradores | Compra consumidor/PDV e estorno de rifa paga | 8 |
+| Indicadores | Resumo explícito de 100 vendas recentes e contagens operacionais | Relatórios integrais por período, conciliação, custo/margem/perdas/meta | 9 |
+| Operação assíncrona | Worker claim/lease/retry/ack e expiração; notificações in-app | Alertas, retenção, restore ensaiado, preferências/avise-me/segmentação | 9–11 |
+| Pagamentos online | Payment Link: intenção, adapter pela OpenAPI oficial, webhook no worker, recibos, deduplicação, recuperação, replay, inativação, consulta periódica, estorno pelo provedor e reconciliação de incertezas (flag desligada); Secrets de sandbox configurados no worker de staging | Telas do vendedor, do financeiro e do consumidor; validação no sandbox; webhook bloqueado externamente (o painel PicPay atual não mostra "Meu checkout / URL de notificação", sem API Key); API do sandbox indisponível em 29/09/2026 (OAuth funciona; consultas sem resposta e criação/estorno com HTTP 502 do gateway PicPay) | 7 |
+| Campanhas operacionais (Marco 1) | Código completo: avisos, preferências/avise-me, divulgação rastreável, eventos e campanhas (EVT-001), vitrine do Início (VIT-001) e atribuição de vendas pagas e do PDV com links por vendedor (GROW-002) | Segmentação por turma (depende de cadastro de turmas) e cards automáticos (condicionais) | 10 |
+| Rede Social Germinare (Marco 2) | Fora do Marco 1 por decisão de 28/09/2026 | Mural, posts, comentários, sugestões, enquetes, denúncias e moderação, depois do site operacional em produção | Marco 2 |
 
-- Estoque já possui invariantes transacionais, mas pricing, venda e financeiro ainda não formam um fluxo completo; checkout deve permanecer indisponível até esses domínios existirem juntos.
-- A documentação v2.1 planeja Mercado Pago e foi superada; reutilizá-la sem consultar v2.2 causaria divergência financeira.
-- Confirmação manual presencial pode ser confundida com confirmação automática se a origem não for persistida e exibida.
-- Staging e credenciais externas não estão provisionados; mocks não podem ser promovidos como adapters reais.
-- O ADR 0001 greenfield prevalece sobre trechos de migração histórica da especificação: não há dados legados a converter.
-- Comparar o domínio por sufixo ou confiar apenas no texto enviado pelo cliente pode admitir endereços externos ou semelhantes; a elegibilidade deve usar o e-mail normalizado e verificado pelo provedor.
-- O bootstrap administrativo não pode virar uma elevação permanente por e-mail, nem criar usuário com senha padrão; deve ser único, idempotente, auditado e encerrado após a primeira concessão válida.
+## Divergências resolvidas documentalmente
 
-## Dívidas que bloqueiam evolução
+- DOCX login por código → ADR 0009/PRD/código credenciais: preservar a decisão posterior; código verifica cadastro/recuperação, login usa senha.
+- Roadmap DONE de catálogo/estoque/promoções/financeiro → código parcial: decompor fundação e jornada; nenhuma tela de consulta comprova escrita operacional.
+- Declarações antigas de staging bloqueado e apps shells → CI/deploy e interfaces atuais: removidas; os gates humanos ainda não comprovados continuam pendentes.
+- Checkout genérico → documentação fornecida de Payment Link: registrar produto e contratos próprios no ADR 0010, sem inventar merchantChargeId nesse produto.
+- Provider PicPay para todos os pagamentos → dinheiro físico aprovado: adquirência externa continua PicPay; caixa interno recebe identidade própria.
+- Congelamento 10/09 e lançamento 11/09 → plano aprovado de conclusão não opcional por marcos; sem nova data artificial.
 
-1. Pricing-base, `QUANTIDADE_PRECO` e sua consulta vigente existem, mas o servidor ainda não os compõe em uma cotação autoritativa; checkout permanece bloqueado até essa API.
-2. O onboarding institucional por código, o papel base `CONSUMIDOR`, a ativação administrativa de `VENDEDOR` e o bootstrap do primeiro `ADMIN` ainda não existem.
-3. A matriz de permissões precisará ganhar ações granulares com cada módulo.
-4. A outbox ainda não possui consumidor operacional; receipt de webhook só pode nascer com documentação oficial do PicPay.
+## Estratégia de redução do caminho crítico
+
+Estoque/compras, promoções, pagamentos/financeiro, Portal consumidor/crescimento e gestão/qualidade avançam em trilhas paralelas com contratos explícitos. Custos e promoções desbloqueiam mais jornadas e entram antes das telas dependentes. Intenção de pagamento, receipt, deduplicação e adapter fail-closed avançam antes das credenciais; sandbox real continua sendo gate externo. Homologação acompanha cada merge em staging para evitar concentrar concorrência, acessibilidade, performance, dispositivos e restore no final.
+
+## Bloqueios e riscos
+
+Habilitação, credenciais e execução de sandbox ainda não foram comprovadas; não acessar segredos para produzir evidência documental. Confirmar schemas completos e comportamento de timeout/múltiplos pagamentos por link antes de ativar. Materiais públicos não autorizam integrações privadas de Tap/TEF/SDK, nem V.A./V.R. sem credenciamento.
+
+Quarenta e sete migrations formam o schema integrado atual (a mais recente é `20260929090100_promotion_coupons_limits.sql`); a consolidação acrescenta uma migration que remove as funções `get_pricing_quote_inputs` v1–v4, sem tabelas ou dados. Promoção requer revisão cumulativa, sem reset/seeds de produção. Greenfield não autoriza apagar o histórico que vier a ser criado. Preservar restituições por evento compensatório e elegibilidade histórica de sorteios.
+
+## Dívidas técnicas a resolver antes do release candidate
+
+Registradas em 30/09/2026; cada uma em PR própria antes do RC, sem bloquear as entregas em andamento.
+
+- **Testes unitários do Portal fora da CI (resolvida em 30/09/2026):** o `pnpm test:unit` da raiz passou a incluir `apps/portal/**/*.test.ts`, com `.next`, `dist` e `node_modules` excluídos. Os testes do Portal rodam na CI pelo vitest da raiz, sem depender do ambiente do Vinext.
+- **E2E foundation com estado compartilhado (resolvida em 30/09/2026):** em banco recém-resetado, a suíte `e2e/foundation.spec.ts` foi rodada sozinha e sem retries. O fechamento do vendedor não depende mais de sobras de outras suítes, e o checkout prepara o próprio estoque. As falhas que restavam eram de tempo: cadastro e recuperação dependem do envio do código por e-mail e da primeira compilação das páginas. Essas duas jornadas ganharam folga de navegação (45 s) e de teste (3 min).
+  - **Pendente para o RC:** algumas E2E de outras suítes ainda podem se afetar em retries, quando uma tentativa deixa dados que a seguinte encontra (visto em `seller-stock-transfers` na CI do #119). Os seletores novos esperam pela resposta filtrada, e novos casos devem seguir essa prática.

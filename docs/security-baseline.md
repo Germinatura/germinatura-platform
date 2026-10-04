@@ -12,8 +12,9 @@ A allowlist executável está em `apps/portal/lib/api-security.ts`. Qualquer API
 | `/api/auth/me` | GET | authenticated | Retorna somente perfil da própria sessão. |
 | `/api/auth/reset-password` | POST | authenticated | Atualiza apenas a própria identidade Supabase Auth. |
 | `/api/v1/auth/session` | GET | authenticated | Retorna identidade, papel primário e papéis da própria sessão. |
+| `/api/v1/admin/inventory/distributions` | POST | inventory | Exige Admin ou Estoque no proxy e `inventory.manage` no handler/RPC; somente central ativa para vendedor ativo. |
 
-Não há endpoints `seller-only` ou `admin-only` ativos nesta fundação. As classes existem no enforcement server-side e devem ser usadas quando novos domínios forem introduzidos; menu oculto nunca substitui RBAC.
+As classes por domínio são verificadas no proxy e repetidas por permissão no handler e no banco. Menu oculto nunca substitui RBAC.
 
 O PDV expõe publicamente apenas seu próprio `/api/v1/health`. Demais chamadas `/api/*` são reescritas para o Portal e passam pela mesma classificação server-side.
 
@@ -30,7 +31,7 @@ O PDV expõe publicamente apenas seu próprio `/api/v1/health`. Demais chamadas 
 
 Todas as tabelas públicas da fundação têm RLS. Usuários autenticados podem ler apenas o próprio perfil e vínculos de papel; não existe policy de escrita direta em RBAC. Elevação de privilégio exige uma operação administrativa futura e auditada.
 
-O bucket `product-images` limita tamanho e MIME. Escritas exigem `catalog.manage`, caminho sob o UUID do ator e nome UUID com extensão permitida. Não há uploader ativo na aplicação.
+O bucket público `product-images` limita arquivos a 5 MB e aceita JPG, PNG e WebP. Uploads exigem `catalog.manage`, assinatura compatível com o MIME e caminho imutável `products/<produto>/<imagem>.<extensão>`; não há policy de listagem nem de sobrescrita. A API pública só enumera metadados ativos ligados a produto e categoria publicados. A remoção oculta o metadado antes de excluir o objeto pelo Storage API e preserva tombstone e auditoria para recuperação segura.
 
 ## Headers e logs
 

@@ -1,0 +1,10 @@
+data;movimento;descrição;tipo;valor
+2026-09-01;Pix recebido;Cliente Exemplo Um;Entrada;8.00;
+2026-09-01;Pix recebido;Cliente Exemplo Um;Entrada;8.00;
+2026-09-01;Pix recebido;Cliente Exemplo Dois;Entrada;15.50;
+2026-09-01;Recebíveis de venda;Crédito;Entrada;42.30;
+2026-09-02;Dinheiro guardado;Cofrinho;Saída;-300.00;
+2026-09-02;Pix enviado;Papelaria Exemplo;Saída;-120.00;
+2026-09-03;Pix estornado;Cliente Exemplo Tres;Saída;-12.00;
+2026-09-03;Pix devolvido;Fornecedor Exemplo;Entrada;110.00;
+2026-09-04;Dinheiro resgatado;Cofrinho;Entrada;100.00;

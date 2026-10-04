@@ -1,0 +1,62 @@
+import { describe, expect, it } from "vitest";
+import { quantityPricePromotionSchema, savePromotionSchema, saveQuantityPricePromotionSchema } from "./promotion-management";
+
+const valid={id:null,expectedRevision:null,code:"DOIS-POR-DEZ",name:"Duas por dez",description:null,active:false,publicable:false,priority:10,cumulative:false as const,validFrom:"2026-09-22T12:00:00.000Z",validTo:null,globalRedemptionLimit:null,perUserRedemptionLimit:null,productIds:["33f00000-0000-4000-8000-000000000001"],channels:["PDV" as const],rule:{type:"QUANTIDADE_PRECO" as const,groupQuantity:2,groupPriceCents:1000,maxGroupsPerLine:null},reason:"Criar promoção"};
+
+describe("quantity price promotion administration contract",()=>{
+  it("accepts integer cents and an unlimited non-cumulative rule",()=>expect(saveQuantityPricePromotionSchema.parse(valid).rule.groupPriceCents).toBe(1000));
+  it("requires optimistic revision for edits",()=>expect(saveQuantityPricePromotionSchema.safeParse({...valid,id:"60000000-0000-4000-8000-000000000001"}).success).toBe(false));
+  it("rejects duplicate products and channels",()=>{
+    expect(saveQuantityPricePromotionSchema.safeParse({...valid,productIds:[valid.productIds[0],valid.productIds[0]]}).success).toBe(false);
+    expect(saveQuantityPricePromotionSchema.safeParse({...valid,channels:["PDV","PDV"]}).success).toBe(false);
+  });
+  it("does not advertise cumulative or limited rules before transactional consumption exists",()=>{
+    expect(saveQuantityPricePromotionSchema.safeParse({...valid,cumulative:true}).success).toBe(false);
+    expect(saveQuantityPricePromotionSchema.safeParse({...valid,globalRedemptionLimit:10}).success).toBe(false);
+  });
+  it("can display legacy limits without accepting an unsafe rewrite",()=>{
+    const stored: Record<string, unknown> = {...valid};
+    delete stored.expectedRevision;
+    delete stored.reason;
+    expect(quantityPricePromotionSchema.safeParse({...stored,id:"60000000-0000-4000-8000-000000000001",revision:1,cumulative:true,globalRedemptionLimit:10}).success).toBe(true);
+  });
+});
+
+describe("unit promotion administration contract",()=>{
+  it("accepts percentages as integer basis points below 100%",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:1_500}}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:10_000}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:12.5}}).success).toBe(false);
+  });
+  it("accepts a fixed unit price only in integer cents",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:1_000}}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"VALOR_FIXO_UNITARIO",fixedUnitPriceCents:10.5}}).success).toBe(false);
+  });
+  it("rejects fields from another rule type",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:{type:"PERCENTUAL",percentageBasisPoints:1_000,fixedUnitPriceCents:100}}).success).toBe(false);
+  });
+});
+
+describe("combo promotion administration contract",()=>{
+  const combo={type:"COMBO_MIX" as const,components:[{productId:"33f00000-0000-4000-8000-000000000001",quantity:1},{productId:"33f00000-0000-4000-8000-000000000002",quantity:2}],comboPriceCents:3_500,maxCombosPerCart:null};
+  it("accepts two to ten distinct components with integer quantities",()=>{
+    expect(savePromotionSchema.safeParse({...valid,productIds:combo.components.map((item)=>item.productId),rule:combo}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...combo,components:[combo.components[0]]}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...combo,components:[combo.components[0],combo.components[0]]}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...combo,components:[combo.components[0],{...combo.components[1],quantity:1.5}]}}).success).toBe(false);
+  });
+});
+
+describe("coupon and limit administration contract",()=>{
+  const coupon={type:"CUPOM" as const,code:"FORMANDO10",discount:{kind:"PERCENTUAL" as const,percentageBasisPoints:1_000}};
+  it("accepts coupons with limits and cumulativity",()=>{
+    expect(savePromotionSchema.safeParse({...valid,rule:coupon,cumulative:true,globalRedemptionLimit:100,perUserRedemptionLimit:1}).success).toBe(true);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...coupon,discount:{kind:"VALOR_FIXO",amountCents:500}}}).success).toBe(true);
+  });
+  it("rejects cumulative product promotions, lowercase codes and empty discounts",()=>{
+    expect(savePromotionSchema.safeParse({...valid,cumulative:true}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...coupon,code:"formando10"}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,rule:{...coupon,discount:{kind:"VALOR_FIXO",amountCents:0}}}).success).toBe(false);
+    expect(savePromotionSchema.safeParse({...valid,globalRedemptionLimit:0}).success).toBe(false);
+  });
+});

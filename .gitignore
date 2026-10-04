@@ -69,3 +69,6 @@ supabase/.env
 supabase/.env.local
 supabase/.linked
 supabase/.link
+
+# Staging load harness output (published in the workflow summary)
+tests/load/results/

@@ -1,0 +1,142 @@
+import {
+  createApiError,
+  idempotencyKeySchema,
+  salesCheckoutRequestSchema,
+  salesCheckoutResponseSchema,
+} from "@germinatura/contracts";
+import { createRequestId } from "@germinatura/observability";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { AuthorizationError, requirePermission, requireSession } from "@/lib/auth";
+import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { publicQuote, storedQuoteSchema } from "@/lib/promotion-snapshot";
+
+
+const checkoutDatabaseResultSchema = z.object({
+  sale_id: z.uuid(),
+  status: z.literal("AWAITING_PAYMENT"),
+  channel: z.enum(["PORTAL", "PDV"]),
+  location_id: z.uuid(),
+  quote: storedQuoteSchema,
+  reservation: z.object({
+    reservation_id: z.uuid(),
+    status: z.literal("ACTIVE"),
+    expires_at: z.string(),
+    reservation_movement_id: z.uuid(),
+  }),
+  payment_attempt: z.object({
+    attempt_id: z.uuid(),
+    status: z.literal("CREATED"),
+    amount_cents: z.number().int().nonnegative(),
+    integration_channel: z.null(),
+    confirmation_source: z.null(),
+  }),
+  correlation_id: z.uuid(),
+});
+
+function errorResponse(code: string, message: string, requestId: string, status: number, details?: unknown) {
+  return NextResponse.json(createApiError(code, message, requestId, details), {
+    status,
+    headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+  });
+}
+
+function databaseErrorResponse(message: string, requestId: string) {
+  if (message.includes("IDEMPOTENCY_CONFLICT")) {
+    return errorResponse("IDEMPOTENCY_CONFLICT", "A chave já foi usada com outro conteúdo", requestId, 409);
+  }
+  if (message.includes("IDEMPOTENCY_IN_PROGRESS")) {
+    return errorResponse("IDEMPOTENCY_IN_PROGRESS", "A cobrança já está em processamento", requestId, 409);
+  }
+  if (message.includes("STOCK_CONFLICT")) {
+    return errorResponse("STOCK_CONFLICT", "Estoque insuficiente para concluir a cobrança", requestId, 409);
+  }
+  if (message.includes("SALE_LOCATION_FORBIDDEN")) {
+    return errorResponse("FORBIDDEN", "Localização não autorizada", requestId, 403);
+  }
+  if (message.includes("PRODUCT_UNAVAILABLE") || message.includes("INVALID_SALE_ITEMS")) {
+    return errorResponse("INVALID_CHECKOUT", "Um ou mais itens não estão disponíveis", requestId, 422);
+  }
+  return errorResponse("CHECKOUT_UNAVAILABLE", "Cobrança temporariamente indisponível", requestId, 503);
+}
+
+export async function POST(request: Request) {
+  const requestId = createRequestId(request.headers);
+  const idempotency = idempotencyKeySchema.safeParse(request.headers.get("idempotency-key"));
+  if (!idempotency.success) {
+    return errorResponse("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key inválida ou ausente", requestId, 422);
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse("INVALID_BODY", "Corpo JSON inválido", requestId, 422);
+  }
+  const parsed = salesCheckoutRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return errorResponse("INVALID_CHECKOUT", "Solicitação de cobrança inválida", requestId, 422, parsed.error.issues);
+  }
+
+  try {
+    if (parsed.data.channel === "PDV") await requirePermission("sales.create");
+    else await requireSession();
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return errorResponse(error.status === 401 ? "UNAUTHENTICATED" : "FORBIDDEN", error.message, requestId, error.status);
+    }
+    return errorResponse("CHECKOUT_UNAVAILABLE", "Cobrança temporariamente indisponível", requestId, 503);
+  }
+
+  const correlationId = crypto.randomUUID();
+  let supabase: SupabaseClient;
+  try {
+    supabase = await createAuthenticatedSupabaseClient(request);
+  } catch {
+    return errorResponse("CHECKOUT_UNAVAILABLE", "Cobrança temporariamente indisponível", requestId, 503);
+  }
+  const { data, error } = await supabase.rpc("checkout_sale", {
+    p_channel: parsed.data.channel,
+    p_location_id: parsed.data.locationId,
+    p_items: parsed.data.items.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+    p_idempotency_key: idempotency.data,
+    p_correlation_id: correlationId,
+    p_coupon_code: parsed.data.couponCode ?? null,
+  });
+  if (error) return databaseErrorResponse(error.message, requestId);
+
+  const result = checkoutDatabaseResultSchema.safeParse(data);
+  if (!result.success) {
+    return errorResponse("CHECKOUT_INVALID_DATA", "Cobrança temporariamente indisponível", requestId, 503);
+  }
+  const value = result.data;
+  const response = salesCheckoutResponseSchema.parse({
+    data: {
+      saleId: value.sale_id,
+      status: value.status,
+      channel: value.channel,
+      locationId: value.location_id,
+      quote: publicQuote(value.quote, value.channel),
+      reservation: {
+        reservationId: value.reservation.reservation_id,
+        status: value.reservation.status,
+        expiresAt: value.reservation.expires_at,
+        reservationMovementId: value.reservation.reservation_movement_id,
+      },
+      paymentAttempt: {
+        attemptId: value.payment_attempt.attempt_id,
+        status: value.payment_attempt.status,
+        amountCents: value.payment_attempt.amount_cents,
+        integrationChannel: value.payment_attempt.integration_channel,
+        confirmationSource: value.payment_attempt.confirmation_source,
+      },
+      correlationId: value.correlation_id,
+    },
+    request_id: requestId,
+  });
+  return NextResponse.json(response, {
+    status: 201,
+    headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+  });
+}

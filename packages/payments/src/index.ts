@@ -28,6 +28,14 @@ export interface ManualTerminalConfirmation {
   occurredAt: string; nonSensitiveReference?: string;
 }
 
+export interface ManualPaymentConfirmation {
+  attemptId: string;
+  idempotencyKey: string;
+  operatorId: string;
+  channel: Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">;
+  nonSensitiveReference: string;
+}
+
 export interface CardPresentProvider {
   createPaymentAttempt(input: CardPresentAttemptRequest): Promise<PaymentResult>;
   confirmExternalTerminalPayment(input: ManualTerminalConfirmation): Promise<PaymentResult>;
@@ -43,7 +51,7 @@ const allowedTransitions: Readonly<Record<PaymentStatus, readonly PaymentStatus[
   APPROVED: ["REFUNDED", "RECONCILIATION_PENDING", "RECONCILED"],
   DECLINED: [], CANCELLED: [], EXPIRED: [],
   REFUNDED: ["RECONCILIATION_PENDING", "RECONCILED"],
-  RECONCILIATION_PENDING: ["RECONCILED"], RECONCILED: [],
+  RECONCILIATION_PENDING: ["REFUNDED", "RECONCILED"], RECONCILED: ["REFUNDED"],
 };
 
 export function canTransitionPayment(from: PaymentStatus, to: PaymentStatus): boolean {
@@ -77,3 +85,6 @@ export class UnavailablePicPayCardPresentProvider implements CardPresentProvider
     return new PaymentIntegrationUnavailableError("PicPay card-present integration is unavailable until officially documented and enabled");
   }
 }
+
+export * from "./payment-link";
+export * from "./payment-link-sandbox";
