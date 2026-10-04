@@ -95,3 +95,30 @@ Depois das PRs relevantes integradas: uma rodada D de 10 min. Se ela ficar está
 - Acima dessa duração em carga contínua, o banco entra em paradas intermitentes de até ~30 s. Não há perda de consistência e há recuperação espontânea.
 - A rodada D de 30 min continua reprovada, e o `release-readiness.md` não muda.
 - A PR 4 (flags e frequência do Worker de jobs) reduz idas ao banco em poucos pontos por cento. Ela não muda o perfil acima e fica sem prioridade até a análise das métricas.
+
+## Causa confirmada e próximo gate (2026-10-03)
+
+**Métricas do projeto Supabase de staging na janela da parada (02/10, 22:55–23:06 UTC):**
+
+- **Memória:** memória comprometida em ~1,6–1,7 GB, contra um limite de commit de ~1,2 GB; uso expressivo de swap durante toda a janela.
+- **CPU:** IOWait muito elevado, sem saturação de trabalho útil.
+- **Disco:** ~18 IOPS, contra um teto de ~3.000; vazão de centenas de KB/s, contra ~125 MB/s.
+- **Conexões:** ~16, contra um limite de ~60.
+- **Tamanho:** ~100 MB de dados.
+
+**Conclusão:** os ~16 req/s sustentados do cenário D excedem o envelope de memória da instância Supabase Free. A pressão de memória leva ao swap, e o IOWait do swap leva às paradas globais.
+
+- A causa não é uma consulta individual, lock, conexão, Cloudflare nem o tamanho do banco.
+- **16 req/s sustentados por 30 min não são suportados no Supabase Free.** Esse teste não se repete.
+- Supabase pago não faz parte do Marco 1, e nenhuma nova otimização entra neste momento.
+
+**Próximo gate:** determinar a capacidade operacional sustentável do Free. Faz uma única rodada D de 30 min a ~8 req/s, com a mesma mistura de leituras e mutações (`load_rate_d=8`, `tests/load/README.md`), os mesmos dados sintéticos e invariantes, `payment_link` desligado e só em staging.
+
+**Critérios:**
+- 0 violações, 0 duplicações, 0 respostas 5xx e 0 timeouts;
+- p95 das leituras abaixo de 1,5 s, e das mutações abaixo de 2,5 s, como referência;
+- nenhum degrau global de latência;
+- outbox drenando.
+
+Se a rodada passar, a medição para ali, sem aumento automático de taxa. A decisão de medir um envelope maior vem depois da análise. O `release-readiness.md` continua sem READY.
+
