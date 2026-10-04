@@ -40,7 +40,7 @@ export class VirtualUser {
       status = response.status;
       this.keepCookies(response);
       const text = await response.text();
-      if (status >= 400) sample = { ray: response.headers.get("cf-ray"), contentType: response.headers.get("content-type"), body: text.replace(/s+/g, " ").slice(0, 300) };
+      if (status >= 400) sample = { ray: response.headers.get("cf-ray"), contentType: response.headers.get("content-type"), body: text.replace(/\s+/g, " ").slice(0, 300) };
       if ((response.headers.get("content-type") ?? "").includes("application/json")) {
         try { payload = JSON.parse(text); } catch { payload = null; }
       }

@@ -17,6 +17,10 @@ on:
         description: Load durations in minutes as A,B,D (default 10,10,30)
         type: string
         default: "10,10,30"
+      load_rate_d:
+        description: Fixed total rate for D in requests per second, same mix (empty keeps the unthrottled soak)
+        type: string
+        default: ""
 
 concurrency:
   group: germinatura-staging
@@ -117,6 +121,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       MINUTES: ${{ inputs.load_minutes }}
+      RATE_D: ${{ inputs.load_rate_d }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -136,7 +141,7 @@ jobs:
       - name: Run the load harness
         run: |
           IFS=, read -r minutes_a minutes_b minutes_d <<< "$MINUTES"
-          node tests/load/run.mjs --scenarios="$SCENARIOS" --minutes-a="${minutes_a:-10}" --minutes-b="${minutes_b:-10}" --minutes-d="${minutes_d:-30}"
+          node tests/load/run.mjs --scenarios="$SCENARIOS" --minutes-a="${minutes_a:-10}" --minutes-b="${minutes_b:-10}" --minutes-d="${minutes_d:-30}" ${RATE_D:+--rate-d="$RATE_D"}
       - name: Summarize the Worker tails
         if: always()
         run: |

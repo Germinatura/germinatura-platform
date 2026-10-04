@@ -43,6 +43,11 @@ async function untilDeadline(deadline, body) {
   while (Date.now() < deadline) await body();
 }
 
+// Rest of a fixed-rate cycle, ±20% so the users drift apart instead of firing together, never past the deadline.
+function restOfCycle(startedAt, period, deadline) {
+  return sleep(Math.max(0, Math.min(startedAt + period * (0.8 + Math.random() * 0.4), deadline) - Date.now()));
+}
+
 // A — consumers browsing: Início, catalog pages, events, promotions (quote), raffles and notifications.
 export async function browsing(context) {
   const { target, fixtures, password, users = 50, minutes = 10 } = context;
@@ -175,8 +180,13 @@ export async function contention(context) {
 
 // D — moderate soak: readers plus a steady trickle of real sales (checkout + Área Pix) and reservation cycles.
 export async function soak(context) {
-  const { target, fixtures, password, sql, run, minutes = 30, readers = 20, sellers = 5 } = context;
+  const { target, fixtures, password, sql, run, minutes = 30, readers = 20, sellers = 5, rate = null } = context;
   const metrics = new Metrics("D — soak");
+  // Fixed rate (--rate-d, total requests per second): each user starts a cycle every period instead of thinking after
+  // it, so the total holds near the target however slow the responses get. The periods keep the unthrottled soak's
+  // mix: a reader cycle averages 13/3 requests, a seller cycle 3, and a seller's period is four times a reader's.
+  const readerPeriod = rate ? (readers * 13 / 3 + sellers * 3 / 4) / rate * 1000 : null;
+  const sellerPeriod = rate ? readerPeriod * 4 : null;
   const readerSessions = await Promise.all(fixtures.consumers.slice(20, 20 + readers).map((consumer) => loggedIn(target.portal, metrics, consumer.username, password, context.diagnose)));
   const sellerSessions = await Promise.all(fixtures.sellers.slice(5, 5 + sellers).map((seller) => loggedIn(target.pdv, metrics, seller.username, password, context.diagnose)));
   const deadline = Date.now() + minutes * 60000;
@@ -196,9 +206,10 @@ export async function soak(context) {
     }
   })();
   const reading = Promise.all(readerSessions.map(async (user, index) => {
-    await think(0, index * 300);
+    await (readerPeriod ? think(0, readerPeriod) : think(0, index * 300));
     let cycle = 0;
     await untilDeadline(deadline, async () => {
+      const cycleStarted = Date.now();
       cycle += 1;
       await user.request("soak showcase", "GET", "/api/v1/showcase");
       await user.request("soak catalog", "GET", "/api/v1/catalog/products?limit=24");
@@ -210,14 +221,15 @@ export async function soak(context) {
         const id = created.body?.data?.reservationId ?? created.body?.data?.id;
         if (id) await user.request("soak reservation cancel", "POST", `/api/v1/reservations/${id}/cancel`, { headers: { "Idempotency-Key": `load-${run}-soak-cancel-${randomUUID()}` }, expected: contended });
       }
-      await think(3000, 6000);
+      await (readerPeriod ? restOfCycle(cycleStarted, readerPeriod, deadline) : think(3000, 6000));
     });
   }));
   const sellingSellers = fixtures.sellers.slice(5, 5 + sellers);
   const selling = Promise.all(sellerSessions.map(async (user, index) => {
     const seller = sellingSellers[index];
-    await think(0, index * 1000);
+    await (sellerPeriod ? think(0, sellerPeriod) : think(0, index * 1000));
     await untilDeadline(deadline, async () => {
+      const cycleStarted = Date.now();
       const sale = await user.request("soak checkout", "POST", "/api/v1/sales/checkout",
         { body: { channel: "PDV", locationId: seller.locationId, items: [{ productId: fixtures.products.volume_b, quantity: 1 }] }, headers: { "Idempotency-Key": `load-${run}-soak-sale-${randomUUID()}` }, expected: contended });
       const saleId = sale.body?.data?.saleId;
@@ -226,12 +238,15 @@ export async function soak(context) {
           { body: { integrationChannel: "PIX_AREA", proofReference: `SOAK-${randomUUID().slice(0, 8)}`.toUpperCase() }, headers: { "Idempotency-Key": `load-${run}-soak-pay-${randomUUID()}` }, expected: contended });
       }
       await user.request("soak my sales", "GET", "/api/v1/pdv/sales");
-      await think(15000, 25000);
+      await (sellerPeriod ? restOfCycle(cycleStarted, sellerPeriod, deadline) : think(15000, 25000));
     });
   }));
   await Promise.all([reading, selling, sampler]);
   const summary = metrics.finish().summary();
-  return { ...summary, outbox: samples, trends: summary.routes.map((route) => ({ label: route.label, p95SlopeMsPerMinute: trend(route.minutes) })) };
+  const requests = summary.routes.reduce((sum, route) => sum + route.requests, 0);
+  const throughput = { targetPerSecond: rate, actualPerSecond: Math.round(requests / (minutes * 60) * 100) / 100,
+    readerPeriodMs: readerPeriod && Math.round(readerPeriod), sellerPeriodMs: sellerPeriod && Math.round(sellerPeriod) };
+  return { ...summary, throughput, outbox: samples, trends: summary.routes.map((route) => ({ label: route.label, p95SlopeMsPerMinute: trend(route.minutes) })) };
 }
 
 function tally(results) {

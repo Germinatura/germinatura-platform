@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Staging stability harness. Usage (inside the load-staging workflow, which provides the environment):
-//   node tests/load/run.mjs --scenarios=A,B,C,D [--minutes-a=10] [--minutes-d=30]
+//   node tests/load/run.mjs --scenarios=A,B,C,D [--minutes-a=10] [--minutes-d=30] [--rate-d=8]
 // Refuses anything but the staging hosts (lib/guard.mjs). Creates isolated run fixtures first, retires them last.
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -46,7 +46,7 @@ async function main() {
     if (scenarios.includes("A")) { console.log("A — 50 consumidores navegando…"); results.scenarios.A = await browsing({ ...context, minutes: Number(option("minutes-a", 10)) }); save(); }
     if (scenarios.includes("B")) { console.log("B — 15 vendedores no PDV…"); results.scenarios.B = await operating({ ...context, minutes: Number(option("minutes-b", 10)) }); save(); }
     if (scenarios.includes("C")) { console.log("C — concorrência controlada…"); results.scenarios.C = await contention(context); save(); }
-    if (scenarios.includes("D")) { console.log("D — soak…"); results.scenarios.D = await soak({ ...context, minutes: Number(option("minutes-d", 30)) }); save(); }
+    if (scenarios.includes("D")) { console.log("D — soak…"); results.scenarios.D = await soak({ ...context, minutes: Number(option("minutes-d", 30)), rate: Number(option("rate-d", 0)) || null }); save(); }
     results.logins = summarizeLogins();
     results.finalInvariants = (await sql(`select check_name, violations from loadtest.check('${run}')`)).map((row) => ({ check: row.check_name, violations: Number(row.violations) }));
   } finally {
@@ -94,6 +94,7 @@ function digest(results) {
     routes: scenario.routes.map((route) => `${route.label}: ${route.requests} req, ok ${route.ok}, 4xx esperado ${route.expected4xx}, 4xx ${route.unexpected4xx}, 5xx ${route.server5xx}, rede ${route.network}, p50 ${route.p50} p95 ${route.p95} p99 ${route.p99} ms, ${route.throughputPerSecond}/s`),
     failures: scenario.routes.filter((route) => route.samples?.length).map((route) => ({ route: route.label, samples: route.samples })),
     ...(scenario.cases ? { cases: scenario.cases.map((item) => `${item.name}: ${item.successes} sucesso(s) de ${item.attempts} (${item.expectation}); violações ${item.invariants.reduce((sum, row) => sum + row.violations, 0)}${item.redemptions !== undefined ? `; resgates ${item.redemptions} de ${item.reservations} reservas` : ""}`) } : {}),
+    ...(scenario.throughput ? { throughput: scenario.throughput } : {}),
     ...(scenario.trends ? { trends: scenario.trends, outbox: scenario.outbox } : {}),
   }]));
 }

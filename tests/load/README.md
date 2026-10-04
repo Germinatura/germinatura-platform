@@ -57,6 +57,15 @@ gh workflow run deploy-staging.yml --ref develop -f load_scenarios=A,B,C,D -f lo
 
 `load_minutes` traz as durações de A, B e D. Para um ensaio curto, use `-f load_minutes=1,1,2`. O resumo do job traz o JSON completo da rodada.
 
+`load_rate_d` fixa a taxa total do D em requisições por segundo, por exemplo `-f load_scenarios=D -f load_minutes=10,10,30 -f load_rate_d=8`.
+- Cada usuário passa a iniciar um ciclo a cada período fixo (±20%), em vez de pensar depois de cada ciclo, e a taxa não sobe nem cai com a latência.
+- Os períodos mantêm a mistura do D sem taxa:
+  - mesmos 20 leitores e 5 vendedores;
+  - uma reserva com cancelamento a cada 6 ciclos de leitura;
+  - o período de um vendedor é 4 vezes o de um leitor.
+- O resultado traz `throughput`, com a taxa pedida, a taxa real e os períodos.
+- Sem `load_rate_d`, o D roda como antes.
+
 Durante a rodada, o job captura o `wrangler tail` do Portal, do PDV e do Worker de jobs, e `summarize-tail.mjs` resume cada um:
 - resultado por caminho ou cron;
 - limites da plataforma (`exceededCpu`, `exceededMemory`, subrequisições);
