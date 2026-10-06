@@ -440,3 +440,21 @@ Spec 5.8 (FIN-002, FIN-003, FIN-007). PR 1 do cutover, só banco e contratos; as
 - **Conferência:** registro imutável do saldo observado contra o calculado, sem ajuste automático.
 - **Aceite local com o extrato real** (901 linhas, 27/08 a 05/10/2026, fora do Git e desfeito ao final): livre R$ 0,39, Cofrinho R$ 19.277,65, total R$ 19.278,04, conferência CONCILIADO com diferença zero.
 - **Riscos separados** (GAP_ANALYSIS, dívidas técnicas): taxas de maquininha que sobram em Recebíveis, liquidação em dobro pela rota de conciliação manual e liquidação nativa sem recebível interno.
+
+## Incremento de telas do saldo e do cutover — 06/10/2026
+
+Spec 5.8 (FIN-002, FIN-003, FIN-007). PR 2 do cutover, sobre a PR 1 (#160).
+- **Saldo e conferência:**
+  - cards de saldo livre, Cofrinho e saldo financeiro total, mais a receber (recebíveis) e dinheiro físico à parte;
+  - posição de abertura com registro único e correção por nova versão com motivo;
+  - conferência do saldo observado no PicPay, com diferenças, status e histórico, sem ajuste automático.
+- **Indicadores:** os mesmos cards de saldo, e o card de fluxo renomeado para "Fluxo de caixa do período".
+- **Extrato:** coluna Tipo com a natureza de cada linha.
+- **Extrato PicPay:**
+  - a prévia mostra o histórico do cutover;
+  - classificação em lote com filtro, prévia de quantidade e valor, motivo e confirmação forte;
+  - vínculo de linha a pagamento de fornecedor ou lançamento manual;
+  - receita histórica para recebíveis anteriores à operação.
+- **APIs novas:** `balances`, `opening-position`, `balance-checks`, `statement-imports/:id/bulk` (e `/preview`), `statement-lines/:id/link` e `/link-candidates`, todas com permissão `finance.manage` e chave de idempotência nas mutações.
+- **Fora desta PR:** a abertura real e o extrato real não foram registrados em nenhum ambiente.
+
