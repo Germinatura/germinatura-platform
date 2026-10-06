@@ -8,7 +8,7 @@ export const picpayStatementMovementSchema = z.enum([
 ]);
 export type PicpayStatementMovement = z.infer<typeof picpayStatementMovementSchema>;
 export const picpayStatementLineStatusSchema = z.enum([
-  "TRANSFERENCIA", "CONCILIADA_VENDA", "CONCILIADA_ESTORNO", "CLASSIFICADA", "JA_REGISTRADO", "PENDENTE_REVISAO",
+  "TRANSFERENCIA", "CONCILIADA_VENDA", "CONCILIADA_ESTORNO", "CLASSIFICADA", "VINCULADA", "JA_REGISTRADO", "PENDENTE_REVISAO",
   "PENDENTE_CLASSIFICACAO",
 ]);
 export type PicpayStatementLineStatus = z.infer<typeof picpayStatementLineStatusSchema>;
@@ -69,7 +69,7 @@ export const picpayStatementImportSchema = z.object({
   actorName: z.string(),
   createdAt: timestamp,
   statusCounts: z.object({
-    TRANSFERENCIA: count, CONCILIADA_VENDA: count, CONCILIADA_ESTORNO: count, CLASSIFICADA: count, JA_REGISTRADO: count,
+    TRANSFERENCIA: count, CONCILIADA_VENDA: count, CONCILIADA_ESTORNO: count, CLASSIFICADA: count, VINCULADA: count, JA_REGISTRADO: count,
     PENDENTE_REVISAO: count, PENDENTE_CLASSIFICACAO: count,
   }).strict(),
 }).strict();
@@ -108,7 +108,7 @@ export const picpayStatementLineSchema = z.object({
   description: z.string().nullable(),
   status: picpayStatementLineStatusSchema,
   resolution: z.object({
-    resolution: z.enum(["TRANSFERENCIA", "CONCILIADA_VENDA", "CONCILIADA_ESTORNO", "CLASSIFICADA", "JA_REGISTRADO", "REABERTA"]),
+    resolution: z.enum(["TRANSFERENCIA", "CONCILIADA_VENDA", "CONCILIADA_ESTORNO", "CLASSIFICADA", "VINCULADA", "JA_REGISTRADO", "REABERTA"]),
     category: financeCategorySchema.nullable(),
     counterAccount: financeAccountSchema.nullable(),
     paymentAttemptId: z.uuid().nullable(),

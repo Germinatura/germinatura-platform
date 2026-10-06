@@ -26,7 +26,7 @@ const movementLabels: Record<PicpayStatementMovement, string> = {
 };
 const statusLabels: Record<PicpayStatementLineStatus, string> = {
   TRANSFERENCIA: "Transferência", CONCILIADA_VENDA: "Conciliada com venda", CONCILIADA_ESTORNO: "Conciliada com estorno",
-  CLASSIFICADA: "Classificada", JA_REGISTRADO: "Já registrada", PENDENTE_REVISAO: "A revisar", PENDENTE_CLASSIFICACAO: "A classificar",
+  CLASSIFICADA: "Classificada", VINCULADA: "Vinculada a registro", JA_REGISTRADO: "Já registrada", PENDENTE_REVISAO: "A revisar", PENDENTE_CLASSIFICACAO: "A classificar",
 };
 const errorLabels: Record<PicpayStatementErrorCode, string> = {
   EMPTY_FILE: "Arquivo vazio", INVALID_ENCODING: "Codificação inválida (use UTF-8)", TOO_MANY_LINES: "Arquivo com linhas demais",
@@ -239,7 +239,8 @@ function StatementLineItem({ line, onResolve }: { line: PicpayStatementLine; onR
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const pending = line.status === "PENDENTE_REVISAO" || line.status === "PENDENTE_CLASSIFICACAO";
-  const reopenable = line.status === "CLASSIFICADA" || line.status === "JA_REGISTRADO" || line.status === "CONCILIADA_ESTORNO";
+  const reopenable = line.status === "CLASSIFICADA" || line.status === "JA_REGISTRADO" || line.status === "CONCILIADA_ESTORNO"
+    || line.status === "VINCULADA";
   const reversal = line.movement === "PIX_ESTORNADO" || line.movement === "PIX_DEVOLVIDO";
   const classifiable = pending && line.movement !== "COFRINHO_GUARDADO" && line.movement !== "COFRINHO_RESGATADO" && line.movement !== "RECEBIVEIS_VENDA";
   const run = async (body: ResolvePicpayStatementLineRequest) => {

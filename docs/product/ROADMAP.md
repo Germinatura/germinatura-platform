@@ -430,3 +430,13 @@ Spec 4.1 (VIT-001). O Início deixou de ser só atalhos: mostra o destaque da co
 ## Auditoria da Etapa 10 e atribuição de vendas — 01/10/2026
 
 A Etapa 10 foi auditada contra as specs 4.1, 4.5, 4.7, 5.13 e 5.15, sem presumir conclusão. Já estavam integrados os avisos operacionais, os manuais segmentados, as preferências e o avise-me, as novidades e a divulgação rastreável com atribuição de reservas. Os gaps reais do Marco 1 eram três, cada um fechado em PR próprio: área de eventos e campanhas (EVT-001), vitrine do Início (VIT-001) e atribuição de vendas pagas e do PDV com links por vendedor (GROW-002). As vendas pagas atribuídas vêm do ledger, e um estorno tira a venda da conta. Ficam fora do código do Marco 1, por dependerem de algo que não existe: a segmentação por turma, que exige um cadastro de turmas, e os cards automáticos, que são condicionais. Os comunicados do mural seguem com a Rede Social no Marco 2. Com isso, a Etapa 10 fica com o código completo.
+
+## Incremento de saldo por conta e cutover do extrato PicPay — 05/10/2026
+
+Spec 5.8 (FIN-002, FIN-003, FIN-007). PR 1 do cutover, só banco e contratos; as telas vêm na PR 2.
+- **Posição de abertura:** conceito próprio, versionado e imutável, com data de abertura e início da operação nativa (`operating_since`). Para o cutover real: 27/08/2026, livre R$ 0,00, Cofrinho R$ 111,78, recebíveis e dinheiro físico zero, operação nativa a partir de 06/10/2026.
+- **Saldo por conta:** uma única autoridade no banco, exposta como livre, Cofrinho, disponível (livre + Cofrinho), a receber e dinheiro físico. O extrato ganha a abertura e a natureza de cada linha.
+- **Cutover:** linhas antes de `operating_since` são histórico. Receita histórica (`RECEITA_HISTORICA`) para Pix e recebíveis históricos, vínculo de linha a pagamento de fornecedor ou lançamento manual, classificação em lote com prévia e confirmação forte.
+- **Conferência:** registro imutável do saldo observado contra o calculado, sem ajuste automático.
+- **Aceite local com o extrato real** (901 linhas, 27/08 a 05/10/2026, fora do Git e desfeito ao final): livre R$ 0,39, Cofrinho R$ 19.277,65, total R$ 19.278,04, conferência CONCILIADO com diferença zero.
+- **Riscos separados** (GAP_ANALYSIS, dívidas técnicas): taxas de maquininha que sobram em Recebíveis, liquidação em dobro pela rota de conciliação manual e liquidação nativa sem recebível interno.

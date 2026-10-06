@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { financeEntriesQuerySchema, recordFinanceEntryRequestSchema } from "./finance-entries";
+import { financeEntriesQuerySchema, financeStatementRowSchema, recordFinanceEntryRequestSchema } from "./finance-entries";
 
 const expense = {
   kind: "EXPENSE", category: "TRANSPORTE", account: "PICPAY_EMPRESAS", counterAccount: null,
@@ -16,6 +16,18 @@ describe("finance entry contracts", () => {
 
   it("keeps sale revenue out of manual entries", () => {
     expect(recordFinanceEntryRequestSchema.safeParse({ ...expense, kind: "INCOME", category: "VENDA_PDV" }).success).toBe(false);
+  });
+
+  it("keeps historical revenue out of manual entries", () => {
+    expect(recordFinanceEntryRequestSchema.safeParse({ ...expense, kind: "INCOME", category: "RECEITA_HISTORICA" }).success).toBe(false);
+  });
+
+  it("names the nature of statement rows, including the opening position", () => {
+    const row = { occurredOn: "2026-08-27", source: "OPENING", sourceId: "8f1d5c52-0a39-4b6c-9a59-3a3b3a3b3a3b", category: null,
+      account: "COFRINHO_PICPAY", amountCents: 11_178, description: "Saldo de abertura", reference: "ABERTURA-V1", nature: "SALDO_ABERTURA" };
+    expect(financeStatementRowSchema.safeParse(row).success).toBe(true);
+    expect(financeStatementRowSchema.safeParse({ ...row, nature: undefined }).success).toBe(false);
+    expect(financeStatementRowSchema.safeParse({ ...row, nature: "LUCRO" }).success).toBe(false);
   });
 
   it("requires coherent transfers and non-sensitive references", () => {

@@ -6,7 +6,8 @@ import { z } from "zod";
 
 const n = z.number().int();
 const statusCounts = z.object({
-  TRANSFERENCIA: n, CONCILIADA_VENDA: n, CONCILIADA_ESTORNO: n, CLASSIFICADA: n, JA_REGISTRADO: n, PENDENTE_REVISAO: n, PENDENTE_CLASSIFICACAO: n,
+  TRANSFERENCIA: n, CONCILIADA_VENDA: n, CONCILIADA_ESTORNO: n, CLASSIFICADA: n, VINCULADA: n, JA_REGISTRADO: n, PENDENTE_REVISAO: n,
+  PENDENTE_CLASSIFICACAO: n,
 });
 
 // Shapes returned by preview_picpay_statement, picpay_statement_import_json and list_picpay_statement_lines.
