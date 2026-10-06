@@ -69,7 +69,9 @@ jobs:
       # Checked the way supabase-js sends it; only the HTTP status and the Supabase error code are printed.
       - name: Check the server key against Supabase
         run: |
-          status=$(curl --silent --show-error --output key-check.json --write-out '%{http_code}' -X POST             -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" -H "Content-Type: application/json"             -d '{"p_identifier":"smoke.inexistente"}' "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/resolve_login_identifier")
+          status=$(curl --silent --show-error --output key-check.json --write-out '%{http_code}' -X POST \
+            -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" -H "Content-Type: application/json" \
+            -d '{"p_identifier":"smoke.inexistente"}' "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/resolve_login_identifier")
           echo "Supabase server key: HTTP $status $(jq -c '{code, message, hint}' key-check.json 2>/dev/null || echo '(sem corpo JSON)')"
           test "$status" = "200"
       - name: Configure Portal server secret
@@ -97,7 +99,9 @@ jobs:
       # An unknown user must be refused as invalid credentials (401), never as authentication unavailable (503).
       - name: Smoke the Portal login path
         run: |
-          status=$(curl --silent --show-error --output login.json --write-out '%{http_code}' -X POST             -H "Content-Type: application/json" -H "Origin: ${NEXT_PUBLIC_PORTAL_URL}" -H "Sec-Fetch-Site: same-origin"             -d "{\"identifier\":\"smoke.r${GITHUB_RUN_ID}\",\"password\":\"Nao-existe-123!\"}" "${NEXT_PUBLIC_PORTAL_URL}/api/auth/login")
+          status=$(curl --silent --show-error --output login.json --write-out '%{http_code}' -X POST \
+            -H "Content-Type: application/json" -H "Origin: ${NEXT_PUBLIC_PORTAL_URL}" -H "Sec-Fetch-Site: same-origin" \
+            -d "{\"identifier\":\"smoke.r${GITHUB_RUN_ID}\",\"password\":\"Nao-existe-123!\"}" "${NEXT_PUBLIC_PORTAL_URL}/api/auth/login")
           echo "Portal login: HTTP $status $(jq -c '.code' login.json 2>/dev/null)"
           test "$status" = "401"
       - name: Payment Link sandbox check
