@@ -56,6 +56,13 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/statement-imports/preview", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/statement-imports/:id/lines", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/statement-lines/:id/resolve", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-imports/:id/bulk/preview", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-imports/:id/bulk", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-lines/:id/link-candidates", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-lines/:id/link", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/balances", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/opening-position", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/balance-checks", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/indicators", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/settings/fundraising-goal", methods: ["GET", "PUT"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
@@ -148,6 +155,10 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     if (rule.path === path) return true;
     if (rule.path === "/api/v1/admin/procurement/orders/:id/cancel") {
       return /^\/api\/v1\/admin\/procurement\/orders\/[0-9a-f-]+\/cancel$/i.test(path);
+    }
+    if (rule.path.startsWith("/api/v1/admin/finance/statement-imports/:id/") || rule.path.startsWith("/api/v1/admin/finance/statement-lines/:id/")) {
+      const pattern = rule.path.replace(":id", "[0-9a-f-]+").replaceAll("/", "\\/");
+      return new RegExp(`^${pattern}$`, "i").test(path);
     }
     if (rule.path === "/api/v1/admin/finance/payables/:id/settlements") {
       return /^\/api\/v1\/admin\/finance\/payables\/[0-9a-f-]+\/settlements$/i.test(path);
