@@ -66,6 +66,12 @@ gh workflow run deploy-staging.yml --ref develop -f load_scenarios=A,B,C,D -f lo
 - O resultado traz `throughput`, com a taxa pedida, a taxa real e os períodos.
 - Sem `load_rate_d`, o D roda como antes.
 
+`-f load_scenarios=PREFLIGHT` (nome que não é cenário) roda só a preparação e o preflight, sem carga:
+- login de um consumidor da execução pelo Supabase Auth e pelo Portal;
+- login do administrador da execução, que abre as telas e APIs do financeiro.
+
+A senha dessas contas é gerada no próprio job e nunca é impressa. As contas da execução são retiradas no fim, mesmo quando o preflight falha. O resumo do tail do Worker de jobs traz `jobsCycles`, com os ciclos concluídos e falhos.
+
 Durante a rodada, o job captura o `wrangler tail` do Portal, do PDV e do Worker de jobs, e `summarize-tail.mjs` resume cada um:
 - resultado por caminho ou cron;
 - limites da plataforma (`exceededCpu`, `exceededMemory`, subrequisições);

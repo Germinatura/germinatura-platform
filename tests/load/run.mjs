@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { VirtualUser } from "./lib/client.mjs";
 import { stagingTarget } from "./lib/guard.mjs";
 import { stagingSql } from "./lib/staging-sql.mjs";
 import { browsing, contention, loginLog, operating, soak } from "./scenarios.mjs";
@@ -38,11 +39,11 @@ async function main() {
     body: JSON.stringify({ email: emails.get(username), password }),
   }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).error_code ?? null })).catch(() => ({ status: 0 })) : null;
   const context = { target, fixtures, password, sql, run, diagnose };
-  await preflight(target, fixtures, password, sql);
   const results = { run, startedAt: new Date().toISOString(), stagingVersion: sha ?? null, scenarios: {} };
   const save = () => writeFileSync(join(output, "results.json"), JSON.stringify(results, null, 2));
 
   try {
+    await preflight(target, fixtures, password, sql);
     if (scenarios.includes("A")) { console.log("A — 50 consumidores navegando…"); results.scenarios.A = await browsing({ ...context, minutes: Number(option("minutes-a", 10)) }); save(); }
     if (scenarios.includes("B")) { console.log("B — 15 vendedores no PDV…"); results.scenarios.B = await operating({ ...context, minutes: Number(option("minutes-b", 10)) }); save(); }
     if (scenarios.includes("C")) { console.log("C — concorrência controlada…"); results.scenarios.C = await contention(context); save(); }
@@ -76,6 +77,31 @@ async function preflight(target, fixtures, password, sql) {
   }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).code ?? null }));
   console.log(`Preflight: perfil ${JSON.stringify(profile)}; Auth ${JSON.stringify(auth)}; Portal ${JSON.stringify(portal)}`);
   if (portal.status !== 200) throw new Error("Preflight: o login de carga falhou; veja os códigos acima.");
+  await adminPreflight(target, fixtures.admin, password);
+}
+
+// The run's administrator signs in and opens the finance screens and their APIs; only statuses are printed.
+async function adminPreflight(target, admin, password) {
+  const user = new VirtualUser(target.portal, null);
+  const login = await user.request("auth.login", "POST", "/api/auth/login", { body: { identifier: admin.username, password } });
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const checks = { login: login.status };
+  for (const [label, path] of [
+    ["tela extrato", "/admin/financeiro/extrato"],
+    ["tela extrato PicPay", "/admin/financeiro/importar-extrato"],
+    ["tela indicadores", "/admin/financeiro/indicadores"],
+    ["API extrato", `/api/v1/admin/finance/statement?from=${today}&to=${today}`],
+    ["API lançamentos", `/api/v1/admin/finance/entries?from=${today}&to=${today}`],
+    ["API importações PicPay", "/api/v1/admin/finance/statement-imports"],
+    ["API indicadores", `/api/v1/admin/finance/indicators?from=${today}&to=${today}`],
+  ]) {
+    if (login.status !== 200) break;
+    checks[label] = (await user.request(`preflight ${label}`, "GET", path)).status;
+  }
+  console.log(`Preflight administrativo: ${JSON.stringify(checks)}`);
+  if (Object.values(checks).some((status) => status !== 200)) {
+    throw new Error("Preflight: o administrador de carga não abriu o financeiro; veja os códigos acima.");
+  }
 }
 
 function summarizeLogins() {
