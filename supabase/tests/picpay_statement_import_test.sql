@@ -122,7 +122,7 @@ reset role;
 select is((select count(*) from public.picpay_statement_lines where description = 'Colega Repetido'), 2::bigint, 'identical legitimate lines are not deduplicated');
 set local role authenticated;
 select is((select result -> 'status_counts' from imported),
-  '{"TRANSFERENCIA": 3, "CONCILIADA_VENDA": 1, "CONCILIADA_ESTORNO": 1, "CLASSIFICADA": 0, "JA_REGISTRADO": 0, "PENDENTE_REVISAO": 6, "PENDENTE_CLASSIFICACAO": 1}'::jsonb,
+  '{"TRANSFERENCIA": 3, "CONCILIADA_VENDA": 1, "CONCILIADA_ESTORNO": 1, "CLASSIFICADA": 0, "VINCULADA": 0, "JA_REGISTRADO": 0, "PENDENTE_REVISAO": 6, "PENDENTE_CLASSIFICACAO": 1}'::jsonb,
   'the import applies only the automatic decisions');
 reset role;
 select is((select status::text from public.payment_attempts where sale_id = (select sale_id from csv_sales where label = 'unique')), 'RECONCILED',
