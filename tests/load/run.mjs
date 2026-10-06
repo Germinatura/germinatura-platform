@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { VirtualUser } from "./lib/client.mjs";
 import { stagingTarget } from "./lib/guard.mjs";
 import { stagingSql } from "./lib/staging-sql.mjs";
 import { browsing, contention, loginLog, operating, soak } from "./scenarios.mjs";
@@ -38,11 +39,17 @@ async function main() {
     body: JSON.stringify({ email: emails.get(username), password }),
   }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).error_code ?? null })).catch(() => ({ status: 0 })) : null;
   const context = { target, fixtures, password, sql, run, diagnose };
-  await preflight(target, fixtures, password, sql);
   const results = { run, startedAt: new Date().toISOString(), stagingVersion: sha ?? null, scenarios: {} };
   const save = () => writeFileSync(join(output, "results.json"), JSON.stringify(results, null, 2));
 
   try {
+    await preflight(target, fixtures, password, sql);
+    // Preflight only: hold long enough for the per-minute Jobs cron to run under the tail, then report the outbox.
+    if (!scenarios.some((name) => ["A", "B", "C", "D"].includes(name))) {
+      await outboxSnapshot(sql, "antes");
+      await new Promise((resolve) => setTimeout(resolve, 150_000));
+      await outboxSnapshot(sql, "depois de 150 s");
+    }
     if (scenarios.includes("A")) { console.log("A — 50 consumidores navegando…"); results.scenarios.A = await browsing({ ...context, minutes: Number(option("minutes-a", 10)) }); save(); }
     if (scenarios.includes("B")) { console.log("B — 15 vendedores no PDV…"); results.scenarios.B = await operating({ ...context, minutes: Number(option("minutes-b", 10)) }); save(); }
     if (scenarios.includes("C")) { console.log("C — concorrência controlada…"); results.scenarios.C = await contention(context); save(); }
@@ -76,6 +83,41 @@ async function preflight(target, fixtures, password, sql) {
   }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).code ?? null }));
   console.log(`Preflight: perfil ${JSON.stringify(profile)}; Auth ${JSON.stringify(auth)}; Portal ${JSON.stringify(portal)}`);
   if (portal.status !== 200) throw new Error("Preflight: o login de carga falhou; veja os códigos acima.");
+  await adminPreflight(target, fixtures.admin, password);
+}
+
+// Outbox state, counts and ages only: whether the Jobs Worker is draining events.
+async function outboxSnapshot(sql, label) {
+  const [row] = await sql(`select count(*) filter (where status = 'PENDING')::int as pending,
+    count(*) filter (where status = 'PROCESSING')::int as processing, count(*) filter (where status = 'FAILED')::int as failed,
+    coalesce(extract(epoch from now() - min(created_at) filter (where status = 'PENDING')), 0)::int as oldest_pending_seconds,
+    coalesce(extract(epoch from now() - max(published_at)), -1)::int as last_published_seconds_ago
+    from public.outbox_events`).catch(() => [null]);
+  console.log(`Outbox (${label}): ${JSON.stringify(row ?? { error: true })}`);
+}
+
+// The run's administrator signs in and opens the finance screens and their APIs; only statuses are printed.
+async function adminPreflight(target, admin, password) {
+  const user = new VirtualUser(target.portal, null);
+  const login = await user.request("auth.login", "POST", "/api/auth/login", { body: { identifier: admin.username, password } });
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const checks = { login: login.status };
+  for (const [label, path] of [
+    ["tela extrato", "/admin/financeiro/extrato"],
+    ["tela extrato PicPay", "/admin/financeiro/importar-extrato"],
+    ["tela indicadores", "/admin/financeiro/indicadores"],
+    ["API extrato", `/api/v1/admin/finance/statement?from=${today}&to=${today}`],
+    ["API lançamentos", `/api/v1/admin/finance/entries?from=${today}&to=${today}`],
+    ["API importações PicPay", "/api/v1/admin/finance/statement-imports"],
+    ["API indicadores", `/api/v1/admin/finance/indicators?from=${today}&to=${today}`],
+  ]) {
+    if (login.status !== 200) break;
+    checks[label] = (await user.request(`preflight ${label}`, "GET", path)).status;
+  }
+  console.log(`Preflight administrativo: ${JSON.stringify(checks)}`);
+  if (Object.values(checks).some((status) => status !== 200)) {
+    throw new Error("Preflight: o administrador de carga não abriu o financeiro; veja os códigos acima.");
+  }
 }
 
 function summarizeLogins() {
