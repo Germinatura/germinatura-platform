@@ -10,14 +10,14 @@ import { financeEntryDatabaseError, financeEntryErrorResponse } from "@/lib/fina
 const databaseStatementSchema = z.object({
   rows: z.array(z.object({
     occurred_on: z.string(), source: z.string(), source_id: z.uuid(), category: z.string().nullable(), account: z.string(),
-    amount_cents: z.number().int(), description: z.string(), reference: z.string().nullable(),
+    amount_cents: z.number().int(), description: z.string(), reference: z.string().nullable(), nature: z.string(),
   })),
   totals: z.object({
     inflow_cents: z.number().int(), outflow_cents: z.number().int(),
     by_account: z.record(z.string(), z.number().int()), by_category: z.record(z.string(), z.number().int()),
   }),
 });
-const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay" };
+const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay", OPENING: "Abertura" };
 
 /** FIN-006: consolidated statement of a São Paulo period, as JSON or as a real CSV file. */
 export async function GET(request: Request) {
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const response = financeStatementResponseSchema.safeParse({
       data: statement.data.rows.map((row) => ({
         occurredOn: row.occurred_on, source: row.source, sourceId: row.source_id, category: row.category, account: row.account,
-        amountCents: row.amount_cents, description: row.description, reference: row.reference,
+        amountCents: row.amount_cents, description: row.description, reference: row.reference, nature: row.nature,
       })),
       totals: {
         inflowCents: statement.data.totals.inflow_cents, outflowCents: statement.data.totals.outflow_cents,
@@ -47,7 +47,8 @@ export async function GET(request: Request) {
       const csv = toCsv(
         ["data", "origem", "categoria", "conta", "valor_reais", "descricao", "referencia"],
         response.data.data.map((row) => [
-          row.occurredOn, sourceLabels[row.source] ?? row.source, row.category ?? "TRANSFERENCIA", row.account,
+          row.occurredOn, sourceLabels[row.source] ?? row.source,
+          row.category ?? (row.nature === "SALDO_ABERTURA" ? "SALDO_ABERTURA" : "TRANSFERENCIA"), row.account,
           { cents: row.amountCents }, row.description, row.reference,
         ]),
       );
