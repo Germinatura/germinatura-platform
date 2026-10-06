@@ -44,6 +44,12 @@ async function main() {
 
   try {
     await preflight(target, fixtures, password, sql);
+    // Preflight only: hold long enough for the per-minute Jobs cron to run under the tail, then report the outbox.
+    if (!scenarios.some((name) => ["A", "B", "C", "D"].includes(name))) {
+      await outboxSnapshot(sql, "antes");
+      await new Promise((resolve) => setTimeout(resolve, 150_000));
+      await outboxSnapshot(sql, "depois de 150 s");
+    }
     if (scenarios.includes("A")) { console.log("A — 50 consumidores navegando…"); results.scenarios.A = await browsing({ ...context, minutes: Number(option("minutes-a", 10)) }); save(); }
     if (scenarios.includes("B")) { console.log("B — 15 vendedores no PDV…"); results.scenarios.B = await operating({ ...context, minutes: Number(option("minutes-b", 10)) }); save(); }
     if (scenarios.includes("C")) { console.log("C — concorrência controlada…"); results.scenarios.C = await contention(context); save(); }
@@ -78,6 +84,16 @@ async function preflight(target, fixtures, password, sql) {
   console.log(`Preflight: perfil ${JSON.stringify(profile)}; Auth ${JSON.stringify(auth)}; Portal ${JSON.stringify(portal)}`);
   if (portal.status !== 200) throw new Error("Preflight: o login de carga falhou; veja os códigos acima.");
   await adminPreflight(target, fixtures.admin, password);
+}
+
+// Outbox state, counts and ages only: whether the Jobs Worker is draining events.
+async function outboxSnapshot(sql, label) {
+  const [row] = await sql(`select count(*) filter (where status = 'PENDING')::int as pending,
+    count(*) filter (where status = 'PROCESSING')::int as processing, count(*) filter (where status = 'FAILED')::int as failed,
+    coalesce(extract(epoch from now() - min(created_at) filter (where status = 'PENDING')), 0)::int as oldest_pending_seconds,
+    coalesce(extract(epoch from now() - max(published_at)), -1)::int as last_published_seconds_ago
+    from public.outbox_events`).catch(() => [null]);
+  console.log(`Outbox (${label}): ${JSON.stringify(row ?? { error: true })}`);
 }
 
 // The run's administrator signs in and opens the finance screens and their APIs; only statuses are printed.
