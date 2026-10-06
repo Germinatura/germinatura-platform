@@ -24,7 +24,7 @@ const lossReasons: Record<string, string> = {
 };
 const categoryLabels: Record<string, string> = {
   FORNECEDOR: "Fornecedor", TAXAS: "Taxas", MENSALIDADES: "Mensalidades", TRANSPORTE: "Transporte", MATERIAIS: "Materiais",
-  REEMBOLSO: "Reembolso", AJUSTE: "Ajuste", OUTROS: "Outros", EVENTO: "Evento",
+  REEMBOLSO: "Reembolso", AJUSTE: "Ajuste", OUTROS: "Outros", EVENTO: "Evento", RECEITA_HISTORICA: "Receita histórica",
 };
 
 function today() { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()); }
@@ -82,7 +82,7 @@ export function ManagementIndicatorsView() {
         <Kpi label="Lucro operacional estimado" value={formatMoney(totals.operatingProfitCents)} hint={`perdas ${formatMoney(totals.lossesCostCents)} · despesas ${formatMoney(totals.operatingExpensesCents)}`} />
       </section>
       <section aria-label="Caixa do período" className="grid gap-4 sm:grid-cols-3">
-        <Kpi label="Saldo financeiro" value={formatMoney(totals.cashBalanceCents)} hint="entradas menos saídas do extrato" />
+        <Kpi label="Fluxo de caixa do período" value={formatMoney(totals.cashBalanceCents)} hint="entradas menos saídas do período; não é o saldo das contas" />
         <Kpi label="Pagamentos a fornecedores" value={formatMoney(totals.supplierPaymentsCents)} hint="saídas de caixa; o custo entra pela venda" />
         <Kpi label="Receitas manuais" value={formatMoney(totals.manualIncomeCents)} hint="eventos e outras entradas lançadas" />
       </section>
