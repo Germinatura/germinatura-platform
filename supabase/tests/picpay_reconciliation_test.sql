@@ -47,8 +47,9 @@ create function pg_temp.balance(p_account text) returns bigint language sql secu
 create function pg_temp.indicator(p_key text) returns bigint language sql security definer as $$
   select (private.compute_management_indicators(pg_temp.opening_on(), pg_temp.today()) -> 'totals' ->> p_key)::bigint $$;
 create function pg_temp.resolution(p_movement text, p_day date) returns text language sql security definer as $$
-  select string_agg(coalesce(current.resolution::text, 'PENDENTE'), ',' order by line.line_number)
-  from public.picpay_statement_lines line left join private.picpay_statement_current_resolutions current on current.line_id = line.id
+  select string_agg(coalesce(current.resolution::text, 'PENDENTE'), ',' order by import.number, line.line_number)
+  from public.picpay_statement_lines line join public.picpay_statement_imports import on import.id = line.import_id
+  left join private.picpay_statement_current_resolutions current on current.line_id = line.id
   where line.movement::text = p_movement and line.occurred_on = p_day $$;
 create function pg_temp.exceptions(p_type text) returns bigint language sql security definer as $$
   select count(*) from private.picpay_exceptions() where type = p_type and not resolved $$;
