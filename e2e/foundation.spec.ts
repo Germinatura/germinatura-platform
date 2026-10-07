@@ -629,6 +629,39 @@ test("Manual PicPay confirmation is explicit, idempotent and consumes stock once
   } finally { await cleanupStock().catch(() => undefined); }
 });
 
+test("A Maquininha payment is never settled by the manual reconciliation", async ({ page }) => {
+  const productId = "33f00000-0000-4000-8000-000000000001";
+  const locationId = "50000000-0000-4000-8000-000000000001";
+  const cleanupStock = await prepareCheckoutStock(locationId, productId);
+  try {
+  await page.goto("/login");
+  await login(page, "admin.teste@institutojef.org.br", "Admin123!");
+  const key = `e2e-card-settlement-${Date.now()}`;
+  const checkout = await page.request.post("/api/v1/sales/checkout", {
+    headers: { Origin: portalUrl, "Idempotency-Key": key },
+    data: { channel: "PDV", locationId, items: [{ productId, quantity: 1 }] },
+  });
+  expect(checkout.status()).toBe(201);
+  const saleId = (await checkout.json()).data.saleId as string;
+  const confirmed = await page.request.post(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": `${key}-confirm` },
+    data: { integrationChannel: "MAQUININHA", proofReference: `NSU-E2E-${Date.now().toString(36)}`, cardMethod: "CREDITO" },
+  });
+  expect(confirmed.status()).toBe(200);
+  const attemptId = (await confirmed.json()).data.paymentAttempt.attemptId as string;
+
+  // Card payments are settled by the PicPay reconciliation (Minhas vendas, Recebíveis, Extrato), never twice.
+  const refused = await page.request.post(`/api/v1/payments/${attemptId}/reconciliations`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": `${key}-reconcile` },
+    data: { observedAmountCents: 2590, feeAmountCents: 59, externalReference: `SETTLEMENT-CARD-${Date.now().toString(36)}` },
+  });
+  expect(refused.status()).toBe(409);
+  const body = await refused.json() as { code: string; message: string };
+  expect(body.code).toBe("PAYMENT_RECONCILIATION_PICPAY_ONLY");
+  expect(body.message).toContain("Conciliação PicPay");
+  } finally { await cleanupStock().catch(() => undefined); }
+});
+
 test("Seller closeout endpoints enforce role, complete counts and managed reopen", async ({ page }) => {
   const productId = "33f00000-0000-4000-8000-000000000001";
   const periodEnd = new Date();
