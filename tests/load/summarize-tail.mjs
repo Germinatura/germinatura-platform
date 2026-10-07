@@ -48,6 +48,8 @@ const limits = { exceededCpu: 0, exceededMemory: 0, subrequestLimit: 0 };
 // Session resolutions: per source and outcome, and how many each HTTP request ran.
 const resolutions = {};
 const perRequest = {};
+// Jobs Worker cycles (jobs.cycle.completed / jobs.cycle.failed); only the counts are reported.
+const jobsCycles = { completed: 0, failed: 0 };
 for (const event of events) {
   const outcome = event.outcome ?? "unknown";
   outcomes[outcome] = (outcomes[outcome] ?? 0) + 1;
@@ -62,6 +64,8 @@ for (const event of events) {
     if (typeof message !== "string" || !message.startsWith("{")) continue;
     let entry;
     try { entry = JSON.parse(message); } catch { continue; }
+    if (entry.event === "jobs.cycle.completed") jobsCycles.completed += 1;
+    if (entry.event === "jobs.cycle.failed") jobsCycles.failed += 1;
     if (entry.event !== "auth.session_resolution") continue;
     count += 1;
     const bucket = (resolutions[`${entry.source}/${entry.outcome}`] ??= { count: 0, verifyMs: [], sessionMs: [], totalMs: [] });
@@ -82,6 +86,7 @@ console.log(JSON.stringify({
   events: events.length,
   outcomes,
   limits,
+  jobsCycles,
   sessionResolutions: {
     perRequest,
     bySourceAndOutcome: Object.fromEntries(Object.entries(resolutions).sort(([left], [right]) => left.localeCompare(right))

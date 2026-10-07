@@ -59,7 +59,7 @@ flowchart LR
 | 3 — Compras e custos | IN PROGRESS | 1, 2 | Fornecedores, pedidos, recebimento parcial e liquidação/reversão de contas a pagar integrados em staging; rastreabilidade do lote até venda integrada em staging; homologação física e indicadores consolidados de custo/margem pendentes |
 | 4 — Promoções completas | IN PROGRESS | 1 | Administração e regras percentual, preço fixo, quantidade, leve/pague, combo mix, escalonada e cupom; limites concorrentes e economia explicada. Integrado: `QUANTIDADE_PRECO` na cotação/checkout e sua administração versionada (PR #74). `PERCENTUAL` (piso por unidade, a favor do cliente) e `VALOR_FIXO_UNITARIO` integrados (PR #78). Política de concorrência/cumulatividade registrada como PROMO-004 e coberta por testes (PR #79). `LEVE_PAGUE` integrado (PR #80). `ESCALONADA` integrada (PR #82). `COMBO_MIX` integrado com rateio PROMO-005 (PR #84). Cupons (PROMO-006) e limites concorrentes com ledger (PROMO-007) integrados (PR #85); entrada única `get_pricing_inputs` com as versões antigas removidas. A trilha de implementação de promoções está fechada; falta a homologação autenticada em staging (etapa permanece `IN PROGRESS` até ela) e a variante de leve/pague com item descontado |
 | 5 — PDV e caixa | IN PROGRESS | 2, 4 | Completar turno, histórico, pendências, dinheiro/troco, método/terminal e fechamento; instalação/atualização PWA nos dispositivos-alvo. Integrado: turno do vendedor e dinheiro físico com troco e fechamento contado (PAY-009a, #87); devolução física no estorno (`REFUND_PAYOUT`) e conferência financeira dos turnos (#88). "Minhas vendas" e pendências (PDV-002, #89). Método do cartão e terminal da Maquininha (PAY-005a, #90). Restante: homologação física |
-| 6 — Administração comercial/financeira | CODE COMPLETE | 3, 5 | Vendas, reversões comuns e contas a pagar com liquidação parcial/reversão integradas; tela Financeiro › Vendas com filtros, detalhe e estorno (SALE-004, #91); plano de categorias, contas/caixas, despesas e outras receitas auditadas (FIN-005, #92); taxas e recebíveis pela conciliação; extrato consolidado com CSV (FIN-006, #94); importação do extrato PicPay Empresas no formato real exportado, com prévia, hash do arquivo, conciliação Pix, Cofrinho e recebíveis como transferências e revisão das pendências (FIN-007). Restante: importar os extratos reais em produção |
+| 6 — Administração comercial/financeira | CODE COMPLETE | 3, 5 | Vendas, reversões comuns e contas a pagar com liquidação parcial/reversão integradas; tela Financeiro › Vendas com filtros, detalhe e estorno (SALE-004, #91); plano de categorias, contas/caixas, despesas e outras receitas auditadas (FIN-005, #92); taxas e recebíveis pela conciliação; extrato consolidado com CSV (FIN-006, #94); importação do extrato PicPay Empresas no formato real exportado, com prévia, hash do arquivo, conciliação Pix, Cofrinho e recebíveis como transferências e revisão das pendências (FIN-007); Conciliação PicPay em três fontes (Minhas vendas, Recebíveis, Extrato). Restante: importar as exportações reais em produção |
 | 7 — Payment Link | CODE COMPLETE — homologação externa bloqueada | 0, 6, sandbox autorizado | Código completo, com flag `payment_link` desligada. Integrados: fundação (#103), ciclo de vida (#104), verificação do sandbox (#105, #107, #110–#112), tela do vendedor (#106), Financeiro › Pagamentos online (#108), pagamento online de reserva pelo consumidor (#109) e resultados do sandbox (#113). Bloqueio externo: a API de links do sandbox PicPay não responde (timeout/502, OAuth funciona) e o webhook depende da `PICPAY_PAYMENT_LINK_WEBHOOK_KEY`, que exige a URL de notificação habilitada pela PicPay. Enquanto isso só runbook e testes são mantidos |
 | 8 — Compra, reservas e rifas | IN PROGRESS | 4, 7 | Administração de reservas com prazos configuráveis e preparo para retirada (RES-002, #95). Retirada no PDV com cobrança pelo preço congelado (RES-003, #96). Carrinho de reserva no catálogo do Portal (RES-004, #97). Pagamento online da reserva (#109). Ciclo de vida da rifa e privacidade dos compradores (RAF-002, #114). Compra online de números pelo consumidor e Meus bilhetes (RAF-003, #115). Venda de números no PDV (RAF-004, #116). Estorno de venda de rifa paga (RAF-005, #117). Avisos da rifa pelo cliente da venda e lista de compradores (RAF-006, #118). Entrega no PDV de pedido pago online (RES-005, #119). Restante: homologação física com o PicPay (Etapa 7) |
 | 9 — Gestão e indicadores | DONE | 3, 6, 8 | Indicadores por período (ADMIN-001, #120). Meta de arrecadação medida pelo lucro operacional (ADMIN-002, #121). Explorador da auditoria (AUD-001, #122) e registro de segurança (#123). Desbloqueios na gestão de usuários (#124). Chaves funcionais em Configurações (#127). Abertura do PDV pelo Portal por código único (#128). Sessões ativas em Minha conta (#129) |
@@ -430,3 +430,49 @@ Spec 4.1 (VIT-001). O Início deixou de ser só atalhos: mostra o destaque da co
 ## Auditoria da Etapa 10 e atribuição de vendas — 01/10/2026
 
 A Etapa 10 foi auditada contra as specs 4.1, 4.5, 4.7, 5.13 e 5.15, sem presumir conclusão. Já estavam integrados os avisos operacionais, os manuais segmentados, as preferências e o avise-me, as novidades e a divulgação rastreável com atribuição de reservas. Os gaps reais do Marco 1 eram três, cada um fechado em PR próprio: área de eventos e campanhas (EVT-001), vitrine do Início (VIT-001) e atribuição de vendas pagas e do PDV com links por vendedor (GROW-002). As vendas pagas atribuídas vêm do ledger, e um estorno tira a venda da conta. Ficam fora do código do Marco 1, por dependerem de algo que não existe: a segmentação por turma, que exige um cadastro de turmas, e os cards automáticos, que são condicionais. Os comunicados do mural seguem com a Rede Social no Marco 2. Com isso, a Etapa 10 fica com o código completo.
+
+## Incremento de saldo por conta e cutover do extrato PicPay — 05/10/2026
+
+Spec 5.8 (FIN-002, FIN-003, FIN-007). PR 1 do cutover, só banco e contratos; as telas vêm na PR 2.
+- **Posição de abertura:** conceito próprio, versionado e imutável, com data de abertura e início da operação nativa (`operating_since`). Para o cutover real: abertura em 27/08/2026 (livre R$ 0,00, Cofrinho R$ 111,78, recebíveis e dinheiro físico zero), histórico bancário até 06/10/2026 inclusive e operação nativa a partir de 07/10/2026. Houve movimento real no PicPay em 06/10, por isso o início da operação passou de 06/10 para 07/10.
+- **Saldo por conta:** uma única autoridade no banco, exposta como livre, Cofrinho, disponível (livre + Cofrinho), a receber e dinheiro físico. O extrato ganha a abertura e a natureza de cada linha.
+- **Cutover:** linhas antes de `operating_since` são histórico. Receita histórica (`RECEITA_HISTORICA`) para Pix e recebíveis históricos, vínculo de linha a pagamento de fornecedor ou lançamento manual, classificação em lote com prévia e confirmação forte.
+- **Conferência:** registro imutável do saldo observado contra o calculado, sem ajuste automático.
+- **Evidência local com um extrato real até 05/10/2026** (901 linhas, fora do Git e desfeito ao final): conferência CONCILIADO com diferença zero naquela data. Esse arquivo não é a evidência oficial do cutover; a Conciliação PicPay (07/10/2026) passou a usar as três exportações.
+- **Riscos separados** (GAP_ANALYSIS, dívidas técnicas): taxas de maquininha que sobram em Recebíveis, liquidação em dobro pela rota de conciliação manual e liquidação nativa sem recebível interno.
+
+## Incremento de telas do saldo e do cutover — 06/10/2026
+
+Spec 5.8 (FIN-002, FIN-003, FIN-007). PR 2 do cutover, sobre a PR 1 (#160).
+- **Saldo e conferência:**
+  - cards de saldo livre, Cofrinho e saldo financeiro total, mais a receber (recebíveis) e dinheiro físico à parte;
+  - posição de abertura com registro único e correção por nova versão com motivo;
+  - conferência do saldo observado no PicPay, com diferenças, status e histórico, sem ajuste automático.
+- **Indicadores:** os mesmos cards de saldo, e o card de fluxo renomeado para "Fluxo de caixa do período".
+- **Extrato:** coluna Tipo com a natureza de cada linha.
+- **Extrato PicPay:**
+  - a prévia mostra o histórico do cutover;
+  - classificação em lote com filtro, prévia de quantidade e valor, motivo e confirmação forte;
+  - vínculo de linha a pagamento de fornecedor ou lançamento manual;
+  - receita histórica para recebíveis anteriores à operação.
+- **APIs novas:** `balances`, `opening-position`, `balance-checks`, `statement-imports/:id/bulk` (e `/preview`), `statement-lines/:id/link` e `/link-candidates`, todas com permissão `finance.manage` e chave de idempotência nas mutações.
+- **Fora desta PR:** a abertura real e o extrato real não foram registrados em nenhum ambiente.
+
+## Incremento da Conciliação PicPay em três fontes — 07/10/2026
+
+Spec 5.8 (FIN-001, FIN-002, FIN-003, FIN-007). Substitui a visão "só Extrato PicPay" e supersede a PR #167 (os testes de fronteira e a auditoria SQL da #167 foram mantidos; o Extrato deixou de ser a fonte oficial do histórico).
+- **Banco (PR A):** detecção do arquivo pelo cabeçalho e SHA-256; Minhas vendas com identidade por número único e observações; Recebíveis por transação + parcela, com cada arquivo como snapshot; Extrato deduplicado por multiconjunto, com observações e pendência de duplicidade; motor de conciliação idempotente e independente de ordem (vínculo PDV ↔ PicPay só com candidata única, Pix por multiconjunto diário, liquidação de cartão por dia, estornos); taxa real; receita histórica pela transação de Minhas vendas antes de `operating_since`; pendências derivadas com resolução auditada; avaliação de período que volta para Revisar com nova evidência. Migrations só estruturais.
+- **Tela e API (PR B):** Financeiro › Conciliação PicPay com envio de vários arquivos e prévia por arquivo, resumo (vendas, recebíveis, Extrato, saldos), pendências com resolução e vínculo manual, liquidações por dia, Minhas vendas, fechamento e a revisão das linhas do Extrato. `/admin/financeiro/importar-extrato` redireciona; as rotas antigas de prévia e importação só do Extrato saíram da API.
+- **Aceite local com os três arquivos reais** (fora do Git, numa transação desfeita ao final; nada persistiu): 26 de 26 verificações, com o mesmo resultado em duas ordens de importação. Entre elas:
+  - transações únicas;
+  - invariante de taxas em toda linha;
+  - Pix do Extrato igual ao multiconjunto de Minhas vendas;
+  - liquidado + pendente = líquido esperado do cartão;
+  - reimportação sem fato novo;
+  - exportação semanal sobreposta sem duplicar;
+  - evolução de status;
+  - linhas idênticas preservadas;
+  - nenhuma conta negativa.
+
+  A única pendência foi a de linhas Pix enviado/devolvido ainda não classificadas.
+- **Operação:** `docs/operations/picpay-reconciliation-runbook.md`. A abertura real e a importação real só em produção, depois da promoção autorizada, por decisão do financeiro.

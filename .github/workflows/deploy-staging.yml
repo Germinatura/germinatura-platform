@@ -65,6 +65,23 @@ jobs:
       - run: node tools/configure-supabase-auth.mjs
       - run: pnpm exec supabase db push --dry-run
       - run: pnpm exec supabase db push
+      # The server key is what the Workers use for service-only database calls (login identifier, outbox).
+      # Checked the way supabase-js sends it; only the HTTP status and the Supabase error code are printed, plus the
+      # key format and, for a legacy JWT, its public claims (role, iat, exp). Never the key or its signature.
+      - name: Check the server key against Supabase
+        run: |
+          case "$SUPABASE_SECRET_KEY" in
+            sb_secret_*) echo "Formato da chave: secreta opaca (sb_secret_)" ;;
+            eyJ*.*.*)
+              claims=$(printf '%s' "$SUPABASE_SECRET_KEY" | cut -d. -f2 | tr '_-' '/+' | awk '{ while (length($0) % 4) $0 = $0 "="; print }' | base64 -d 2>/dev/null)
+              echo "Formato da chave: JWT legado $(printf '%s' "$claims" | jq -c '{role, iat, exp}' 2>/dev/null); agora: $(date +%s)" ;;
+            *) echo "Formato da chave: desconhecido (nem sb_secret_ nem JWT)" ;;
+          esac
+          status=$(curl --silent --show-error --output key-check.json --write-out '%{http_code}' -X POST \
+            -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" -H "Content-Type: application/json" \
+            -d '{"p_identifier":"smoke.inexistente"}' "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/resolve_login_identifier")
+          echo "Supabase server key: HTTP $status $(jq -c '{code, message, hint}' key-check.json 2>/dev/null || echo '(sem corpo JSON)')"
+          test "$status" = "200"
       - name: Configure Portal server secret
         working-directory: apps/portal
         run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
@@ -87,6 +104,14 @@ jobs:
           curl --fail --silent --show-error "${NEXT_PUBLIC_PDV_URL}/api/v1/catalog/products?limit=1"
           test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${NEXT_PUBLIC_PDV_URL}/api/v1/auth/session")" = "401"
       - run: curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 "${JOBS_URL}/health"
+      # An unknown user must be refused as invalid credentials (401), never as authentication unavailable (503).
+      - name: Smoke the Portal login path
+        run: |
+          status=$(curl --silent --show-error --output login.json --write-out '%{http_code}' -X POST \
+            -H "Content-Type: application/json" -H "Origin: ${NEXT_PUBLIC_PORTAL_URL}" -H "Sec-Fetch-Site: same-origin" \
+            -d "{\"identifier\":\"smoke.r${GITHUB_RUN_ID}\",\"password\":\"Nao-existe-123!\"}" "${NEXT_PUBLIC_PORTAL_URL}/api/auth/login")
+          echo "Portal login: HTTP $status $(jq -c '.code' login.json 2>/dev/null)"
+          test "$status" = "401"
       - name: Payment Link sandbox check
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.payment_link_sandbox_check }}
         # Sandbox only (the worker refuses other hosts); writes nothing to the database; prints step outcomes only.
