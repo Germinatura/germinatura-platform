@@ -286,8 +286,9 @@ begin
   ),
   pending as (
     select line.id, line.occurred_on, line.amount_cents,
-      row_number() over (partition by line.occurred_on, line.amount_cents order by line.id) as position
+      row_number() over (partition by line.occurred_on, line.amount_cents order by import.number, line.line_number) as position
     from public.picpay_statement_lines line
+    join public.picpay_statement_imports import on import.id = line.import_id
     left join private.picpay_statement_current_resolutions current on current.line_id = line.id
     where line.movement = 'PIX_RECEBIDO' and private.is_statement_cutover_day(line.occurred_on)
       and (current.id is null or current.resolution = 'REABERTA')
@@ -320,8 +321,9 @@ begin
   ),
   pending as (
     select line.id, line.occurred_on, -line.amount_cents as amount,
-      row_number() over (partition by line.amount_cents order by line.occurred_on, line.id) as position
+      row_number() over (partition by line.amount_cents order by line.occurred_on, import.number, line.line_number) as position
     from public.picpay_statement_lines line
+    join public.picpay_statement_imports import on import.id = line.import_id
     left join private.picpay_statement_current_resolutions current on current.line_id = line.id
     where line.movement = 'PIX_ESTORNADO' and line.amount_cents < 0 and private.is_statement_cutover_day(line.occurred_on)
       and (current.id is null or current.resolution = 'REABERTA')

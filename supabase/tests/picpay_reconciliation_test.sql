@@ -47,8 +47,9 @@ create function pg_temp.balance(p_account text) returns bigint language sql secu
 create function pg_temp.indicator(p_key text) returns bigint language sql security definer as $$
   select (private.compute_management_indicators(pg_temp.opening_on(), pg_temp.today()) -> 'totals' ->> p_key)::bigint $$;
 create function pg_temp.resolution(p_movement text, p_day date) returns text language sql security definer as $$
-  select string_agg(coalesce(current.resolution::text, 'PENDENTE'), ',' order by line.line_number)
-  from public.picpay_statement_lines line left join private.picpay_statement_current_resolutions current on current.line_id = line.id
+  select string_agg(coalesce(current.resolution::text, 'PENDENTE'), ',' order by import.number, line.line_number)
+  from public.picpay_statement_lines line join public.picpay_statement_imports import on import.id = line.import_id
+  left join private.picpay_statement_current_resolutions current on current.line_id = line.id
   where line.movement::text = p_movement and line.occurred_on = p_day $$;
 create function pg_temp.exceptions(p_type text) returns bigint language sql security definer as $$
   select count(*) from private.picpay_exceptions() where type = p_type and not resolved $$;
@@ -249,7 +250,7 @@ select is((select payment_attempt_id::text || '/' || link_evidence from private.
   (select attempt_id::text from pdv where label = 'card') || '/REFERENCIA', 'the native card is linked by the NSU the seller typed');
 select ok(not exists (select 1 from private.picpay_acquirer_effects(pg_temp.opening_on(), pg_temp.today()) where category = 'RECEITA_HISTORICA'
   and source_id in (select transaction_id from private.picpay_transactions_view where not historical)), 'a native transaction never creates revenue');
-select is((select sum(amount_cents)::bigint from private.picpay_acquirer_effects(pg_temp.today(), pg_temp.today()) where category = 'TAXAS'
+select is((select sum(amount_cents)::bigint from private.picpay_acquirer_effects(pg_temp.today() - 1, pg_temp.today()) where category = 'TAXAS'
   and account = 'RECEBIVEIS_PICPAY'), -90::bigint, 'the real card fee of the native sale reduces receivables');
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
