@@ -104,7 +104,7 @@ async function adminPreflight(target, admin, password) {
   const checks = { login: login.status };
   for (const [label, path] of [
     ["tela extrato", "/admin/financeiro/extrato"],
-    ["tela extrato PicPay", "/admin/financeiro/importar-extrato"],
+    ["tela conciliação PicPay", "/admin/financeiro/conciliacao-picpay"],
     ["tela indicadores", "/admin/financeiro/indicadores"],
     ["API extrato", `/api/v1/admin/finance/statement?from=${today}&to=${today}`],
     ["API lançamentos", `/api/v1/admin/finance/entries?from=${today}&to=${today}`],
@@ -114,6 +114,12 @@ async function adminPreflight(target, admin, password) {
     ["API saldos", "/api/v1/admin/finance/balances"],
     ["API abertura", "/api/v1/admin/finance/opening-position"],
     ["API conferências", "/api/v1/admin/finance/balance-checks"],
+    ["API arquivos PicPay", "/api/v1/admin/finance/picpay/files"],
+    ["API resumo PicPay", `/api/v1/admin/finance/picpay/summary?from=${today}&to=${today}`],
+    ["API pendências PicPay", `/api/v1/admin/finance/picpay/exceptions?from=${today}&to=${today}`],
+    ["API Minhas vendas", `/api/v1/admin/finance/picpay/transactions?from=${today}&to=${today}`],
+    ["API liquidações PicPay", `/api/v1/admin/finance/picpay/settlements?from=${today}&to=${today}`],
+    ["API períodos PicPay", "/api/v1/admin/finance/picpay/periods"],
   ]) {
     if (login.status !== 200) break;
     checks[label] = (await user.request(`preflight ${label}`, "GET", path)).status;
@@ -130,6 +136,10 @@ async function adminPreflight(target, admin, password) {
     ["API vínculo (candidatos)", "GET", `/api/v1/admin/finance/statement-lines/${missing}/link-candidates`, {}],
     ["API vínculo", "POST", `/api/v1/admin/finance/statement-lines/${missing}/link`, {
       body: { payableSettlementId: null, manualEntryId: missing, reason: null }, headers: key() }],
+    ["API vínculo PicPay", "POST", `/api/v1/admin/finance/picpay/transactions/${missing}/link`, {
+      body: { paymentAttemptId: null, reason: "Preflight sem efeito" }, headers: key() }],
+    ["API pendência PicPay", "POST", "/api/v1/admin/finance/picpay/exceptions/resolve", {
+      body: { key: `PICPAY_SEM_PDV:${missing}`, action: "RESOLVIDA", reason: "Preflight sem efeito" }, headers: key() }],
   ];
   const missingChecks = {};
   for (const [label, method, path, options] of commands) {

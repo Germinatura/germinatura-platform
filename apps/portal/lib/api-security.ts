@@ -52,8 +52,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/entries", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/entries/:id/reverse", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/statement", methods: ["GET"], access: "finance" },
-  { path: "/api/v1/admin/finance/statement-imports", methods: ["GET", "POST"], access: "finance" },
-  { path: "/api/v1/admin/finance/statement-imports/preview", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/statement-imports", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/statement-imports/:id/lines", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/statement-lines/:id/resolve", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/statement-imports/:id/bulk/preview", methods: ["POST"], access: "finance" },
@@ -63,6 +62,16 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/balances", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/opening-position", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/balance-checks", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/files", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/files/preview", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/summary", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/exceptions", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/exceptions/resolve", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/transactions", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/transactions/:id/link", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/settlements", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/reconcile", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/picpay/periods", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/indicators", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/settings/fundraising-goal", methods: ["GET", "PUT"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
@@ -156,7 +165,8 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     if (rule.path === "/api/v1/admin/procurement/orders/:id/cancel") {
       return /^\/api\/v1\/admin\/procurement\/orders\/[0-9a-f-]+\/cancel$/i.test(path);
     }
-    if (rule.path.startsWith("/api/v1/admin/finance/statement-imports/:id/") || rule.path.startsWith("/api/v1/admin/finance/statement-lines/:id/")) {
+    if (rule.path.startsWith("/api/v1/admin/finance/statement-imports/:id/") || rule.path.startsWith("/api/v1/admin/finance/statement-lines/:id/")
+      || rule.path.startsWith("/api/v1/admin/finance/picpay/transactions/:id/")) {
       const pattern = rule.path.replace(":id", "[0-9a-f-]+").replaceAll("/", "\\/");
       return new RegExp(`^${pattern}$`, "i").test(path);
     }

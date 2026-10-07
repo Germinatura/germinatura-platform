@@ -49,7 +49,7 @@ describe("portal navigation", () => {
   it("finds the section of the current route", () => {
     const sections = navigationFor({ ...base, roles: ["ADMIN"] });
     expect(activeSection(sections, "/admin/financeiro/turnos")).toBe("financeiro");
-    expect(activeSection(sections, "/admin/financeiro/importar-extrato")).toBe("financeiro");
+    expect(activeSection(sections, "/admin/financeiro/conciliacao-picpay")).toBe("financeiro");
     expect(activeSection(sections, "/admin/financeiro/saldo")).toBe("financeiro");
     expect(activeSection(sections, "/admin/estoque")).toBe("catalogo");
     expect(activeSection(sections, "/")).toBe("principal");
@@ -61,7 +61,7 @@ describe("portal navigation", () => {
     expect(searchNavigation(admin, "turno")[0]?.item.id).toBe("shifts");
     expect(searchNavigation(admin, "configuracoes")[0]?.item.id).toBe("settings");
     expect(searchNavigation(admin, "fornecedor").map((match) => match.item.id)).toEqual(expect.arrayContaining(["procurement", "payables"]));
-    expect(searchNavigation(admin, "financeiro extrato").map((match) => match.item.id)).toEqual(expect.arrayContaining(["statement", "statement-import"]));
+    expect(searchNavigation(admin, "financeiro extrato").map((match) => match.item.id)).toEqual(expect.arrayContaining(["statement", "picpay-reconciliation"]));
     expect(searchNavigation(admin, "cofrinho").map((match) => match.item.id)).toEqual(["balances"]);
     const consumer = navigationFor({ ...base, roles: ["CONSUMIDOR"] });
     expect(searchNavigation(consumer, "auditoria")).toEqual([]);

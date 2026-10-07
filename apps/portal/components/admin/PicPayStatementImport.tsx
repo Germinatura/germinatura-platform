@@ -2,14 +2,14 @@
 
 import {
   automaticFinanceCategories, financeCategorySchema, picpayStatementBulkPreviewResponseSchema, picpayStatementBulkResolveResponseSchema,
-  picpayStatementImportResponseSchema, picpayStatementImportsResponseSchema, picpayStatementLinesResponseSchema,
-  picpayStatementLinkCandidatesResponseSchema, picpayStatementMaxBytes, picpayStatementPreviewResponseSchema,
-  type FinanceCategory, type PicpayStatementBulkPreview, type PicpayStatementErrorCode, type PicpayStatementImport as StatementImport,
+  picpayStatementImportsResponseSchema, picpayStatementLinesResponseSchema,
+  picpayStatementLinkCandidatesResponseSchema,
+  type FinanceCategory, type PicpayStatementBulkPreview, type PicpayStatementImport as StatementImport,
   type PicpayStatementImportsResponse, type PicpayStatementLine, type PicpayStatementLineStatus, type PicpayStatementLinkCandidate,
-  type PicpayStatementMovement, type PicpayStatementPreview, type ResolvePicpayStatementLineRequest,
+  type PicpayStatementMovement, type ResolvePicpayStatementLineRequest,
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
-import { AlertTriangle, FileUp, Link2, ListChecks, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, Link2, ListChecks, Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { financeAccountLabels, financeCategoryLabels } from "@/lib/finance-labels";
@@ -30,13 +30,6 @@ const statusLabels: Record<PicpayStatementLineStatus, string> = {
   CONCILIADA_PICPAY: "Conciliada com Minhas vendas",
   CLASSIFICADA: "Classificada", VINCULADA: "Vinculada a registro", JA_REGISTRADO: "Já registrada", PENDENTE_REVISAO: "A revisar", PENDENTE_CLASSIFICACAO: "A classificar",
 };
-const errorLabels: Record<PicpayStatementErrorCode, string> = {
-  EMPTY_FILE: "Arquivo vazio", INVALID_ENCODING: "Codificação inválida (use UTF-8)", TOO_MANY_LINES: "Arquivo com linhas demais",
-  INVALID_HEADER: "Cabeçalho diferente de data;movimento;descrição;tipo;valor", NO_LINES: "Nenhuma movimentação no arquivo",
-  INVALID_FIELD_COUNT: "Quantidade de campos inválida", INVALID_DATE: "Data inválida", FUTURE_DATE: "Data no futuro",
-  INVALID_MOVEMENT: "Movimento vazio ou longo demais", INVALID_TYPE: "Tipo diferente de Entrada/Saída", INVALID_AMOUNT: "Valor inválido",
-  ZERO_AMOUNT: "Valor zerado", AMOUNT_SIGN_MISMATCH: "Sinal do valor não confere com o tipo",
-};
 
 async function messageFrom(response: Response, fallback: string) {
   const body = await response.json().catch(() => null) as { message?: string } | null;
@@ -49,14 +42,12 @@ function statusTone(status: PicpayStatementLineStatus) {
   return "success" as const;
 }
 
-/** Spec 5.8 (FIN-007): PicPay Empresas statement import with preview and line review. */
+/**
+ * Spec 5.8 (FIN-007): review of the PicPay Empresas statement lines. Files are imported by the reconciliation screen
+ * (Minhas vendas, Recebíveis and Extrato together), which embeds this component.
+ */
 export function PicPayStatementImport() {
   const { showToast } = useToast();
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<PicpayStatementPreview | null>(null);
-  const [previewing, setPreviewing] = useState(false);
-  const [acceptOverlap, setAcceptOverlap] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [imports, setImports] = useState<PicpayStatementImportsResponse | null>(null);
   const [selected, setSelected] = useState<StatementImport | null>(null);
   const [lines, setLines] = useState<PicpayStatementLine[]>([]);
@@ -110,40 +101,6 @@ export function PicPayStatementImport() {
     // Reload only when the filter or the chosen import changes.
   }, [selected?.id, loadLines]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function choose(next: File | null) {
-    setFile(next); setPreview(null); setAcceptOverlap(false); setError("");
-    if (!next) return;
-    if (next.size > picpayStatementMaxBytes) { setError("O arquivo passa de 2 MB."); return; }
-    setPreviewing(true);
-    try {
-      const response = await fetch("/api/v1/admin/finance/statement-imports/preview", { method: "POST", headers: { "Content-Type": "text/csv" }, body: next });
-      if (!response.ok) throw new Error(await messageFrom(response, "Não foi possível ler o arquivo."));
-      const parsed = picpayStatementPreviewResponseSchema.safeParse(await response.json());
-      if (!parsed.success) throw new Error("A prévia retornou dados inválidos.");
-      setPreview(parsed.data.data);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível ler o arquivo."); }
-    finally { setPreviewing(false); }
-  }
-
-  async function commit() {
-    if (!file || !preview) return;
-    setImporting(true); setError("");
-    try {
-      const query = new URLSearchParams({ fileName: file.name, acceptOverlap: String(acceptOverlap) });
-      const response = await fetch(`/api/v1/admin/finance/statement-imports?${query}`, {
-        method: "POST", headers: { "Content-Type": "text/csv", "Idempotency-Key": keyFor("import", { sha: preview.sha256, acceptOverlap }) }, body: file,
-      });
-      if (!response.ok) throw new Error(await messageFrom(response, "Não foi possível importar o extrato."));
-      const parsed = picpayStatementImportResponseSchema.safeParse(await response.json());
-      if (!parsed.success) throw new Error("A importação retornou dados inválidos.");
-      showToast(`Extrato importado como importação nº ${parsed.data.data.number}.`, "success");
-      setFile(null); setPreview(null); setAcceptOverlap(false);
-      await loadImports();
-      setSelected(parsed.data.data);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível importar o extrato."); }
-    finally { setImporting(false); }
-  }
-
   async function resolve(line: PicpayStatementLine, body: ResolvePicpayStatementLineRequest) {
     setError("");
     const response = await fetch(`/api/v1/admin/finance/statement-lines/${line.id}/resolve`, {
@@ -157,53 +114,10 @@ export function PicPayStatementImport() {
     return true;
   }
 
-  const overlapBlocks = (preview?.overlaps.length ?? 0) > 0 && !acceptOverlap;
-  const canImport = preview && preview.errorCount === 0 && !preview.alreadyImported && !overlapBlocks;
   return <div className="grid gap-6">
-    <Card className="p-5">
-      <h2 className="font-semibold">Importar extrato</h2>
-      <p className="mt-1 text-sm text-[var(--g-text-secondary)]">Envie o CSV exportado pelo PicPay Empresas. Nada é gravado antes de você conferir a prévia. O mesmo arquivo não é importado duas vezes, e uma linha com problema impede a importação do arquivo inteiro.</p>
-      <Field id="statement-file" label="Arquivo CSV" className="mt-4 max-w-md">
-        <input id="statement-file" type="file" accept=".csv,text/csv" className="g-input min-h-11 w-full" onChange={(event) => void choose(event.target.files?.[0] ?? null)} />
-      </Field>
-      {previewing && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-[var(--g-text-secondary)]"><Loader2 className="size-4 animate-spin" />Lendo o arquivo…</p>}
-      {preview && <section aria-label="Prévia da importação" className="mt-5 grid gap-4">
-        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <div><dt className="text-[var(--g-text-muted)]">Período</dt><dd className="font-semibold">{preview.periodFrom && preview.periodTo ? `${formatDay(preview.periodFrom)} a ${formatDay(preview.periodTo)}` : "—"}</dd></div>
-          <div><dt className="text-[var(--g-text-muted)]">Linhas</dt><dd className="font-semibold">{preview.lineCount}</dd></div>
-          <div><dt className="text-[var(--g-text-muted)]">Entradas</dt><dd className="g-money font-semibold">{formatMoney(preview.inflowCents)}</dd></div>
-          <div><dt className="text-[var(--g-text-muted)]">Saídas</dt><dd className="g-money font-semibold">{formatMoney(preview.outflowCents)}</dd></div>
-        </dl>
-        {preview.byMovement.length > 0 && <table className="w-full text-left text-sm">
-          <caption className="sr-only">Movimentos do arquivo</caption>
-          <thead><tr className="text-[var(--g-text-muted)]"><th className="py-1 pr-3 font-medium">Movimento</th><th className="py-1 pr-3 font-medium">Linhas</th><th className="py-1 font-medium">Total</th></tr></thead>
-          <tbody>{preview.byMovement.map((row) => <tr key={row.movement} className="border-t border-[var(--g-border-subtle)]"><td className="py-1 pr-3">{movementLabels[row.movement]}</td><td className="py-1 pr-3">{row.count}</td><td className="g-money py-1">{formatMoney(row.amountCents)}</td></tr>)}</tbody>
-        </table>}
-        <ul aria-label="O que a importação fará" className="grid gap-1 text-sm">
-          <li>Transferências automáticas (Cofrinho e recebíveis): <strong>{preview.plan.TRANSFERENCIA}</strong></li>
-          <li>Pix conciliados com uma única venda: <strong>{preview.plan.CONCILIADA_VENDA}</strong></li>
-          <li>Estornos conciliados com um único estorno interno: <strong>{preview.plan.CONCILIADA_ESTORNO}</strong></li>
-          <li>Linhas para revisar: <strong>{preview.plan.PENDENTE_REVISAO}</strong></li>
-          <li>Movimentos desconhecidos para classificar: <strong>{preview.plan.PENDENTE_CLASSIFICACAO}</strong></li>
-          {preview.cutover && preview.cutover.historyLines > 0 && <li>Histórico do cutover (antes de {formatDay(preview.cutover.operatingSince)}): <strong>{preview.cutover.historyLines}</strong> linha(s). Nunca conciliam venda; recebíveis históricos ficam para revisão como receita histórica.</li>}
-          {preview.cutover && preview.cutover.beforeOpeningLines > 0 && <li className="text-[var(--g-status-warning-foreground)]">{preview.cutover.beforeOpeningLines} linha(s) anteriores à abertura ({formatDay(preview.cutover.asOf)}) ficam fora do saldo: esse dinheiro já está na posição de abertura.</li>}
-          {preview.repeatedLines > 0 && <li className="text-[var(--g-text-secondary)]">{preview.repeatedLines} linhas têm data, descrição e valor iguais a outra linha; cada uma é mantida como transação própria.</li>}
-        </ul>
-        {preview.errorCount > 0 && <div role="alert" className="rounded-[var(--g-radius-card)] border border-[var(--g-status-danger)]/50 p-4 text-sm">
-          <p className="font-semibold">{preview.errorCount} problema(s) no arquivo. Corrija ou exporte novamente antes de importar.</p>
-          <ul className="mt-2 grid gap-1">{preview.errors.map((item) => <li key={`${item.line}-${item.code}`}>Linha {item.line}: {errorLabels[item.code]}</li>)}</ul>
-        </div>}
-        {preview.alreadyImported && <p role="alert" className="text-sm font-semibold text-[var(--g-status-danger)]">Este arquivo já foi importado (importação nº {preview.alreadyImported.number}).</p>}
-        {preview.overlaps.length > 0 && !preview.alreadyImported && <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-1" checked={acceptOverlap} onChange={(event) => setAcceptOverlap(event.target.checked)} />
-          <span>O período cruza {preview.overlaps.map((item) => `a importação nº ${item.number} (${formatDay(item.periodFrom)} a ${formatDay(item.periodTo)})`).join(", ")}. Confirmo que este arquivo traz movimentações diferentes e quero importar mesmo assim.</span>
-        </label>}
-        <div><Button type="button" loading={importing} disabled={!canImport || importing} onClick={() => void commit()}><FileUp className="size-4" />Importar extrato</Button></div>
-      </section>}
-    </Card>
     {error && <div role="alert" className="flex items-start gap-3 rounded-[var(--g-radius-card)] border border-[var(--g-status-danger)]/50 p-4 text-sm"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-[var(--g-status-danger)]" /><p>{error}</p></div>}
     <Card className="p-5">
-      <h2 className="font-semibold">Importações</h2>
+      <h2 className="font-semibold">Extratos importados</h2>
       {imports && <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{imports.pendingTotal} linha(s) aguardando revisão em todas as importações.</p>}
       {!imports ? <p role="status" className="mt-3 flex items-center gap-2 text-sm text-[var(--g-text-secondary)]"><Loader2 className="size-4 animate-spin" />Carregando…</p>
         : imports.data.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Nenhum extrato importado.</p>

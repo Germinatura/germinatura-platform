@@ -1,6 +1,5 @@
 import {
-  createApiError, picpayStatementBulkPreviewSchema, picpayStatementImportSchema, picpayStatementLineSchema, picpayStatementMaxBytes,
-  picpayStatementPreviewSchema,
+  createApiError, picpayStatementBulkPreviewSchema, picpayStatementImportSchema, picpayStatementLineSchema,
 } from "@germinatura/contracts";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -11,19 +10,7 @@ const statusCounts = z.object({
   PENDENTE_CLASSIFICACAO: n,
 });
 
-// Shapes returned by preview_picpay_statement, picpay_statement_import_json and list_picpay_statement_lines.
-export const databasePreviewSchema = z.object({
-  sha256: z.string(), size_bytes: n, line_count: n, error_count: n,
-  errors: z.array(z.object({ line: n, code: z.string() })),
-  period_from: z.string().nullable(), period_to: z.string().nullable(), inflow_cents: n, outflow_cents: n,
-  by_movement: z.array(z.object({ movement: z.string(), count: n, amount_cents: n })),
-  plan: z.object({ TRANSFERENCIA: n, CONCILIADA_VENDA: n, CONCILIADA_ESTORNO: n, PENDENTE_REVISAO: n, PENDENTE_CLASSIFICACAO: n }),
-  cutover: z.object({ as_of: z.string(), operating_since: z.string(), history_lines: n, before_opening_lines: n }).nullable(),
-  repeated_lines: n,
-  already_imported: z.object({ number: n, created_at: z.string() }).nullable(),
-  overlaps: z.array(z.object({ number: n, period_from: z.string(), period_to: z.string() })),
-});
-
+// Shapes returned by picpay_statement_import_json and list_picpay_statement_lines.
 export const databaseImportSchema = z.object({
   id: z.uuid(), number: n, account: z.string(), file_name: z.string(), file_sha256: z.string(), file_size_bytes: n, line_count: n,
   period_from: z.string(), period_to: z.string(), inflow_cents: n, outflow_cents: n, overlap_accepted: z.boolean(),
@@ -43,21 +30,6 @@ export const databaseLineSchema = z.object({
   })),
   refund_candidates: z.array(z.object({ refund_entry_id: z.uuid(), sale_id: z.uuid(), amount_cents: n, refunded_at: z.string() })),
 });
-
-export function toPreview(value: z.infer<typeof databasePreviewSchema>) {
-  return picpayStatementPreviewSchema.parse({
-    sha256: value.sha256, sizeBytes: value.size_bytes, lineCount: value.line_count, errorCount: value.error_count, errors: value.errors,
-    periodFrom: value.period_from, periodTo: value.period_to, inflowCents: value.inflow_cents, outflowCents: value.outflow_cents,
-    byMovement: value.by_movement.map((row) => ({ movement: row.movement, count: row.count, amountCents: row.amount_cents })),
-    plan: value.plan, repeatedLines: value.repeated_lines,
-    cutover: value.cutover ? {
-      asOf: value.cutover.as_of, operatingSince: value.cutover.operating_since, historyLines: value.cutover.history_lines,
-      beforeOpeningLines: value.cutover.before_opening_lines,
-    } : null,
-    alreadyImported: value.already_imported ? { number: value.already_imported.number, createdAt: value.already_imported.created_at } : null,
-    overlaps: value.overlaps.map((row) => ({ number: row.number, periodFrom: row.period_from, periodTo: row.period_to })),
-  });
-}
 
 export function toImport(value: z.infer<typeof databaseImportSchema>) {
   return picpayStatementImportSchema.parse({
@@ -93,21 +65,6 @@ export function statementErrorResponse(code: string, message: string, requestId:
   return NextResponse.json(createApiError(code, message, requestId), {
     status, headers: { "Cache-Control": "no-store", "x-request-id": requestId },
   });
-}
-
-/**
- * Reads the uploaded file as raw bytes and accepts it only when it is valid UTF-8. The byte order mark is kept so
- * the database hashes exactly the bytes of the file.
- */
-export async function readStatementFile(request: Request): Promise<{ content: string } | { error: string; message: string }> {
-  const bytes = new Uint8Array(await request.arrayBuffer().catch(() => new ArrayBuffer(0)));
-  if (bytes.byteLength === 0) return { error: "EMPTY_FILE", message: "O arquivo está vazio." };
-  if (bytes.byteLength > picpayStatementMaxBytes) return { error: "FILE_TOO_LARGE", message: "O arquivo passa de 2 MB." };
-  try {
-    return { content: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
-  } catch {
-    return { error: "INVALID_ENCODING", message: "O arquivo não está em UTF-8. Exporte novamente o extrato do PicPay Empresas." };
-  }
 }
 
 /** Maps database errors of the statement commands to API responses. */

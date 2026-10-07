@@ -21,6 +21,7 @@ export * from "./management-indicators";
 export * from "./fundraising-goal";
 export * from "./audit";
 export * from "./picpay-statement";
+export * from "./picpay-reconciliation";
 export * from "./portal-events";
 export * from "./portal-showcase";
 

@@ -37,7 +37,7 @@ async function signIn(page: Page, base: string, identifier: string, password: st
 }
 
 test("as telas principais de cada papel não têm violações sérias de acessibilidade", async ({ browser }) => {
-  // Fourteen pages compiled on first visit by the dev server.
+  // Fifteen pages compiled on first visit by the dev server.
   test.setTimeout(900_000);
   const findings: string[] = [];
   const tag = Date.now().toString(36);
@@ -60,7 +60,7 @@ test("as telas principais de cada papel não têm violações sérias de acessib
 
   const admin = await (await browser.newContext()).newPage();
   await signIn(admin, portalUrl, "admin.teste", "Admin123!");
-  for (const path of ["/", "/admin/financeiro/indicadores", "/admin/financeiro/vendas", "/admin/auditoria", "/admin/configuracoes", "/admin/usuarios", "/admin/rifas"]) {
+  for (const path of ["/", "/admin/financeiro/indicadores", "/admin/financeiro/vendas", "/admin/financeiro/conciliacao-picpay", "/admin/auditoria", "/admin/configuracoes", "/admin/usuarios", "/admin/rifas"]) {
     findings.push(...await audit(admin, `${portalUrl}${path}`));
   }
   await admin.context().close();
