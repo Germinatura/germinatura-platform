@@ -75,6 +75,13 @@ describe("purchase payable API access", () => {
     expect(apiAccessRule("/api/v1/admin/finance/terminals/6a000000-0000-4000-8000-000000000001")?.methods).toEqual(["PATCH"]);
     expect(apiAccessRule("/api/v1/admin/finance/payables/63000000-0000-4000-8000-000000000001/settlements")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/payables/settlements/63000000-0000-4000-8000-000000000001/reverse")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/balances")?.methods).toEqual(["GET"]);
+    expect(apiAccessRule("/api/v1/admin/finance/opening-position")?.methods).toEqual(["GET", "POST"]);
+    expect(apiAccessRule("/api/v1/admin/finance/balance-checks")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/statement-imports/63000000-0000-4000-8000-000000000001/bulk")?.methods).toEqual(["POST"]);
+    expect(apiAccessRule("/api/v1/admin/finance/statement-imports/63000000-0000-4000-8000-000000000001/bulk/preview")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/statement-lines/63000000-0000-4000-8000-000000000001/link")?.methods).toEqual(["POST"]);
+    expect(apiAccessRule("/api/v1/admin/finance/statement-lines/63000000-0000-4000-8000-000000000001/link-candidates")?.methods).toEqual(["GET"]);
     expect(rolesSatisfyAccess(["ADMIN"], "finance")).toBe(true);
     expect(rolesSatisfyAccess(["FINANCEIRO"], "finance")).toBe(true);
     expect(rolesSatisfyAccess(["ESTOQUE"], "finance")).toBe(false);

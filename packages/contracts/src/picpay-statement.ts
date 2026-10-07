@@ -42,6 +42,8 @@ export const picpayStatementPreviewSchema = z.object({
   plan: z.object({
     TRANSFERENCIA: count, CONCILIADA_VENDA: count, CONCILIADA_ESTORNO: count, PENDENTE_REVISAO: count, PENDENTE_CLASSIFICACAO: count,
   }).strict(),
+  /** Present once the cutover opening position exists: lines before operating_since are history. */
+  cutover: z.object({ asOf: calendarDay, operatingSince: calendarDay, historyLines: count, beforeOpeningLines: count }).strict().nullable(),
   repeatedLines: count,
   alreadyImported: z.object({ number: z.number().int().positive(), createdAt: timestamp }).strict().nullable(),
   overlaps: z.array(z.object({ number: z.number().int().positive(), periodFrom: calendarDay, periodTo: calendarDay }).strict()),
@@ -72,6 +74,7 @@ export const picpayStatementImportSchema = z.object({
     TRANSFERENCIA: count, CONCILIADA_VENDA: count, CONCILIADA_ESTORNO: count, CLASSIFICADA: count, VINCULADA: count, JA_REGISTRADO: count,
     PENDENTE_REVISAO: count, PENDENTE_CLASSIFICACAO: count,
   }).strict(),
+  cutoverLines: count,
 }).strict();
 export type PicpayStatementImport = z.infer<typeof picpayStatementImportSchema>;
 
@@ -160,3 +163,76 @@ export const picpayStatementResolutionResponseSchema = z.object({
   }).strict(),
   request_id: z.string().min(1),
 }).strict();
+
+// Bulk classification: the preview returns the selection's count, total and SHA-256; the confirmation repeats them,
+// and the database refuses when the pending selection changed in between.
+const bulkSelection = {
+  movement: picpayStatementMovementSchema.nullable(),
+  from: calendarDay.nullable(),
+  to: calendarDay.nullable(),
+  lineIds: z.array(z.uuid()).min(1).max(1000).nullable(),
+  category: financeCategorySchema.refine((value) => !["VENDA_PDV", "VENDA_ONLINE", "RESERVA", "RIFA"].includes(value),
+    "Receita de vendas vem só das vendas registradas"),
+};
+const selectionRules = (value: { movement: unknown; lineIds: unknown; from: string | null; to: string | null }, context: z.RefinementCtx) => {
+  if (value.movement === null && value.lineIds === null) {
+    context.addIssue({ code: "custom", path: ["movement"], message: "Escolha um movimento ou linhas" });
+  }
+  if (value.from && value.to && value.to < value.from) context.addIssue({ code: "custom", path: ["to"], message: "Período inválido" });
+};
+export const picpayStatementBulkPreviewRequestSchema = z.object(bulkSelection).strict().superRefine(selectionRules);
+export type PicpayStatementBulkPreviewRequest = z.infer<typeof picpayStatementBulkPreviewRequestSchema>;
+export const picpayStatementBulkPreviewSchema = z.object({
+  count,
+  totalCents: cents,
+  inflowCents: cents,
+  outflowCents: cents,
+  periodFrom: calendarDay.nullable(),
+  periodTo: calendarDay.nullable(),
+  selectionSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  byMovement: z.array(z.object({ movement: picpayStatementMovementSchema, count, amountCents: cents }).strict()),
+  refusals: z.array(z.object({ code: z.string(), count }).strict()),
+  category: financeCategorySchema,
+  maxLines: z.number().int().positive(),
+}).strict();
+export type PicpayStatementBulkPreview = z.infer<typeof picpayStatementBulkPreviewSchema>;
+export const picpayStatementBulkPreviewResponseSchema = z.object({
+  data: picpayStatementBulkPreviewSchema, request_id: z.string().min(1),
+}).strict();
+export const picpayStatementBulkResolveRequestSchema = z.object({
+  ...bulkSelection,
+  reason: z.string().trim().min(8).max(300),
+  expectedCount: z.number().int().min(1).max(1000),
+  expectedTotalCents: cents,
+  expectedSelectionSha256: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict().superRefine(selectionRules);
+export type PicpayStatementBulkResolveRequest = z.infer<typeof picpayStatementBulkResolveRequestSchema>;
+export const picpayStatementBulkResolveResponseSchema = z.object({
+  data: z.object({ bulkId: z.uuid(), count, totalCents: cents, category: financeCategorySchema }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+
+// Link: the line's effect is already in an existing supplier payment or manual entry of PicPay Empresas.
+export const picpayStatementLinkCandidateSchema = z.object({
+  kind: z.enum(["PAYABLE_SETTLEMENT", "MANUAL_ENTRY"]),
+  id: z.uuid(),
+  amountCents: cents,
+  occurredOn: calendarDay,
+  label: z.string(),
+}).strict();
+export type PicpayStatementLinkCandidate = z.infer<typeof picpayStatementLinkCandidateSchema>;
+export const picpayStatementLinkCandidatesResponseSchema = z.object({
+  data: z.array(picpayStatementLinkCandidateSchema), request_id: z.string().min(1),
+}).strict();
+export const picpayStatementLinkRequestSchema = z.object({
+  payableSettlementId: z.uuid().nullable(),
+  manualEntryId: z.uuid().nullable(),
+  reason: z.string().trim().min(3).max(300).nullable(),
+}).strict().refine((value) => (value.payableSettlementId === null) !== (value.manualEntryId === null), {
+  message: "Escolha um único registro", path: ["manualEntryId"],
+});
+export type PicpayStatementLinkRequest = z.infer<typeof picpayStatementLinkRequestSchema>;
+export const picpayStatementLinkResponseSchema = z.object({
+  data: z.object({ lineId: z.uuid(), resolution: z.literal("VINCULADA") }).strict(), request_id: z.string().min(1),
+}).strict();
+
