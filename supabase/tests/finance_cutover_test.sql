@@ -78,8 +78,10 @@ select lives_ok($$select public.configure_fundraising_goal(100000, pg_temp.openi
   'finance sets a goal counting from the opening day');
 select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint, 0::bigint, 'the opening position is not goal progress');
 
--- Historical statement (every line before operating_since).
-create temp table hist as select public.import_picpay_statement('extrato-cutover.csv', pg_temp.csv(array[
+-- Historical statement (every line before operating_since), imported through the PicPay reconciliation.
+create function pg_temp.statement_import(p_id text) returns jsonb language sql as $$
+  select item from jsonb_array_elements(public.list_picpay_statement_imports(null, 50) -> 'items') item where item ->> 'id' = p_id $$;
+create temp table hist as select public.import_picpay_file('extrato-cutover.csv', pg_temp.csv(array[
   pg_temp.line(1, 'Pix recebido', 'Cliente A', 10000),
   pg_temp.line(2, 'Pix recebido', 'Cliente B', 10000),
   pg_temp.line(3, 'Pix recebido', 'Cliente C', 10000),
@@ -90,7 +92,7 @@ create temp table hist as select public.import_picpay_statement('extrato-cutover
   pg_temp.line(8, 'Pix estornado', 'Cliente C', -1000),
   pg_temp.line(9, 'Pix devolvido', 'Fornecedor X', 500),
   pg_temp.line(10, 'Dinheiro guardado', 'Cofrinho', -20000),
-  pg_temp.line(11, 'Dinheiro resgatado', 'Cofrinho', 8000)]), false, 'cut-import', gen_random_uuid()) result;
+  pg_temp.line(11, 'Dinheiro resgatado', 'Cofrinho', 8000)]), 'cut-import', gen_random_uuid()) result;
 reset role;
 create temp table hist_lines as select line.line_number, line.id from public.picpay_statement_lines line
   where line.import_id = (select (result ->> 'id')::uuid from hist);
@@ -98,9 +100,9 @@ grant select on hist_lines to authenticated;
 set local role authenticated;
 create function pg_temp.line_id(p_number integer) returns uuid language sql as $$ select id from hist_lines where line_number = p_number $$;
 
-select is((select (result -> 'status_counts' ->> 'TRANSFERENCIA')::integer from hist), 2, 'only the Cofrinho movements are automatic transfers');
-select is((select (result -> 'status_counts' ->> 'PENDENTE_REVISAO')::integer from hist), 9, 'every other historical line waits for review');
-select is((select (result ->> 'cutover_lines')::integer from hist), 11, 'every line of the file is cutover history');
+select is((select (pg_temp.statement_import(result ->> 'id') -> 'status_counts' ->> 'TRANSFERENCIA')::integer from hist), 2, 'only the Cofrinho movements are automatic transfers');
+select is((select (pg_temp.statement_import(result ->> 'id') -> 'status_counts' ->> 'PENDENTE_REVISAO')::integer from hist), 9, 'every other historical line waits for review');
+select is((select (pg_temp.statement_import(result ->> 'id') ->> 'cutover_lines')::integer from hist), 11, 'every line of the file is cutover history');
 -- Test 7: historical receivables are not transferred out of RECEBIVEIS_PICPAY.
 reset role;
 select is((select count(*) from private.picpay_statement_current_resolutions where line_id = pg_temp.line_id(5)), 0::bigint,
@@ -244,13 +246,13 @@ select is((select count(*) from public.finance_manual_entries), 2::bigint, 'a di
 set local role authenticated;
 
 -- Test 9: the same file is never imported twice.
-select throws_ok($$select public.import_picpay_statement('extrato-cutover.csv', pg_temp.csv(array[
+select throws_ok($$select public.import_picpay_file('extrato-cutover.csv', pg_temp.csv(array[
   pg_temp.line(1, 'Pix recebido', 'Cliente A', 10000), pg_temp.line(2, 'Pix recebido', 'Cliente B', 10000), pg_temp.line(3, 'Pix recebido', 'Cliente C', 10000),
   pg_temp.line(4, 'Recebíveis de venda', 'Vendas maquininha', 5000), pg_temp.line(5, 'Pix enviado', 'Fornecedor X', -4000),
   pg_temp.line(6, 'Pix enviado', 'Gráfica', -2500), pg_temp.line(7, 'Pix enviado', 'Transporte', -3000), pg_temp.line(8, 'Pix estornado', 'Cliente C', -1000),
   pg_temp.line(9, 'Pix devolvido', 'Fornecedor X', 500), pg_temp.line(10, 'Dinheiro guardado', 'Cofrinho', -20000),
-  pg_temp.line(11, 'Dinheiro resgatado', 'Cofrinho', 8000)]), true, 'cut-import-again', gen_random_uuid())$$,
-  'P0001', 'STATEMENT_ALREADY_IMPORTED', 'the same file is never imported twice');
+  pg_temp.line(11, 'Dinheiro resgatado', 'Cofrinho', 8000)]), 'cut-import-again', gen_random_uuid())$$,
+  'P0001', 'PICPAY_FILE_ALREADY_IMPORTED', 'the same file is never imported twice');
 
 -- Corrections of the opening position cannot contradict the reviewed history.
 select throws_ok(format($$select public.record_finance_opening_position(pg_temp.opening_on(), pg_temp.opening_on() + 2, 0, 1178, 0, 0, 'Correção', 'Data de início revista', %L, 'open-conflict', gen_random_uuid())$$,
@@ -266,9 +268,9 @@ reset role;
 select ok(private.is_statement_cutover_day(pg_temp.operating_since() - 1), 'the day before operating_since is cutover history');
 select ok(not private.is_statement_cutover_day(pg_temp.operating_since()), 'operating_since itself is native operation');
 set local role authenticated;
-create temp table last_history as select public.import_picpay_statement('extrato-ultimo-dia.csv', pg_temp.csv(array[
-  to_char(pg_temp.operating_since() - 1, 'YYYY-MM-DD') || ';Recebíveis de venda;Vendas maquininha;Entrada;30.00']), true, 'cut-last-day', gen_random_uuid()) result;
-select is((select (result -> 'status_counts' ->> 'PENDENTE_REVISAO')::integer from last_history), 1,
+create temp table last_history as select public.import_picpay_file('extrato-ultimo-dia.csv', pg_temp.csv(array[
+  to_char(pg_temp.operating_since() - 1, 'YYYY-MM-DD') || ';Recebíveis de venda;Vendas maquininha;Entrada;30.00']), 'cut-last-day', gen_random_uuid()) result;
+select is((select (pg_temp.statement_import(result ->> 'id') -> 'status_counts' ->> 'PENDENTE_REVISAO')::integer from last_history), 1,
   'receivables on the last history day are not transferred out of receivables');
 reset role;
 create temp table last_lines as select line.id from public.picpay_statement_lines line where line.import_id = (select (result ->> 'id')::uuid from last_history);
@@ -286,9 +288,9 @@ select ok(private.is_statement_cutover_day(pg_temp.operating_since()), 'the boun
 rollback to savepoint moved_boundary;
 
 -- After the cutover the normal rules apply: receivables settle receivables, and never become historical revenue.
-create temp table native as select public.import_picpay_statement('extrato-operacao.csv', pg_temp.csv(array[
+create temp table native as select public.import_picpay_file('extrato-operacao.csv', pg_temp.csv(array[
   to_char(pg_temp.operating_since(), 'YYYY-MM-DD') || ';Recebíveis de venda;Vendas maquininha;Entrada;20.00',
-  to_char(pg_temp.operating_since(), 'YYYY-MM-DD') || ';Pix recebido;Cliente D;Entrada;7.00']), false, 'cut-native', gen_random_uuid()) result;
+  to_char(pg_temp.operating_since(), 'YYYY-MM-DD') || ';Pix recebido;Cliente D;Entrada;7.00']), 'cut-native', gen_random_uuid()) result;
 reset role;
 create temp table native_lines as select line.line_number, line.id from public.picpay_statement_lines line
   where line.import_id = (select (result ->> 'id')::uuid from native);

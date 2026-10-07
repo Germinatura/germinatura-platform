@@ -155,12 +155,13 @@ describe("checkout transacional real", () => {
     expect(checkout.ok).toBe(true);
     const saleId = String((checkout as Extract<Outcome, { ok: true }>).data.sale_id);
     const confirmationKey = `manual-confirm-${randomUUID()}`;
-    const proofReference = `NSU-${randomUUID()}`;
+    // Área Pix: card channels are settled only by the PicPay reconciliation, never by the manual route.
+    const proofReference = `PIX-${randomUUID()}`;
     const confirmationParameters = () => ({
       p_sale_id: saleId,
-      p_integration_channel: "MAQUININHA",
+      p_integration_channel: "PIX_AREA",
       p_proof_reference: proofReference,
-      p_card_method: "CREDITO",
+      p_card_method: null,
       p_terminal_id: null,
       p_idempotency_key: confirmationKey,
       p_correlation_id: randomUUID(),
