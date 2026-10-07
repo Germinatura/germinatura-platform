@@ -3,7 +3,7 @@ import { recordFinanceBalanceCheckRequestSchema, recordFinanceOpeningPositionReq
 import { picpayStatementBulkResolveRequestSchema, picpayStatementLinkRequestSchema } from "./picpay-statement";
 
 const opening = {
-  asOf: "2026-08-27", operatingSince: "2026-10-06", freeCents: 0, vaultCents: 11_178, receivablesCents: 0, cashCents: 0,
+  asOf: "2026-08-27", operatingSince: "2026-10-07", freeCents: 0, vaultCents: 11_178, receivablesCents: 0, cashCents: 0,
   description: "Posição de abertura do cutover PicPay", reason: null, supersedesId: null,
 };
 

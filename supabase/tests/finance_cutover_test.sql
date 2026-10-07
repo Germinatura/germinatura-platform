@@ -2,7 +2,7 @@
 -- (historical revenue, historical receivables, link, already recorded, bulk classification) and the balance check.
 -- Dates are relative to today (São Paulo): opening 30 days ago, native operation from 3 days ago.
 begin;
-select plan(94);
+select plan(101);
 
 create function pg_temp.money(p_cents bigint) returns text language sql as $$
   select case when p_cents < 0 then '-' else '' end || (abs(p_cents) / 100)::text || '.' || lpad((abs(p_cents) % 100)::text, 2, '0') $$;
@@ -260,6 +260,31 @@ create temp table opening_v2 as select public.record_finance_opening_position(pg
 select is((select (result ->> 'version')::integer from opening_v2), 2, 'a correction is a new version');
 select is(pg_temp.balance(pg_temp.today(), 'available_balance_cents'), 26178::bigint, 'the balance follows the current version only');
 
+-- The boundary is the current version's operating_since, never a fixed date: the day before is cutover history
+-- (the real cutover: history up to 06/10/2026 inclusive) and operating_since itself is native (07/10/2026).
+reset role;
+select ok(private.is_statement_cutover_day(pg_temp.operating_since() - 1), 'the day before operating_since is cutover history');
+select ok(not private.is_statement_cutover_day(pg_temp.operating_since()), 'operating_since itself is native operation');
+set local role authenticated;
+create temp table last_history as select public.import_picpay_statement('extrato-ultimo-dia.csv', pg_temp.csv(array[
+  to_char(pg_temp.operating_since() - 1, 'YYYY-MM-DD') || ';Recebíveis de venda;Vendas maquininha;Entrada;30.00']), true, 'cut-last-day', gen_random_uuid()) result;
+select is((select (result -> 'status_counts' ->> 'PENDENTE_REVISAO')::integer from last_history), 1,
+  'receivables on the last history day are not transferred out of receivables');
+reset role;
+create temp table last_lines as select line.id from public.picpay_statement_lines line where line.import_id = (select (result ->> 'id')::uuid from last_history);
+grant select on last_lines to authenticated;
+set local role authenticated;
+select lives_ok(format($$select public.resolve_picpay_statement_line(%L, 'CLASSIFICAR', 'RECEITA_HISTORICA', null, null, null, 'cut-last-day-rev', gen_random_uuid())$$,
+  (select id from last_lines)), 'receivables on the last history day may be historical revenue');
+select is(pg_temp.balance(pg_temp.today(), 'receivables_balance_cents'), 0::bigint, 'historical receivables on the last day leave no negative receivables');
+savepoint moved_boundary;
+select lives_ok(format($$select public.record_finance_opening_position(pg_temp.opening_on(), pg_temp.operating_since() + 1, 0, 1178, 0, 0,
+  'Posição de abertura do cutover PicPay', 'Início da operação adiado um dia', %L, 'open-moved', gen_random_uuid())$$, (select result ->> 'id' from opening_v2)),
+  'a correction may move operating_since when no reviewed line contradicts it');
+reset role;
+select ok(private.is_statement_cutover_day(pg_temp.operating_since()), 'the boundary follows the current version: no rule depends on a fixed date');
+rollback to savepoint moved_boundary;
+
 -- After the cutover the normal rules apply: receivables settle receivables, and never become historical revenue.
 create temp table native as select public.import_picpay_statement('extrato-operacao.csv', pg_temp.csv(array[
   to_char(pg_temp.operating_since(), 'YYYY-MM-DD') || ';Recebíveis de venda;Vendas maquininha;Entrada;20.00',
@@ -271,7 +296,7 @@ grant select on native_lines to authenticated;
 select is((select resolution::text || '/' || counter_account::text || '/' || cutover::text from private.picpay_statement_current_resolutions
   where line_id = (select id from native_lines where line_number = 2)), 'TRANSFERENCIA/RECEBIVEIS_PICPAY/false', 'native receivables are an automatic transfer');
 set local role authenticated;
-select is(pg_temp.indicator('gross_revenue_cents'), 34000::bigint, 'settled receivables add no revenue');
+select is(pg_temp.indicator('gross_revenue_cents'), 37000::bigint, 'settled receivables add no revenue: only the 30,00 of the last history day joined');
 select throws_ok(format($$select public.resolve_picpay_statement_line(%L, 'CLASSIFICAR', 'RECEITA_HISTORICA', null, null, null, 'native-rev', gen_random_uuid())$$,
   (select id from native_lines where line_number = 3)), 'P0001', 'STATEMENT_HISTORICAL_REVENUE_NOT_ALLOWED', 'a native Pix is never historical revenue');
 reset role;
