@@ -190,7 +190,7 @@ function ImportFiles({ onImported }: { onImported: () => void }) {
         <input id="picpay-files" type="file" multiple accept=".csv,text/csv" className="g-input min-h-11 w-full" onChange={(event) => void choose(event.target.files)} />
       </Field>
       {busy && <p role="status" className="mt-3 flex items-center gap-2 text-sm text-[var(--g-text-secondary)]"><Loader2 className="size-4 animate-spin" />Lendo os arquivos…</p>}
-      {files.length > 0 && <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[56rem] text-left text-sm">
+      {files.length > 0 && <div role="region" aria-label="Arquivos escolhidos" tabIndex={0} className="mt-4 overflow-x-auto"><table className="w-full min-w-[56rem] text-left text-sm">
         <caption className="sr-only">Arquivos escolhidos</caption>
         <thead className="text-[var(--g-text-muted)]"><tr><th className="py-1 pr-3 font-medium">Arquivo</th><th className="py-1 pr-3 font-medium">Tipo</th><th className="py-1 pr-3 font-medium">Período</th><th className="py-1 pr-3 font-medium">Linhas</th><th className="py-1 pr-3 font-medium">Novas</th><th className="py-1 pr-3 font-medium">Já conhecidas</th><th className="py-1 pr-3 font-medium">Atualizadas</th><th className="py-1 pr-3 font-medium">Ambíguas</th><th className="py-1 font-medium">Situação</th></tr></thead>
         <tbody>{files.map((item) => <tr key={item.file.name + item.file.size} className="border-t border-[var(--g-border-subtle)] align-top">
@@ -341,7 +341,7 @@ function SettlementsPanel({ settlements }: { settlements: PicpaySettlements }) {
     <section aria-label="Recebíveis e liquidações">
       <div className="p-5"><h2 className="font-semibold">Recebíveis e liquidações</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Por dia de pagamento: o líquido que Minhas vendas espera receber contra o que o Extrato liquidou em “Recebíveis de venda”. A liquidação do PicPay é agregada; o vínculo é pelo dia, nunca inventado por venda.</p></div>
       {settlements.days.length === 0 ? <p className="px-5 pb-5 text-sm text-[var(--g-text-secondary)]">Nenhum recebível no período.</p>
-        : <div className="overflow-x-auto"><table className="w-full min-w-[40rem] text-left text-sm">
+        : <div role="region" aria-label="Liquidações por dia" tabIndex={0} className="overflow-x-auto"><table className="w-full min-w-[40rem] text-left text-sm">
           <caption className="sr-only">Liquidações por dia</caption>
           <thead className="border-y border-[var(--g-border-subtle)] text-[var(--g-text-muted)]"><tr><th className="p-3">Pagamento</th><th className="p-3">Situação</th><th className="p-3 text-right">Esperado</th><th className="p-3 text-right">Liquidado</th><th className="p-3 text-right">Último Recebíveis</th></tr></thead>
           <tbody className="divide-y divide-[var(--g-border-subtle)]">{settlements.days.map((day) => <tr key={day.paymentOn}>
@@ -360,7 +360,7 @@ function TransactionsPanel({ transactions }: { transactions: PicpayTransaction[]
     <section aria-label="Minhas vendas">
       <div className="p-5"><h2 className="font-semibold">Minhas vendas</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Transações da adquirente no período, com a taxa real do PicPay e a venda do PDV vinculada.</p></div>
       {transactions.length === 0 ? <p className="px-5 pb-5 text-sm text-[var(--g-text-secondary)]">Nenhuma transação no período.</p>
-        : <div className="overflow-x-auto"><table className="w-full min-w-[56rem] text-left text-sm">
+        : <div role="region" aria-label="Transações de Minhas vendas" tabIndex={0} className="overflow-x-auto"><table className="w-full min-w-[56rem] text-left text-sm">
           <caption className="sr-only">Transações de Minhas vendas</caption>
           <thead className="border-y border-[var(--g-border-subtle)] text-[var(--g-text-muted)]"><tr><th className="p-3">Venda</th><th className="p-3">Forma</th><th className="p-3">Status</th><th className="p-3">Terminal</th><th className="p-3 text-right">Bruto</th><th className="p-3 text-right">Taxa PicPay</th><th className="p-3 text-right">Líquido</th><th className="p-3">PDV</th></tr></thead>
           <tbody className="divide-y divide-[var(--g-border-subtle)]">{transactions.slice(0, 150).map((transaction) => <tr key={transaction.id}>
