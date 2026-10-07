@@ -51,6 +51,10 @@ function databaseErrorResponse(message: string, requestId: string) {
   if (message.includes("IDEMPOTENCY_IN_PROGRESS")) {
     return errorResponse("IDEMPOTENCY_IN_PROGRESS", "A conciliação já está em processamento", requestId, 409);
   }
+  if (message.includes("PAYMENT_RECONCILIATION_PICPAY_ONLY")) {
+    return errorResponse("PAYMENT_RECONCILIATION_PICPAY_ONLY",
+      "Pagamentos de Maquininha e Tap são conciliados pelas exportações do PicPay. Use Financeiro › Conciliação PicPay.", requestId, 409);
+  }
   if (message.includes("PAYMENT_ATTEMPT_NOT_RECONCILABLE")) {
     return errorResponse("PAYMENT_ATTEMPT_NOT_RECONCILABLE", "O pagamento não pode ser conciliado neste estado", requestId, 409);
   }

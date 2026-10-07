@@ -38,7 +38,7 @@ select public.checkout_sale(
 create temp table reversal_confirmation as
 select public.confirm_manual_payment(
   (select (result ->> 'sale_id')::uuid from reversal_checkout),
-  'MAQUININHA', 'NSU-REVERSAL-0001', 'CREDITO', null, 'reversal-confirm-1',
+  'PIX_AREA', 'PIX-REVERSAL-0001', null, null, 'reversal-confirm-1',
   '65000000-0000-4000-8000-000000000003'
 ) as result;
 select results_eq(

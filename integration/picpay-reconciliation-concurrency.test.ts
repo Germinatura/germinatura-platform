@@ -28,6 +28,15 @@ it("serializa importações concorrentes: exportações sobrepostas não duplica
     const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST", headers, body: JSON.stringify(input) });
     return { status: response.status, data: await response.json() as Record<string, unknown> };
   }
+  // The statement-only import is gone: a direct call finds no function, so files enter only through import_picpay_file.
+  for (const [name, input] of [
+    ["import_picpay_statement", { p_file_name: "x.csv", p_content: "x", p_accept_overlap: true, p_idempotency_key: `legacy:${randomUUID()}`, p_correlation_id: randomUUID() }],
+    ["preview_picpay_statement", { p_content: "x" }],
+  ] as const) {
+    const legacy = await rpc(name, input);
+    expect(legacy.status).toBe(404);
+    expect(legacy.data.code).toBe("PGRST202");
+  }
   const base = 100_000 + Math.floor(Math.random() * 800_000);
   const line = (day: string, movement: string, description: string, cents: number) =>
     `${day};${movement};${description};${cents > 0 ? "Entrada" : "Saída"};${dot(cents)};`;
