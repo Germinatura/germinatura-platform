@@ -213,7 +213,7 @@ function ImportFiles({ onImported }: { onImported: () => void }) {
 }
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return <div><dt className="text-sm text-[var(--g-text-secondary)]">{label}</dt><dd className="g-money mt-1 text-xl font-bold">{value}</dd>{hint && <p className="text-xs text-[var(--g-text-muted)]">{hint}</p>}</div>;
+  return <div><dt className="text-sm text-[var(--g-text-secondary)]">{label}</dt><dd className="mt-1"><span className="g-money block text-xl font-bold">{value}</span>{hint && <span className="block text-xs text-[var(--g-text-muted)]">{hint}</span>}</dd></div>;
 }
 
 function SummaryCards({ summary }: { summary: PicpaySummary }) {

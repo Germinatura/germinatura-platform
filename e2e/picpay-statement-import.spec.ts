@@ -25,7 +25,7 @@ test("financeiro importa o extrato PicPay na conciliação, recusa o mesmo arqui
   // The old address of the screen leads to the reconciliation.
   await page.goto(`${portalUrl}/admin/financeiro/importar-extrato`);
   await expect(page).toHaveURL(/\/admin\/financeiro\/conciliacao-picpay$/);
-  await expect(page.getByRole("heading", { name: "Conciliação PicPay", level: 1 })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("heading", { name: "Conciliação PicPay", level: 1 })).toBeVisible();
   // The import list is loaded by the client: once it shows, the file input has its handler.
   await expect(page.getByText(/aguardando revisão em todas as importações|Nenhum extrato importado/).first()).toBeVisible({ timeout: 90_000 });
 
