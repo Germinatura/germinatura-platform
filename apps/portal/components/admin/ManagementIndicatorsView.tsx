@@ -12,6 +12,7 @@ const shortDay = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 
 const channelLabels: Record<keyof ManagementIndicators["byChannel"], string> = {
   PDV: "PDV", ONLINE: "Venda online", RESERVA: "Reserva", RIFA: "Rifa", EVENTO: "Evento", MANUAL: "Lançamento manual",
+  HISTORICO_PICPAY: "Histórico PicPay (antes do Germinatura)",
 };
 const methodLabels: Record<string, string> = {
   DINHEIRO: "Dinheiro", PIX_AREA: "Área Pix", CREDITO: "Crédito", DEBITO: "Débito", VOUCHER_ALIMENTACAO: "Vale-alimentação",
@@ -159,7 +160,8 @@ function DailyChart({ daily }: { daily: ManagementIndicators["daily"] }) {
 
 function Table({ label, head, rows, empty }: { label: string; head: string[]; rows: string[][]; empty: string }) {
   if (!rows.length) return <p className="p-5 text-sm text-[var(--g-text-muted)]">{empty}</p>;
-  return <div className="overflow-x-auto"><table aria-label={label} className="mt-3 w-full text-left text-sm">
+  // Focusable so keyboard users can scroll a table wider than the card.
+  return <div role="region" aria-label={label} tabIndex={0} className="overflow-x-auto"><table aria-label={label} className="mt-3 w-full text-left text-sm">
     <thead className="bg-[var(--g-surface-subtle)] text-xs uppercase tracking-wide text-[var(--g-text-muted)]"><tr>{head.map((cell, index) => <th key={cell} className={`px-5 py-2 font-semibold ${index > 0 ? "text-right" : ""}`}>{cell}</th>)}</tr></thead>
     <tbody className="divide-y divide-[var(--g-border-subtle)]">{rows.map((row, rowIndex) => <tr key={`${row[0]}-${rowIndex}`}>{row.map((cell, index) => <td key={index} className={`px-5 py-2 ${index > 0 ? "g-money whitespace-nowrap text-right" : ""}`}>{cell}</td>)}</tr>)}</tbody>
   </table></div>;
