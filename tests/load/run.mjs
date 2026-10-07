@@ -110,12 +110,33 @@ async function adminPreflight(target, admin, password) {
     ["API lançamentos", `/api/v1/admin/finance/entries?from=${today}&to=${today}`],
     ["API importações PicPay", "/api/v1/admin/finance/statement-imports"],
     ["API indicadores", `/api/v1/admin/finance/indicators?from=${today}&to=${today}`],
+    ["tela saldo e conferência", "/admin/financeiro/saldo"],
+    ["API saldos", "/api/v1/admin/finance/balances"],
+    ["API abertura", "/api/v1/admin/finance/opening-position"],
+    ["API conferências", "/api/v1/admin/finance/balance-checks"],
   ]) {
     if (login.status !== 200) break;
     checks[label] = (await user.request(`preflight ${label}`, "GET", path)).status;
   }
-  console.log(`Preflight administrativo: ${JSON.stringify(checks)}`);
-  if (Object.values(checks).some((status) => status !== 200)) {
+  // The finance commands are reached with ids that do not exist: 404 proves permission, route and database function
+  // without writing anything (the database refuses inside the transaction, which is rolled back).
+  const missing = "00000000-0000-4000-8000-000000000000";
+  const selection = { movement: "PIX_RECEBIDO", from: null, to: null, lineIds: null, category: "RECEITA_HISTORICA" };
+  const key = () => ({ "Idempotency-Key": `preflight:${randomBytes(8).toString("hex")}` });
+  const commands = login.status !== 200 ? [] : [
+    ["API lote (prévia)", "POST", `/api/v1/admin/finance/statement-imports/${missing}/bulk/preview`, { body: selection }],
+    ["API lote (classificar)", "POST", `/api/v1/admin/finance/statement-imports/${missing}/bulk`, { body: { ...selection,
+      reason: "Preflight sem efeito", expectedCount: 1, expectedTotalCents: 1, expectedSelectionSha256: "0".repeat(64) }, headers: key() }],
+    ["API vínculo (candidatos)", "GET", `/api/v1/admin/finance/statement-lines/${missing}/link-candidates`, {}],
+    ["API vínculo", "POST", `/api/v1/admin/finance/statement-lines/${missing}/link`, {
+      body: { payableSettlementId: null, manualEntryId: missing, reason: null }, headers: key() }],
+  ];
+  const missingChecks = {};
+  for (const [label, method, path, options] of commands) {
+    missingChecks[label] = (await user.request(`preflight ${label}`, method, path, { ...options, expected: [404] })).status;
+  }
+  console.log(`Preflight administrativo: ${JSON.stringify(checks)}; comandos com ids inexistentes (esperado 404): ${JSON.stringify(missingChecks)}`);
+  if (Object.values(checks).some((status) => status !== 200) || Object.values(missingChecks).some((status) => status !== 404)) {
     throw new Error("Preflight: o administrador de carga não abriu o financeiro; veja os códigos acima.");
   }
 }
