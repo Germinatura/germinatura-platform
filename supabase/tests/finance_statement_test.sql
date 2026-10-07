@@ -18,16 +18,16 @@ create temp table period as select (now() at time zone 'America/Sao_Paulo')::dat
 create temp table baseline as select public.finance_statement((select day from period),(select day from period)) result;
 select lives_ok($$select public.adjust_stock('50000000-0000-4000-8000-000000000002','33f00000-0000-4000-8000-000000000001',6,'Estoque extrato','statement-stock',gen_random_uuid())$$,'admin prepares seller stock');
 
--- Seller: two cash sales and one card sale of R$ 25,90 each.
+-- Seller: two cash sales and one Área Pix sale (label card) of R$ 25,90 each.
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000002';
 create temp table shift as select public.open_seller_shift('50000000-0000-4000-8000-000000000002',5000,'statement-shift',gen_random_uuid()) result;
 create temp table st_sales(label text primary key, sale_id uuid);
 insert into st_sales select label, (public.checkout_sale('PDV','50000000-0000-4000-8000-000000000002','[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":1}]'::jsonb,'statement-'||label,gen_random_uuid())->>'sale_id')::uuid
 from unnest(array['cash','refunded','card']) label;
 select lives_ok($$select public.confirm_cash_payment(sale_id,2590,'statement-cash-'||label,gen_random_uuid()) from st_sales where label in ('cash','refunded')$$,'cash sales confirmed');
-select lives_ok($$select public.confirm_manual_payment((select sale_id from st_sales where label='card'),'MAQUININHA','NSU-STATEMENT-1','CREDITO',null,'statement-card',gen_random_uuid())$$,'card sale confirmed');
+select lives_ok($$select public.confirm_manual_payment((select sale_id from st_sales where label='card'),'PIX_AREA','PIX-STATEMENT-1',null,null,'statement-card',gen_random_uuid())$$,'Área Pix sale confirmed');
 
--- Finance: settle the card sale with a fee, refund one cash sale from the drawer, and record manual entries.
+-- Finance: settle the Área Pix sale with a fee, refund one cash sale from the drawer, and record manual entries.
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000001';
 select lives_ok($$select public.reconcile_payment_attempt((select id from public.payment_attempts where sale_id=(select sale_id from st_sales where label='card')),2590,59,'EXTRATO-STATEMENT-1','MANUAL','statement-reconcile',gen_random_uuid())$$,'card sale settled with a fee');
 select lives_ok($$select public.reverse_confirmed_sale((select sale_id from st_sales where label='refunded'),'Cliente devolveu o produto','EST-STATEMENT-1',(select (result->>'shift_id')::uuid from shift),'statement-reverse',gen_random_uuid())$$,'cash sale refunded from the drawer');

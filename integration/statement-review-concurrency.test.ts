@@ -30,8 +30,8 @@ it("serializa revisão em lote, revisão individual e vínculos concorrentes sem
   const line = (description: string, cents: number) => `${today};Pix enviado;${description};Saída;${money(cents)};`;
   const content = ["data;movimento;descrição;tipo;valor",
     line("Corrida individual", base), line("Corrida lote", base + 1), line("Vínculo A", base + 2), line("Vínculo B", base + 2), line("Lote duplo", base + 3)].join("\r\n");
-  const imported = await rpc("import_picpay_statement", { p_file_name: `corrida-${randomUUID()}.csv`, p_content: content,
-    p_accept_overlap: true, p_idempotency_key: `race-import:${randomUUID()}`, p_correlation_id: randomUUID() });
+  const imported = await rpc("import_picpay_file", { p_file_name: `corrida-${randomUUID()}.csv`, p_content: content,
+    p_idempotency_key: `race-import:${randomUUID()}`, p_correlation_id: randomUUID() });
   expect(imported.status).toBe(200);
   const importId = imported.data.id as string;
   const lines = await rpc("list_picpay_statement_lines", { p_import_id: importId, p_pending_only: true, p_after_line: null, p_limit: 50 });

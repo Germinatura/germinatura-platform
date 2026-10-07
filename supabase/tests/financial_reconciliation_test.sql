@@ -234,7 +234,7 @@ select results_eq(
 create temp table second_reconciliation_confirmation as
 select public.confirm_manual_payment(
   (select (result ->> 'sale_id')::uuid from second_reconciliation_checkout),
-  'MAQUININHA', 'NSU-RECONCILIATION-0002', 'CREDITO', null, 'reconciliation-confirm-2',
+  'PIX_AREA', 'PIX-RECONCILIATION-0002', null, null, 'reconciliation-confirm-2',
   '64000000-0000-4000-8000-000000000013'
 ) as result;
 select results_eq(
