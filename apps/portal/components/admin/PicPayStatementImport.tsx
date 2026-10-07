@@ -27,6 +27,7 @@ const movementLabels: Record<PicpayStatementMovement, string> = {
 };
 const statusLabels: Record<PicpayStatementLineStatus, string> = {
   TRANSFERENCIA: "Transferência", CONCILIADA_VENDA: "Conciliada com venda", CONCILIADA_ESTORNO: "Conciliada com estorno",
+  CONCILIADA_PICPAY: "Conciliada com Minhas vendas",
   CLASSIFICADA: "Classificada", VINCULADA: "Vinculada a registro", JA_REGISTRADO: "Já registrada", PENDENTE_REVISAO: "A revisar", PENDENTE_CLASSIFICACAO: "A classificar",
 };
 const errorLabels: Record<PicpayStatementErrorCode, string> = {

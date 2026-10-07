@@ -106,7 +106,7 @@ export const financeStatementQuerySchema = z.object({
 
 export const financeStatementRowSchema = z.object({
   occurredOn: calendarDay,
-  source: z.enum(["SALE", "PAYABLE", "MANUAL", "IMPORT", "OPENING"]),
+  source: z.enum(["SALE", "PAYABLE", "MANUAL", "IMPORT", "OPENING", "PICPAY"]),
   sourceId: z.uuid(),
   category: financeCategorySchema.nullable(),
   account: financeAccountSchema,

@@ -12,6 +12,7 @@ const shortDay = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
 
 const channelLabels: Record<keyof ManagementIndicators["byChannel"], string> = {
   PDV: "PDV", ONLINE: "Venda online", RESERVA: "Reserva", RIFA: "Rifa", EVENTO: "Evento", MANUAL: "Lançamento manual",
+  HISTORICO_PICPAY: "Histórico PicPay (antes do Germinatura)",
 };
 const methodLabels: Record<string, string> = {
   DINHEIRO: "Dinheiro", PIX_AREA: "Área Pix", CREDITO: "Crédito", DEBITO: "Débito", VOUCHER_ALIMENTACAO: "Vale-alimentação",
