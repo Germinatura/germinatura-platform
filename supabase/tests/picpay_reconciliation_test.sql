@@ -249,7 +249,7 @@ select is((select payment_attempt_id::text || '/' || link_evidence from private.
   (select attempt_id::text from pdv where label = 'card') || '/REFERENCIA', 'the native card is linked by the NSU the seller typed');
 select ok(not exists (select 1 from private.picpay_acquirer_effects(pg_temp.opening_on(), pg_temp.today()) where category = 'RECEITA_HISTORICA'
   and source_id in (select transaction_id from private.picpay_transactions_view where not historical)), 'a native transaction never creates revenue');
-select is((select sum(amount_cents)::bigint from private.picpay_acquirer_effects(pg_temp.today(), pg_temp.today()) where category = 'TAXAS'
+select is((select sum(amount_cents)::bigint from private.picpay_acquirer_effects(pg_temp.today() - 1, pg_temp.today()) where category = 'TAXAS'
   and account = 'RECEBIVEIS_PICPAY'), -90::bigint, 'the real card fee of the native sale reduces receivables');
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
