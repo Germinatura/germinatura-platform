@@ -15,6 +15,8 @@ A venda do Germinatura é a verdade comercial. Minhas vendas não cria receita n
 
 ## Importar
 
+A Conciliação PicPay é o único caminho suportado para importar arquivos do PicPay. A importação antiga só do Extrato (`import_picpay_statement` e `preview_picpay_statement`) foi retirada do banco em 07/10/2026. O que ela gravou continua legível na revisão das linhas do Extrato.
+
 1. Exporte do PicPay Empresas os três arquivos CSV: Minhas vendas, Recebíveis e Extrato. Os arquivos podem ir juntos ou separados, em qualquer ordem e com períodos sobrepostos (por exemplo, uma exportação semanal que repete dias).
 2. Na tela, escolha os arquivos. O tipo vem do cabeçalho; arquivo sem cabeçalho reconhecido é recusado sem gravar nada.
 3. Confira a prévia de cada arquivo: período, linhas, novas, já conhecidas, atualizadas, ambíguas e erros. Nada é gravado na prévia.
@@ -33,6 +35,7 @@ O arquivo bruto não é guardado. Nome, documento, e-mail e telefone do comprado
 
 - **PDV ↔ Minhas vendas:** primeiro a evidência mais forte (NSU ou código de autorização da maquininha), depois valor + forma + horário (até 30 minutos). O vínculo automático exige candidata única nos dois sentidos; senão vira pendência. O vínculo manual exige motivo e é desfeito só por desvínculo auditado. O número do terminal é preservado.
 - **Pix:** as vendas Pix de um dia (Aprovadas e Devolvidas) são comparadas como multiconjunto de valores com as linhas Pix recebido do mesmo dia. A taxa Pix do PicPay é zero. Pix estornado concilia com a devolução de mesmo dia e valor.
+- **Maquininha e Tap:** são conciliados só pelas evidências do PicPay (Minhas vendas, Recebíveis e Extrato). A conciliação manual (`POST /api/v1/payments/:id/reconciliations`, função `reconcile_payment_attempt`) recusa esses canais com `PAYMENT_RECONCILIATION_PICPAY_ONLY`, também em chamada direta ao banco, para que o mesmo dinheiro nunca entre duas vezes. Área Pix e pagamentos online seguem aceitos. Conciliações antigas continuam como foram registradas.
 - **Cartão:** o PicPay liquida em lote. Por dia de pagamento, compara-se o líquido esperado em Minhas vendas com as linhas Recebíveis de venda do Extrato: Liquidado, Parcial, Excedente, Em atraso ou A receber. O vínculo é pelo dia, nunca inventado por venda (1:N, N:1 e lote).
 - **Taxas:** a taxa real de cada transação vem de Minhas vendas. Invariante verificada em cada linha: bruto − tarifa − custo fixo − taxa de parcelamento − cancelado = líquido.
 - **Devolvida:** transação devolvida tem líquido zero e cancelado igual ao bruto. Sem estorno correspondente no PDV, vira pendência.
@@ -47,6 +50,7 @@ O arquivo bruto não é guardado. Nome, documento, e-mail e telefone do comprado
 ## Cutover
 
 - Abertura em 27/08/2026 (livre R$ 0,00, Cofrinho R$ 111,78, recebíveis e dinheiro físico zero). Histórico até 06/10/2026 inclusive. Operação nativa a partir de 07/10/2026 (`operating_since`).
+- Datas confirmadas pela auditoria read-only da produção em 06/10/2026, feita pelo responsável: nenhuma venda, tentativa de pagamento aprovada ou conciliada, lançamento de ledger, pagamento a fornecedor, lançamento manual, conciliação, movimento de caixa, importação de Extrato, posição de abertura ou conferência de saldo.
 - A fronteira vem só da versão vigente da posição de abertura. O importador não tem data fixa.
 - **Antes de `operating_since`:** a transação de Minhas vendas sem venda no PDV carrega a receita histórica (`RECEITA_HISTORICA`).
   - **Cartão:** o bruto vai para Recebíveis e a taxa para Taxas.
@@ -81,5 +85,4 @@ Nunca vão para fixtures, staging, Supabase remoto ou produção. A CI usa apena
 
 ## Limites conhecidos
 
-- A rota antiga de importação só do Extrato saiu da API do Portal. As funções `import_picpay_statement` e `preview_picpay_statement` continuam no banco (usadas por testes) e ainda podem ser chamadas diretamente por quem tem `finance.manage`. Elas não fazem a deduplicação por multiconjunto. Retirar essas funções numa migration futura.
 - Open Finance continua fora (FIN-004).
