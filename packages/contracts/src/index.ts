@@ -12,6 +12,7 @@ export * from "./stock-losses";
 export * from "./inventory-counts";
 export * from "./cash-shifts";
 export * from "./finance-entries";
+export * from "./finance-treasury";
 export * from "./payment-link-admin";
 export * from "./raffle-pdv";
 export * from "./share-campaigns";
@@ -20,6 +21,7 @@ export * from "./management-indicators";
 export * from "./fundraising-goal";
 export * from "./audit";
 export * from "./picpay-statement";
+export * from "./picpay-reconciliation";
 export * from "./portal-events";
 export * from "./portal-showcase";
 

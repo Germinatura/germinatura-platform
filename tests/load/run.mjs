@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { VirtualUser } from "./lib/client.mjs";
 import { stagingTarget } from "./lib/guard.mjs";
 import { stagingSql } from "./lib/staging-sql.mjs";
 import { browsing, contention, loginLog, operating, soak } from "./scenarios.mjs";
@@ -38,11 +39,17 @@ async function main() {
     body: JSON.stringify({ email: emails.get(username), password }),
   }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).error_code ?? null })).catch(() => ({ status: 0 })) : null;
   const context = { target, fixtures, password, sql, run, diagnose };
-  await preflight(target, fixtures, password, sql);
   const results = { run, startedAt: new Date().toISOString(), stagingVersion: sha ?? null, scenarios: {} };
   const save = () => writeFileSync(join(output, "results.json"), JSON.stringify(results, null, 2));
 
   try {
+    await preflight(target, fixtures, password, sql);
+    // Preflight only: hold long enough for the per-minute Jobs cron to run under the tail, then report the outbox.
+    if (!scenarios.some((name) => ["A", "B", "C", "D"].includes(name))) {
+      await outboxSnapshot(sql, "antes");
+      await new Promise((resolve) => setTimeout(resolve, 150_000));
+      await outboxSnapshot(sql, "depois de 150 s");
+    }
     if (scenarios.includes("A")) { console.log("A — 50 consumidores navegando…"); results.scenarios.A = await browsing({ ...context, minutes: Number(option("minutes-a", 10)) }); save(); }
     if (scenarios.includes("B")) { console.log("B — 15 vendedores no PDV…"); results.scenarios.B = await operating({ ...context, minutes: Number(option("minutes-b", 10)) }); save(); }
     if (scenarios.includes("C")) { console.log("C — concorrência controlada…"); results.scenarios.C = await contention(context); save(); }
@@ -76,6 +83,72 @@ async function preflight(target, fixtures, password, sql) {
   }).then(async (response) => ({ status: response.status, code: (await response.json().catch(() => ({}))).code ?? null }));
   console.log(`Preflight: perfil ${JSON.stringify(profile)}; Auth ${JSON.stringify(auth)}; Portal ${JSON.stringify(portal)}`);
   if (portal.status !== 200) throw new Error("Preflight: o login de carga falhou; veja os códigos acima.");
+  await adminPreflight(target, fixtures.admin, password);
+}
+
+// Outbox state, counts and ages only: whether the Jobs Worker is draining events.
+async function outboxSnapshot(sql, label) {
+  const [row] = await sql(`select count(*) filter (where status = 'PENDING')::int as pending,
+    count(*) filter (where status = 'PROCESSING')::int as processing, count(*) filter (where status = 'FAILED')::int as failed,
+    coalesce(extract(epoch from now() - min(created_at) filter (where status = 'PENDING')), 0)::int as oldest_pending_seconds,
+    coalesce(extract(epoch from now() - max(published_at)), -1)::int as last_published_seconds_ago
+    from public.outbox_events`).catch(() => [null]);
+  console.log(`Outbox (${label}): ${JSON.stringify(row ?? { error: true })}`);
+}
+
+// The run's administrator signs in and opens the finance screens and their APIs; only statuses are printed.
+async function adminPreflight(target, admin, password) {
+  const user = new VirtualUser(target.portal, null);
+  const login = await user.request("auth.login", "POST", "/api/auth/login", { body: { identifier: admin.username, password } });
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const checks = { login: login.status };
+  for (const [label, path] of [
+    ["tela extrato", "/admin/financeiro/extrato"],
+    ["tela conciliação PicPay", "/admin/financeiro/conciliacao-picpay"],
+    ["tela indicadores", "/admin/financeiro/indicadores"],
+    ["API extrato", `/api/v1/admin/finance/statement?from=${today}&to=${today}`],
+    ["API lançamentos", `/api/v1/admin/finance/entries?from=${today}&to=${today}`],
+    ["API importações PicPay", "/api/v1/admin/finance/statement-imports"],
+    ["API indicadores", `/api/v1/admin/finance/indicators?from=${today}&to=${today}`],
+    ["tela saldo e conferência", "/admin/financeiro/saldo"],
+    ["API saldos", "/api/v1/admin/finance/balances"],
+    ["API abertura", "/api/v1/admin/finance/opening-position"],
+    ["API conferências", "/api/v1/admin/finance/balance-checks"],
+    ["API arquivos PicPay", "/api/v1/admin/finance/picpay/files"],
+    ["API resumo PicPay", `/api/v1/admin/finance/picpay/summary?from=${today}&to=${today}`],
+    ["API pendências PicPay", `/api/v1/admin/finance/picpay/exceptions?from=${today}&to=${today}`],
+    ["API Minhas vendas", `/api/v1/admin/finance/picpay/transactions?from=${today}&to=${today}`],
+    ["API liquidações PicPay", `/api/v1/admin/finance/picpay/settlements?from=${today}&to=${today}`],
+    ["API períodos PicPay", "/api/v1/admin/finance/picpay/periods"],
+  ]) {
+    if (login.status !== 200) break;
+    checks[label] = (await user.request(`preflight ${label}`, "GET", path)).status;
+  }
+  // The finance commands are reached with ids that do not exist: 404 proves permission, route and database function
+  // without writing anything (the database refuses inside the transaction, which is rolled back).
+  const missing = "00000000-0000-4000-8000-000000000000";
+  const selection = { movement: "PIX_RECEBIDO", from: null, to: null, lineIds: null, category: "RECEITA_HISTORICA" };
+  const key = () => ({ "Idempotency-Key": `preflight:${randomBytes(8).toString("hex")}` });
+  const commands = login.status !== 200 ? [] : [
+    ["API lote (prévia)", "POST", `/api/v1/admin/finance/statement-imports/${missing}/bulk/preview`, { body: selection }],
+    ["API lote (classificar)", "POST", `/api/v1/admin/finance/statement-imports/${missing}/bulk`, { body: { ...selection,
+      reason: "Preflight sem efeito", expectedCount: 1, expectedTotalCents: 1, expectedSelectionSha256: "0".repeat(64) }, headers: key() }],
+    ["API vínculo (candidatos)", "GET", `/api/v1/admin/finance/statement-lines/${missing}/link-candidates`, {}],
+    ["API vínculo", "POST", `/api/v1/admin/finance/statement-lines/${missing}/link`, {
+      body: { payableSettlementId: null, manualEntryId: missing, reason: null }, headers: key() }],
+    ["API vínculo PicPay", "POST", `/api/v1/admin/finance/picpay/transactions/${missing}/link`, {
+      body: { paymentAttemptId: null, reason: "Preflight sem efeito" }, headers: key() }],
+    ["API pendência PicPay", "POST", "/api/v1/admin/finance/picpay/exceptions/resolve", {
+      body: { key: `PICPAY_SEM_PDV:${missing}`, action: "RESOLVIDA", reason: "Preflight sem efeito" }, headers: key() }],
+  ];
+  const missingChecks = {};
+  for (const [label, method, path, options] of commands) {
+    missingChecks[label] = (await user.request(`preflight ${label}`, method, path, { ...options, expected: [404] })).status;
+  }
+  console.log(`Preflight administrativo: ${JSON.stringify(checks)}; comandos com ids inexistentes (esperado 404): ${JSON.stringify(missingChecks)}`);
+  if (Object.values(checks).some((status) => status !== 200) || Object.values(missingChecks).some((status) => status !== 404)) {
+    throw new Error("Preflight: o administrador de carga não abriu o financeiro; veja os códigos acima.");
+  }
 }
 
 function summarizeLogins() {

@@ -30,7 +30,7 @@ function pageTitle(pathname: string, user: SidebarUser | null) {
   if (pathname.startsWith("/admin/financeiro/vendas")) return "Vendas";
   if (pathname.startsWith("/admin/financeiro/lancamentos")) return "Lançamentos";
   if (pathname.startsWith("/admin/financeiro/extrato")) return "Extrato financeiro";
-  if (pathname.startsWith("/admin/financeiro/importar-extrato")) return "Extrato PicPay";
+  if (pathname.startsWith("/admin/financeiro/conciliacao-picpay")) return "Conciliação PicPay";
   if (pathname.startsWith("/admin/financeiro/indicadores")) return "Indicadores";
   if (pathname.startsWith("/admin/configuracoes")) return "Configurações";
   if (pathname.startsWith("/admin/auditoria")) return "Auditoria";

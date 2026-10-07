@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  automaticFinanceCategories, financeAccountSchema, financeCategorySchema, financeEntriesResponseSchema, financeEntryResponseSchema,
+  automaticFinanceCategories, statementOnlyFinanceCategories, financeAccountSchema, financeCategorySchema, financeEntriesResponseSchema, financeEntryResponseSchema,
   recordFinanceEntryRequestSchema, type FinanceAccount, type FinanceCategory, type FinanceEntriesResponse, type FinanceEntry,
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
@@ -16,7 +16,8 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Pa
 const formatDay = (value: string) => value.split("-").reverse().join("/");
 
 const kindLabels: Record<FinanceEntry["kind"], string> = { EXPENSE: "Despesa", INCOME: "Receita", TRANSFER: "Transferência", REVERSAL: "Estorno" };
-const manualCategories = financeCategorySchema.options.filter((category) => !automaticFinanceCategories.includes(category));
+const manualCategories = financeCategorySchema.options.filter((category) => !automaticFinanceCategories.includes(category)
+  && !statementOnlyFinanceCategories.includes(category));
 const accounts = financeAccountSchema.options;
 
 function parseCents(value: string): number | null {

@@ -3,11 +3,13 @@ import { z } from "zod";
 // Spec 5.8 (FIN-005): simplified category plan, treasury accounts and audited manual entries.
 export const financeCategorySchema = z.enum([
   "VENDA_PDV", "VENDA_ONLINE", "RESERVA", "RIFA", "EVENTO", "FORNECEDOR", "TAXAS", "MENSALIDADES",
-  "TRANSPORTE", "MATERIAIS", "REEMBOLSO", "AJUSTE", "OUTROS",
+  "TRANSPORTE", "MATERIAIS", "REEMBOLSO", "AJUSTE", "OUTROS", "RECEITA_HISTORICA",
 ]);
 export type FinanceCategory = z.infer<typeof financeCategorySchema>;
 /** Sale, reservation and raffle revenue only comes from automatic financial events. */
 export const automaticFinanceCategories: readonly FinanceCategory[] = ["VENDA_PDV", "VENDA_ONLINE", "RESERVA", "RIFA"];
+/** Revenue raised before the cutover: only reviewed PicPay statement lines dated before operating_since carry it. */
+export const statementOnlyFinanceCategories: readonly FinanceCategory[] = ["RECEITA_HISTORICA"];
 export const financeAccountSchema = z.enum(["PICPAY_EMPRESAS", "DINHEIRO_FISICO", "RECEBIVEIS_PICPAY", "PENDENTE_LIQUIDACAO", "COFRINHO_PICPAY"]);
 export type FinanceAccount = z.infer<typeof financeAccountSchema>;
 
@@ -37,6 +39,9 @@ export const recordFinanceEntryRequestSchema = z.object({
   }
   if (value.category && automaticFinanceCategories.includes(value.category)) {
     context.addIssue({ code: "custom", path: ["category"], message: "Esta receita vem só das vendas registradas" });
+  }
+  if (value.category && statementOnlyFinanceCategories.includes(value.category)) {
+    context.addIssue({ code: "custom", path: ["category"], message: "Receita histórica vem só do extrato PicPay revisado" });
   }
 });
 export type RecordFinanceEntryRequest = z.infer<typeof recordFinanceEntryRequestSchema>;
@@ -88,7 +93,11 @@ export const financeEntriesResponseSchema = z.object({
 }).strict();
 export type FinanceEntriesResponse = z.infer<typeof financeEntriesResponseSchema>;
 
-// FIN-006: consolidated statement of automatic and manual entries (transfers have no category).
+// FIN-006: consolidated statement of automatic and manual entries (transfers and the opening position have no category).
+export const financeStatementNatureSchema = z.enum([
+  "RECEITA", "DESPESA", "TRANSFERENCIA_INTERNA", "CONCILIACAO", "ESTORNO", "SALDO_ABERTURA",
+]);
+export type FinanceStatementNature = z.infer<typeof financeStatementNatureSchema>;
 export const financeStatementQuerySchema = z.object({
   from: calendarDay,
   to: calendarDay,
@@ -97,13 +106,14 @@ export const financeStatementQuerySchema = z.object({
 
 export const financeStatementRowSchema = z.object({
   occurredOn: calendarDay,
-  source: z.enum(["SALE", "PAYABLE", "MANUAL", "IMPORT"]),
+  source: z.enum(["SALE", "PAYABLE", "MANUAL", "IMPORT", "OPENING", "PICPAY"]),
   sourceId: z.uuid(),
   category: financeCategorySchema.nullable(),
   account: financeAccountSchema,
   amountCents: cents,
   description: z.string(),
   reference: z.string().nullable(),
+  nature: financeStatementNatureSchema,
 }).strict();
 export type FinanceStatementRow = z.infer<typeof financeStatementRowSchema>;
 

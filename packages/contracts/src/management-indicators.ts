@@ -17,7 +17,7 @@ export const managementIndicatorsSchema = z.object({
     operatingProfitCents: cents, cashBalanceCents: cents, salesCount: z.number().int(), refundedSales: z.number().int(),
     averageTicketCents: cents.nullable(), costComplete: z.boolean(),
   }).strict(),
-  byChannel: z.object({ PDV: cents, ONLINE: cents, RESERVA: cents, RIFA: cents, EVENTO: cents, MANUAL: cents }).strict(),
+  byChannel: z.object({ PDV: cents, ONLINE: cents, RESERVA: cents, RIFA: cents, EVENTO: cents, MANUAL: cents, HISTORICO_PICPAY: cents }).strict(),
   byPaymentMethod: z.record(z.string(), cents),
   refundsByPaymentMethod: z.record(z.string(), cents),
   expensesByCategory: z.record(z.string(), cents),

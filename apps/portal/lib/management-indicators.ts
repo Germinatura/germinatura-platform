@@ -14,7 +14,7 @@ const databaseSchema = z.object({
     operating_profit_cents: n, cash_balance_cents: n, sales_count: n, refunded_sales: n, average_ticket_cents: nullableNumber,
     cost_complete: z.boolean(),
   }),
-  by_channel: z.object({ PDV: n, ONLINE: n, RESERVA: n, RIFA: n, EVENTO: n, MANUAL: n }),
+  by_channel: z.object({ PDV: n, ONLINE: n, RESERVA: n, RIFA: n, EVENTO: n, MANUAL: n, HISTORICO_PICPAY: n }),
   by_payment_method: z.record(z.string(), n),
   refunds_by_payment_method: z.record(z.string(), n),
   expenses_by_category: z.record(z.string(), n),
