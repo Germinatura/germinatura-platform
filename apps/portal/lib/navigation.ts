@@ -92,7 +92,7 @@ function financeItems(): ItemDefinition[] {
     ["sales", Receipt, "Vendas", "/admin/financeiro/vendas", ["venda", "estorno", "pagamento", "recibo"]],
     ["entries", BookOpenText, "Lançamentos", "/admin/financeiro/lancamentos", ["despesa", "receita", "lancamento manual", "transferencia"]],
     ["statement", ChartNoAxesColumn, "Extrato", "/admin/financeiro/extrato", ["extrato", "saldo", "contas", "movimentos"]],
-    ["statement-import", FileUp, "Extrato PicPay", "/admin/financeiro/importar-extrato", ["importar", "csv", "conciliacao", "picpay"]],
+    ["picpay-reconciliation", FileUp, "Conciliação PicPay", "/admin/financeiro/conciliacao-picpay", ["importar", "csv", "conciliacao", "picpay", "minhas vendas", "recebiveis", "extrato", "taxa"]],
     ["closeouts", ClipboardCheck, "Fechamentos", "/admin/fechamentos", ["fechamento", "periodo", "conferencia"]],
     ["payables", Banknote, "Contas a pagar", "/admin/financeiro/contas-a-pagar", ["boleto", "fornecedor", "vencimento", "pagar"]],
     ["shifts", HandCoins, "Turnos de caixa", "/admin/financeiro/turnos", ["turno", "caixa", "dinheiro", "troco", "conferencia"]],

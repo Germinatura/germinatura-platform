@@ -64,13 +64,19 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
     line("Pix recebido", `Cliente ${tag} A`, base), line("Pix recebido", `Cliente ${tag} B`, base + 1),
     line("Recebíveis de venda", "Vendas maquininha", base + 2), line("Pix enviado", `Gráfica ${tag}`, -(base + 3)),
     line("Pix enviado", `Frete ${tag}`, -(base + 4))].join("\r\n");
-  const imported = await page.request.post(`${portalUrl}/api/v1/admin/finance/statement-imports?fileName=historico-${tag}.csv&acceptOverlap=true`, {
+  const imported = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/files?fileName=historico-${tag}.csv`, {
     headers: { Origin: portalUrl, "Idempotency-Key": `e2e-cutover-import-${tag}`, "Content-Type": "text/csv" }, data: Buffer.from(csv),
   });
   expect(imported.status()).toBe(201);
-  const statementImport = (await imported.json() as { data: { number: number; statusCounts: { PENDENTE_REVISAO: number; TRANSFERENCIA: number }; cutoverLines: number } }).data;
-  expect(statementImport.statusCounts).toMatchObject({ PENDENTE_REVISAO: 5, TRANSFERENCIA: 0 });
-  expect(statementImport.cutoverLines).toBe(5);
+  const importedFile = (await imported.json() as { data: { id: string; sourceType: string; newCount: number } }).data;
+  expect(importedFile).toMatchObject({ sourceType: "PICPAY_STATEMENT", newCount: 5 });
+  // Without Minhas vendas for that day nothing explains the lines: all five wait for review as cutover history.
+  const statementImports = await (await page.request.get(`${portalUrl}/api/v1/admin/finance/statement-imports`)).json() as {
+    data: Array<{ id: string; number: number; statusCounts: { PENDENTE_REVISAO: number; TRANSFERENCIA: number }; cutoverLines: number }>;
+  };
+  const statementImport = statementImports.data.find((item) => item.id === importedFile.id);
+  expect(statementImport?.statusCounts).toMatchObject({ PENDENTE_REVISAO: 5, TRANSFERENCIA: 0 });
+  expect(statementImport?.cutoverLines).toBe(5);
   // The Pix sent for the print shop was already paid through a manual entry.
   expect((await page.request.post(`${portalUrl}/api/v1/admin/finance/entries`, {
     headers: { Origin: portalUrl, "Idempotency-Key": `e2e-cutover-entry-${tag}` },
@@ -78,10 +84,10 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
       occurredOn: historyDay, description: `Impressão ${tag}`, reference: null },
   })).status()).toBe(201);
 
-  await page.goto(`${portalUrl}/admin/financeiro/importar-extrato`);
+  await page.goto(`${portalUrl}/admin/financeiro/conciliacao-picpay`);
   const imports = page.getByRole("list", { name: "Importações" });
   await expect(imports).toBeVisible({ timeout: 90_000 });
-  await imports.getByRole("listitem").filter({ hasText: `Importação nº ${statementImport.number} ` }).getByRole("button", { name: "Ver linhas" }).click();
+  await imports.getByRole("listitem").filter({ hasText: `Importação nº ${statementImport?.number} ` }).getByRole("button", { name: "Ver linhas" }).click();
 
   // Bulk: the two historical Pix received become historical revenue after a preview and a strong confirmation.
   const bulk = page.getByRole("region", { name: "Classificação em lote" });
