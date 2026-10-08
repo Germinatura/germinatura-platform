@@ -1,7 +1,7 @@
 "use client";
 
 import { credentialLoginRequestSchema } from "@germinatura/contracts";
-import { BrandMark, Button, Card, Field, Input } from "@germinatura/ui";
+import { BrandMark, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
 import { LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -49,8 +49,8 @@ export default function LoginPage() {
         </header>
         <form onSubmit={submit} className="space-y-5 px-6 pb-8 sm:px-8">
           {error && <p role="alert" className="rounded-[var(--g-radius-control)] border border-[var(--g-status-danger)]/50 bg-[var(--g-surface-subtle)] px-4 py-3 text-sm font-semibold text-[var(--g-status-danger)]">{error}</p>}
-          <Field id="pdv-identifier" label="Usuário ou e-mail"><div className="relative"><UserRound aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input id="pdv-identifier" required autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} className="g-input--with-icon" /></div></Field>
-          <Field id="pdv-password" label="Senha"><div className="relative"><LockKeyhole aria-hidden="true" className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input id="pdv-password" required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="g-input--with-icon" /></div></Field>
+          <Field id="pdv-identifier" label="Usuário ou e-mail"><InputGroup icon={<UserRound />}><Input id="pdv-identifier" required autoComplete="username" value={identifier} onChange={(event) => setIdentifier(event.target.value)} /></InputGroup></Field>
+          <Field id="pdv-password" label="Senha"><InputGroup icon={<LockKeyhole />}><Input id="pdv-password" required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></InputGroup></Field>
           <Button type="submit" variant="brand" size="lg" className="w-full" loading={loading}>Entrar</Button>
           <a href={`${portalUrl}/esqueci-senha`} className="block min-h-11 py-3 text-center text-sm font-semibold text-[var(--g-text-secondary)] hover:text-[var(--g-text-primary)] hover:underline">Esqueci minha senha</a>
         </form>

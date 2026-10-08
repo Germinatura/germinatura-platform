@@ -4,7 +4,7 @@ import {
   automaticFinanceCategories, statementOnlyFinanceCategories, financeAccountSchema, financeCategorySchema, financeEntriesResponseSchema, financeEntryResponseSchema,
   recordFinanceEntryRequestSchema, type FinanceAccount, type FinanceCategory, type FinanceEntriesResponse, type FinanceEntry,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, Loader2, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -161,9 +161,9 @@ export function FinanceEntriesManagement() {
               </div>
               {entry.reversedBy && <p className="mt-2 text-xs text-[var(--g-text-muted)]">Estornado.</p>}
               {entry.kind !== "REVERSAL" && !entry.reversedBy && (reversing?.id === entry.id
-                ? <div className="mt-3 flex flex-wrap items-end gap-2"><Field id={`reverse-reason-${entry.id}`} label="Motivo do estorno" className="min-w-64 flex-1"><Input id={`reverse-reason-${entry.id}`} maxLength={300} value={reversing.reason} onChange={(event) => setReversing({ id: entry.id, reason: event.target.value })} /></Field>
-                  <Button type="button" size="sm" variant="danger" loading={busyReverse} disabled={busyReverse || reversing.reason.trim().length < 8} onClick={() => void reverse()}>Confirmar estorno</Button>
-                  <Button type="button" size="sm" variant="ghost" disabled={busyReverse} onClick={() => setReversing(null)}>Cancelar</Button></div>
+                ? <div className="mt-3 flex flex-wrap items-start gap-2"><ReasonField id={`reverse-reason-${entry.id}`} label="Motivo do estorno" className="min-w-64 flex-1" minLength={8} maxLength={300} value={reversing.reason} onChange={(value) => setReversing({ id: entry.id, reason: value })} />
+                  <div className="g-field-action"><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="danger" loading={busyReverse} disabled={busyReverse || reversing.reason.trim().length < 8} onClick={() => void reverse()}>Confirmar estorno</Button>
+                  <Button type="button" size="sm" variant="ghost" disabled={busyReverse} onClick={() => setReversing(null)}>Cancelar</Button></div></div></div>
                 : <Button type="button" size="sm" variant="ghost" className="mt-2" onClick={() => setReversing({ id: entry.id, reason: "" })}><RotateCcw className="size-4" />Estornar</Button>)}
             </li>;
           })}

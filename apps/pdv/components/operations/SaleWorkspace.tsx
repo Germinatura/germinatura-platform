@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, BrandMark, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, BrandMark, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
 import type {
   CardPaymentMethod,
   CashPaymentResponse,
@@ -276,7 +276,7 @@ function CatalogStep(props: CatalogProps) {
   return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
     <section aria-label="Catálogo">
       <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
-        <label className="relative block"><span className="sr-only">Buscar produtos</span><Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input value={props.query} onChange={(event) => props.onQuery(event.target.value)} placeholder="Buscar produto, categoria ou SKU" className="g-input--with-icon" /></label>
+        <label className="block min-w-0"><span className="sr-only">Buscar produtos</span><InputGroup icon={<Search />}><Input value={props.query} onChange={(event) => props.onQuery(event.target.value)} placeholder="Buscar produto, categoria ou SKU" /></InputGroup></label>
         {props.locations.length > 1 && <label><span className="sr-only">Localização da venda</span><select value={props.locationId} onChange={(event) => props.onLocation(event.target.value)} className="min-h-11 w-full rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] bg-[var(--g-surface-default)] px-4 focus-visible:outline-3 focus-visible:outline-[var(--g-focus-ring)]">{props.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}
       </div>
       {props.catalog.length === 0 ? <EmptyState icon={PackageSearch} title="Nenhum produto encontrado" description="Tente outro termo ou peça a um administrador para conferir o catálogo e o estoque deste local." />

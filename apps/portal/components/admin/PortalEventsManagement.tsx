@@ -4,7 +4,7 @@ import {
   portalEventResponseSchema, portalEventsAdminResponseSchema, publicCatalogProductsResponseSchema, savePortalEventRequestSchema,
   type PortalEvent, type PortalEventKind, type PortalEventsAdminResponse, type PublicCatalogProduct,
 } from "@germinatura/contracts";
-import { Button, Card, Field, Input } from "@germinatura/ui";
+import { Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, ImageUp, Loader2, Plus, Send, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { eventBadge, eventWhen } from "@/components/events/PortalEvents";
@@ -166,10 +166,12 @@ export function PortalEventsManagement() {
             <Field id={`cover-alt-${event.id}`} label="Descrição da imagem" className="min-w-64 flex-1"><Input id={`cover-alt-${event.id}`} maxLength={180} value={cover.alt} onChange={(change) => setCover({ ...cover, alt: change.target.value })} /></Field>
             <Button type="button" size="sm" loading={busy} disabled={busy || !cover.file || !cover.alt.trim()} onClick={() => void uploadCover()}>Enviar capa</Button>
           </div>}
-          {cancelling?.id === event.id && <div className="flex flex-wrap items-end gap-2">
-            <Field id={`cancel-reason-${event.id}`} label="Motivo do cancelamento" className="min-w-64 flex-1"><Input id={`cancel-reason-${event.id}`} maxLength={300} value={cancelling.reason} onChange={(change) => setCancelling({ id: event.id, reason: change.target.value })} /></Field>
+          {cancelling?.id === event.id && <div className="flex flex-wrap items-start gap-2">
+            <ReasonField id={`cancel-reason-${event.id}`} label="Motivo do cancelamento" className="min-w-64 flex-1" minLength={8} maxLength={300} value={cancelling.reason} onChange={(value) => setCancelling({ id: event.id, reason: value })} />
+            <div className="g-field-action"><div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="danger" loading={busy} disabled={busy || cancelling.reason.trim().length < 8} onClick={() => void transition(event.id, { action: "CANCELAR", reason: cancelling.reason.trim() }).then((ok) => ok && setCancelling(null))}>Confirmar cancelamento</Button>
             <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setCancelling(null)}>Voltar</Button>
+            </div></div>
           </div>}
         </li>)}</ul>}
     </Card>

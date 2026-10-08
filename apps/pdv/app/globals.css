@@ -35,6 +35,3 @@ button, a, input, select {
   color: var(--g-text-primary);
 }
 
-.g-input--with-icon {
-  padding-left: 3rem;
-}

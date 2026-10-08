@@ -1,7 +1,7 @@
 "use client";
 
 import type { PublicCatalogProduct, SellerCloseoutResponse } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, PackageCheck } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -93,7 +93,7 @@ export function CloseoutWorkspace({
       </div>
     </Card>
     <Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5 md:px-6"><h2 className="font-semibold">Contagem física</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Informe todos os itens da localização {sellerLocation.name}.</p></div><div className="divide-y divide-[var(--g-border-subtle)]">{products.map((product) => <div key={product.productId} className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-center md:px-6"><div><p className="font-semibold">{product.name}</p><p className="mt-1 text-xs text-[var(--g-text-muted)]">SKU {product.sku} · saldo do sistema {product.expectedQuantity}</p></div><Field id={`count-${product.productId}`} label="Quantidade contada"><Input id={`count-${product.productId}`} type="number" inputMode="numeric" min={0} step={1} value={counts[product.productId] ?? ""} onChange={(event) => { setCounts((current) => ({ ...current, [product.productId]: event.target.value })); idempotencyKey.current = operationKey(); }} /></Field></div>)}</div></Card>
-    <Card className="p-5 md:p-6"><Field id="closeout-justification" label="Justificativa de divergência" description="Obrigatória se pagamentos ou estoque não coincidirem. Se tudo estiver correto, deixe em branco."><textarea id="closeout-justification" rows={4} minLength={4} maxLength={500} value={justification} onChange={(event) => { setJustification(event.target.value); idempotencyKey.current = operationKey(); }} className="mt-2 w-full rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] bg-[var(--g-surface-default)] px-4 py-3 text-sm focus-visible:outline-3 focus-visible:outline-[var(--g-focus-ring)]" /></Field><div className="mt-5 rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]">O fechamento cria um registro imutável. Somente Admin ou Financeiro pode reabri-lo, sempre com motivo e auditoria.</div><Button variant="operation" size="lg" className="mt-5 w-full" disabled={!online || !complete || !periodStart || !periodEnd} loading={busy} onClick={() => void submit()}>Finalizar fechamento</Button></Card>
+    <Card className="p-5 md:p-6"><ReasonField id="closeout-justification" label="Justificativa de divergência" description="Obrigatória se pagamentos ou estoque não coincidirem. Se tudo estiver correto, deixe em branco." minLength={4} maxLength={500} value={justification} onChange={(value) => { setJustification(value); idempotencyKey.current = operationKey(); }} multiline /><div className="mt-5 rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]">O fechamento cria um registro imutável. Somente Admin ou Financeiro pode reabri-lo, sempre com motivo e auditoria.</div><Button variant="operation" size="lg" className="mt-5 w-full" disabled={!online || !complete || !periodStart || !periodEnd} loading={busy} onClick={() => void submit()}>Finalizar fechamento</Button></Card>
   </div>;
 }
 

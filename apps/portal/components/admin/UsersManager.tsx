@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Pencil, Plus, Search, UserRoundCog, X } from "lucide-react";
 import { adminUsersResponseSchema, type AdminProvisionUser, type AdminUser, type AppRole } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
 
 const roleLabels: Record<AppRole, string> = {
   ADMIN: "Administrador", VENDEDOR: "Vendedor", ESTOQUE: "Estoque", FINANCEIRO: "Financeiro",
@@ -75,7 +75,7 @@ export function UsersManager() {
         <Card className="overflow-hidden">
           <div className="flex flex-col gap-4 border-b border-[var(--g-border-subtle)] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div><h2 className="text-lg font-bold">Contas cadastradas</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{loading ? "Consultando…" : `${filtered.length} de ${users.length} contas`}</p></div>
-            <label className="relative block w-full sm:max-w-sm"><span className="sr-only">Buscar usuários</span><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-10" placeholder="Nome, e-mail, usuário ou papel" /></label>
+            <label className="block w-full min-w-0 sm:max-w-sm"><span className="sr-only">Buscar usuários</span><InputGroup icon={<Search />}><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, e-mail, usuário ou papel" /></InputGroup></label>
           </div>
           {loading ? <UsersSkeleton /> : !error && filtered.length === 0 ? <div className="p-10 text-center"><UserRoundCog className="mx-auto size-10 text-[var(--g-text-muted)]" /><p className="mt-4 font-semibold">Nenhum usuário encontrado</p><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Ajuste a busca ou adicione uma nova conta operacional.</p></div> : !error && <UsersList users={filtered} onEdit={setEditing} />}
         </Card>

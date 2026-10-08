@@ -180,7 +180,8 @@ set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select is(pg_temp.balance('RECEBIVEIS_PICPAY') - (select sum(total) from pdv)::bigint, 1920::bigint,
   'receivables hold exactly the unsettled historical net (20,00 − 0,50 − 0,30), besides the PDV sales still to settle');
 select is(pg_temp.balance('COFRINHO_PICPAY'), 800::bigint, 'Cofrinho: 5,00 opening + 5,00 guardado − 2,00 resgatado');
-select is(pg_temp.balance('PICPAY_EMPRESAS'), 4528::bigint, 'free: Pix 11 + 11 + 15 − 15 + settlements 26,28 − 5 guardado + 2 resgatado (the Pix enviado still waits)');
+select is(pg_temp.balance('PICPAY_EMPRESAS'), 4228::bigint,
+  'free: Pix 11 + 11 + 15 − 15 + settlements 26,28 − 5 guardado + 2 resgatado − 3 Pix enviado (left the bank, still to classify)');
 select is(public.finance_balances(pg_temp.today()) -> 'negative_accounts', '[]'::jsonb, 'no account is negative');
 -- Revenue once, with the real fees.
 select is(pg_temp.indicator('gross_revenue_cents') - pg_temp.indicator('sale_revenue_cents'), 8400::bigint,

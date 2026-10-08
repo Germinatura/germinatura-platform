@@ -156,8 +156,14 @@ select is(pg_temp.account((select statement from after_import), 'COFRINHO_PICPAY
   20000::bigint, 'the Cofrinho holds what was set aside minus what came back');
 select is(pg_temp.account((select statement from after_import), 'RECEBIVEIS_PICPAY') - pg_temp.account((select statement from baseline), 'RECEBIVEIS_PICPAY'),
   -4321::bigint - (select cents from amounts where label = 'unique'), 'receivables leave through the settled sale and the PicPay receivables line');
-select is(pg_temp.total((select statement from after_import), 'inflow_cents'), pg_temp.total((select statement from baseline), 'inflow_cents'),
-  'transfers and reconciliations add no inflow');
+-- Transfers and reconciliations add no inflow; lines still waiting for review already moved the bank account.
+reset role;
+select is(pg_temp.total((select statement from after_import), 'inflow_cents') - pg_temp.total((select statement from baseline), 'inflow_cents'),
+  (select sum(line.amount_cents) from public.picpay_statement_lines line
+    left join private.picpay_statement_current_resolutions current on current.line_id = line.id
+    where line.amount_cents > 0 and current.id is null and line.occurred_on = (now() at time zone 'America/Sao_Paulo')::date)::bigint,
+  'only the lines waiting for review add inflow: the bank movement, not revenue');
+set local role authenticated;
 select is((select indicators -> 'totals' ->> 'operating_profit_cents' from after_import), (select indicators -> 'totals' ->> 'operating_profit_cents' from baseline),
   'the automatic part of the import does not change profit');
 

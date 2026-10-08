@@ -4,7 +4,7 @@ import {
   financeBalanceCheckResponseSchema, financeBalanceChecksResponseSchema, financeOpeningPositionRecordedResponseSchema,
   financeOpeningPositionResponseSchema, type FinanceBalanceCheck, type FinanceOpeningPosition, type FinanceOpeningPositionResponse,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FinanceBalancesSummary } from "@/components/admin/FinanceBalancesSummary";
@@ -134,7 +134,7 @@ function OpeningPositionPanel({ onChanged }: { onChanged: () => void }) {
           {field("cash", "Dinheiro físico (R$)", { inputMode: "decimal" })}
         </div>
         {field("description", "Descrição")}
-        {current && field("reason", "Motivo da correção")}
+        {current && <ReasonField id="opening-reason" label="Motivo da correção" minLength={8} maxLength={300} value={form.reason} onChange={(reason) => setForm((value) => ({ ...value, reason }))} />}
         <p className="text-xs text-[var(--g-text-muted)]">{current ? "A correção cria uma nova versão; a anterior continua no histórico." : "A abertura é registrada uma única vez; depois, só por correção com motivo."}</p>
         <div className="flex gap-2"><Button type="button" loading={busy} disabled={busy} onClick={() => void submit()}>{current ? "Registrar correção" : "Registrar abertura"}</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setEditing(false)}>Cancelar</Button></div>
       </div>}
@@ -208,7 +208,7 @@ function BalanceCheckPanel({ refreshKey }: { refreshKey: number }) {
             <tr className="border-t border-[var(--g-border-subtle)] font-semibold"><td className="py-1 pr-3">Total</td><td className="g-money py-1 pr-3">{formatMoney(result.computedTotalCents)}</td><td className="g-money py-1 pr-3">{formatMoney(result.observedTotalCents)}</td><td className="g-money py-1">{formatMoney(result.totalDifferenceCents)}</td></tr>
           </tbody>
         </table>
-        {result.status === "DIVERGENTE" && <p className="mt-3">Investigue antes de ajustar: {result.statementLines.pending.count} linha(s) do extrato pendentes ({formatMoney(result.statementLines.pending.netCents)}), {result.statementLines.alreadyRecorded.count} marcada(s) como já registradas e {result.statementLines.linked.count} vinculada(s). Um ajuste, se necessário, é um lançamento manual explícito com motivo.</p>}
+        {result.status === "DIVERGENTE" && <p className="mt-3">Investigue antes de ajustar. As {result.statementLines.pending.count} linha(s) do extrato aguardando classificação ({formatMoney(result.statementLines.pending.netCents)}) já estão no saldo. As {result.statementLines.alreadyRecorded.count} marcada(s) como já registradas e as {result.statementLines.linked.count} vinculada(s) dependem do registro correspondente: confira se ele existe e se não foi contado duas vezes. Um ajuste, se necessário, é um lançamento manual explícito com motivo.</p>}
       </div>}
       {history && history.length > 0 && <div className="mt-5"><h3 className="text-sm font-semibold">Conferências registradas</h3><ul aria-label="Conferências registradas" className="mt-2 divide-y divide-[var(--g-border-subtle)] text-sm">
         {history.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2">

@@ -17,7 +17,7 @@ const databaseStatementSchema = z.object({
     by_account: z.record(z.string(), z.number().int()), by_category: z.record(z.string(), z.number().int()),
   }),
 });
-const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay", OPENING: "Abertura", PICPAY: "Minhas vendas" };
+const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay", IMPORT_PENDING: "Extrato PicPay (a classificar)", OPENING: "Abertura", PICPAY: "Minhas vendas" };
 
 /** FIN-006: consolidated statement of a São Paulo period, as JSON or as a real CSV file. */
 export async function GET(request: Request) {
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
         ["data", "origem", "categoria", "conta", "valor_reais", "descricao", "referencia"],
         response.data.data.map((row) => [
           row.occurredOn, sourceLabels[row.source] ?? row.source,
-          row.category ?? (row.nature === "SALDO_ABERTURA" ? "SALDO_ABERTURA" : "TRANSFERENCIA"), row.account,
+          row.category ?? (row.nature === "SALDO_ABERTURA" ? "SALDO_ABERTURA" : row.nature === "A_CLASSIFICAR" ? "A_CLASSIFICAR" : "TRANSFERENCIA"), row.account,
           { cents: row.amountCents }, row.description, row.reference,
         ]),
       );

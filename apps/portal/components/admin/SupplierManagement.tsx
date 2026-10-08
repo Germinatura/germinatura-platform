@@ -7,7 +7,7 @@ import {
   suppliersResponseSchema,
   type Supplier,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
 
 export function SupplierManagement() {
@@ -91,7 +91,7 @@ function SupplierForm({ supplier, onSaved }: { supplier: Supplier | null; onSave
     <Field id="supplier-notes" label="Observação opcional"><textarea id="supplier-notes" className="g-input min-h-24" minLength={2} maxLength={1000} value={notes} onChange={(event) => { changed(); setNotes(event.target.value); }} /></Field>
     <label className="flex min-h-11 items-center gap-3 rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] px-4"><input type="checkbox" checked={active} onChange={(event) => { changed(); setActive(event.target.checked); }} /><span className="text-sm font-semibold">Fornecedor ativo para novas compras</span></label>
     {!active && <p className="rounded-[var(--g-radius-control)] bg-[var(--g-status-warning-soft)] p-3 text-sm text-[var(--g-status-warning-foreground)]">A inativação impede o uso em novas compras e preserva todo o histórico.</p>}
-    <Field id="supplier-reason" label="Motivo" description="Obrigatório para auditoria da criação ou alteração."><Input id="supplier-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { changed(); setReason(event.target.value); }} /></Field>
+    <ReasonField id="supplier-reason" required label="Motivo" description="Obrigatório para auditoria da criação ou alteração." minLength={4} maxLength={500} value={reason} onChange={(value) => { changed(); setReason(value); }} />
     <Button type="submit" loading={saving}>{supplier ? "Salvar fornecedor" : "Cadastrar fornecedor"}</Button>
   </fieldset>{error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}</form></Card>;
 }

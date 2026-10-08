@@ -8,7 +8,7 @@ import {
   type PicpayStatementImportsResponse, type PicpayStatementLine, type PicpayStatementLineStatus, type PicpayStatementLinkCandidate,
   type PicpayStatementMovement, type ResolvePicpayStatementLineRequest,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, Link2, ListChecks, Loader2, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -46,8 +46,12 @@ function statusTone(status: PicpayStatementLineStatus) {
  * Spec 5.8 (FIN-007): review of the PicPay Empresas statement lines. Files are imported by the reconciliation screen
  * (Minhas vendas, Recebíveis and Extrato together), which embeds this component.
  */
-export function PicPayStatementImport() {
+/** A statement line to open from elsewhere on the page (a pending item), by import number and line id. */
+export interface StatementLineFocus { importNumber: number; lineId: string; nonce: number }
+
+export function PicPayStatementImport({ focus = null }: { focus?: StatementLineFocus | null } = {}) {
   const { showToast } = useToast();
+  const [wanted, setWanted] = useState<string | null>(null);
   const [imports, setImports] = useState<PicpayStatementImportsResponse | null>(null);
   const [selected, setSelected] = useState<StatementImport | null>(null);
   const [lines, setLines] = useState<PicpayStatementLine[]>([]);
@@ -100,6 +104,27 @@ export function PicPayStatementImport() {
     return () => window.clearTimeout(timer);
     // Reload only when the filter or the chosen import changes.
   }, [selected?.id, loadLines]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Opening a line from a pending item: select its import, then load pages until the line shows and focus it.
+  useEffect(() => {
+    if (!focus || !imports) return;
+    const target = imports.data.find((item) => item.number === focus.importNumber);
+    if (!target) return;
+    const timer = window.setTimeout(() => {
+      if (selected?.id !== target.id) { setLines([]); setSelected(target); }
+      setWanted(focus.lineId);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [focus?.nonce, imports]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!wanted) return;
+    const timer = window.setTimeout(() => {
+      const element = document.getElementById(`statement-line-${wanted}`);
+      if (element) { element.scrollIntoView({ block: "center" }); element.focus(); setWanted(null); }
+      else if (!loadingLines && nextAfter !== null && selected) void loadLines(selected.id, nextAfter);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [wanted, lines, loadingLines, nextAfter, selected, loadLines]);
 
   async function resolve(line: PicpayStatementLine, body: ResolvePicpayStatementLineRequest) {
     setError("");
@@ -178,18 +203,20 @@ function StatementLineItem({ line, onResolve, onLinked }: {
   const detail = line.resolution?.category ? financeCategoryLabels[line.resolution.category]
     : line.resolution?.counterAccount ? `PicPay Empresas ↔ ${financeAccountLabels[line.resolution.counterAccount]}`
     : line.resolution?.reason ?? "";
-  return <li aria-label={`Linha ${line.lineNumber}`} className="p-5">
+  const origin = line.resolution ? (line.resolution.automatic ? "decisão automática" : `decisão de ${line.resolution.actorName}`) : "";
+  return <li id={`statement-line-${line.id}`} tabIndex={-1} aria-label={`Linha ${line.lineNumber}`} className="p-5 outline-none focus-visible:bg-[var(--g-surface-selected)]">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="font-semibold">{line.movementLabel}{line.description ? ` · ${line.description}` : ""}</p>
-        <p className="text-sm text-[var(--g-text-secondary)]">Linha {line.lineNumber} · {formatDay(line.occurredOn)}{detail ? ` · ${detail}` : ""}{line.resolution && !pending ? ` · ${line.resolution.automatic ? "automática" : line.resolution.actorName}` : ""}</p>
+        <p className="text-sm text-[var(--g-text-secondary)]">{formatDay(line.occurredOn)} · Linha {line.lineNumber}{detail ? ` · ${detail}` : ""}{origin ? ` · ${origin}` : ""}</p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <Badge tone={statusTone(line.status)}>{statusLabels[line.status]}</Badge>
         <span className="g-money font-bold">{line.amountCents > 0 ? "+" : "−"}{formatMoney(Math.abs(line.amountCents))}</span>
       </div>
     </div>
-    {pending && <div className="mt-3 grid gap-3">
+    {pending && <p className="mt-2 text-xs text-[var(--g-text-muted)]">O dinheiro já entrou ou saiu da conta e está no saldo. Falta dizer o porquê: classificar, vincular a um registro que já existe ou marcar como já registrada.</p>}
+    {pending && <div className="mt-3 grid gap-4">
       {reversal && <p className="text-xs text-[var(--g-text-muted)]">{line.amountCents < 0 ? "Saída que desfaz uma entrada: a categoria escolhida tem a receita reduzida." : "Entrada que desfaz uma saída: a categoria escolhida tem a despesa reduzida."} Nunca conta como nova receita.</p>}
       {line.saleCandidates.length > 0 && <div><p className="text-sm font-medium">Vendas com o mesmo valor</p><ul className="mt-1 grid gap-1">
         {line.saleCandidates.map((candidate) => <li key={candidate.paymentAttemptId} className="flex flex-wrap items-center gap-2 text-sm">
@@ -203,19 +230,20 @@ function StatementLineItem({ line, onResolve, onLinked }: {
           <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void run({ action: "CONCILIAR_ESTORNO", refundEntryId: candidate.refundEntryId })}>Conciliar com este estorno</Button>
         </li>)}
       </ul></div>}
-      <div className="flex flex-wrap items-end gap-2">
-        {classifiable && <>
-          <Field id={`line-category-${line.id}`} label="Categoria"><select id={`line-category-${line.id}`} className="g-input min-h-11 w-full" value={category} onChange={(event) => setCategory(event.target.value as FinanceCategory)}><option value="">Selecione</option>{categories.map((item) => <option key={item} value={item}>{financeCategoryLabels[item]}</option>)}</select></Field>
-          <Button type="button" size="sm" disabled={busy || !category} onClick={() => category && void run({ action: "CLASSIFICAR", category })}>Classificar</Button>
-        </>}
-        <Field id={`line-reason-${line.id}`} label="Já registrada em outro lugar (motivo)" className="min-w-64 flex-1"><Input id={`line-reason-${line.id}`} maxLength={300} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
-        <Button type="button" size="sm" variant="ghost" disabled={busy || reason.trim().length < 8} onClick={() => void run({ action: "JA_REGISTRADO", reason: reason.trim() })}>Marcar como já registrada</Button>
-      </div>
+      {classifiable && <div className="grid gap-3 md:grid-cols-[minmax(0,20rem)_auto] md:items-start">
+        <Field id={`line-category-${line.id}`} label="Classificar" description="Dá a categoria para receitas, despesas e indicadores. Não muda o saldo."><select id={`line-category-${line.id}`} aria-describedby={`line-category-${line.id}-description`} className="g-input min-h-11 w-full" value={category} onChange={(event) => setCategory(event.target.value as FinanceCategory)}><option value="">Selecione a categoria</option>{categories.map((item) => <option key={item} value={item}>{financeCategoryLabels[item]}</option>)}</select></Field>
+        <div className="g-field-action"><Button type="button" disabled={busy || !category} onClick={() => category && void run({ action: "CLASSIFICAR", category })}>Classificar</Button></div>
+      </div>}
       {linkable && <LinkRecord line={line} onLinked={onLinked} />}
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <ReasonField id={`line-reason-${line.id}`} label="Já registrada (motivo)" minLength={8} maxLength={300} value={reason} onChange={setReason}
+          description="Use só quando o movimento já tem efeito financeiro registrado no Germinatura e não existe registro elegível para vincular; prefira vincular." />
+        <div className="g-field-action"><Button type="button" variant="ghost" disabled={busy || reason.trim().length < 8} onClick={() => void run({ action: "JA_REGISTRADO", reason: reason.trim() })}>Marcar como já registrada</Button></div>
+      </div>
     </div>}
-    {reopenable && <div className="mt-3 flex flex-wrap items-end gap-2">
-      <Field id={`line-reopen-${line.id}`} label="Motivo para reabrir" className="min-w-64 flex-1"><Input id={`line-reopen-${line.id}`} maxLength={300} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
-      <Button type="button" size="sm" variant="ghost" disabled={busy || reason.trim().length < 8} onClick={() => void run({ action: "REABRIR", reason: reason.trim() })}><RotateCcw className="size-4" />Reabrir</Button>
+    {reopenable && <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+      <ReasonField id={`line-reopen-${line.id}`} label="Motivo para reabrir" minLength={8} maxLength={300} value={reason} onChange={setReason} />
+      <div className="g-field-action"><Button type="button" variant="ghost" disabled={busy || reason.trim().length < 8} onClick={() => void run({ action: "REABRIR", reason: reason.trim() })}><RotateCcw className="size-4" />Reabrir</Button></div>
     </div>}
   </li>;
 }
@@ -298,7 +326,7 @@ function BulkClassification({ statementImport, onDone }: { statementImport: Stat
         {tooMany && <p role="alert" className="font-semibold text-[var(--g-status-danger)]">O lote passa de {preview.maxLines} linhas. Restrinja o período.</p>}
         {blocked && <ul role="alert" className="grid gap-1 font-semibold text-[var(--g-status-danger)]">{preview.refusals.map((refusal) => <li key={refusal.code}>{refusal.count} linha(s) {refusalLabels[refusal.code] ?? "não aceitam esta categoria"}. Ajuste o filtro ou a categoria.</li>)}</ul>}
         {preview.count > 0 && !blocked && !tooMany && <>
-          <Field id="bulk-reason" label="Motivo do lote"><Input id="bulk-reason" maxLength={300} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
+          <ReasonField id="bulk-reason" label="Motivo do lote" minLength={8} maxLength={300} value={reason} onChange={setReason} />
           <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
             <span>Confirmo classificar <strong>{preview.count}</strong> linha(s), total <strong>{formatMoney(preview.totalCents)}</strong>, como <strong>{financeCategoryLabels[preview.category]}</strong>.</span></label>
           <div><Button type="button" loading={busy} disabled={!ready || busy} onClick={() => void confirm()}>Classificar selecionadas</Button></div>

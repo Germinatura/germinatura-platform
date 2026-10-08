@@ -4,7 +4,7 @@ import {
   publicCatalogProductsResponseSchema,
   type PublicCatalogProduct,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Input, InputGroup } from "@germinatura/ui";
 import { Bell, BellRing, PackageSearch, Plus, RefreshCw, Search, ShoppingBag } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReservationCart } from "@/components/catalog/ReservationCart";
@@ -133,10 +133,9 @@ export function ConsumerCatalog({ canReserve = false }: { canReserve?: boolean }
           <p className="mt-2 max-w-2xl text-base leading-6 text-[var(--g-text-secondary)]">Consulte preços e monte sua reserva. O total, com as promoções, é calculado pelo sistema e fica congelado quando você reserva.</p>
         </header>
 
-        <label className="relative block max-w-xl">
+        <label className="block max-w-xl">
           <span className="sr-only">Buscar no catálogo</span>
-          <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por produto, SKU ou categoria" className="pl-12" />
+          <InputGroup icon={<Search />}><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por produto, SKU ou categoria" /></InputGroup>
         </label>
         {categories.length > 1 && <div role="group" aria-label="Categorias" className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant={category === null ? "brand" : "secondary"} aria-pressed={category === null} onClick={() => setCategory(null)}>Todas</Button>

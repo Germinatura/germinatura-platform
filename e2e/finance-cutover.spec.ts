@@ -105,7 +105,7 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
 
   // Historical receivables are historical revenue, line by line.
   const receivables = page.getByRole("listitem", { name: "Linha 4" });
-  await receivables.getByLabel("Categoria").selectOption("RECEITA_HISTORICA");
+  await receivables.getByLabel("Classificar", { exact: true }).selectOption("RECEITA_HISTORICA");
   await receivables.getByRole("button", { name: "Classificar" }).click();
   await expect(page.getByText("Linha 4 revisada.")).toBeVisible();
 
@@ -118,7 +118,7 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
 
   // The freight Pix was recorded elsewhere: already recorded, with a reason.
   const freight = page.getByRole("listitem", { name: "Linha 6" });
-  await freight.getByLabel("Já registrada em outro lugar (motivo)").fill("Frete pago pela tesouraria da comissão");
+  await freight.getByLabel("Já registrada (motivo)").fill("Frete pago pela tesouraria da comissão");
   await freight.getByRole("button", { name: "Marcar como já registrada" }).click();
   await expect(page.getByText("Linha 6 revisada.")).toBeVisible();
   await expect(page.getByText("Nenhuma linha aguardando revisão.")).toBeVisible();
