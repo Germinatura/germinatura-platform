@@ -1,4 +1,4 @@
-// Read-only preservation snapshot of the public schema, used by the upgrade check (CI/local) and by the cutover
+// Read-only preservation snapshot of the physical tables (public, and cohort_data once it exists), used by the upgrade check (CI/local) and by the cutover
 // runbook (production, SQL editor or psql). The SQL is a single SELECT: it reads the catalogue, runs one counting
 // query per table through query_to_xml and returns one JSON document. It never writes.
 //
@@ -49,7 +49,7 @@ export function snapshotSql({ columns = null, perRow = false } = {}) {
   const aggregates = AGGREGATES.map(([name, sql]) => `'${name}', (${sql})`).join(",\n    ");
   return `with params as (select ${params} as cols),
 target as (
-  select c.oid, c.relname::text as relname,
+  select c.oid, c.relname::text as relname, c.relnamespace::regnamespace::text as nspname,
     (select array_agg(a.attname::text order by a.attnum) from pg_attribute a
       where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped) as current_cols,
     case when p.cols ? c.relname::text
@@ -60,7 +60,8 @@ target as (
       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum
       where i.indrelid = c.oid and i.indisprimary) as pk
   from pg_class c cross join params p
-  where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+  -- Physical tables of public and, once tables move behind cohort views, of cohort_data (names stay unique).
+  where c.relnamespace::regnamespace::text in ('public', 'cohort_data') and c.relkind in ('r', 'p')
 ),
 resolved as (
   select t.*,
@@ -74,10 +75,10 @@ measured as (
   select r.*, query_to_xml(format(
     'select count(*) as n, coalesce(md5(string_agg(h, '''' order by h)), '''') as hash, '
     || 'coalesce(md5(string_agg(ct || ''@'' || xm, '','' order by ct)), '''') as tuples, ${rowHashes} as row_hashes '
-    || 'from (select md5(row(%s)::text) as h, md5(row(%s)::text) as k, x.xmin::text as xm, x.ctid::text as ct from public.%I x) r',
+    || 'from (select md5(row(%s)::text) as h, md5(row(%s)::text) as k, x.xmin::text as xm, x.ctid::text as ct from %I.%I x) r',
     (select string_agg('x.' || quote_ident(col), ', ') from unnest(r.used_cols) col),
     (select string_agg('x.' || quote_ident(col), ', ') from unnest(coalesce(r.pk, r.used_cols)) col),
-    r.relname), false, true, '') as result
+    r.nspname, r.relname), false, true, '') as result
   from resolved r
 )
 select jsonb_build_object(
