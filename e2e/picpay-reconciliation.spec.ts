@@ -125,9 +125,51 @@ test("financeiro concilia Minhas vendas, Recebíveis e Extrato enviados juntos, 
   await exceptions.getByLabel("Tipo").selectOption("PICPAY_SEM_PDV");
   const pending = exceptions.getByRole("listitem").filter({ hasText: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(base / 100) }).first();
   await expect(pending).toBeVisible({ timeout: 30_000 });
+  // The minimum is written next to the field and counted while too short; the button never explains alone.
+  await pending.getByLabel("Motivo").fill("Troco");
+  await expect(pending.getByText("Mínimo de 8 caracteres.")).toBeVisible();
+  await expect(pending.getByText("5/8 caracteres")).toBeVisible();
+  await expect(pending.getByRole("button", { name: "Resolver" })).toBeDisabled();
   await pending.getByLabel("Motivo").fill(`Venda avulsa sem PDV ${tag}`);
   await pending.getByRole("button", { name: "Resolver" }).click();
   await expect(page.getByText("Pendência resolvida.")).toBeVisible();
+
+  // An unclassified statement line is reviewed in the line itself, never silenced: no "Resolver", and the API refuses.
+  const lineItems = await (await page.request.get(`${portalUrl}/api/v1/admin/finance/picpay/exceptions?from=${day}&to=${day}&type=EXTRATO_NAO_CLASSIFICADO`)).json() as {
+    data: Array<{ key: string; amountCents: number; subjectId: string }>;
+  };
+  const unclassified = lineItems.data.find((item) => item.amountCents === base);
+  expect(unclassified).toBeTruthy();
+  const silenced = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/exceptions/resolve`, {
+    headers: { Origin: portalUrl, "Idempotency-Key": `e2e-silence-${tag}` }, data: { key: unclassified?.key, action: "RESOLVIDA", reason: "Silenciar a linha do extrato" },
+  });
+  expect(silenced.status()).toBe(409);
+  expect((await silenced.json() as { code: string }).code).toBe("PICPAY_EXCEPTION_REQUIRES_LINE_REVIEW");
+  await exceptions.getByLabel("Tipo").selectOption("EXTRATO_NAO_CLASSIFICADO");
+  const lineItem = exceptions.getByRole("listitem").filter({ hasText: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(base / 100) }).first();
+  await expect(lineItem.getByRole("button", { name: "Revisar linha" })).toBeVisible();
+  await expect(lineItem.getByRole("button", { name: "Resolver" })).toHaveCount(0);
+  await lineItem.getByRole("button", { name: "Revisar linha" }).click();
+  await expect(page.locator(`#statement-line-${unclassified?.subjectId}`)).toBeFocused({ timeout: 30_000 });
+
+  // Treasury before classification: the line is already in the balance; classifying it does not move the balance.
+  const free = async () => (await (await page.request.get(`${portalUrl}/api/v1/admin/finance/balances`)).json() as { data: { freeBalanceCents: number } }).data.freeBalanceCents;
+  const before = await free();
+  const statementLine = page.locator(`#statement-line-${unclassified?.subjectId}`);
+  await statementLine.getByLabel("Classificar", { exact: true }).selectOption("MENSALIDADES");
+  await statementLine.getByRole("button", { name: "Classificar" }).click();
+  await expect(page.getByText(/Linha \d+ revisada\./)).toBeVisible();
+  expect(await free()).toBe(before);
+
+  // Items outside the selected period are never hidden.
+  await page.getByLabel("De", { exact: true }).fill(today());
+  await page.getByLabel("Até", { exact: true }).fill(today());
+  const outside = page.getByRole("status").filter({ hasText: "fora do período selecionado" });
+  await expect(outside).toBeVisible({ timeout: 30_000 });
+  await outside.getByRole("button", { name: "Ver todas" }).click();
+  await expect(page.getByLabel("De", { exact: true })).not.toHaveValue(today());
+  await page.getByLabel("De", { exact: true }).fill(day);
+  await page.getByLabel("Até", { exact: true }).fill(day);
 
   // The period is evaluated, never locked: later files bring it back for review when they add evidence.
   const close = page.getByRole("region", { name: "Fechamento da conciliação" });

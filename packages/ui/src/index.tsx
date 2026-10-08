@@ -113,13 +113,85 @@ interface FieldProps {
   className?: string;
 }
 
+/** Ids of a field's helper texts, for `aria-describedby` on the control. */
+export function fieldDescriptionIds(id: string, { description, error }: { description?: string; error?: string }) {
+  return [description && !error ? `${id}-description` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
+}
+
 export function Field({ id, label, description, error, children, className }: FieldProps) {
   return (
     <div className={joinClassNames("g-field", className)}>
       <label className="g-label" htmlFor={id}>{label}</label>
       {children}
-      {description && !error && <p className="g-field__description">{description}</p>}
+      {description && !error && <p className="g-field__description" id={`${id}-description`}>{description}</p>}
       {error && <p className="g-field__error" id={`${id}-error`} role="alert">{error}</p>}
+    </div>
+  );
+}
+
+interface InputGroupProps {
+  /** Decorative icon shown inside the field, before the text. It never receives clicks: the input does. */
+  icon: ReactNode;
+  /** Optional control at the end of the field (for example, show or hide a password). */
+  trailing?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}
+
+/**
+ * An input with a leading decorative icon. The input's start padding comes from the group, so the icon never covers
+ * the text or the placeholder at any zoom; pass a `.g-input` (Input) as the child.
+ */
+export function InputGroup({ icon, trailing, children, className }: InputGroupProps) {
+  return (
+    <div className={joinClassNames("g-input-group", trailing ? "g-input-group--trailing" : undefined, className)}>
+      <span className="g-input-group__icon" aria-hidden="true">{icon}</span>
+      {children}
+      {trailing && <span className="g-input-group__trailing">{trailing}</span>}
+    </div>
+  );
+}
+
+interface ReasonFieldProps {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  /** Smallest accepted length after trimming, as the server requires it. */
+  minLength: number;
+  maxLength: number;
+  label?: string;
+  /** What the reason is for, shown before the length rule. */
+  description?: string;
+  multiline?: boolean;
+  disabled?: boolean;
+  required?: boolean;
+  placeholder?: string;
+  className?: string;
+}
+
+/**
+ * A reason for an audited action. The minimum length is always written next to the field, and while the text is
+ * shorter the field says how far it is, so a disabled button is never the only explanation.
+ */
+export function ReasonField({ id, value, onChange, minLength, maxLength, label = "Motivo", description, multiline, disabled, required, placeholder, className }: ReasonFieldProps) {
+  const length = value.trim().length;
+  const short = length > 0 && length < minLength;
+  const rule = `Mínimo de ${minLength} caracteres.`;
+  const control = {
+    id, value, disabled, required, placeholder, maxLength, className: "g-input",
+    "aria-describedby": `${id}-rule ${id}-count`,
+    "aria-invalid": short || undefined,
+  };
+  return (
+    <div className={joinClassNames("g-field", className)}>
+      <label className="g-label" htmlFor={id}>{label}</label>
+      {multiline
+        ? <textarea {...control} rows={3} onChange={(event) => onChange(event.target.value)} />
+        : <input {...control} onChange={(event) => onChange(event.target.value)} />}
+      <p className="g-field__description" id={`${id}-rule`}>{description ? `${description} ` : ""}{rule}</p>
+      <p className={joinClassNames("g-field__description", short ? "g-field__description--warning" : undefined)} id={`${id}-count`} aria-live="polite">
+        {short ? `${length}/${minLength} caracteres` : ""}
+      </p>
     </div>
   );
 }

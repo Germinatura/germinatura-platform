@@ -96,6 +96,8 @@ export type FinanceEntriesResponse = z.infer<typeof financeEntriesResponseSchema
 // FIN-006: consolidated statement of automatic and manual entries (transfers and the opening position have no category).
 export const financeStatementNatureSchema = z.enum([
   "RECEITA", "DESPESA", "TRANSFERENCIA_INTERNA", "CONCILIACAO", "ESTORNO", "SALDO_ABERTURA",
+  // A PicPay statement line still waiting for review: it already moved the bank account, its reason is not known yet.
+  "A_CLASSIFICAR",
 ]);
 export type FinanceStatementNature = z.infer<typeof financeStatementNatureSchema>;
 export const financeStatementQuerySchema = z.object({
@@ -106,7 +108,7 @@ export const financeStatementQuerySchema = z.object({
 
 export const financeStatementRowSchema = z.object({
   occurredOn: calendarDay,
-  source: z.enum(["SALE", "PAYABLE", "MANUAL", "IMPORT", "OPENING", "PICPAY"]),
+  source: z.enum(["SALE", "PAYABLE", "MANUAL", "IMPORT", "IMPORT_PENDING", "OPENING", "PICPAY"]),
   sourceId: z.uuid(),
   category: financeCategorySchema.nullable(),
   account: financeAccountSchema,

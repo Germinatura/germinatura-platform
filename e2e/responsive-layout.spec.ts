@@ -1,0 +1,119 @@
+import { expect, test } from "@playwright/test";
+import { expectApart, expectIconClearOfText, expectInside, expectNoHorizontalOverflow, layoutViewports } from "./support/layout";
+
+const portal = process.env.PORTAL_URL ?? "http://127.0.0.1:3000";
+const headers = { Origin: portal, "Sec-Fetch-Site": "same-origin" };
+const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+// Layout hardening: long names and descriptions never push actions or the page sideways, icons never cover text, and
+// forms keep their controls inside the card, on phones, tablets and desktops.
+test("as telas administrativas não transbordam nem sobrepõem controles em nenhum viewport", async ({ page }) => {
+  test.setTimeout(600_000);
+  const tag = Date.now().toString(36);
+  const name = `Bolo de Pote Ninho com Morango e Creme Especial ${tag}`;
+  const altText = "Bolo de pote brigadeiro com granulado de chocolate em embalagem transparente";
+  expect((await page.request.post(`${portal}/api/auth/login`, { headers, data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
+
+  // A product with a long name and one image with a long description.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${portal}/admin/catalogo`);
+  await page.getByLabel("Nome", { exact: true }).fill(name);
+  await page.getByLabel("Identificador", { exact: true }).fill(`e2e-layout-${tag}`);
+  await page.getByLabel("Motivo", { exact: true }).fill("Cadastro para teste de layout");
+  await page.getByRole("button", { name: "Criar produto", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Produto salvo");
+  await page.goto(`${portal}/admin/catalogo?q=${tag}`);
+  await page.getByRole("button", { name: `Editar imagens de ${name}` }).click();
+  await page.getByLabel("Motivo da alteração").fill("Foto para teste de layout");
+  await page.getByLabel("Descrição acessível").fill(altText);
+  await page.getByLabel("Arquivo JPG, PNG ou WebP").setInputFiles({ name: "layout.png", mimeType: "image/png", buffer: Buffer.from(pixel, "base64") });
+  await page.getByRole("button", { name: "Enviar imagem" }).click();
+  const images = page.getByRole("list", { name: "Imagens do produto" });
+  await expect(images.getByRole("listitem")).toHaveCount(1);
+
+  for (const viewport of layoutViewports) {
+    const label = `${viewport.width}×${viewport.height}`;
+    await page.setViewportSize(viewport);
+
+    // Product images: the description never runs under the actions, and the actions stay inside the row. A resize may
+    // re-mount the dashboard (sidebar or drawer): the checks retry until the layout settles.
+    const row = images.getByRole("listitem").first();
+    await expect(async () => {
+      await expectApart(row.getByText(altText), row.getByRole("button", { name: /^Remover/ }), `imagens ${label}`);
+      await expectInside(row, row.getByRole("button"), `ações da imagem ${label}`);
+      await expectNoHorizontalOverflow(page, `imagens ${label}`);
+    }).toPass({ timeout: 15_000 });
+  }
+
+  const screens: Array<{ path: string; ready: RegExp; check?: (label: string) => Promise<void> }> = [
+    { path: "/admin/usuarios", ready: /Usuários/, check: async (label) => {
+      const group = page.locator(".g-input-group").filter({ has: page.getByPlaceholder("Nome, e-mail, usuário ou papel") });
+      await expectIconClearOfText(group, `busca de usuários ${label}`);
+      await group.locator(".g-input-group__icon").click({ force: true });
+      await expect(page.getByPlaceholder("Nome, e-mail, usuário ou papel")).toBeFocused();
+    } },
+    { path: "/admin/estoque", ready: /Perdas de estoque/, check: async (label) => {
+      const form = page.getByRole("form", { name: "Configurar aprovação de perdas" });
+      await expectInside(form, form.locator("input, button"), `limite de perdas ${label}`);
+      await expectApart(form.getByLabel("Limite automático"), form.getByLabel("Justificativa"), `limite × justificativa ${label}`);
+      await expectApart(form.getByLabel("Justificativa"), form.getByRole("button", { name: "Salvar limite" }), `justificativa × salvar ${label}`);
+      await expect(form.getByText("Mínimo de 4 caracteres.")).toBeVisible();
+    } },
+    { path: `/admin/catalogo?q=${tag}`, ready: new RegExp(name) },
+    { path: "/admin/financeiro/conciliacao-picpay", ready: /Resumo da conciliação|Período/ },
+  ];
+  for (const screen of screens) {
+    for (const viewport of layoutViewports) {
+      const label = `${screen.path} ${viewport.width}×${viewport.height}`;
+      await page.setViewportSize(viewport);
+      await page.goto(`${portal}${screen.path}`);
+      await expect(page.getByText(screen.ready).first()).toBeVisible({ timeout: 90_000 });
+      await page.waitForLoadState("networkidle").catch(() => undefined);
+      await expect(async () => {
+        await expectNoHorizontalOverflow(page, label);
+        await screen.check?.(label);
+      }).toPass({ timeout: 15_000 });
+    }
+  }
+
+  // Clean up the image so other suites see the catalog as they expect.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${portal}/admin/catalogo?q=${tag}`);
+  await page.getByRole("button", { name: `Editar imagens de ${name}` }).click();
+  await page.getByLabel("Motivo da alteração").fill("Remover foto de layout");
+  await page.getByRole("button", { name: "Remover capa" }).click();
+  await expect(page.getByText("Este produto ainda não tem imagem.")).toBeVisible();
+});
+
+// Every administrative screen and the PDV, on a phone and a small laptop: no page scrolls sideways.
+test("nenhuma tela administrativa nem o PDV rolam na horizontal no celular ou no notebook", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const pdv = process.env.PDV_URL ?? "http://127.0.0.1:3001";
+  const admin = await (await browser.newContext()).newPage();
+  expect((await admin.request.post(`${portal}/api/auth/login`, { headers, data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
+  const paths = ["/", "/admin/catalogo", "/admin/estoque", "/admin/usuarios", "/admin/compras", "/admin/promocoes", "/admin/rifas", "/admin/reservas",
+    "/admin/fechamentos", "/admin/auditoria", "/admin/configuracoes", "/admin/comunicacao/avisos", "/admin/comunicacao/divulgacao", "/admin/comunicacao/eventos",
+    "/admin/financeiro/saldo", "/admin/financeiro/extrato", "/admin/financeiro/lancamentos", "/admin/financeiro/vendas", "/admin/financeiro/turnos",
+    "/admin/financeiro/maquininhas", "/admin/financeiro/pagamentos-online", "/admin/financeiro/indicadores", "/admin/financeiro/contas-a-pagar",
+    "/admin/financeiro/conciliacao-picpay"];
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1024, height: 768 }]) {
+    await admin.setViewportSize(viewport);
+    for (const path of paths) {
+      await admin.goto(`${portal}${path}`);
+      await admin.waitForLoadState("networkidle").catch(() => undefined);
+      await expect(async () => expectNoHorizontalOverflow(admin, `${path} ${viewport.width}×${viewport.height}`)).toPass({ timeout: 15_000 });
+    }
+  }
+  await admin.context().close();
+
+  const seller = await (await browser.newContext()).newPage();
+  expect((await seller.request.post(`${pdv}/api/auth/login`, { headers: { Origin: pdv, "Sec-Fetch-Site": "same-origin" },
+    data: { identifier: "vendedor.teste", password: "Vendedor123!" } })).status()).toBe(200);
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1024, height: 768 }]) {
+    await seller.setViewportSize(viewport);
+    await seller.goto(`${pdv}/`);
+    await seller.waitForLoadState("networkidle").catch(() => undefined);
+    await expect(async () => expectNoHorizontalOverflow(seller, `PDV ${viewport.width}×${viewport.height}`)).toPass({ timeout: 15_000 });
+  }
+  await seller.context().close();
+});

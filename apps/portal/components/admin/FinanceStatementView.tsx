@@ -15,8 +15,9 @@ const natureLabels: Record<FinanceStatementNature, { label: string; tone: "succe
   RECEITA: { label: "Receita", tone: "success" }, DESPESA: { label: "Despesa", tone: "danger" },
   TRANSFERENCIA_INTERNA: { label: "Transferência interna", tone: "info" }, CONCILIACAO: { label: "Conciliação", tone: "info" },
   ESTORNO: { label: "Estorno", tone: "warning" }, SALDO_ABERTURA: { label: "Saldo de abertura", tone: "neutral" },
+  A_CLASSIFICAR: { label: "A classificar", tone: "warning" },
 };
-const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay", OPENING: "Abertura", PICPAY: "Minhas vendas" };
+const sourceLabels: Record<string, string> = { SALE: "Venda", PAYABLE: "Fornecedor", MANUAL: "Manual", IMPORT: "Extrato PicPay", IMPORT_PENDING: "Extrato PicPay (a classificar)", OPENING: "Abertura", PICPAY: "Minhas vendas" };
 
 /** FIN-006: consolidated statement by treasury account and category, exportable as CSV. */
 export function FinanceStatementView() {
@@ -75,7 +76,7 @@ export function FinanceStatementView() {
               <thead className="border-b border-[var(--g-border-subtle)] text-[var(--g-text-muted)]"><tr><th scope="col" className="p-3">Data</th><th scope="col" className="p-3">Tipo</th><th scope="col" className="p-3">Origem</th><th scope="col" className="p-3">Categoria</th><th scope="col" className="p-3">Conta</th><th scope="col" className="p-3">Descrição</th><th scope="col" className="p-3 text-right">Valor</th></tr></thead>
               <tbody className="divide-y divide-[var(--g-border-subtle)]">{statement.data.map((row, index) => <tr key={`${row.source}-${row.sourceId}-${row.account}-${index}`}>
                 <td className="p-3 whitespace-nowrap">{formatDay(row.occurredOn)}</td><td className="p-3"><Badge tone={natureLabels[row.nature].tone}>{natureLabels[row.nature].label}</Badge></td><td className="p-3">{sourceLabels[row.source] ?? row.source}</td>
-                <td className="p-3">{row.category ? financeCategoryLabels[row.category] : row.nature === "SALDO_ABERTURA" ? "Saldo de abertura" : "Transferência"}</td><td className="p-3">{financeAccountLabels[row.account]}</td>
+                <td className="p-3">{row.category ? financeCategoryLabels[row.category] : row.nature === "SALDO_ABERTURA" ? "Saldo de abertura" : row.nature === "A_CLASSIFICAR" ? "A classificar" : "Transferência"}</td><td className="p-3">{financeAccountLabels[row.account]}</td>
                 <td className="p-3">{row.description}{row.reference ? <span className="block text-xs text-[var(--g-text-muted)]">{row.reference}</span> : null}</td>
                 <td className="g-money p-3 text-right font-semibold">{formatMoney(row.amountCents)}</td></tr>)}</tbody>
             </table></div>}

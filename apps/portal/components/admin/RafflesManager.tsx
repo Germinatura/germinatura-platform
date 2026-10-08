@@ -4,7 +4,7 @@ import {
   adminRaffleBuyersResponseSchema, raffleCampaignCreateRequestSchema, raffleCampaignResponseSchema, raffleCampaignUpdateRequestSchema,
   raffleDrawResponseSchema, type AdminRaffleBuyer, type AdminRaffleCampaign, type RaffleCampaignStatus,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, Ticket } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
@@ -169,7 +169,7 @@ export function RafflesManager({ campaigns: loaded, products, locations, enabled
           </fieldset>{error && <p role="alert" className="mt-4 text-[var(--g-status-danger-foreground)]">{error}</p>}</form>}
           {selected && <section aria-label="Confirmar operação" className="space-y-3 rounded-[var(--g-radius-control)] bg-[var(--g-status-warning-soft)] p-4">
             <p className="text-sm text-[var(--g-status-warning-foreground)]">{confirmTexts[confirmation.action]}</p>
-            {confirmation.action === "cancel" && <Field id={`cancel-${campaign.campaignId}`} label="Motivo do cancelamento"><Input id={`cancel-${campaign.campaignId}`} maxLength={300} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></Field>}
+            {confirmation.action === "cancel" && <ReasonField id={`cancel-${campaign.campaignId}`} label="Motivo do cancelamento" minLength={3} maxLength={300} value={cancelReason} onChange={setCancelReason} />}
             <div className="flex flex-wrap gap-2"><Button disabled={disabled || (confirmation.action === "cancel" && cancelReason.trim().length < 3)} loading={busy} variant={confirmation.action === "cancel" ? "danger" : "brand"} onClick={confirm}>{confirmButtons[confirmation.action]}</Button><Button variant="ghost" disabled={busy} onClick={() => setConfirmation(null)}>Voltar</Button></div>
           </section>}
           {selected && error && <p role="alert" className="text-[var(--g-status-danger-foreground)]">{error}</p>}

@@ -73,14 +73,27 @@ export const picpayPeriodQuerySchema = z.object({ from: calendarDay, to: calenda
 export const picpaySummarySchema = z.object({
   period: z.object({ from: calendarDay, to: calendarDay }).strict(),
   operatingSince: calendarDay.nullable(),
+  openingAsOf: calendarDay.nullable(),
+  // First and last day of every imported PicPay file (Extrato and Minhas vendas), for the period shortcuts.
+  importedFrom: calendarDay.nullable(),
+  importedTo: calendarDay.nullable(),
   pdvSales: count,
   picpay: z.object({
     transactions: count, approved: count, denied: count, refunded: count, historical: count, linked: count,
     grossCents: cents, feeCents: cents, netCents: cents,
   }).strict(),
-  exceptions: z.object({ total: count, byType: z.record(z.string(), count) }).strict(),
+  // Open items in the period and overall: items outside the selected period are never hidden.
+  exceptions: z.object({
+    total: count, byType: z.record(z.string(), count), totalAll: count, outsidePeriod: count,
+    firstOpenOn: calendarDay.nullable(), lastOpenOn: calendarDay.nullable(),
+  }).strict(),
   receivables: z.object({ pendingCents: cents, overdueCents: cents, snapshotCents: cents, settledCents: cents }).strict(),
-  statement: z.object({ lines: count, inflowCents: cents, outflowCents: cents, internalTransferCents: cents, pendingLines: count }).strict(),
+  // Lines waiting for review already moved the bank account; they wait only for their classification.
+  statement: z.object({
+    lines: count, inflowCents: cents, outflowCents: cents, internalTransferCents: cents, pendingLines: count,
+    pendingLinesTotal: count, pendingNetCentsTotal: cents, pendingOutsidePeriod: count,
+  }).strict(),
+  balanceCheck: z.object({ asOf: calendarDay, status: z.enum(["CONCILIADO", "DIVERGENTE"]), totalDifferenceCents: cents }).strict().nullable(),
   balances: z.object({
     asOf: calendarDay, freeBalanceCents: cents, vaultBalanceCents: cents, availableBalanceCents: cents, receivablesBalanceCents: cents,
     pixClearingCents: cents, cashBalanceCents: cents,
