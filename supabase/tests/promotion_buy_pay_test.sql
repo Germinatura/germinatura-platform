@@ -1,7 +1,7 @@
 begin;
 select plan(30);
 
-select has_table('public','promotion_buy_pay_rules','buy-pay rules table exists');
+select has_table('cohort_data','promotion_buy_pay_rules','buy-pay rules table exists');
 select has_function('public','save_promotion',array['uuid','integer','text','text','text','boolean','boolean','integer','boolean','timestamp with time zone','timestamp with time zone','bigint','integer','uuid[]','promotion_channel[]','jsonb','text','text','uuid'],'generic promotion command exists');
 select ok(not has_function_privilege('anon','public.save_promotion(uuid,integer,text,text,text,boolean,boolean,integer,boolean,timestamp with time zone,timestamp with time zone,bigint,integer,uuid[],promotion_channel[],jsonb,text,text,uuid)','EXECUTE'),'anonymous cannot execute generic command');
 select ok(not has_table_privilege('authenticated','public.promotion_buy_pay_rules','INSERT'),'buy-pay rules deny direct insert');

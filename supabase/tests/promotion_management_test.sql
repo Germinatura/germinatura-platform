@@ -1,7 +1,7 @@
 begin;
 select plan(26);
 
-select has_table('public','promotion_versions','promotion version history exists');
+select has_table('cohort_data','promotion_versions','promotion version history exists');
 select col_type_is('public','promotions','revision','integer','promotion revision is explicit');
 select ok(not has_table_privilege('authenticated','public.promotion_versions','INSERT'),'history denies direct insert');
 select has_function('public','save_quantity_price_promotion',array['uuid','integer','text','text','text','boolean','boolean','integer','boolean','timestamp with time zone','timestamp with time zone','bigint','integer','uuid[]','promotion_channel[]','integer','bigint','integer','text','text','uuid'],'promotion save command exists');

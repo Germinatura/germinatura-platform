@@ -27,7 +27,8 @@ begin
     select c.table_schema, c.table_name
     from information_schema.columns c
     join information_schema.tables t on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
-    where c.table_schema = 'public' and c.data_type = 'timestamp with time zone' and c.is_generated = 'NEVER'
+    -- Physical tables: public, the cohort tables behind their views (ADR 0011) and the global catalogues in private.
+    where c.table_schema in ('public', 'cohort_data', 'private') and c.data_type = 'timestamp with time zone' and c.is_generated = 'NEVER'
     group by c.table_schema, c.table_name order by c.table_name
   loop
     select coalesce(

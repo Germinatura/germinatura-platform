@@ -1,10 +1,10 @@
 begin;
 select plan(51);
 
-select has_table('public', 'promotions', 'promotions table exists');
-select has_table('public', 'promotion_products', 'promotion product scopes table exists');
-select has_table('public', 'promotion_channels', 'promotion channels table exists');
-select has_table('public', 'promotion_quantity_price_rules', 'quantity price rules table exists');
+select has_table('cohort_data', 'promotions', 'promotions table exists');
+select has_table('cohort_data', 'promotion_products', 'promotion product scopes table exists');
+select has_table('cohort_data', 'promotion_channels', 'promotion channels table exists');
+select has_table('cohort_data', 'promotion_quantity_price_rules', 'quantity price rules table exists');
 select has_view('public', 'current_quantity_price_promotions', 'current quantity promotion view exists');
 select col_type_is('public', 'promotions', 'global_redemption_limit', 'bigint', 'global limit uses bigint');
 select col_type_is('public', 'promotion_quantity_price_rules', 'group_price_cents', 'bigint', 'group price uses bigint cents');
@@ -26,7 +26,7 @@ select results_eq(
   'current promotion view invokes underlying RLS'
 );
 select results_eq(
-  $$select count(*)::bigint from pg_class where oid in ('public.promotions'::regclass, 'public.promotion_products'::regclass, 'public.promotion_channels'::regclass, 'public.promotion_quantity_price_rules'::regclass) and relrowsecurity$$,
+  $$select count(*)::bigint from pg_class where oid in ('cohort_data.promotions'::regclass, 'cohort_data.promotion_products'::regclass, 'cohort_data.promotion_channels'::regclass, 'cohort_data.promotion_quantity_price_rules'::regclass) and relrowsecurity$$,
   array[4::bigint],
   'all promotion tables have RLS enabled'
 );
@@ -45,9 +45,9 @@ select results_eq(
   array[0::bigint],
   'service role receives no direct promotion grants'
 );
-select has_index('public', 'promotions', 'promotions_current_lookup_idx', 'current promotion lookup is indexed');
-select has_index('public', 'promotion_products', 'promotion_products_product_idx', 'product scope lookup is indexed');
-select has_index('public', 'promotion_channels', 'promotion_channels_channel_idx', 'channel lookup is indexed');
+select has_index('cohort_data', 'promotions', 'promotions_current_lookup_idx', 'current promotion lookup is indexed');
+select has_index('cohort_data', 'promotion_products', 'promotion_products_product_idx', 'product scope lookup is indexed');
+select has_index('cohort_data', 'promotion_channels', 'promotion_channels_channel_idx', 'channel lookup is indexed');
 
 select throws_ok(
   $$insert into public.promotions (code, name, valid_from) values ('invalid-code', 'Inválida', now())$$,

@@ -76,8 +76,11 @@ function renderComparison(title, result) {
 function cohortAssertions(target) {
   const integrity = psql(target, "select check_name || '|' || subject || '|' || violations from private.cohort_integrity_report() order by check_name, subject;")
     .split("\n").filter(Boolean).map((line) => { const [check, subject, violations] = line.split("|"); return { check, subject, violations: Number(violations) }; });
+  // Required tables: every row in Turma 2026. Attribution/log tables: NULL (global/not attributed) or Turma 2026.
   const attribution = psql(target, `select t.table_name || '|' || (xpath('/row/n/text()', query_to_xml(format(
-      'select count(*) as n from public.%I where cohort_id is distinct from %L::uuid', t.table_name, '${BOOTSTRAP_COHORT_ID}'), false, true, '')))[1]::text
+      case when t.mode = 'REQUIRED' then 'select count(*) as n from %s where cohort_id is distinct from %L::uuid'
+        else 'select count(*) as n from %s where cohort_id is not null and cohort_id <> %L::uuid' end,
+      coalesce(to_regclass(format('cohort_data.%I', t.table_name)), to_regclass(format('public.%I', t.table_name))), '${BOOTSTRAP_COHORT_ID}'), false, true, '')))[1]::text
     from private.cohort_scoped_tables t order by 1;`).split("\n").filter(Boolean).map((line) => { const [table, outside] = line.split("|"); return { table, outside: Number(outside) }; });
   const membership = psql(target, `select (select count(*) from public.profiles) || '|' || (select count(*) from public.user_cohorts where cohort_id = '${BOOTSTRAP_COHORT_ID}' and status = 'ACTIVE');`).split("|").map(Number);
   const cohort = psql(target, `select name || '|' || year || '|' || slug || '|' || status || '|' || is_default from public.cohorts where id = '${BOOTSTRAP_COHORT_ID}';`);
@@ -112,14 +115,22 @@ function main() {
   console.log("\n▶ Snapshot depois");
   const after = snapshot(target, { columns: columnsOf(before), perRow: true });
   const scoped = psql(target, "select table_name from private.cohort_scoped_tables order by 1;").split("\n").filter(Boolean);
-  const upgrade = compareSnapshots(before, after, { expectedNewColumns: Object.fromEntries(scoped.map((name) => [name, ["cohort_id"]])), requireSameTuples: true });
+  // New columns allowed on pre-existing tables: cohort_id on every classified table, and the scope of the flag catalogue.
+  // Table legitimately rewritten: the four global flags get their scope (pre-existing values unchanged).
+  const upgrade = compareSnapshots(before, after, {
+    expectedNewColumns: { ...Object.fromEntries(scoped.map((name) => [name, ["cohort_id"]])), feature_flags: ["scope"] },
+    requireSameTuples: true,
+    rewrittenTables: ["feature_flags"],
+    // The permission catalogue gains cohorts.manage.
+    expectedNewRows: { permissions: 1 },
+  });
   const cohort = cohortAssertions(target);
   // Full snapshot (cohort_id included) as the reference for the re-run.
   const upgraded = snapshot(target, { perRow: true });
 
-  console.log("\n▶ Reexecução das migrations reexecutáveis (idempotência)");
-  const rerunnable = pending.filter((name) => name >= `${COHORT_MIGRATIONS_FROM}_` && !name.startsWith(COHORT_MIGRATIONS_FROM));
-  for (const name of rerunnable) psql(target, readFileSync(join(root, "supabase", "migrations", name), "utf8"), ["-1"]);
+  // Migrations run once (schema_migrations); once the tables sit behind their views the expansion DDL is no longer
+  // re-runnable by design. What must stay idempotent is the bootstrap data, re-applied here.
+  console.log("\n▶ Reexecução dos dados de bootstrap (idempotência)");
   psql(target, `insert into public.cohorts (id, name, year, slug, status, is_default)
       values ('${BOOTSTRAP_COHORT_ID}', 'Turma 2026', 2026, '2026', 'ACTIVE', true) on conflict (id) do nothing;
     insert into public.user_cohorts (user_id, cohort_id, status, joined_at)
@@ -137,12 +148,12 @@ function main() {
     `- Duração de \`supabase migration up\`: ${(migrationMs / 1000).toFixed(1)} s.`,
     `- Tamanho do banco: ${before.database_bytes} → ${after.database_bytes} bytes.`,
     `- Linhas no schema public antes: ${Object.values(before.tables).reduce((sum, table) => sum + table.rows, 0)}.`,
-    `- Tabelas por turma: ${scoped.length}; todas as linhas na Turma 2026: ${cohort.attribution.every((row) => row.outside === 0) ? "sim" : "NÃO"}.`,
+    `- Tabelas classificadas: ${scoped.length}; linhas fora da Turma 2026 (nulos permitidos só em atribuição/log): ${cohort.attribution.reduce((sum, row) => sum + row.outside, 0)}.`,
     `- Perfis/vínculos ativos na Turma 2026: ${cohort.membership.join("/")}.`,
     `- Relatório de integridade: ${cohort.integrity.length} verificações, ${cohort.integrity.filter((row) => row.violations !== 0).length} com violação.`, "",
     ...cohort.problems.map((problem) => `- ❌ ${problem}`),
     renderComparison("Upgrade (antes → depois)", upgrade), "",
-    `### Reexecução (${rerunnable.join(", ")} + inserts do bootstrap): ${rerun.ok && cohortAgain.ok ? "OK, nada mudou" : "FALHOU"}`,
+    `### Reexecução dos inserts do bootstrap (Turma 2026 e vínculos): ${rerun.ok && cohortAgain.ok ? "OK, nada mudou" : "FALHOU"}`,
     ...rerun.problems.map((problem) => `- ❌ ${problem}`), ...cohortAgain.problems.map((problem) => `- ❌ ${problem}`), "",
   ];
   const report = lines.join("\n");

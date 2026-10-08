@@ -2,7 +2,7 @@
 begin;
 select plan(26);
 
-select has_table('public','payment_terminals','terminal registry exists');
+select has_table('private','payment_terminals','terminal registry exists');
 select ok(not has_function_privilege('anon','public.save_payment_terminal(uuid,text,text,boolean,text,uuid)','EXECUTE'),'anonymous cannot register terminals');
 select ok(not has_table_privilege('authenticated','public.payment_terminals','INSERT'),'terminals deny direct writes');
 

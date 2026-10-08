@@ -9,7 +9,8 @@ Prova automatizada, **somente local e descartável**, da arquitetura candidata a
 - um trigger `a_cohort_guard`, que preenche e valida `cohort_id`, recusa escrita em "Todas" e em turma arquivada e
   impede trocar a turma de uma linha.
 
-Nada aqui é migration. `spike.sql` é o protótipo do que o PR 2 transformará em migration.
+Nada aqui é migration. `spike.sql` foi o protótipo do PR 2, que virou as migrations `20261020090000`–`20261020090200`; o spike roda
+sobre o schema anterior a elas (`develop` c0b6e34) e fica como evidência histórica.
 
 ```bash
 node tools/spikes/cohort-isolation/run.mjs --out=<diretório> [--skip-suite]

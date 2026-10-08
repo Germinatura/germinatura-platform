@@ -1,4 +1,4 @@
-// Read-only preservation snapshot of the physical tables (public, and cohort_data once it exists), used by the upgrade check (CI/local) and by the cutover
+// Read-only preservation snapshot of the physical tables (public, cohort_data and private), used by the upgrade check (CI/local) and by the cutover
 // runbook (production, SQL editor or psql). The SQL is a single SELECT: it reads the catalogue, runs one counting
 // query per table through query_to_xml and returns one JSON document. It never writes.
 //
@@ -60,8 +60,8 @@ target as (
       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum
       where i.indrelid = c.oid and i.indisprimary) as pk
   from pg_class c cross join params p
-  -- Physical tables of public and, once tables move behind cohort views, of cohort_data (names stay unique).
-  where c.relnamespace::regnamespace::text in ('public', 'cohort_data') and c.relkind in ('r', 'p')
+  -- Physical tables of public and, once tables move behind cohort views, of cohort_data and private (names stay unique).
+  where c.relnamespace::regnamespace::text in ('public', 'cohort_data', 'private') and c.relkind in ('r', 'p')
 ),
 resolved as (
   select t.*,
@@ -113,10 +113,13 @@ const rowHashMap = (value) => new Map(value ? value.split(",").map((pair) => pai
  * @param {{ expectedNewColumns?: Record<string, string[]>, requireSameTuples?: boolean, allowNewRows?: boolean }} options
  *   expectedNewColumns: the only columns the migrations may add to pre-existing tables.
  *   requireSameTuples: no pre-existing tuple may be rewritten (xmin/ctid unchanged), for quiet databases only.
+ *   rewrittenTables: tables a migration legitimately rewrites (a derived column backfilled with UPDATE); their
+ *   pre-existing columns must still be identical.
+ *   expectedNewRows: catalogue rows a migration adds ({ table: count }); every earlier row must stay identical.
  *   allowNewRows: rows added in between are accepted (live production traffic); existing rows must stay identical,
  *   which requires per-row hashes in both snapshots.
  */
-export function compareSnapshots(before, after, { expectedNewColumns = {}, requireSameTuples = false, allowNewRows = false } = {}) {
+export function compareSnapshots(before, after, { expectedNewColumns = {}, requireSameTuples = false, allowNewRows = false, rewrittenTables = [], expectedNewRows = {} } = {}) {
   const problems = [];
   const tables = [];
   for (const [name, old] of Object.entries(before.tables)) {
@@ -137,7 +140,8 @@ export function compareSnapshots(before, after, { expectedNewColumns = {}, requi
     const tuplesEqual = now.tuples === old.tuples;
     let missingRows = 0;
     let changedRows = 0;
-    if (allowNewRows) {
+    const expectedDelta = expectedNewRows[name] ?? 0;
+    if (allowNewRows || expectedDelta) {
       if (!old.row_hashes && old.rows > 0) problems.push(`${name}: per-row hashes are required to accept new rows`);
       const nowRows = rowHashMap(now.row_hashes);
       for (const [key, hash] of rowHashMap(old.row_hashes)) {
@@ -145,13 +149,15 @@ export function compareSnapshots(before, after, { expectedNewColumns = {}, requi
         else if (nowRows.get(key) !== hash) changedRows += 1;
       }
       if (now.rows < old.rows) problems.push(`${name}: ${old.rows - now.rows} rows fewer`);
+      if (!allowNewRows && now.rows !== old.rows + expectedDelta) problems.push(`${name}: rows ${old.rows} → ${now.rows}, expected +${expectedDelta}`);
     } else {
       if (now.rows !== old.rows) problems.push(`${name}: rows ${old.rows} → ${now.rows}`);
       else if (!hashEqual) problems.push(`${name}: content of pre-existing columns changed`);
     }
     if (missingRows) problems.push(`${name}: ${missingRows} pre-existing rows missing`);
     if (changedRows) problems.push(`${name}: ${changedRows} pre-existing rows changed`);
-    if (requireSameTuples && !tuplesEqual) problems.push(`${name}: pre-existing tuples were rewritten`);
+    // With expected new rows the table-wide tuple hash changes by construction; the per-row hashes above prove the rest.
+    if (requireSameTuples && !tuplesEqual && !rewrittenTables.includes(name) && !expectedDelta) problems.push(`${name}: pre-existing tuples were rewritten`);
     tables.push({ name, rowsBefore: old.rows, rowsAfter: now.rows, hashEqual, tuplesEqual, added });
   }
   const newTables = Object.keys(after.tables).filter((name) => !before.tables[name]).sort();

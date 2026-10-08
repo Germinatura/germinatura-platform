@@ -17,8 +17,8 @@ begin
 end;
 $$;
 
-select has_index('public', 'outbox_events', 'outbox_events_processing_lease_idx', 'expired leases are found by index');
-select has_index('public', 'outbox_events', 'outbox_events_failed_idx', 'failed events are counted by index');
+select has_index('cohort_data', 'outbox_events', 'outbox_events_processing_lease_idx', 'expired leases are found by index');
+select has_index('cohort_data', 'outbox_events', 'outbox_events_failed_idx', 'failed events are counted by index');
 select ok(pg_temp.plan_of($$select id from public.outbox_events
   where ((status = 'PENDING' and available_at <= now()) or (status = 'PROCESSING' and locked_at < now() - interval '300 seconds'))
   order by available_at, created_at for update skip locked limit 100$$) !~ 'Seq Scan',

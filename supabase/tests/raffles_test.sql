@@ -1,15 +1,15 @@
 begin;
 select plan(42);
 
-select has_table('public', 'raffle_campaigns', 'raffle campaigns table exists');
-select has_table('public', 'raffle_numbers', 'raffle numbers table exists');
-select has_table('public', 'raffle_draws', 'raffle draws table exists');
+select has_table('cohort_data', 'raffle_campaigns', 'raffle campaigns table exists');
+select has_table('cohort_data', 'raffle_numbers', 'raffle numbers table exists');
+select has_table('cohort_data', 'raffle_draws', 'raffle draws table exists');
 select has_function('public', 'create_raffle_campaign', array['text','uuid','uuid','integer','timestamptz','timestamptz','text','uuid'], 'campaign create RPC exists');
 select has_function('public', 'reserve_raffle_numbers', array['uuid','integer[]','text','uuid'], 'number reservation RPC exists');
 select has_function('public', 'cancel_raffle_reservation', array['uuid','text','uuid'], 'reservation cancel RPC exists');
 select has_function('public', 'close_raffle_campaign', array['uuid','text','uuid'], 'campaign close RPC exists');
 select has_function('public', 'draw_raffle_campaign', array['uuid','text','uuid'], 'draw RPC exists');
-select ok((select relrowsecurity from pg_class where oid = 'public.raffle_numbers'::regclass), 'raffle numbers have RLS');
+select ok((select relrowsecurity from pg_class where oid = 'cohort_data.raffle_numbers'::regclass), 'raffle numbers have RLS');
 select results_eq(
   $$select count(*)::bigint from pg_policies where schemaname = 'public' and tablename in ('raffle_campaigns','raffle_numbers','raffle_draws') and cmd in ('INSERT','UPDATE','DELETE')$$,
   array[0::bigint], 'raffle tables expose no write policies'

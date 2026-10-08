@@ -1,8 +1,8 @@
 begin;
 select plan(72);
 
-select has_table('public', 'payment_attempts', 'payment attempts table exists');
-select has_table('public', 'payment_attempt_status_history', 'payment attempt history table exists');
+select has_table('cohort_data', 'payment_attempts', 'payment attempts table exists');
+select has_table('cohort_data', 'payment_attempt_status_history', 'payment attempt history table exists');
 select has_type('public', 'payment_attempt_status', 'payment attempt status type exists');
 select has_type('public', 'payment_integration_channel', 'payment channel type exists');
 select has_type('public', 'payment_confirmation_source', 'confirmation source type exists');
@@ -29,11 +29,11 @@ select has_function(
   'sale reservation helper exists'
 );
 select ok(
-  (select relrowsecurity from pg_class where oid = 'public.payment_attempts'::regclass),
+  (select relrowsecurity from pg_class where oid = 'cohort_data.payment_attempts'::regclass),
   'payment attempts have RLS enabled'
 );
 select ok(
-  (select relrowsecurity from pg_class where oid = 'public.payment_attempt_status_history'::regclass),
+  (select relrowsecurity from pg_class where oid = 'cohort_data.payment_attempt_status_history'::regclass),
   'payment attempt history has RLS enabled'
 );
 select results_eq(

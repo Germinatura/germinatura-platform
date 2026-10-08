@@ -1,15 +1,15 @@
 begin;
 select plan(49);
 
-select has_table('public', 'stock_movements', 'stock movements table exists');
-select has_table('public', 'stock_movement_items', 'stock movement items table exists');
-select has_table('public', 'audit_logs', 'audit log table exists');
-select has_table('public', 'outbox_events', 'outbox table exists');
+select has_table('cohort_data', 'stock_movements', 'stock movements table exists');
+select has_table('cohort_data', 'stock_movement_items', 'stock movement items table exists');
+select has_table('cohort_data', 'audit_logs', 'audit log table exists');
+select has_table('cohort_data', 'outbox_events', 'outbox table exists');
 select has_function('public', 'adjust_stock', array['uuid', 'uuid', 'bigint', 'text', 'text', 'uuid'], 'stock adjustment RPC exists');
 select has_function('public', 'transfer_stock', array['uuid', 'uuid', 'uuid', 'bigint', 'text', 'text', 'uuid'], 'stock transfer RPC exists');
 select has_function('public', 'reverse_stock_movement', array['uuid', 'text', 'text', 'uuid'], 'stock reversal RPC exists');
 select results_eq(
-  $$select count(*)::bigint from pg_class where oid in ('public.stock_movements'::regclass, 'public.stock_movement_items'::regclass, 'public.audit_logs'::regclass, 'public.outbox_events'::regclass) and relrowsecurity$$,
+  $$select count(*)::bigint from pg_class where oid in ('cohort_data.stock_movements'::regclass, 'cohort_data.stock_movement_items'::regclass, 'cohort_data.audit_logs'::regclass, 'cohort_data.outbox_events'::regclass) and relrowsecurity$$,
   array[4::bigint],
   'ledger, audit and outbox tables have RLS enabled'
 );

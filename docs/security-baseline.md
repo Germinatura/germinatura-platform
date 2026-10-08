@@ -33,6 +33,50 @@ Todas as tabelas públicas da fundação têm RLS. Usuários autenticados podem 
 
 O bucket público `product-images` limita arquivos a 5 MB e aceita JPG, PNG e WebP. Uploads exigem `catalog.manage`, assinatura compatível com o MIME e caminho imutável `products/<produto>/<imagem>.<extensão>`; não há policy de listagem nem de sobrescrita. A API pública só enumera metadados ativos ligados a produto e categoria publicados. A remoção oculta o metadado antes de excluir o objeto pelo Storage API e preserva tombstone e auditoria para recuperação segura.
 
+## Turmas: RBAC por turma e isolamento (ADR 0011)
+
+Um único banco e domínio, com segregação lógica e de segurança por turma.
+
+- **Contexto da requisição.**
+  - O Portal envia `x-germinatura-cohort` com um uuid ou com `all`.
+  - O banco valida o header (`private.cohort_scope()`) contra um vínculo ativo em `user_cohorts` ou contra ADMIN_MASTER.
+    Header inválido ou de turma sem vínculo resulta em escopo vazio: nada é lido, nenhuma permissão é concedida e
+    nada é escrito.
+  - `all` vale só para ADMIN_MASTER e só para leitura e agregação. Toda escrita em tabela por turma exige uma turma
+    concreta (`COHORT_REQUIRED`).
+  - Sem header, a requisição cai na turma padrão. Esse fallback existe só para compatibilidade de rollout. No estado
+    final, só quem tem exatamente uma turma acessível tem a turma inferida; ADMIN_MASTER nunca.
+  - O jobs worker processa cada evento da outbox dentro da turma do evento (`private.enter_cohort_context`, exclusivo
+    de sistema e service role).
+- **RBAC.**
+  - `has_permission(p)` concede a permissão se a pessoa é ADMIN_MASTER, ou se tem, na turma da requisição, um papel
+    com `p` e um vínculo ativo. O mesmo usuário pode ser ADMIN numa turma e consumidor em outra.
+  - ADMIN_MASTER (`admin_masters`, uma linha por pessoa, nunca um papel repetido por turma) tem todas as turmas e
+    todas as permissões, inclusive `cohorts.manage`. Ele só é concedido por outro ADMIN_MASTER ou pelo bootstrap
+    institucional. O último ativo não pode ser revogado. Continua autenticado, passa pelas mesmas funções e
+    aparece na auditoria como ator normal.
+- **Isolamento.**
+  - Cada tabela por turma fica em `cohort_data`, que não é exposto. `public.<tabela>` é uma view `security_invoker`
+    filtrada pelo escopo, e os RPCs (`SECURITY DEFINER`) só enxergam e gravam a turma da requisição.
+  - A tabela base tem uma policy RLS restritiva com o mesmo escopo. Ela protege a Data API, o acesso direto e o
+    Realtime.
+  - O trigger `a_cohort_guard`:
+    - preenche a turma a partir da linha pai;
+    - recusa pai de outra turma, troca de turma, escrita em "Todas" e escrita em turma arquivada.
+- **Global com visibilidade por turma.**
+  - **Maquininhas:** a identidade é global (`private.payment_terminals`); a turma usa só as autorizadas em
+    `cohort_payment_terminals`.
+  - **Flags:**
+    - as de infraestrutura e credenciamento são globais e alteradas só por ADMIN_MASTER;
+    - as de módulo e meio de pagamento valem por turma.
+  - **Evidência PicPay:** é global e única. A atribuição a uma venda ou lançamento herda a turma, e a mesma
+    evidência nunca é atribuída a duas turmas.
+- **Logs.** `audit_logs` e `outbox_events` levam a turma da operação. `NULL` marca uma operação realmente global, e
+  essas linhas só são visíveis para ADMIN_MASTER e para o sistema.
+- **Lacuna conhecida, para o PR 3:** a listagem de usuários do admin lê `profiles`/`user_roles` com o cliente de
+  chave secreta, sem escopo de turma. Nenhuma segunda turma deve ser criada em produção antes de essa rota passar a
+  usar um RPC escopado.
+
 ## Headers e logs
 
 Portal e PDV enviam CSP, proteção contra framing e MIME sniffing, Referrer Policy, Permissions Policy, COOP e CORP. A CSP permite os requisitos atuais do Next.js/Supabase e deve ser revalidada quando OpenNext/Cloudflare for instalado. O servidor de desenvolvimento acrescenta `unsafe-eval` somente a `script-src`, pois o runtime de depuração do React/Next depende dessa diretiva; o build de produção não contém essa exceção.

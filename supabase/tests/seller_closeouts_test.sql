@@ -1,9 +1,9 @@
 begin;
 select plan(37);
 
-select has_table('public', 'seller_closeouts', 'seller closeouts table exists');
-select has_table('public', 'seller_closeout_payment_summaries', 'payment summaries table exists');
-select has_table('public', 'seller_closeout_stock_counts', 'stock counts table exists');
+select has_table('cohort_data', 'seller_closeouts', 'seller closeouts table exists');
+select has_table('cohort_data', 'seller_closeout_payment_summaries', 'payment summaries table exists');
+select has_table('cohort_data', 'seller_closeout_stock_counts', 'stock counts table exists');
 select has_type('public', 'seller_closeout_status', 'closeout status type exists');
 select has_function(
   'public', 'create_seller_closeout',
@@ -19,7 +19,7 @@ select has_function(
   'public', 'list_managed_seller_closeouts', array['integer'],
   'managed closeout list RPC exists'
 );
-select ok((select relrowsecurity from pg_class where oid = 'public.seller_closeouts'::regclass), 'closeouts have RLS');
+select ok((select relrowsecurity from pg_class where oid = 'cohort_data.seller_closeouts'::regclass), 'closeouts have RLS');
 select results_eq(
   $$select count(*)::bigint from pg_policies where schemaname = 'public' and tablename like 'seller_closeout%' and cmd in ('INSERT','UPDATE','DELETE')$$,
   array[0::bigint], 'closeout tables expose no direct write policies'

@@ -1,8 +1,8 @@
 begin;
 select plan(33);
 
-select has_table('public','promotion_percentage_rules','percentage rules table exists');
-select has_table('public','promotion_fixed_unit_price_rules','fixed unit price rules table exists');
+select has_table('cohort_data','promotion_percentage_rules','percentage rules table exists');
+select has_table('cohort_data','promotion_fixed_unit_price_rules','fixed unit price rules table exists');
 select col_type_is('public','promotion_percentage_rules','percentage_basis_points','integer','percentage is stored in basis points');
 select col_type_is('public','promotion_fixed_unit_price_rules','fixed_unit_price_cents','bigint','fixed price is stored in cents');
 select has_function('public','save_unit_promotion',array['uuid','integer','text','text','text','boolean','boolean','integer','boolean','timestamp with time zone','timestamp with time zone','bigint','integer','uuid[]','promotion_channel[]','promotion_rule_type','integer','bigint','text','text','uuid'],'unit promotion command exists');
