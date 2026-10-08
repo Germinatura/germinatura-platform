@@ -59,13 +59,18 @@ data e hora. O **backup obrigatório** é o dump lógico, feito pelo responsáve
 supabase link --project-ref <ref-de-producao>
 ```
 ```bash
-supabase db dump --linked -f backup-AAAAMMDD/roles.sql --role-only
+supabase db dump --linked -f backup-AAAAMMDD/data.sql --data-only --use-copy -x storage.buckets_vectors,storage.vector_indexes
 ```
+
+As duas tabelas excluídas são internas do Storage (vetores), vazias e graváveis só pela plataforma.
 ```bash
 supabase db dump --linked -f backup-AAAAMMDD/schema.sql
 ```
-```bash
-supabase db dump --linked -f backup-AAAAMMDD/data.sql --data-only --use-copy
+
+Na mesma hora, salve também o snapshot de produção (`before.json`, seção seguinte) e a versão das migrations aplicadas:
+
+```sql
+select max(version) from supabase_migrations.schema_migrations;
 ```
 
 Regras do dump:
@@ -73,24 +78,36 @@ Regras do dump:
 - Os arquivos ficam **fora** do repositório: o `.gitignore` não é proteção suficiente para dados reais.
 - Calcule o SHA-256 de cada arquivo (`sha256sum backup-AAAAMMDD/*.sql`) e anote os valores junto com data e hora.
 
-**Verificação do backup** (sem tocar produção): restaure num Supabase local descartável e compare com produção.
+**O schema vem das migrations, não do `schema.sql`.** O `supabase db dump` exclui os schemas `auth` e `storage`.
+Por isso o `schema.sql` não contém:
+- as policies de Storage criadas pelas migrations (fotos de perfil, imagens de produto, fotos de perda, capas de evento);
+- o trigger de cadastro em `auth.users`.
 
-1. `pnpm supabase:start`, depois `pnpm supabase:reset` para começar limpo.
-2. Crie um banco vazio no contêiner local (o reset já criou o schema no banco `postgres`, por isso usamos outro):
+Uma restauração "roles + schema + data" deixaria os arquivos sem regras de acesso e quebraria o cadastro. Isso foi
+comprovado pelo spike de isolamento (`tools/spikes/cohort-isolation`). O `schema.sql` serve só de referência para diff.
+
+**Verificação do backup** (sem tocar produção): restaure num Supabase local descartável e compare com produção.
+O mesmo roteiro, com as credenciais do projeto novo, vale para um desastre real.
+
+1. Faça o checkout local do commit que está em produção (mesmas migrations; a versão anotada acima deve ser a última).
+2. `pnpm supabase:start`, depois `node tools/run-supabase.mjs db reset --no-seed`. Isso aplica todas as migrations sem
+   dados de exemplo e cria o schema completo, inclusive Storage e `auth`.
+3. Esvazie os dados da aplicação e os buckets criados pelas migrations, que voltam pelo dump:
    ```bash
-   docker exec supabase_db_germinatura createdb -U postgres restore_check
+   echo "do \$\$ declare v text; begin select string_agg(format('%I.%I', n.nspname, c.relname), ', ') into v from pg_class c join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r','p') and n.nspname in ('public','private','cohort_data'); execute 'truncate ' || v || ', storage.objects, storage.buckets cascade'; end \$\$;" | docker exec -i supabase_db_germinatura psql -U postgres -v ON_ERROR_STOP=1
    ```
-3. Restaure pelo `psql` do próprio contêiner, sem URL nem senha na linha de comando:
+4. Carregue os dados em modo replica (sem disparar triggers), numa única transação:
    ```bash
-   cat backup-AAAAMMDD/roles.sql backup-AAAAMMDD/schema.sql <(echo "set session_replication_role = replica;") backup-AAAAMMDD/data.sql | docker exec -i supabase_db_germinatura psql -U postgres -d restore_check --single-transaction -v ON_ERROR_STOP=1
+   cat <(echo "set session_replication_role = replica;") backup-AAAAMMDD/data.sql | docker exec -i supabase_db_germinatura psql -U postgres --single-transaction -v ON_ERROR_STOP=1
    ```
-4. Rode o snapshot (abaixo) no banco restaurado e compare com o `before.json` de produção:
+5. Rode o snapshot (abaixo) no banco restaurado e compare com o `before.json` de produção:
    ```bash
    pnpm test:upgrade --compare=before.json,restaurado.json
    ```
    O resultado esperado é contagens e hashes iguais.
 
-O Storage (imagens) não está no dump, e estas migrations não tocam no Storage.
+Os **arquivos** do Storage (imagens e fotos) não estão no dump do banco, que traz só os metadados. Estas migrations
+não tocam no Storage. O backup dos arquivos é um item à parte da prontidão de release (`release-readiness.md`).
 
 ### Snapshot de preservação (antes e depois)
 
@@ -150,8 +167,9 @@ Depois, o snapshot "depois" e a comparação acima.
      `public.cohorts`, `private.bootstrap_cohort_id()` e os tipos `cohort_status` e `cohort_membership_status`.
 
   Nenhum dado anterior se perde, porque nada anterior foi alterado.
-- **Restauração do dump:** só em perda catastrófica. Ela descarta as escritas feitas depois do backup, então exige
-  decisão explícita do responsável.
+- **Restauração do dump:** só em perda catastrófica, pelo roteiro de verificação acima aplicado a um projeto novo
+  (migrations → esvaziar → `data.sql`). Ela descarta as escritas feitas depois do backup, então exige decisão
+  explícita do responsável.
 
 ## Fases seguintes
 

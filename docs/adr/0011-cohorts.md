@@ -1,6 +1,6 @@
 # ADR 0011 — Turmas (multi-turma) e ADMIN_MASTER
 
-- Status: ACCEPTED (fundação de dados, PR 1). A autorização por turma e o mecanismo de isolamento são PROPOSED até o spike do PR 2.
+- Status: ACCEPTED. A fundação de dados (PR 1) está integrada; o mecanismo de isolamento foi provado pelo spike de 08/10/2026 e será adotado no PR 2.
 - Data: 2026-10-08
 - Aprovação: proposta técnica da Fase A, com os ajustes do responsável pelo projeto de 08/10/2026.
 
@@ -115,6 +115,33 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   + trigger de escrita". Só será adotado depois da prova automatizada do spike do PR 2, que inclui Realtime,
   publications, Data API, grants, policies, OID/regclass, migrations posteriores, backup/restore e diff de schema.
   Uma arquitetura híbrida é aceitável onde a prova exigir.
+
+## Resultado do spike de isolamento (08/10/2026)
+
+O spike (`tools/spikes/cohort-isolation`; evidências em `REPORT.md`) converteu um recorte real com ledgers, triggers,
+FKs nos dois sentidos, auto-FK e identity, em banco descartável. Resultado:
+
+- isolamento 49/49 nos três cenários (banco limpo, banco populado e banco restaurado do backup), pela view, pela tabela
+  base com RLS e pelos RPCs `SECURITY DEFINER` atuais, sem alterá-los;
+- as 90 suítes pgTAP existentes passam sobre o banco convertido, salvo as verificações estruturais que procuram tabela
+  em `public`;
+- a conversão sobre banco populado preserva todas as linhas, valores e tuplas;
+- a Data API funciona via HTTP real, inclusive embedding por FK através das views; o schema base não é exposto;
+- **Realtime:** hoje não há tabela publicada nem assinatura no código. A view não pode ser publicada; a tabela base
+  pode, e cada assinante recebe só os eventos das turmas em que participa, inclusive o anônimo, que recebe só a turma
+  padrão;
+- backup e restauração pelo procedimento corrigido do runbook (migrations + `data.sql`) reproduzem exatamente o banco.
+
+**Decisão:** o PR 2 adota tabela base em `cohort_data` + view filtrada + policy restritiva por vínculo + guard de
+escrita, com os tratamentos listados no README do spike:
+- funções com assinatura no tipo-linha;
+- views dependentes;
+- default privileges;
+- testes estruturais;
+- ferramentas que enumeram `public`;
+- guard de publicação.
+
+Não é necessária arquitetura híbrida para preservar Realtime.
 
 ## Migração em produção (expand → backfill → validate → constrain)
 

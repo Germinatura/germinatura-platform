@@ -18,10 +18,10 @@
 // Other modes, for the production runbook (no database access by this tool):
 //   --emit-sql [--columns=<before.json>] [--per-row]  prints the read-only snapshot SQL
 //   --compare=<before.json>,<after.json> [--live]     compares two snapshots; --live accepts rows added by traffic
-import { execFileSync, spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fail as refuse, localTarget, psql, run as runStep } from "./local.mjs";
 import { BOOTSTRAP_COHORT_ID, columnsOf, compareSnapshots, snapshotSql } from "./snapshot.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -35,10 +35,7 @@ const BASE = String(option("base", "20261018090000"));
 const DAYS = Number(option("days", "8"));
 const COHORT_MIGRATIONS_FROM = "20261019090000";
 
-function fail(message) {
-  console.error(`upgrade-check recusado: ${message}`);
-  process.exit(1);
-}
+const fail = (message) => refuse("upgrade-check", message);
 
 // ------------------------------------------------------------------------------------------------ offline modes
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
@@ -58,45 +55,7 @@ if (option("compare")) {
   process.exit(result.ok ? 0 : 2);
 }
 
-// ------------------------------------------------------------------------------------------- guards (fail closed)
-function localTarget() {
-  if (process.env.NODE_ENV === "production") fail("NODE_ENV=production.");
-  for (const name of ["SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF", "SUPABASE_DB_PASSWORD"]) {
-    if (process.env[name]) fail(`a variável ${name} indica um projeto Supabase remoto.`);
-  }
-  const config = readFileSync(join(root, "supabase", "config.toml"), "utf8");
-  const projectId = config.match(/^project_id\s*=\s*"([^"]+)"/m)?.[1];
-  if (!projectId) fail("supabase/config.toml sem project_id.");
-  let status;
-  try {
-    status = execFileSync(process.execPath, [join(root, "tools", "run-supabase.mjs"), "status", "-o", "env"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-  } catch {
-    fail("o Supabase local não está rodando (pnpm supabase:start).");
-  }
-  const value = (key) => status.match(new RegExp(`^${key}="?([^"\\r\\n]+)"?$`, "m"))?.[1];
-  const isLocal = (url) => { try { return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname); } catch { return false; } };
-  if (!isLocal(value("API_URL")) || !isLocal(value("DB_URL"))) fail("o Supabase em uso não é local.");
-  const container = `supabase_db_${projectId}`;
-  const inspect = spawnSync("docker", ["inspect", "--format", "{{.State.Running}}", container], { encoding: "utf8" });
-  if (inspect.status !== 0 || inspect.stdout.trim() !== "true") fail(`contêiner local ${container} não encontrado.`);
-  return { container };
-}
-
-function psql(target, sql, extra = []) {
-  const result = spawnSync("docker", ["exec", "-i", target.container, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-X", "-q", "-A", "-t", ...extra],
-    { input: sql, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-  if (result.status !== 0) throw new Error(result.stderr || result.stdout);
-  return result.stdout.trim();
-}
-
-function run(label, command, args, env = {}) {
-  console.log(`\n▶ ${label}`);
-  const started = Date.now();
-  const result = spawnSync(command, args, { cwd: root, stdio: "inherit", env: { ...process.env, ...env }, shell: process.platform === "win32" && command !== process.execPath });
-  if (result.status !== 0) throw new Error(`${label} falhou (código ${result.status})`);
-  return Date.now() - started;
-}
-
+const run = (label, command, args, env = {}) => runStep(root, label, command, args, { env }).ms;
 const snapshot = (target, options) => JSON.parse(psql(target, snapshotSql(options)));
 
 // ----------------------------------------------------------------------------------------------------- reporting
@@ -133,7 +92,7 @@ function cohortAssertions(target) {
 
 // ---------------------------------------------------------------------------------------------------------- main
 function main() {
-  const target = localTarget();
+  const target = localTarget(root, "upgrade-check");
   const migrations = readdirSync(join(root, "supabase", "migrations")).filter((name) => name.endsWith(".sql")).sort();
   const pending = migrations.filter((name) => name.slice(0, 14) > BASE);
   if (!pending.some((name) => name.startsWith(COHORT_MIGRATIONS_FROM))) fail(`nenhuma migration de turmas depois de ${BASE}.`);
