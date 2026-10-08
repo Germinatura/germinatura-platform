@@ -241,7 +241,7 @@ textarea.g-input { min-height: calc(var(--g-control-min-height) * 2); resize: ve
    inputs whatever helper text the fields show below them. Stacked forms drop the spacer. */
 .g-field-action { display: grid; gap: var(--g-space-2); align-content: start; }
 .g-field-action::before {
-  content: "b";
+  content: "\200b";
   font: 600 var(--g-font-small-size) / var(--g-font-small-line) var(--g-font-sans);
 }
 @media (max-width: 47.99rem) {

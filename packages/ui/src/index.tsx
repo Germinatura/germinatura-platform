@@ -190,7 +190,7 @@ export function ReasonField({ id, value, onChange, minLength, maxLength, label =
         : <input {...control} onChange={(event) => onChange(event.target.value)} />}
       <p className="g-field__description" id={`${id}-rule`}>{description ? `${description} ` : ""}{rule}</p>
       <p className={joinClassNames("g-field__description", short ? "g-field__description--warning" : undefined)} id={`${id}-count`} aria-live="polite">
-        {length < minLength ? `${length}/${minLength} caracteres` : ""}
+        {short ? `${length}/${minLength} caracteres` : ""}
       </p>
     </div>
   );
