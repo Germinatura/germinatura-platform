@@ -49,7 +49,7 @@ test("financeiro importa o extrato PicPay na conciliação, recusa o mesmo arqui
   const line = page.getByRole("listitem", { name: "Linha 7" });
   await expect(line).toContainText(`Papelaria ${tag}`);
   await expect(line.getByText("A revisar")).toBeVisible();
-  await line.getByLabel("Categoria").selectOption("MATERIAIS");
+  await line.getByLabel("Classificar", { exact: true }).selectOption("MATERIAIS");
   await line.getByRole("button", { name: "Classificar" }).click();
   await expect(page.getByText("Linha 7 revisada.")).toBeVisible();
   await expect(page.getByRole("listitem", { name: "Linha 7" })).toHaveCount(0);
