@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { createPurchaseReceiptSchema, purchaseReceiptCommandResponseSchema, purchaseReceiptsResponseSchema, purchaseOrdersResponseSchema, type PurchaseOrder, type PurchaseReceipt } from "@germinatura/contracts";
 import { formatMoneyBrl, moneyFromCents } from "@germinatura/domain";
-import { Button, Card, Field, Input } from "@germinatura/ui";
+import { Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 
 type Progress = { orderItemId: string; orderedQuantity: number; receivedQuantity: number };
 const nullable = (value: string) => value.trim() || null;
@@ -128,7 +128,7 @@ export function PurchaseReceiptsManagement({ initialOrderId }: { initialOrderId:
           <div className="grid gap-4 sm:grid-cols-2"><Field id="receipt-quantity" label="Quantidade conferida"><Input id="receipt-quantity" required type="number" min="1" max={selectedProgress ? selectedProgress.orderedQuantity - selectedProgress.receivedQuantity : undefined} step="1" value={quantity} onChange={(event) => { createKey.current = null; setQuantity(event.target.value); }} /></Field><Field id="receipt-date" label="Data do recebimento"><Input id="receipt-date" required type="date" value={receivedOn} onChange={(event) => { createKey.current = null; setReceivedOn(event.target.value); }} /></Field></div>
           <Field id="receipt-lot" label={selected?.tracksLots ? "Código do lote" : "Código do lote (opcional)"}><Input id="receipt-lot" required={selected?.tracksLots} minLength={selected?.tracksLots ? 2 : undefined} maxLength={100} value={lotCode} onChange={(event) => { createKey.current = null; setLotCode(event.target.value); }} placeholder={selected?.tracksLots ? "Código impresso na embalagem" : "Opcional"} /></Field>
           <div className="grid gap-4 sm:grid-cols-2"><Field id="receipt-manufacture" label="Fabricação opcional"><Input id="receipt-manufacture" type="date" value={manufacturedOn} onChange={(event) => { createKey.current = null; setManufacturedOn(event.target.value); }} /></Field><Field id="receipt-expiry" label="Validade opcional"><Input id="receipt-expiry" type="date" value={expiresOn} onChange={(event) => { createKey.current = null; setExpiresOn(event.target.value); }} /></Field></div>
-          <Field id="receipt-reason" label="Motivo e conferência"><Input id="receipt-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { createKey.current = null; setReason(event.target.value); }} placeholder="Ex.: entrega conferida com nota" /></Field>
+          <ReasonField id="receipt-reason" required label="Motivo e conferência" minLength={4} maxLength={500} value={reason} onChange={(value) => { createKey.current = null; setReason(value); }} placeholder="Ex.: entrega conferida com nota" />
           <Button type="submit" loading={busy} disabled={!itemId}>Registrar recebimento</Button>
         </fieldset></form>
       </Card>}

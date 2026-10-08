@@ -1,7 +1,7 @@
 "use client";
 
 import type { SellerShift } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, Banknote, CheckCircle2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -72,7 +72,7 @@ export function ShiftWorkspace({ locationId, online, onShiftChange }: { location
         <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><div><dt className="text-[var(--g-text-muted)]">Fundo de troco</dt><dd className="g-money font-semibold">{formatMoney(shift.openingCashCents)}</dd></div><div><dt className="text-[var(--g-text-muted)]">Vendas em dinheiro</dt><dd className="font-semibold">{shift.cashSalesCount} · <span className="g-money">{formatMoney(shift.cashSalesTotalCents)}</span></dd></div><div><dt className="text-[var(--g-text-muted)]">Devoluções em dinheiro</dt><dd className="font-semibold">{shift.cashRefundsCount} · <span className="g-money">{formatMoney(shift.cashRefundsTotalCents)}</span></dd></div><div><dt className="text-[var(--g-text-muted)]">Dinheiro esperado</dt><dd className="g-money text-lg font-bold">{formatMoney(shift.expectedCashCents)}</dd></div></dl>
         <form aria-label="Fechar turno" onSubmit={submitClose} className="mt-5 space-y-4 border-t border-[var(--g-border-subtle)] pt-5"><Field id="shift-counted-cash" label="Dinheiro contado no caixa (R$)"><Input id="shift-counted-cash" inputMode="decimal" required value={countedCash} onChange={(event) => setCountedCash(event.target.value)} /></Field>
           {difference !== null && <p role="status" className="text-sm">{difference === 0 ? "O contado confere com o esperado." : `Diferença de ${formatMoney(difference)}.`}</p>}
-          {needsJustification && <Field id="shift-justification" label="Justificativa da diferença"><Input id="shift-justification" required minLength={8} maxLength={500} value={justification} onChange={(event) => setJustification(event.target.value)} /></Field>}
+          {needsJustification && <ReasonField id="shift-justification" label="Justificativa da diferença" required minLength={8} maxLength={500} value={justification} onChange={(value) => setJustification(value)} />}
           <Button type="submit" variant="secondary" size="lg" className="w-full" loading={busy} disabled={!online || countedCents === null || (needsJustification && justification.trim().length < 8)}>Fechar turno</Button></form></Card>}
   </div>;
 }

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { type CatalogCategory, saveCatalogCategorySchema, saveCatalogCategoryResponseSchema } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 
 export function CategoriesManager({ categories }: { categories: CatalogCategory[] }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -77,7 +77,7 @@ function CategoryForm({ category, onNew, onSaved }: { category?: CatalogCategory
         <Field id="category-order" label="Ordem de exibição"><Input id="category-order" required type="number" min={0} max={2147483647} step={1} value={sortOrder} onChange={(event) => { changed(); setSortOrder(event.target.value); }} /></Field>
         <label className="flex min-h-11 items-center gap-3"><input type="checkbox" checked={active} onChange={(event) => { changed(); setActive(event.target.checked); }} className="size-5" />Categoria ativa</label>
         {!active && <p className="rounded-[var(--g-radius-control)] bg-[var(--g-status-warning-soft)] p-3 text-sm">Ao salvar como inativa, os produtos desta categoria deixam de aparecer no catálogo público e de participar de novas cotações. O histórico é preservado.</p>}
-        <Field id="category-reason" label="Motivo" description="Explique a criação ou alteração para a auditoria."><Input id="category-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { changed(); setReason(event.target.value); }} /></Field>
+        <ReasonField id="category-reason" required label="Motivo" description="Explique a criação ou alteração para a auditoria." minLength={4} maxLength={500} value={reason} onChange={(value) => { changed(); setReason(value); }} />
         <div className="flex flex-wrap gap-3"><Button type="submit" loading={saving}>Salvar categoria</Button>{category && <Button type="button" variant="secondary" onClick={onNew}>Nova categoria</Button>}</div>
       </fieldset>
       {error && <div role="alert" className="space-y-2 text-sm text-[var(--g-status-danger-foreground)]"><p>{error}</p><a href="/admin/catalogo/categorias" className="inline-flex min-h-11 items-center underline">Atualizar categorias</a></div>}

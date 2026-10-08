@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Button, Card } from "@germinatura/ui";
+import { Button, Card, InputGroup } from "@germinatura/ui";
 import { useToast } from "@/components/ui/Toast";
 
 export default function TrocarSenhaPage() {
@@ -73,21 +73,17 @@ export default function TrocarSenhaPage() {
 
             <div className="space-y-2">
               <label htmlFor="new-password" className="block text-sm font-semibold text-[var(--g-text-primary)]">Nova senha</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" aria-hidden="true" />
-                <input id="new-password" required minLength={8} autoComplete="new-password" type={showPassword ? "text" : "password"} value={novaSenha} onChange={(event) => setNovaSenha(event.target.value)} className="g-input pl-12 pr-12" aria-describedby="password-help" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-[var(--g-radius-control)] text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)]" aria-label={showPassword ? "Ocultar nova senha" : "Mostrar nova senha"}>{showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
-              </div>
+              <InputGroup icon={<Lock />} trailing={<button type="button" onClick={() => setShowPassword(!showPassword)} className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)]" aria-label={showPassword ? "Ocultar nova senha" : "Mostrar nova senha"}>{showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>}>
+                <input id="new-password" required minLength={8} autoComplete="new-password" type={showPassword ? "text" : "password"} value={novaSenha} onChange={(event) => setNovaSenha(event.target.value)} className="g-input" aria-describedby="password-help" />
+              </InputGroup>
               <p id="password-help" className="text-xs text-[var(--g-text-muted)]">Use pelo menos 8 caracteres e evite senhas utilizadas em outros serviços.</p>
             </div>
 
             <div className="space-y-2">
               <label htmlFor="confirm-password" className="block text-sm font-semibold text-[var(--g-text-primary)]">Confirmar nova senha</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[var(--g-text-muted)]" aria-hidden="true" />
-                <input id="confirm-password" required minLength={8} autoComplete="new-password" type={showConfirmPassword ? "text" : "password"} value={confirmarSenha} onChange={(event) => setConfirmarSenha(event.target.value)} className="g-input pl-12 pr-12" />
-                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-1 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-[var(--g-radius-control)] text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)]" aria-label={showConfirmPassword ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}>{showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>
-              </div>
+              <InputGroup icon={<Lock />} trailing={<button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="flex size-11 items-center justify-center rounded-[var(--g-radius-control)] text-[var(--g-text-muted)] hover:bg-[var(--g-surface-hover)]" aria-label={showConfirmPassword ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}>{showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}</button>}>
+                <input id="confirm-password" required minLength={8} autoComplete="new-password" type={showConfirmPassword ? "text" : "password"} value={confirmarSenha} onChange={(event) => setConfirmarSenha(event.target.value)} className="g-input" />
+              </InputGroup>
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-[var(--g-border-subtle)] pt-6 sm:flex-row sm:justify-end">

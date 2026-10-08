@@ -6,10 +6,10 @@ import {
   type PicpayException, type PicpayExceptionType, type PicpayFilePreview, type PicpayImport, type PicpayPeriod, type PicpaySettlements,
   type PicpaySourceType, type PicpaySummary, type PicpayTransaction,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, CheckCircle2, FileUp, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PicPayStatementImport } from "@/components/admin/PicPayStatementImport";
+import { PicPayStatementImport, type StatementLineFocus } from "@/components/admin/PicPayStatementImport";
 import { useToast } from "@/components/ui/Toast";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -17,6 +17,9 @@ const formatMoney = (cents: number) => money.format(cents / 100);
 const formatDay = (value: string) => value.split("-").reverse().join("/");
 const formatTime = (value: string) => new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000);
+/** The API accepts at most 366 days: a longer range keeps its end and starts 366 days before it. */
+const clampPeriod = (from: string, to: string) => daysBetween(from, to) > 366 ? { from: shift(to, -366), to } : { from, to };
 const shift = (day: string, days: number) => { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); };
 
 const sourceLabels: Record<PicpaySourceType, string> = { PICPAY_SALES: "Minhas vendas", PICPAY_RECEIVABLES: "Recebíveis", PICPAY_STATEMENT: "Extrato" };
@@ -69,6 +72,12 @@ export function PicPayReconciliation() {
   const [error, setError] = useState("");
   // New files can add statement lines: the line review below starts over after each import.
   const [imported, setImported] = useState(0);
+  const [focus, setFocus] = useState<StatementLineFocus | null>(null);
+  const reviewLine = (exception: PicpayException) => {
+    if (!exception.subjectId) return;
+    setFocus({ importNumber: Number(exception.details.import_number), lineId: exception.subjectId, nonce: Date.now() });
+    document.getElementById("linhas-do-extrato")?.scrollIntoView({ block: "start" });
+  };
   const reload = () => setRefresh((value) => value + 1);
 
   const load = useCallback(async () => {
@@ -111,26 +120,40 @@ export function PicPayReconciliation() {
   return <div className="grid gap-6">
     <ImportFiles onImported={() => { setImported((value) => value + 1); reload(); }} />
     <Card className="p-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <Field id="picpay-from" label="De"><Input id="picpay-from" type="date" value={period.from} onChange={(event) => setPeriod({ ...period, from: event.target.value })} /></Field>
-          <Field id="picpay-to" label="Até"><Input id="picpay-to" type="date" value={period.to} onChange={(event) => setPeriod({ ...period, to: event.target.value })} /></Field>
+      <section aria-label="Período da conciliação" className="grid gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <Field id="picpay-from" label="De"><Input id="picpay-from" type="date" value={period.from} onChange={(event) => setPeriod({ ...period, from: event.target.value })} /></Field>
+            <Field id="picpay-to" label="Até"><Input id="picpay-to" type="date" value={period.to} onChange={(event) => setPeriod({ ...period, to: event.target.value })} /></Field>
+          </div>
+          <Button type="button" variant="ghost" onClick={() => void reconcile()}><RefreshCw className="size-4" />Conciliar agora</Button>
         </div>
-        <Button type="button" variant="ghost" onClick={() => void reconcile()}><RefreshCw className="size-4" />Conciliar agora</Button>
-      </div>
+        <div role="group" aria-label="Atalhos de período" className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="ghost" onClick={() => setPeriod({ from: shift(today(), -6), to: today() })}>7 dias</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setPeriod({ from: shift(today(), -29), to: today() })}>30 dias</Button>
+          {summary?.openingAsOf && <Button type="button" size="sm" variant="ghost" onClick={() => setPeriod(clampPeriod(summary.openingAsOf ?? today(), today()))}>Desde a abertura</Button>}
+          {summary?.importedFrom && <Button type="button" size="sm" variant="ghost" onClick={() => setPeriod(clampPeriod(summary.importedFrom ?? today(), summary.importedTo && summary.importedTo > today() ? summary.importedTo : today()))}>Todo o histórico importado</Button>}
+        </div>
+      </section>
     </Card>
+    {summary && summary.exceptions.outsidePeriod > 0 && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--g-radius-card)] border border-[var(--g-status-warning)]/50 bg-[var(--g-status-warning-soft)] p-4 text-sm">
+      <p className="min-w-0 flex-1"><strong>Existem {summary.exceptions.outsidePeriod} pendência(s) fora do período selecionado</strong>{summary.exceptions.firstOpenOn ? `, desde ${formatDay(summary.exceptions.firstOpenOn)}` : ""}.</p>
+      <Button type="button" size="sm" onClick={() => setPeriod(clampPeriod(
+        summary.exceptions.firstOpenOn && summary.exceptions.firstOpenOn < period.from ? summary.exceptions.firstOpenOn : period.from,
+        summary.exceptions.lastOpenOn && summary.exceptions.lastOpenOn > period.to ? summary.exceptions.lastOpenOn : period.to))}>Ver todas</Button>
+    </div>}
     {error && <div role="alert" className="flex items-start gap-3 rounded-[var(--g-radius-card)] border border-[var(--g-status-danger)]/50 p-4 text-sm"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-[var(--g-status-danger)]" /><p>{error}</p></div>}
     {!summary && !error && <p role="status" className="flex items-center gap-2 text-sm text-[var(--g-text-secondary)]"><Loader2 className="size-4 animate-spin" />Carregando a conciliação…</p>}
     {summary && <SummaryCards summary={summary} />}
-    {exceptions && <ExceptionsPanel exceptions={exceptions} onChanged={reload} />}
+    {exceptions && <ExceptionsPanel exceptions={exceptions} onChanged={reload} onReviewLine={reviewLine} />}
     {settlements && <SettlementsPanel settlements={settlements} />}
     {transactions && <TransactionsPanel transactions={transactions} />}
     {periods && <PeriodsPanel periods={periods} period={period} onChanged={reload} />}
     <Card className="p-5">
-      <h2 className="font-semibold">Linhas do Extrato</h2>
-      <p className="mt-1 text-sm text-[var(--g-text-secondary)]">Revise as linhas que nenhuma evidência explicou: classifique, vincule a um pagamento existente, marque como já registrada ou classifique em lote.</p>
+      <h2 id="linhas-do-extrato" className="scroll-mt-24 font-semibold">Linhas do Extrato</h2>
+      <p className="mt-1 text-sm text-[var(--g-text-secondary)]">Toda linha do Extrato já está no saldo desde a importação. Revise as que nenhuma evidência explicou para dar o porquê: classifique, vincule a um registro existente, marque como já registrada ou classifique em lote. Isso muda receitas, despesas e indicadores, nunca o saldo.</p>
     </Card>
-    <PicPayStatementImport key={imported} />
+    <PicPayStatementImport key={imported} focus={focus} />
     {imports && <ImportsPanel imports={imports} />}
   </div>;
 }
@@ -218,6 +241,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 
 function SummaryCards({ summary }: { summary: PicpaySummary }) {
   const byType = Object.entries(summary.exceptions.byType).sort(([, left], [, right]) => right - left);
+  const check = summary.balanceCheck;
   return <section aria-label="Resumo da conciliação" className="grid gap-4">
     <div className="flex flex-wrap items-center gap-3">
       <h2 className="text-lg font-semibold">Período {formatDay(summary.period.from)} a {formatDay(summary.period.to)}</h2>
@@ -236,26 +260,44 @@ function SummaryCards({ summary }: { summary: PicpaySummary }) {
         <Stat label="Liquidado no período" value={formatMoney(summary.receivables.settledCents)} />
         <Stat label="Último arquivo de Recebíveis" value={formatMoney(summary.receivables.snapshotCents)} hint="líquido listado no último snapshot" />
       </dl></Card>
-      <Card className="p-5"><h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">Extrato</h3><dl className="mt-3 grid grid-cols-2 gap-4">
+      <Card className="p-5"><h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">Extrato no período</h3><dl className="mt-3 grid grid-cols-2 gap-4">
         <Stat label="Entradas" value={formatMoney(summary.statement.inflowCents)} />
         <Stat label="Saídas" value={formatMoney(summary.statement.outflowCents)} />
         <Stat label="Transferência interna" value={formatMoney(summary.statement.internalTransferCents)} hint="guardar e resgatar do Cofrinho" />
-        <Stat label="Linhas a revisar" value={String(summary.statement.pendingLines)} />
+        <Stat label="Linhas" value={String(summary.statement.lines)} />
       </dl></Card>
     </div>
-    <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-      <Card className="p-5"><h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">Saldo em {formatDay(summary.balances.asOf)}</h3><dl className="mt-3 grid gap-4 sm:grid-cols-3">
-        <Stat label="Saldo livre" value={formatMoney(summary.balances.freeBalanceCents)} />
-        <Stat label="Cofrinho" value={formatMoney(summary.balances.vaultBalanceCents)} />
-        <Stat label="Saldo financeiro total" value={formatMoney(summary.balances.availableBalanceCents)} hint="livre + Cofrinho; não é lucro" />
-        <Stat label="A receber" value={formatMoney(summary.balances.receivablesBalanceCents)} hint="fora do saldo financeiro" />
-        <Stat label="Pix em trânsito" value={formatMoney(summary.balances.pixClearingCents)} hint="vendas Pix ainda sem a entrada no Extrato" />
-        <Stat label="Dinheiro físico" value={formatMoney(summary.balances.cashBalanceCents)} />
-      </dl></Card>
-      <Card className="p-5"><h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">Pendências</h3>
-        {byType.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Nenhuma pendência no período.</p>
-          : <ul aria-label="Pendências por tipo" className="mt-3 grid gap-1 text-sm">{byType.map(([type, total]) => <li key={type} className="flex justify-between gap-3"><span>{exceptionLabels[type as PicpayExceptionType] ?? type}</span><strong>{total}</strong></li>)}</ul>}
-      </Card>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card className="p-5"><section aria-label="Tesouraria">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">Tesouraria em {formatDay(summary.balances.asOf)}</h3>
+          {check ? <Badge tone={check.status === "CONCILIADO" ? "success" : "danger"}>{check.status === "CONCILIADO" ? `Saldo bancário conciliado em ${formatDay(check.asOf)}` : "Saldo divergente"}</Badge>
+            : <Badge tone="neutral">Sem conferência de saldo</Badge>}
+        </div>
+        <p className="mt-1 text-xs text-[var(--g-text-muted)]">O dinheiro em conta, pelo Extrato: toda linha importada já conta, classificada ou não.</p>
+        <dl className="mt-3 grid gap-4 sm:grid-cols-3">
+          <Stat label="Saldo livre" value={formatMoney(summary.balances.freeBalanceCents)} />
+          <Stat label="Cofrinho" value={formatMoney(summary.balances.vaultBalanceCents)} />
+          <Stat label="Saldo financeiro total" value={formatMoney(summary.balances.availableBalanceCents)} hint="livre + Cofrinho; não é lucro" />
+          <Stat label="A receber" value={formatMoney(summary.balances.receivablesBalanceCents)} hint="fora do saldo financeiro" />
+          <Stat label="Pix em trânsito" value={formatMoney(summary.balances.pixClearingCents)} hint="vendas Pix ainda sem a entrada no Extrato" />
+          <Stat label="Dinheiro físico" value={formatMoney(summary.balances.cashBalanceCents)} />
+        </dl>
+        {check?.status === "DIVERGENTE" && <p className="mt-3 text-sm text-[var(--g-status-danger-foreground)]">A última conferência encontrou diferença de {formatMoney(check.totalDifferenceCents)} em {formatDay(check.asOf)}. Veja Saldo e conferência.</p>}
+      </section></Card>
+      <Card className="p-5"><section aria-label="Classificação">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">Classificação e pendências</h3>
+        <p className="mt-1 text-xs text-[var(--g-text-muted)]">O porquê de cada movimento, para receitas, despesas, resultado e indicadores. Não muda o saldo.</p>
+        <dl className="mt-3 grid grid-cols-2 gap-4">
+          <Stat label="Linhas a revisar no período" value={String(summary.statement.pendingLines)} />
+          <Stat label="Linhas a revisar no total" value={String(summary.statement.pendingLinesTotal)} hint={summary.statement.pendingLinesTotal > 0 ? `${formatMoney(summary.statement.pendingNetCentsTotal)} líquidos, já no saldo` : undefined} />
+          <Stat label="Pendências no período" value={String(summary.exceptions.total)} />
+          <Stat label="Pendências no total" value={String(summary.exceptions.totalAll)} />
+        </dl>
+        {summary.statement.pendingLinesTotal > 0 && <p className="mt-3 text-sm text-[var(--g-text-secondary)]">{summary.statement.pendingLinesTotal} movimentação(ões) aguardando classificação para os indicadores.</p>}
+        {byType.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">{summary.exceptions.totalAll > 0 ? "Nenhuma pendência no período; há pendências fora dele." : "Nenhuma pendência."}</p>
+          : <ul aria-label="Pendências por tipo" className="mt-3 grid gap-1 text-sm">{byType.map(([type, total]) => <li key={type} className="flex justify-between gap-3"><span className="min-w-0">{exceptionLabels[type as PicpayExceptionType] ?? type}</span><strong>{total}</strong></li>)}</ul>}
+      </section></Card>
     </div>
   </section>;
 }
@@ -273,7 +315,7 @@ function describe(exception: PicpayException) {
   }
 }
 
-function ExceptionsPanel({ exceptions, onChanged }: { exceptions: PicpayException[]; onChanged: () => void }) {
+function ExceptionsPanel({ exceptions, onChanged, onReviewLine }: { exceptions: PicpayException[]; onChanged: () => void; onReviewLine: (exception: PicpayException) => void }) {
   const { showToast } = useToast();
   const [type, setType] = useState<PicpayExceptionType | "">("");
   const shown = exceptions.filter((exception) => !type || exception.type === type).slice(0, 200);
@@ -297,22 +339,23 @@ function ExceptionsPanel({ exceptions, onChanged }: { exceptions: PicpayExceptio
   return <Card className="overflow-hidden">
     <section aria-label="Pendências">
       <div className="flex flex-wrap items-end justify-between gap-3 p-5">
-        <div><h2 className="font-semibold">Pendências</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">O que as evidências não explicam. Resolver exige motivo e fica auditado; nunca altera os arquivos.</p></div>
+        <div className="min-w-0"><h2 className="font-semibold">Pendências</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">O que as evidências não explicam, no período escolhido. Uma linha do Extrato se trata revisando a linha; as demais pendências se resolvem com motivo, auditado, sem alterar os arquivos.</p></div>
         <Field id="picpay-exception-type" label="Tipo"><select id="picpay-exception-type" className="g-input min-h-11" value={type} onChange={(event) => setType(event.target.value as PicpayExceptionType | "")}>
           <option value="">Todos</option>{Object.entries(exceptionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select></Field>
       </div>
       {shown.length === 0 ? <p className="px-5 pb-5 text-sm text-[var(--g-text-secondary)]">Nenhuma pendência.</p>
         : <ul className="divide-y divide-[var(--g-border-subtle)] border-t border-[var(--g-border-subtle)]">{shown.map((exception) =>
-          <ExceptionItem key={exception.key} exception={exception} lonelyPayments={lonelyPayments.filter((payment) => payment.occurredOn === exception.occurredOn)} onResolve={resolve} onLink={link} />)}</ul>}
+          <ExceptionItem key={exception.key} exception={exception} lonelyPayments={lonelyPayments.filter((payment) => payment.occurredOn === exception.occurredOn)} onResolve={resolve} onLink={link} onReviewLine={onReviewLine} />)}</ul>}
     </section>
   </Card>;
 }
 
-function ExceptionItem({ exception, lonelyPayments, onResolve, onLink }: {
+function ExceptionItem({ exception, lonelyPayments, onResolve, onLink, onReviewLine }: {
   exception: PicpayException; lonelyPayments: PicpayException[];
   onResolve: (exception: PicpayException, reason: string) => Promise<boolean>;
   onLink: (exception: PicpayException, paymentAttemptId: string, reason: string) => Promise<boolean>;
+  onReviewLine: (exception: PicpayException) => void;
 }) {
   const [reason, setReason] = useState("");
   const [payment, setPayment] = useState("");
@@ -320,19 +363,26 @@ function ExceptionItem({ exception, lonelyPayments, onResolve, onLink }: {
   const run = async (action: () => Promise<boolean>) => { setBusy(true); try { if (await action()) { setReason(""); setPayment(""); } } finally { setBusy(false); } };
   return <li aria-label={exceptionLabels[exception.type]} className="grid gap-2 p-5 text-sm">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="font-semibold">{exceptionLabels[exception.type]}</p><p className="text-[var(--g-text-secondary)]">{formatDay(exception.occurredOn)}{describe(exception) ? ` · ${describe(exception)}` : ""}</p></div>
-      <span className="g-money font-bold">{formatMoney(exception.amountCents)}</span>
+      <div className="min-w-0 flex-1"><p className="font-semibold">{exceptionLabels[exception.type]}</p><p className="text-[var(--g-text-secondary)]">{formatDay(exception.occurredOn)}{describe(exception) ? ` · ${describe(exception)}` : ""}</p></div>
+      <span className="g-money font-bold">{exception.amountCents < 0 ? "−" : ""}{formatMoney(Math.abs(exception.amountCents))}</span>
     </div>
+    {exception.type === "EXTRATO_NAO_CLASSIFICADO" ? <div className="flex flex-wrap items-center gap-3">
+      <Button type="button" size="sm" onClick={() => onReviewLine(exception)}>Revisar linha</Button>
+      <span className="text-xs text-[var(--g-text-muted)]">Classifique, vincule ou marque como já registrada na própria linha.</span>
+    </div> : <>
     {exception.type === "PICPAY_SEM_PDV" && lonelyPayments.length > 0 && <div className="flex flex-wrap items-end gap-2">
       <Field id={`link-${exception.key}`} label="Venda do PDV sem PicPay no mesmo dia"><select id={`link-${exception.key}`} className="g-input min-h-11" value={payment} onChange={(event) => setPayment(event.target.value)}>
         <option value="">Selecione</option>{lonelyPayments.map((item) => <option key={item.key} value={item.subjectId ?? ""}>{formatMoney(item.amountCents)} · {String(item.details.channel ?? "")}</option>)}
       </select></Field>
     </div>}
-    <div className="flex flex-wrap items-end gap-2">
-      <Field id={`reason-${exception.key}`} label="Motivo" className="min-w-64 flex-1"><Input id={`reason-${exception.key}`} maxLength={300} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
-      {payment && <Button type="button" size="sm" disabled={busy || reason.trim().length < 8} onClick={() => void run(() => onLink(exception, payment, reason.trim()))}>Vincular à venda</Button>}
-      <Button type="button" size="sm" variant="ghost" disabled={busy || reason.trim().length < 8} onClick={() => void run(() => onResolve(exception, reason.trim()))}>Resolver</Button>
+    <div className="flex flex-wrap items-start gap-2">
+      <ReasonField id={`reason-${exception.key}`} className="min-w-64 flex-1" minLength={8} maxLength={300} value={reason} onChange={setReason} />
+      <div className="g-field-action"><div className="flex flex-wrap gap-2">
+        {payment && <Button type="button" size="sm" disabled={busy || reason.trim().length < 8} onClick={() => void run(() => onLink(exception, payment, reason.trim()))}>Vincular à venda</Button>}
+        <Button type="button" size="sm" variant="ghost" disabled={busy || reason.trim().length < 8} onClick={() => void run(() => onResolve(exception, reason.trim()))}>Resolver</Button>
+      </div></div>
     </div>
+    </>}
   </li>;
 }
 

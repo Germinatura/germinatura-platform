@@ -128,6 +128,14 @@ Decisão detalhada: ADR 0009 — Acesso institucional e bootstrap administrativo
   - **Saldo e resultado são coisas diferentes.** Saldo é onde o dinheiro está numa data. Receita, despesa e resultado operacional são fluxos de um período. Estoque a custo e recebíveis também não são saldo disponível.
   - **Contas:** saldo livre (`PICPAY_EMPRESAS`), Cofrinho (`COFRINHO_PICPAY`), a receber (`RECEBIVEIS_PICPAY`, valores de cartão ainda não liquidados) e dinheiro físico (`DINHEIRO_FISICO`). Saldo financeiro total = livre + Cofrinho; recebíveis e dinheiro físico aparecem à parte.
   - **Autoridade única:** o saldo de cada conta é abertura + entradas − saídas + transferências recebidas − transferências enviadas, calculado só no banco (`private.finance_account_balances`). Telas, API, indicadores e extrato consomem essa função.
+  - **Tesouraria separada da classificação (07/10/2026):**
+    - **O Extrato é a verdade da conta.** Cada ocorrência canônica move o saldo livre exatamente uma vez, desde a importação, mesmo antes de ser classificada.
+    - **Classificar dá só o porquê.** Muda receita, despesa, resultado e indicadores; nunca o saldo.
+    - **Sem dupla contagem.** Linha vinculada a registro existente, marcada como já registrada ou conciliada com venda ou estorno não conta de novo.
+    - **Pendências e status:**
+      - Uma linha do Extrato não classificada só deixa de ser pendência quando a própria linha é tratada; não pode ser silenciada.
+      - O período só é Conciliado sem pendência aberta e sem linha a revisar.
+      - Pendências fora do período escolhido são sempre informadas.
   - **Saldo de abertura:** dinheiro que já existia no início do dia de abertura, por conta. Conceito próprio, imutável, auditado e idempotente, corrigido só por nova versão com motivo. Compõe o saldo e aparece no extrato, mas nunca é receita, despesa, transferência, venda, resultado, margem ou meta.
   - **Transferência interna:** move dinheiro entre contas (guardar e resgatar do Cofrinho, liquidação de recebíveis). Não altera receita, despesa, resultado, meta nem o saldo financeiro total.
   - **Cutover histórico:** linhas do extrato datadas antes de `operating_since` (início da operação nativa) são histórico. Nunca conciliam venda ou estorno do PDV. Recebíveis de venda históricos só saem de Recebíveis PicPay quando Minhas vendas explica o dia (Conciliação PicPay); sem essa evidência, ficam para revisão. Entradas históricas são classificadas como `RECEITA_HISTORICA`, que entra uma única vez em receita, resultado e meta, guardando o movimento bancário de origem. Estorno de Pix histórico reduz a receita histórica. A partir de `operating_since`, Recebíveis de venda volta a ser só transferência e nunca vira receita histórica; o banco recusa estruturalmente.

@@ -16,7 +16,7 @@ import {
   saveCatalogProductResponseSchema,
   saveCatalogProductSchema,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 
 type ManagedCatalogProduct = CatalogProduct & { images: CatalogProductImage[] };
 
@@ -140,7 +140,7 @@ function ProductForm({ product, categories, onNew, onManagePrice, onSaved }: { p
         </div>
         {(published || sellablePdv) && <p className="rounded-[var(--g-radius-control)] bg-[var(--g-status-warning-soft)] p-3 text-sm text-[var(--g-status-warning-foreground)]">Portal e PDV exigem preço vigente. O servidor confirma essa regra ao salvar.</p>}
         {!active && <p className="rounded-[var(--g-radius-control)] bg-[var(--g-status-warning-soft)] p-3 text-sm">A inativação preserva vendas, preço e auditoria; ela apenas impede novas ofertas do produto.</p>}
-        <Field id="product-reason" label="Motivo" description="Explique a criação ou alteração para a auditoria."><Input id="product-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { changed(); setReason(event.target.value); }} /></Field>
+        <ReasonField id="product-reason" required label="Motivo" description="Explique a criação ou alteração para a auditoria." minLength={4} maxLength={500} value={reason} onChange={(value) => { changed(); setReason(value); }} />
         <div className="flex flex-wrap gap-3"><Button type="submit" loading={saving}>{product ? "Salvar produto" : "Criar produto"}</Button>{product && <Button type="button" variant="secondary" onClick={onManagePrice}>Definir preço</Button>}{product && <Button type="button" variant="secondary" onClick={onNew}>Novo produto</Button>}</div>
       </fieldset>
       {activeCategories.length === 0 && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">Cadastre uma categoria ativa antes de criar produtos.</p>}
@@ -225,13 +225,23 @@ function ProductImagesPanel({ product, onBack, onSaved }: {
 
   return <Card className="p-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">Imagens de {product.name}</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Até seis imagens. A primeira da lista é a capa no Portal e no PDV.</p></div><Button type="button" variant="secondary" onClick={onBack}>Voltar ao produto</Button></div>
-    {images.length > 0 && <ol className="mt-5 space-y-3">{images.map((image, index) => <li key={image.id} className="flex flex-col gap-3 rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] p-3 sm:flex-row sm:items-center">
-      <div role="img" aria-label={image.altText} className="h-24 w-full shrink-0 rounded-lg bg-cover bg-center sm:w-28" style={{ backgroundImage: `url(${JSON.stringify(image.publicUrl)})` }} />
-      <div className="min-w-0 flex-1"><p className="font-semibold">{index === 0 ? "Capa" : `Imagem ${index + 1}`}</p><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{image.altText}</p></div>
-      <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={index === 0 || action !== null} onClick={() => void persistOrder([images[index], ...images.slice(0, index), ...images.slice(index + 1)])}>Usar como capa</Button><Button type="button" variant="secondary" disabled={index === 0 || action !== null} onClick={() => { const next = [...images]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void persistOrder(next); }}>Subir</Button><Button type="button" variant="secondary" disabled={index === images.length - 1 || action !== null} onClick={() => { const next = [...images]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; void persistOrder(next); }}>Descer</Button><Button type="button" variant="secondary" loading={action === image.id} disabled={action !== null} onClick={() => void remove(image)}>Remover</Button></div>
+    {images.length > 0 && <ol aria-label="Imagens do produto" className="mt-5 space-y-3">{images.map((image, index) => <li key={image.id} className="g-media-row rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] p-3">
+      <div className="g-media-row__inner">
+        <div className="g-media-row__media">
+          <div role="img" aria-label={image.altText} className="h-24 w-28 rounded-lg bg-[var(--g-surface-subtle)] bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(image.publicUrl)})` }} />
+          {index === 0 && <Badge tone="info" className="absolute left-1.5 top-1.5">Capa</Badge>}
+        </div>
+        <div className="g-media-row__body"><p className="font-semibold">{index === 0 ? "Imagem de capa" : `Imagem ${index + 1}`}</p><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{image.altText}</p></div>
+        <div className="g-media-row__actions">
+          {index > 0 && <Button type="button" variant="secondary" disabled={action !== null} onClick={() => void persistOrder([images[index], ...images.slice(0, index), ...images.slice(index + 1)])}>Usar como capa</Button>}
+          <Button type="button" variant="secondary" disabled={index === 0 || action !== null} aria-label={`Subir ${index === 0 ? "capa" : `imagem ${index + 1}`}`} onClick={() => { const next = [...images]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; void persistOrder(next); }}>Subir</Button>
+          <Button type="button" variant="secondary" disabled={index === images.length - 1 || action !== null} aria-label={`Descer ${index === 0 ? "capa" : `imagem ${index + 1}`}`} onClick={() => { const next = [...images]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; void persistOrder(next); }}>Descer</Button>
+          <Button type="button" variant="secondary" loading={action === image.id} disabled={action !== null} aria-label={`Remover ${index === 0 ? "capa" : `imagem ${index + 1}`}`} onClick={() => void remove(image)}>Remover</Button>
+        </div>
+      </div>
     </li>)}</ol>}
     {images.length === 0 && <p className="mt-5 rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)] p-4 text-sm text-[var(--g-text-secondary)]">Este produto ainda não tem imagem. O catálogo mostra o ícone padrão.</p>}
-    <Field id="image-action-reason" label="Motivo da alteração" description="Também é usado ao mudar capa, ordenar ou remover."><Input id="image-action-reason" className="mt-5" minLength={4} maxLength={500} value={reason} onChange={(event) => { setReason(event.target.value); setError(""); }} /></Field>
+    <ReasonField id="image-action-reason" className="mt-5" label="Motivo da alteração" description="Também é usado ao mudar capa, ordenar ou remover." minLength={4} maxLength={500} value={reason} onChange={(value) => { setReason(value); setError(""); }} />
     {images.length < 6 && <form onSubmit={upload} className="mt-5 space-y-4 border-t border-[var(--g-border-subtle)] pt-5">
       <h3 className="font-semibold">Adicionar imagem</h3>
       <Field id="product-image-file" label="Arquivo JPG, PNG ou WebP" description="Máximo de 5 MB."><Input id="product-image-file" type="file" required accept="image/jpeg,image/png,image/webp" onChange={(event) => { resetUploadIdentity(); setFile(event.target.files?.[0] ?? null); }} /></Field>
@@ -318,7 +328,7 @@ function ProductPricePanel({ product, onBack, onSaved }: { product: CatalogProdu
   return <Card className="p-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">Preço e histórico</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{product.name} · {product.sku}</p></div><Button type="button" variant="secondary" onClick={onBack}>Voltar ao produto</Button></div>
     <form onSubmit={submit} className="mt-5 space-y-4" aria-label={`Definir preço de ${product.name}`}>
-      <fieldset disabled={saving} className="space-y-4"><Field id="product-price" label="Novo preço" description="Informe em reais, por exemplo 25,90. O servidor recebe apenas centavos inteiros."><Input id="product-price" required inputMode="decimal" autoComplete="off" placeholder="25,90" value={price} onChange={(event) => { idempotencyKey.current = null; setError(""); setPrice(event.target.value); }} /></Field><Field id="product-price-reason" label="Motivo" description="A alteração e a vigência anterior ficam registradas na auditoria."><Input id="product-price-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { idempotencyKey.current = null; setError(""); setReason(event.target.value); }} /></Field><Button type="submit" loading={saving}>Definir preço</Button></fieldset>
+      <fieldset disabled={saving} className="space-y-4"><Field id="product-price" label="Novo preço" description="Informe em reais, por exemplo 25,90. O servidor recebe apenas centavos inteiros."><Input id="product-price" required inputMode="decimal" autoComplete="off" placeholder="25,90" value={price} onChange={(event) => { idempotencyKey.current = null; setError(""); setPrice(event.target.value); }} /></Field><ReasonField id="product-price-reason" required label="Motivo" description="A alteração e a vigência anterior ficam registradas na auditoria." minLength={4} maxLength={500} value={reason} onChange={(value) => { idempotencyKey.current = null; setError(""); setReason(value); }} /><Button type="submit" loading={saving}>Definir preço</Button></fieldset>
       {error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}
     </form>
     <section className="mt-8 border-t border-[var(--g-border-subtle)] pt-5" aria-label="Histórico de preços"><h3 className="text-base font-semibold">Histórico</h3>{loadingHistory && history.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Carregando histórico…</p> : historyError ? <p role="alert" className="mt-3 text-sm text-[var(--g-status-danger-foreground)]">{historyError}</p> : history.length === 0 ? <p className="mt-3 text-sm text-[var(--g-text-secondary)]">Nenhum preço foi definido para este produto.</p> : <ul className="mt-3 divide-y divide-[var(--g-border-subtle)]">{history.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div><p className="font-semibold">{formatMoneyBrl(item.amountCents)}</p><p className="mt-1 text-xs text-[var(--g-text-secondary)]">Início: {formatDateTime(item.validFrom)}{item.validTo ? ` · término: ${formatDateTime(item.validTo)}` : " · vigente"}</p></div><Badge tone={isCurrentPrice(item) ? "success" : "neutral"}>{isCurrentPrice(item) ? "Vigente" : new Date(item.validFrom) > new Date() ? "Agendado" : "Encerrado"}</Badge></li>)}</ul>}{nextCursor && <Button type="button" variant="secondary" className="mt-4" loading={loadingHistory} onClick={() => void loadOlderHistory()}>Carregar histórico anterior</Button>}</section>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { SellerStockTransferContextResponse } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { ArrowDownToLine, ArrowUpFromLine, Check, Loader2, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -119,9 +119,7 @@ export function StockTransferWorkspace({ online }: { online: boolean }) {
         <Field id="transfer-quantity" label="Quantidade">
           <Input id="transfer-quantity" type="number" inputMode="numeric" min={1} max={option?.availableQuantity ?? 1} value={quantity} onChange={(event) => { setQuantity(event.target.value); requestKey.current = operationKey("seller-transfer-request"); }} disabled={!online || !option || action !== null} />
         </Field>
-        <Field id="transfer-reason" label="Motivo" description="Explique por que este estoque é necessário.">
-          <textarea id="transfer-reason" rows={3} minLength={4} maxLength={500} value={reason} onChange={(event) => { setReason(event.target.value); requestKey.current = operationKey("seller-transfer-request"); }} className="w-full rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] bg-[var(--g-surface-default)] p-3 text-sm" disabled={!online || action !== null} />
-        </Field>
+        <ReasonField id="transfer-reason" label="Motivo" description="Explique por que este estoque é necessário." minLength={4} maxLength={500} value={reason} onChange={(value) => { setReason(value); requestKey.current = operationKey("seller-transfer-request"); }} disabled={!online || action !== null} multiline />
         <Button type="submit" variant="operation" className="w-full" loading={action === "request"} disabled={!online || !option || reason.trim().length < 4 || action !== null}>Enviar solicitação</Button>
       </form>
       {!context?.options.length && <p className="mt-4 rounded-lg bg-[var(--g-surface-subtle)] p-3 text-sm text-[var(--g-text-secondary)]">Nenhum outro vendedor possui saldo disponível agora.</p>}
@@ -151,7 +149,7 @@ function TransferList({ title, icon: Icon, transfers, ownLocationId, online, act
         return <Card key={transfer.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold">{transfer.productName} <span className="text-sm font-normal text-[var(--g-text-muted)]">· {transfer.quantity} un.</span></p><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{transfer.fromLocationName} → {transfer.toLocationName}</p></div><Badge tone={transfer.status === "ACCEPTED" ? "success" : transfer.status === "REQUESTED" ? "warning" : "neutral"}>{statusLabel[transfer.status]}</Badge></div>
           <p className="mt-3 text-sm"><span className="text-[var(--g-text-muted)]">Motivo:</span> {transfer.requestReason}</p>
           {transfer.decisionReason && <p className="mt-2 text-sm"><span className="text-[var(--g-text-muted)]">Decisão:</span> {transfer.decisionReason}</p>}
-          {pending && <div className="mt-4 border-t border-[var(--g-border-subtle)] pt-4"><label className="text-sm font-semibold" htmlFor={`decision-${transfer.id}`}>Motivo da decisão</label><Input id={`decision-${transfer.id}`} className="mt-2" minLength={4} maxLength={500} value={reason} onChange={(event) => onReason(transfer.id, event.target.value)} placeholder={sourceOwner ? "Ex.: saldo conferido" : "Ex.: solicitação não é mais necessária"} disabled={!online || action !== null} />
+          {pending && <div className="mt-4 border-t border-[var(--g-border-subtle)] pt-4"><ReasonField id={`decision-${transfer.id}`} label="Motivo da decisão" minLength={4} maxLength={500} value={reason} onChange={(value) => onReason(transfer.id, value)} disabled={!online || action !== null} placeholder={sourceOwner ? "Ex.: saldo conferido" : "Ex.: solicitação não é mais necessária"} />
             <div className="mt-3 flex flex-wrap gap-2">{sourceOwner ? <><Button type="button" size="sm" variant="operation" onClick={() => onResolve(transfer, "ACCEPT")} loading={action === `${transfer.id}:ACCEPT`} disabled={!online || reason.trim().length < 4 || action !== null}><Check className="size-4" /> Aceitar</Button><Button type="button" size="sm" variant="secondary" onClick={() => onResolve(transfer, "REJECT")} loading={action === `${transfer.id}:REJECT`} disabled={!online || reason.trim().length < 4 || action !== null}><X className="size-4" /> Recusar</Button></> : <Button type="button" size="sm" variant="secondary" onClick={() => onResolve(transfer, "CANCEL")} loading={action === `${transfer.id}:CANCEL`} disabled={!online || reason.trim().length < 4 || action !== null}><X className="size-4" /> Cancelar solicitação</Button>}</div>
           </div>}
         </Card>;
