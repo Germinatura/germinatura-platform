@@ -72,6 +72,7 @@ export function FinanceBalancesSummary({ refreshKey = 0, onLoaded }: { refreshKe
     </div>
     {balances.negativeAccounts.length > 0 && <div role="alert" className="flex items-start gap-3 rounded-[var(--g-radius-card)] border border-[var(--g-status-danger)]/50 p-4 text-sm"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-[var(--g-status-danger)]" /><p>Saldo negativo em {balances.negativeAccounts.map((account) => financeAccountLabels[account]).join(", ")}. Um saldo negativo é impossível: confira as linhas do extrato e os lançamentos dessas contas.</p></div>}
     {balances.opening === null && <p role="note" className="text-sm text-[var(--g-text-secondary)]">A posição de abertura ainda não foi registrada; os saldos somam só os movimentos desde o início do sistema.</p>}
-    {pending.count > 0 && <p role="note" className="text-sm text-[var(--g-status-warning-foreground)]">{pending.count} linha(s) do extrato PicPay aguardam revisão ({formatMoney(pending.netCents)} líquidos) e ainda não entram no saldo.</p>}
+    {/* Treasury is separate from classification: the bank movement is already in the balance, only the reason is pending. */}
+    {pending.count > 0 && <p role="note" className="text-sm text-[var(--g-text-secondary)]">{pending.count} movimentação(ões) do Extrato PicPay ({formatMoney(pending.netCents)} líquidos) já estão no saldo e aguardam classificação para os indicadores.</p>}
   </div>;
 }

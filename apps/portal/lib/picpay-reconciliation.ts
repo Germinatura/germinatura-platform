@@ -44,10 +44,17 @@ export function toImport(value: z.infer<typeof databaseImportSchema>) {
 
 export const databaseSummarySchema = z.object({
   period: z.object({ from: z.string(), to: z.string() }), operating_since: z.string().nullable(), pdv_sales: n,
+  opening_as_of: z.string().nullable(), imported_from: z.string().nullable(), imported_to: z.string().nullable(),
   picpay: z.object({ transactions: n, approved: n, denied: n, refunded: n, historical: n, linked: n, gross_cents: n, fee_cents: n, net_cents: n }),
-  exceptions: z.object({ total: n, by_type: z.record(z.string(), n) }),
+  exceptions: z.object({
+    total: n, by_type: z.record(z.string(), n), total_all: n, outside_period: n, first_open_on: z.string().nullable(), last_open_on: z.string().nullable(),
+  }),
   receivables: z.object({ pending_cents: n, overdue_cents: n, snapshot_cents: n, settled_cents: n }),
-  statement: z.object({ lines: n, inflow_cents: n, outflow_cents: n, internal_transfer_cents: n, pending_lines: n }),
+  statement: z.object({
+    lines: n, inflow_cents: n, outflow_cents: n, internal_transfer_cents: n, pending_lines: n, pending_lines_total: n,
+    pending_net_cents_total: n, pending_outside_period: n,
+  }),
+  balance_check: z.object({ as_of: z.string(), status: z.string(), total_difference_cents: n }).nullable(),
   balances: z.object({
     as_of: z.string(), free_balance_cents: n, vault_balance_cents: n, available_balance_cents: n, receivables_balance_cents: n,
     pix_clearing_cents: n, cash_balance_cents: n,
@@ -57,13 +64,17 @@ export const databaseSummarySchema = z.object({
 
 export function toSummary(value: z.infer<typeof databaseSummarySchema>) {
   return picpaySummarySchema.parse({
-    period: value.period, operatingSince: value.operating_since, pdvSales: value.pdv_sales,
+    period: value.period, operatingSince: value.operating_since, openingAsOf: value.opening_as_of, importedFrom: value.imported_from,
+    importedTo: value.imported_to, pdvSales: value.pdv_sales,
     picpay: {
       transactions: value.picpay.transactions, approved: value.picpay.approved, denied: value.picpay.denied, refunded: value.picpay.refunded,
       historical: value.picpay.historical, linked: value.picpay.linked, grossCents: value.picpay.gross_cents, feeCents: value.picpay.fee_cents,
       netCents: value.picpay.net_cents,
     },
-    exceptions: { total: value.exceptions.total, byType: value.exceptions.by_type },
+    exceptions: {
+      total: value.exceptions.total, byType: value.exceptions.by_type, totalAll: value.exceptions.total_all,
+      outsidePeriod: value.exceptions.outside_period, firstOpenOn: value.exceptions.first_open_on, lastOpenOn: value.exceptions.last_open_on,
+    },
     receivables: {
       pendingCents: value.receivables.pending_cents, overdueCents: value.receivables.overdue_cents,
       snapshotCents: value.receivables.snapshot_cents, settledCents: value.receivables.settled_cents,
@@ -71,7 +82,12 @@ export function toSummary(value: z.infer<typeof databaseSummarySchema>) {
     statement: {
       lines: value.statement.lines, inflowCents: value.statement.inflow_cents, outflowCents: value.statement.outflow_cents,
       internalTransferCents: value.statement.internal_transfer_cents, pendingLines: value.statement.pending_lines,
+      pendingLinesTotal: value.statement.pending_lines_total, pendingNetCentsTotal: value.statement.pending_net_cents_total,
+      pendingOutsidePeriod: value.statement.pending_outside_period,
     },
+    balanceCheck: value.balance_check ? {
+      asOf: value.balance_check.as_of, status: value.balance_check.status, totalDifferenceCents: value.balance_check.total_difference_cents,
+    } : null,
     balances: {
       asOf: value.balances.as_of, freeBalanceCents: value.balances.free_balance_cents, vaultBalanceCents: value.balances.vault_balance_cents,
       availableBalanceCents: value.balances.available_balance_cents, receivablesBalanceCents: value.balances.receivables_balance_cents,
@@ -152,6 +168,7 @@ export function picpayDatabaseError(message: string, requestId: string) {
     PICPAY_PAYMENT_NOT_LINKABLE: "O pagamento do PDV não pode ser vinculado.",
     PICPAY_EXCEPTION_ALREADY_RESOLVIDA: "Esta pendência já foi resolvida.",
     PICPAY_EXCEPTION_ALREADY_REABERTA: "Esta pendência já está aberta.",
+    PICPAY_EXCEPTION_REQUIRES_LINE_REVIEW: "Uma linha do Extrato se resolve revisando a linha: classifique, vincule ou marque como já registrada.",
     IDEMPOTENCY_CONFLICT: "A chave já foi usada com outro conteúdo.",
     IDEMPOTENCY_IN_PROGRESS: "A operação já está em processamento.",
   };
