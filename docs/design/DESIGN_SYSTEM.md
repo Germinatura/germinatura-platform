@@ -144,6 +144,24 @@ O PDV não é o Portal em dark mode. O fluxo principal é Produto → Quantidade
 
 Componentes compartilhados devem residir em `packages/ui` quando não dependem de domínio ou framework. A base contém `Button`, `Card`, `Badge`, `Field` e `Input`; novas primitivas devem seguir a mesma convenção `g-*` e usar tokens.
 
+### Padrões de composição (07/10/2026)
+
+- **Cascata:** `tokens.css` é importado depois do Tailwind e fora de camadas. Uma classe `g-*` vence uma utility que mexa na mesma propriedade (por exemplo, `pl-10` num `.g-input`). Por isso, ajustes de geometria vivem no próprio padrão do design system, nunca em utilities soltas sobre `g-*`.
+- **`InputGroup`** (`.g-input-group`): campo com ícone decorativo à esquerda (`aria-hidden`, sem receber clique) e, opcionalmente, um controle no fim (`trailing`, por exemplo mostrar a senha).
+  - O recuo do texto vem do grupo (`--g-input-icon-size`), então o ícone nunca cobre texto ou placeholder em nenhum zoom.
+  - Use-o em toda busca, login e senha.
+- **`ReasonField`:** motivo de ação auditada.
+  - O mínimo exigido pelo servidor fica sempre escrito ao lado ("Mínimo de N caracteres.") e, abaixo do mínimo, a contagem aparece ("5/8 caracteres").
+  - Ambos são ligados por `aria-describedby`.
+  - O botão pode continuar desabilitado, mas nunca é a única explicação. O mínimo é regra de domínio: a interface mostra, nunca muda.
+- **`Field`:** a descrição ganha `id` (`<id>-description`), para `aria-describedby`.
+- **`.g-media-row`:** linha de mídia + texto + ações (imagens, arquivos, avatares).
+  - É uma grade que segue a largura da própria linha (container query): `auto minmax(0,1fr) auto` quando cabe, ações abaixo quando estreita e tudo empilhado em largura mínima.
+  - O texto ocupa o espaço livre e quebra palavras longas; as ações nunca o cobrem.
+- **`.g-field-action`:** botão numa linha de campos. Em telas largas reserva a linha do rótulo e alinha com os inputs, qualquer que seja o texto de ajuda abaixo deles; empilhado, ocupa a largura toda.
+- **Bordas:** sempre com cor de token (`border-[var(--g-border-subtle)]` ou `-default`). `border` sem cor usa `currentColor` no Tailwind 4 e vira uma linha escura.
+- **Texto longo:** cards e dialogs quebram palavras longas (`overflow-wrap: anywhere`), e tabelas mantêm suas regras e rolam na própria região. Badges e valores (`g-money`) nunca encolhem nem quebram.
+
 Variantes de botão:
 
 - `brand`: salvar, editar, continuar;
@@ -183,7 +201,7 @@ Referências implementadas no Portal:
 - mobile: drawer, cards no lugar de tabelas e sheets/telas completas no lugar de dialogs complexos;
 - ações críticas permanecem visíveis e alcançáveis sem cobrir conteúdo.
 
-O comportamento deve ser testado pelo menos em 390×844, tablet e desktop.
+O comportamento é testado em 390×844, 768×1024, 1024×768, 1280×800, 1440×900 e 1920×1080 (`e2e/responsive-layout.spec.ts`, com `e2e/support/layout.ts`). A página nunca rola na horizontal (`scrollWidth ≤ innerWidth`, inclusive no container do dashboard), exceto regiões feitas para isso, como tabelas em `.overflow-x-auto`. Controles não se sobrepõem nem saem do card, inclusive com nomes e descrições longos.
 
 Identidade do usuário, avatar e saída pertencem ao menu de conta da topbar. A sidebar contém somente marca, navegação, busca de navegação e controle de recolhimento; não repetir o perfil nas duas regiões.
 
@@ -211,3 +229,6 @@ Exibir “Consulta offline”, data da cópia, validade e aviso de preços sujei
 - mantém valores em reais e números tabulares;
 - funciona com teclado, mobile e zoom;
 - não altera regra de domínio para acomodar a interface.
+- mostra a regra de validação (mínimo de caracteres, formato) no texto, não só no botão desabilitado;
+- não usa `border` sem cor de token nem utilities de geometria sobre classes `g-*`;
+- funciona com textos longos (nome de produto, descrição, e-mail) sem transbordar.

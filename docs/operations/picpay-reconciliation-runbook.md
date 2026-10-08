@@ -47,6 +47,21 @@ O arquivo bruto não é guardado. Nome, documento, e-mail e telefone do comprado
 - Recebíveis (`RECEBIVEIS_PICPAY`), Pix em trânsito (`PENDENTE_LIQUIDACAO`) e dinheiro físico ficam à parte e nunca entram no saldo financeiro total.
 - A única autoridade é `private.finance_account_balances`.
 
+## Tesouraria e classificação (07/10/2026)
+
+São duas perguntas diferentes:
+
+- **Tesouraria:** o dinheiro entrou ou saiu da conta? Quem responde é o Extrato.
+- **Classificação contábil:** por quê? Responde a categoria, que alimenta receita, despesa, resultado e indicadores.
+
+Regras:
+
+- **Cada linha conta uma vez.** Uma ocorrência canônica do Extrato move o saldo livre (`PICPAY_EMPRESAS`) exatamente uma vez, desde a importação, mesmo antes de ser classificada. No extrato consolidado, a linha aparece com origem "Extrato PicPay (a classificar)" e natureza "A classificar". Ela conta no saldo e no fluxo de caixa, nunca em receita, despesa ou resultado.
+- **Classificar não muda o saldo.** A linha passa a ter categoria com o mesmo valor; só receitas, despesas, resultado e indicadores mudam.
+- **Sem dupla contagem.** Quando o dinheiro já está em outro registro (vinculada a um pagamento de fornecedor ou lançamento manual, marcada como já registrada, conciliada com venda ou estorno), a linha não conta de novo. Enquanto não for vinculada, uma linha que repete um registro interno já lançado na conta PicPay aparece duas vezes no saldo e na conferência. A revisão (vincular) desfaz essa duplicidade.
+- **Movimentos internos.** Transferências internas (Cofrinho, liquidação de recebíveis) continuam neutras no saldo financeiro total e nunca viram receita.
+- **Caso real de 07/10/2026.** O saldo livre calculado ficava R$ 12.389,07 acima do banco. Eram exatamente 30 Pix enviados (−R$ 12.609,07) e 2 Pix devolvidos (+R$ 220,00) ainda a revisar, que pela regra antiga só entravam no saldo depois de classificados. Com a regra nova eles já estão no saldo; a classificação muda só os indicadores.
+
 ## Cutover
 
 - Abertura em 27/08/2026 (livre R$ 0,00, Cofrinho R$ 111,78, recebíveis e dinheiro físico zero). Histórico até 06/10/2026 inclusive. Operação nativa a partir de 07/10/2026 (`operating_since`).
@@ -70,8 +85,15 @@ O arquivo bruto não é guardado. Nome, documento, e-mail e telefone do comprado
   - liquidação sem explicação; recebível em atraso ou inconsistente;
   - duplicidade a revisar; linha do Extrato não classificada;
   - receita contada duas vezes; liquidação em dobro; saldo divergente.
-- **Resolver:** resolver ou reabrir exige motivo de pelo menos 8 caracteres. A decisão é imutável e auditada, e os arquivos não mudam.
-- **Avaliar período:** o fechamento registra o status (Conciliado ou Com pendências) e não trava o período. Se uma importação posterior trouxer nova evidência para o período, ele passa para Revisar.
+- **Linha do Extrato não classificada:** não se "resolve" a pendência; trata-se a linha.
+  - O botão "Revisar linha" abre a linha nas Linhas do Extrato, para classificar, vincular, marcar como já registrada ou classificar em lote.
+  - `resolve_picpay_exception` recusa esse tipo (`PICPAY_EXCEPTION_REQUIRES_LINE_REVIEW`).
+  - Decisões manuais gravadas antes dessa regra continuam em `picpay_exception_resolutions` e na auditoria, mas não escondem mais a linha.
+- **Demais pendências:** resolver ou reabrir exige motivo de pelo menos 8 caracteres, escrito ao lado do campo e contado enquanto faltar. A decisão é imutável e auditada, e os arquivos não mudam.
+- **Status do período:** Conciliado só quando não há pendência aberta nem linha do Extrato aguardando revisão no período. Uma linha a revisar mantém o período Com pendências.
+- **Fora do período:** o resumo mostra pendências e linhas a revisar no período e no total. Se houver pendências fora do período escolhido, um aviso oferece "Ver todas", que amplia o período até cobri-las. Os atalhos de período são 7 dias, 30 dias, desde a abertura e todo o histórico importado.
+- **Avaliar período:** o fechamento usa o mesmo status do resumo e não trava o período. Se uma importação posterior trouxer nova evidência para o período, ele passa para Revisar.
+- **"Já registrada":** use só quando o movimento já tem efeito financeiro registrado no Germinatura e não existe registro elegível para vincular. Prefira vincular.
 
 ## Verificação local com arquivos reais
 

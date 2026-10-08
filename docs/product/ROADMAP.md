@@ -476,3 +476,19 @@ Spec 5.8 (FIN-001, FIN-002, FIN-003, FIN-007). Substitui a visão "só Extrato P
 
   A única pendência foi a de linhas Pix enviado/devolvido ainda não classificadas.
 - **Operação:** `docs/operations/picpay-reconciliation-runbook.md`. A abertura real e a importação real só em produção, depois da promoção autorizada, por decisão do financeiro.
+
+## Hardening de UX e semântica da Conciliação PicPay — 07/10/2026
+
+Spec 5.8 (FIN-002, FIN-003, FIN-007), feito na homologação real.
+
+- **Tesouraria × classificação:** toda linha canônica do Extrato move o saldo uma vez desde a importação. Classificar muda só os indicadores; vincular e "já registrada" não duplicam. Migration `20261018090000`, só funções.
+- **Pendências:** a linha do Extrato não classificada é tratada na própria linha ("Revisar linha") e nunca silenciada. O status do período exige zero linhas a revisar, e as pendências fora do período são mostradas, com "Ver todas" e atalhos de período.
+- **Design system:**
+  - `InputGroup` (ícone em campo, com raiz no CSS que vencia as utilities), `ReasonField` (mínimo e contagem visíveis), `.g-media-row` (mídia + texto + ações) e `.g-field-action`;
+  - bordas sempre com cor de token e quebra de texto longo em cards.
+- **Telas corrigidas:**
+  - imagens de produto; busca de usuários e as demais buscas com ícone no Portal e no PDV;
+  - login e troca de senha; limite de perdas;
+  - motivos de estoque, inventário, devolução, transferência, fechamento, eventos, rifas, lançamentos, abertura e Conciliação.
+- **Teste de layout:** `e2e/responsive-layout.spec.ts` nos 6 viewports.
+
