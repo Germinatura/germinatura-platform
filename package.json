@@ -16,6 +16,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:db": "node tools/run-supabase.mjs test db",
     "test:e2e": "playwright test",
+    "test:upgrade": "node tools/upgrade-check/cohort-upgrade-check.mjs",
     "security:scan": "node tools/check-repository-security.mjs",
     "dev:seed:rich": "node tools/dev-seed/rich-seed.mjs",
     "dev:seed:rich:reset": "node tools/dev-seed/rich-seed.mjs --reset",

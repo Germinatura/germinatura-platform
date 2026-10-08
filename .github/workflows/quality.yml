@@ -44,6 +44,12 @@ jobs:
       - run: pnpm test:integration
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e --project=chromium
+      - name: Upgrade check (populated schema before the cohorts → new migrations)
+        run: pnpm test:upgrade --report=upgrade-report.md
+      - name: Publish the upgrade report
+        if: always()
+        shell: bash
+        run: if [ -f upgrade-report.md ]; then cat upgrade-report.md >> "$GITHUB_STEP_SUMMARY"; fi
       - run: pnpm build
       - name: Reject legacy runtime dependencies
         shell: bash

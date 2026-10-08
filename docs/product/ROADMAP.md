@@ -492,3 +492,18 @@ Spec 5.8 (FIN-002, FIN-003, FIN-007), feito na homologação real.
   - motivos de estoque, inventário, devolução, transferência, fechamento, eventos, rifas, lançamentos, abertura e Conciliação.
 - **Teste de layout:** `e2e/responsive-layout.spec.ts` nos 6 viewports.
 
+## Etapa 12 — Multi-turma e ADMIN_MASTER (iniciada em 08/10/2026)
+
+COH-001 a COH-006, ADR 0011. Um único banco e domínio, com segregação lógica e de segurança por turma. Ranking, fidelidade, chatbot, rede social nova e acréscimos por meio de pagamento ficam fora desta etapa.
+
+- **PR 1, fundação de dados:**
+  - `cohorts`, a Turma 2026 de bootstrap (`c0000000-0000-4000-8000-000000002026`) e `user_cohorts`;
+  - `cohort_id` em 73 tabelas por turma, com default constante: sem reescrita de linhas e sem mudança de comportamento;
+  - relatório de integridade;
+  - teste de upgrade sobre o schema anterior populado, que roda na CI;
+  - runbook `docs/operations/cohort-cutover-runbook.md`.
+- **Antes do PR 2:** spike automatizado do isolamento (tabela base + view filtrada) e inventário/prova do Realtime.
+- **PR 2:** autorização por turma, ADMIN_MASTER (bootstrap fail-closed), isolamento, `NOT NULL`, unicidades e singletons por turma, testes A/B.
+- **PR 3:** contratos e APIs com o contexto da turma.
+- **PR 4:** seletor no Portal, visão "Todas" com quebra por turma e telas de turmas e vínculos.
+- **PR 5:** restrição do fallback, performance, runbook final e validação em staging. Produção só com autorização.
