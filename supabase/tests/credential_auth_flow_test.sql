@@ -132,7 +132,7 @@ select results_eq(
   'provisioned profile persists normalized username and completion'
 );
 select results_eq(
-  $$select count(*)::bigint from public.audit_logs where action = 'auth.profile.provisioned' and actor_id = '10000000-0000-4000-8000-000000000001' and entity_id = '11000000-0000-4000-8000-000000000003'$$,
+  $$select count(*)::bigint from cohort_data.audit_logs where action = 'auth.profile.provisioned' and actor_id = '10000000-0000-4000-8000-000000000001' and entity_id = '11000000-0000-4000-8000-000000000003'$$,
   array[1::bigint],
   'admin provisioning completion is audited once'
 );
@@ -213,12 +213,12 @@ select results_eq(
   'successful recovery clears counters and admin marker'
 );
 select results_eq(
-  $$select count(*)::bigint from public.audit_logs where action = 'auth.password_recovery.unlocked' and entity_id = '11000000-0000-4000-8000-000000000001'$$,
+  $$select count(*)::bigint from cohort_data.audit_logs where action = 'auth.password_recovery.unlocked' and entity_id = '11000000-0000-4000-8000-000000000001'$$,
   array[1::bigint],
   'admin unlock is audited once'
 );
 select results_eq(
-  $$select count(*)::bigint from public.audit_logs where action = 'auth.profile.completed' and entity_id = '11000000-0000-4000-8000-000000000001'$$,
+  $$select count(*)::bigint from cohort_data.audit_logs where action = 'auth.profile.completed' and entity_id = '11000000-0000-4000-8000-000000000001'$$,
   array[1::bigint],
   'profile completion is audited once'
 );

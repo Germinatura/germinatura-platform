@@ -48,6 +48,18 @@ insert into public.user_roles (user_id, role_id) values
   ('10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000003'),
   ('10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002');
 
+-- The fixture administrator stands for the institutional bootstrap administrator, who holds ADMIN_MASTER (ADR 0011).
+-- Conditional: the upgrade check also seeds a schema from before the cohorts.
+do $$
+begin
+  if to_regclass('public.admin_masters') is not null then
+    insert into public.admin_masters (user_id, reason, correlation_id) values
+      ('10000000-0000-4000-8000-000000000001', 'Fixture local do administrador do bootstrap (ADR 0011)', '00000000-0000-4000-8000-0000000000a1')
+    on conflict (user_id) do nothing;
+  end if;
+end;
+$$;
+
 insert into public.categories (id, name, slug, active, sort_order) values
   ('23000000-0000-4000-8000-000000000001', 'Fixtures de concorrência', 'fixtures-concorrencia', false, 999)
 on conflict (id) do update set active = false;

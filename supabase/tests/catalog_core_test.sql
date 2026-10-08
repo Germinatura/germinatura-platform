@@ -1,15 +1,15 @@
 begin;
 select plan(32);
 
-select has_table('public', 'categories', 'categories table exists');
-select has_table('public', 'products', 'products table exists');
-select has_table('public', 'product_prices', 'product prices table exists');
+select has_table('cohort_data', 'categories', 'categories table exists');
+select has_table('cohort_data', 'products', 'products table exists');
+select has_table('cohort_data', 'product_prices', 'product prices table exists');
 select col_type_is('public', 'product_prices', 'amount_cents', 'bigint', 'prices use bigint cents');
-select has_index('public', 'products', 'products_sku_key', 'SKU is unique');
-select has_index('public', 'product_prices', 'product_prices_product_validity_idx', 'price validity lookup is indexed');
+select has_index('cohort_data', 'products', 'products_cohort_sku_key', 'SKU is unique within a cohort');
+select has_index('cohort_data', 'product_prices', 'product_prices_product_validity_idx', 'price validity lookup is indexed');
 
 select results_eq(
-  $$select count(*)::bigint from pg_class where oid in ('public.categories'::regclass, 'public.products'::regclass, 'public.product_prices'::regclass) and relrowsecurity$$,
+  $$select count(*)::bigint from pg_class where oid in ('cohort_data.categories'::regclass, 'cohort_data.products'::regclass, 'cohort_data.product_prices'::regclass) and relrowsecurity$$,
   array[3::bigint],
   'all catalog tables have RLS enabled'
 );

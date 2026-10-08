@@ -1,14 +1,14 @@
 begin;
 select plan(43);
 
-select has_table('public', 'stock_reservations', 'stock reservations table exists');
-select has_table('public', 'stock_reservation_items', 'stock reservation items table exists');
+select has_table('cohort_data', 'stock_reservations', 'stock reservations table exists');
+select has_table('cohort_data', 'stock_reservation_items', 'stock reservation items table exists');
 select has_type('public', 'stock_reservation_status', 'reservation status type exists');
 select has_function('public', 'reserve_stock', array['uuid', 'jsonb', 'text', 'text', 'text', 'uuid'], 'reserve stock RPC exists');
 select has_function('public', 'release_stock_reservation', array['uuid', 'text', 'uuid'], 'release reservation RPC exists');
 select has_function('private', 'expire_stock_reservation', array['uuid', 'uuid'], 'internal expiration function exists');
 select results_eq(
-  $$select count(*)::bigint from pg_class where oid in ('public.stock_reservations'::regclass, 'public.stock_reservation_items'::regclass) and relrowsecurity$$,
+  $$select count(*)::bigint from pg_class where oid in ('cohort_data.stock_reservations'::regclass, 'cohort_data.stock_reservation_items'::regclass) and relrowsecurity$$,
   array[2::bigint],
   'reservation tables have RLS enabled'
 );

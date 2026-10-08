@@ -1,7 +1,7 @@
--- ADR 0011 (multi-turma), PR 1 — fundação de dados: catálogo de turmas, Turma 2026 de bootstrap, vínculos
--- usuário ↔ turma, cohort_id expandido nas tabelas por turma, integridade. Sem mudança de autorização.
+-- ADR 0011 (multi-turma) — fundação de dados: catálogo de turmas, Turma 2026 de bootstrap, vínculos usuário ↔ turma,
+-- classificação das tabelas, cohort_id e integridade (estado final, depois da autorização e do isolamento).
 begin;
-select plan(40);
+select plan(42);
 
 -- Catálogo e Turma 2026 de bootstrap.
 select has_table('public', 'cohorts', 'cohorts exists');
@@ -28,27 +28,30 @@ select throws_ok($$update public.cohorts set status = 'ARCHIVED' where id = priv
 rollback to savepoint rules;
 
 -- Classificação: tabelas por turma recebem cohort_id; globais não.
-select is((select count(*)::integer from private.cohort_scoped_tables), 73, '73 tables are classified as cohort-scoped');
+select is((select count(*)::integer from private.cohort_scoped_tables), 85,
+  '85 tables are classified: 73 of the foundation, 12 decided with the authorization (ADR 0011)');
+select results_eq($$select mode, count(*)::integer from private.cohort_scoped_tables group by mode order by mode$$,
+  $$values ('MASTER_NULLABLE'::text, 2), ('REQUIRED'::text, 78), ('SHARED_NULLABLE'::text, 5)$$,
+  'required, attribution (nullable) and log (nullable, global = NULL) tables');
 select is((select count(*)::integer from private.cohort_scoped_tables t
-  join information_schema.columns c on c.table_schema = 'public' and c.table_name = t.table_name and c.column_name = 'cohort_id'
-  where c.data_type = 'uuid'), 73, 'every cohort-scoped table has a uuid cohort_id');
+  join information_schema.columns c on c.table_schema = 'cohort_data' and c.table_name = t.table_name and c.column_name = 'cohort_id'
+  where c.data_type = 'uuid'), 85, 'every cohort table lives in cohort_data with a uuid cohort_id');
 select is((select count(*)::integer from private.cohort_scoped_tables t
-  join information_schema.columns c on c.table_schema = 'public' and c.table_name = t.table_name and c.column_name = 'cohort_id'
-  where c.column_default = '''c0000000-0000-4000-8000-000000002026''::uuid'), 73,
-  'until the authorization context exists, new rows default to Turma 2026 (same behavior as today)');
+  join information_schema.columns c on c.table_schema = 'cohort_data' and c.table_name = t.table_name and c.column_name = 'cohort_id'
+  where c.column_default is null), 85, 'no constant default anymore: the guard assigns the cohort of the request or of the parent');
 select is((select count(*)::integer from private.cohort_scoped_tables t
-  join pg_constraint fk on fk.conrelid = format('public.%I', t.table_name)::regclass and fk.conname = t.table_name || '_cohort_id_fkey'
-  where fk.convalidated and fk.confrelid = 'public.cohorts'::regclass), 73, 'every cohort foreign key is validated');
+  join pg_constraint fk on fk.conrelid = format('cohort_data.%I', t.table_name)::regclass and fk.conname = t.table_name || '_cohort_id_fkey'
+  where fk.convalidated and fk.confrelid = 'public.cohorts'::regclass), 85, 'every cohort foreign key is validated');
 select is((select count(*)::integer from private.cohort_scoped_tables t
-  join information_schema.columns c on c.table_schema = 'public' and c.table_name = t.table_name and c.column_name = 'cohort_id'
-  where c.is_nullable = 'YES'), 73, 'NOT NULL is left for the authorization PR (expand before constrain)');
-select is((select count(*)::integer from information_schema.columns where table_schema = 'public' and column_name = 'cohort_id'
+  join information_schema.columns c on c.table_schema = 'cohort_data' and c.table_name = t.table_name and c.column_name = 'cohort_id'
+  where (c.is_nullable = 'NO') = (t.mode = 'REQUIRED')), 85, 'NOT NULL exactly on the required tables (constrain after validate)');
+select is((select count(*)::integer from information_schema.columns where table_schema in ('public', 'private', 'cohort_data') and column_name = 'cohort_id'
   and table_name in ('profiles', 'profile_preferences', 'roles', 'permissions', 'role_permissions', 'idempotency_keys', 'security_events',
-    'notification_preferences', 'notifications', 'outbox_events', 'audit_logs', 'feature_flags', 'suppliers', 'payment_terminals',
-    'user_roles', 'payment_webhook_receipts', 'payment_recovery_items', 'picpay_source_imports', 'picpay_transactions',
+    'notification_preferences', 'notifications', 'feature_flags', 'payment_terminals', 'payment_webhook_receipts',
+    'payment_webhook_deliveries', 'payment_webhook_outcomes', 'picpay_source_imports', 'picpay_transactions',
     'picpay_transaction_observations', 'picpay_receivable_installments', 'picpay_receivable_observations', 'picpay_statement_imports',
     'picpay_statement_lines', 'picpay_statement_line_observations', 'picpay_statement_duplicate_conflicts')), 0,
-  'global identity, infrastructure and PicPay evidence (and the tables decided later) receive no cohort_id');
+  'global identity, infrastructure, terminal identity, the flag catalogue and the PicPay evidence receive no cohort_id');
 
 -- Integridade dos dados existentes.
 select is((select count(*)::integer from private.cohort_integrity_report() where violations <> 0), 0, 'the integrity report is clean');
@@ -65,6 +68,7 @@ values ('00000000-0000-0000-0000-000000000000', '1c000000-0000-4000-8000-0000000
 select results_eq($$select cohort_id, status::text from public.user_cohorts where user_id = '1c000000-0000-4000-8000-000000000001'$$,
   $$values (private.bootstrap_cohort_id(), 'ACTIVE'::text)$$, 'a new identity joins the default cohort');
 insert into public.cohorts (id, name, year, slug, status) values ('c0000000-0000-4000-8000-000000002027', 'Turma 2027', 2027, '2027', 'PREPARING');
+select private.provision_cohort('c0000000-0000-4000-8000-000000002027', null);
 insert into public.user_cohorts (user_id, cohort_id) values ('1c000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000002027');
 select is((select count(*)::integer from public.user_cohorts where user_id = '1c000000-0000-4000-8000-000000000001'), 2,
   'one global identity participates in two cohorts');
@@ -83,26 +87,30 @@ select is((select cohort_id from public.categories where id = (select id from cr
   'a category created through the existing RPC belongs to Turma 2026');
 select is((select count(*)::integer from private.cohort_integrity_report() where violations <> 0), 0, 'still clean after the write');
 
--- O relatório detecta referência cruzada entre turmas.
+-- Uma referência entre turmas é recusada pelo guard; o relatório a detecta se o guard for contornado.
+select throws_ok($$insert into public.products (category_id, sku, slug, name, cohort_id)
+  values ((select id from created_category), 'SKU-COHORT-X', 'produto-cruzado', 'Produto cruzado', 'c0000000-0000-4000-8000-000000002027')$$,
+  '42501', 'COHORT_MISMATCH', 'a 2027 product under a 2026 category is refused');
 savepoint cross_reference;
-insert into public.products (category_id, sku, slug, name, cohort_id)
+alter table cohort_data.products disable trigger a_cohort_guard;
+insert into cohort_data.products (category_id, sku, slug, name, cohort_id)
 values ((select id from created_category), 'SKU-COHORT-X', 'produto-cruzado', 'Produto cruzado', 'c0000000-0000-4000-8000-000000002027');
 select is((select violations::integer from private.cohort_integrity_report()
   where check_name = 'cross_cohort_reference' and subject = 'products.products_category_id_fkey'), 1,
-  'a 2027 product pointing at a 2026 category is reported');
+  'with the guard bypassed, the integrity report still catches it');
 rollback to savepoint cross_reference;
 
--- Autorização inalterada: as tabelas novas ficam fechadas até o PR de autorização.
+-- As tabelas de turmas ficam fechadas: o acesso é por get_my_session e pelos RPCs de turmas.
 select ok(not has_table_privilege('anon', 'public.cohorts', 'SELECT'), 'anon cannot read cohorts');
-select ok(not has_table_privilege('authenticated', 'public.cohorts', 'SELECT'), 'authenticated cannot read cohorts yet');
-select ok(not has_table_privilege('authenticated', 'public.user_cohorts', 'SELECT'), 'authenticated cannot read memberships yet');
+select ok(not has_table_privilege('authenticated', 'public.cohorts', 'SELECT'), 'authenticated cannot read cohorts directly');
+select ok(not has_table_privilege('authenticated', 'public.user_cohorts', 'SELECT'), 'authenticated cannot read memberships directly');
 select ok(not has_table_privilege('authenticated', 'public.user_cohorts', 'INSERT'), 'authenticated cannot write memberships');
 select ok(not has_function_privilege('authenticated', 'private.cohort_integrity_report()', 'EXECUTE'), 'the integrity report is not exposed');
 select ok(not has_function_privilege('anon', 'private.bootstrap_cohort_id()', 'EXECUTE'), 'the bootstrap helper is not exposed');
 select ok((select relrowsecurity from pg_class where oid = 'public.cohorts'::regclass), 'cohorts has RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.user_cohorts'::regclass), 'user_cohorts has RLS enabled');
-select is((select count(*)::integer from pg_policies where tablename in ('cohorts', 'user_cohorts')), 0, 'no policy opens them yet');
-select is((select count(*)::integer from public.roles where key = 'ADMIN_MASTER'), 0, 'ADMIN_MASTER is not introduced by the data foundation');
+select is((select count(*)::integer from pg_policies where tablename in ('cohorts', 'user_cohorts')), 0, 'no policy opens them to the Data API');
+select is((select count(*)::integer from public.roles where key = 'ADMIN_MASTER'), 0, 'ADMIN_MASTER is not a role repeated per cohort (admin_masters)');
 
 -- Imutabilidade preservada: o ledger continua recusando UPDATE, inclusive de cohort_id.
 insert into public.finance_manual_entries (kind, category, account, amount_cents, occurred_on, description, actor_id, correlation_id)

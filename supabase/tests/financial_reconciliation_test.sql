@@ -1,7 +1,7 @@
 begin;
 select plan(41);
 
-select has_table('public', 'payment_reconciliations', 'payment reconciliation table exists');
+select has_table('cohort_data', 'payment_reconciliations', 'payment reconciliation table exists');
 select has_type('public', 'payment_reconciliation_outcome', 'reconciliation outcome type exists');
 select has_type('public', 'payment_reconciliation_source', 'reconciliation source type exists');
 select has_function(
@@ -10,7 +10,7 @@ select has_function(
   'reconciliation RPC exists'
 );
 select ok(
-  (select relrowsecurity from pg_class where oid = 'public.payment_reconciliations'::regclass),
+  (select relrowsecurity from pg_class where oid = 'cohort_data.payment_reconciliations'::regclass),
   'payment reconciliations have RLS enabled'
 );
 select results_eq(

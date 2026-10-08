@@ -74,3 +74,19 @@ describe("snapshotSql", () => {
     expect(snapshotSql({ columns })).toContain('$cols${"sales":["id","total"]}$cols$');
   });
 });
+
+describe("compareSnapshots with expected catalogue rows", () => {
+  it("accepts the expected new rows when every earlier row is unchanged", () => {
+    const before = snapshot({ permissions: table() });
+    const after = snapshot({ permissions: table({ rows: 3, hash: "other", row_hashes: "a:1,b:2,c:3" }) });
+    expect(compareSnapshots(before, after, { expectedNewRows: { permissions: 1 } }).ok).toBe(true);
+  });
+
+  it("refuses a different number of new rows or a changed earlier row", () => {
+    const before = snapshot({ permissions: table() });
+    const twoMore = snapshot({ permissions: table({ rows: 4, row_hashes: "a:1,b:2,c:3,d:4" }) });
+    expect(compareSnapshots(before, twoMore, { expectedNewRows: { permissions: 1 } }).problems).toContain("permissions: rows 2 → 4, expected +1");
+    const changed = snapshot({ permissions: table({ rows: 3, row_hashes: "a:1,b:9,c:3" }) });
+    expect(compareSnapshots(before, changed, { expectedNewRows: { permissions: 1 } }).problems).toContain("permissions: 1 pre-existing rows changed");
+  });
+});

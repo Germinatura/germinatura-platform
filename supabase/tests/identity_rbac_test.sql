@@ -4,12 +4,12 @@ select plan(30);
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'roles', 'roles table exists');
 select has_table('public', 'permissions', 'permissions table exists');
-select has_table('public', 'user_roles', 'user_roles table exists');
+select has_table('cohort_data', 'user_roles', 'user_roles table exists');
 select has_table('public', 'role_permissions', 'role_permissions table exists');
 select has_function('public', 'has_permission', array['text'], 'permission function exists');
 select has_function('public', 'get_my_session', 'session function exists');
 select results_eq('select count(*)::bigint from public.roles', array[7::bigint], 'all v2.1 roles are seeded');
-select results_eq('select count(*)::bigint from public.permissions', array[26::bigint], 'permission catalog includes inventory, procurement and audit capabilities');
+select results_eq('select count(*)::bigint from public.permissions', array[27::bigint], 'permission catalog includes inventory, procurement, audit and cohort capabilities');
 select results_eq(
   $$select count(*)::bigint from public.profiles where id in (
     '10000000-0000-4000-8000-000000000001',
@@ -29,7 +29,7 @@ select results_eq($$select count(*)::bigint from public.role_permissions rp join
 select results_eq($$select count(*)::bigint from public.role_permissions rp join public.roles r on r.id = rp.role_id where r.key = 'CONSUMIDOR'$$, array[5::bigint], 'consumer permission matrix includes own sale history');
 
 select results_eq(
-  $$select count(*)::bigint from pg_class where oid in ('public.profiles'::regclass, 'public.roles'::regclass, 'public.permissions'::regclass, 'public.user_roles'::regclass, 'public.role_permissions'::regclass) and relrowsecurity$$,
+  $$select count(*)::bigint from pg_class where oid in ('public.profiles'::regclass, 'public.roles'::regclass, 'public.permissions'::regclass, 'cohort_data.user_roles'::regclass, 'public.role_permissions'::regclass) and relrowsecurity$$,
   array[5::bigint],
   'every public foundation table has RLS enabled'
 );

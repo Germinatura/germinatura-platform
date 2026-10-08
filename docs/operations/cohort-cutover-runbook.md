@@ -171,7 +171,75 @@ Depois, o snapshot "depois" e a comparação acima.
   (migrations → esvaziar → `data.sql`). Ela descarta as escritas feitas depois do backup, então exige decisão
   explícita do responsável.
 
+## Fase 2 — autorização e isolamento (PR 2)
+
+### Migrations e impacto esperado
+
+| Migration | O que faz | Bloqueio |
+| --- | --- | --- |
+| `20261020090000_cohort_classification` | `cohort_id` em `suppliers`, `finance_balance_checks`, `user_roles`, `audit_logs`, `outbox_events` (default constante, sem reescrita) e nas tabelas de atribuição PicPay/Payment Link (anulável, backfill a partir da venda/lançamento); `cohort_payment_terminals` (todas as maquininhas autorizadas para a Turma 2026); `feature_flags.scope` + `cohort_feature_flags` (valores atuais copiados para a Turma 2026) | Catálogo em quase tudo; `UPDATE` só nas linhas de atribuição e nas 4 flags globais |
+| `20261020090100_cohort_authorization` | Contexto da requisição, `admin_masters` + bootstrap fail-closed, `has_permission`/`get_my_session` por turma, RPCs de turmas/vínculos/ADMIN_MASTER, fan-out por turma, wrapper do worker, guards | Só funções e tabelas novas |
+| `20261020090200_cohort_isolation` | Aborta se houver publicação inesperada; move as 85 tabelas para `cohort_data` e cria as views `public.<tabela>`; RLS restritiva por escopo; guards; `NOT NULL`; unicidades/singletons por turma; maquininhas e flags globais em `private`; religa views dependentes; recria as 15 funções de tipo-linha; relatório de integridade (aborta se houver violação) | `ACCESS EXCLUSIVE` breve por tabela (`SET SCHEMA`, troca de constraints, validação de `NOT NULL`); `lock_timeout` 5 s |
+
+**Comportamento visível depois do PR 2** (com o app atual, sem header de turma, tudo cai na Turma 2026):
+- O Portal e o PDV continuam iguais para a Turma 2026, e `get_my_session` ganha campos (`admin_master`, `cohort`,
+  `cohort_mode`, `cohorts`) que o app atual ignora.
+- **Flags globais** (`payment_link`, `picpay_checkout`, `picpay_tap`, `meal_voucher`) passam a ser alteradas só por
+  ADMIN_MASTER, que é o administrador do bootstrap.
+- **Maquininhas:**
+  - um terminal usado só pela turma continua editável por ela;
+  - um terminal compartilhado é editado só por ADMIN_MASTER;
+  - autorizar um terminal existente para outra turma também é exclusivo de ADMIN_MASTER.
+- **"Desativar usuário"** passa a desativar o vínculo com a turma. Como hoje só existe a Turma 2026, o efeito é o
+  mesmo: a sessão fica inativa.
+
+### Checks antes da produção (somente leitura)
+
+```sql
+-- 1. Nenhuma tabela publicada (a migration aborta se houver).
+select pubname, schemaname, tablename from pg_publication_tables;
+select pubname from pg_publication where puballtables;
+-- 2. Bootstrap institucional consistente (a migration aborta sem fallback se não estiver).
+select b.completed_at is not null as concluido, p.id is not null as tem_perfil, p.active, p.onboarding_completed_at is not null as onboarding
+from public.institutional_bootstrap_state b left join public.profiles p on p.id = b.completed_by;
+-- 3. Só a Turma 2026 existe e a fundação está íntegra.
+select id, name, status, is_default from public.cohorts;
+select * from private.cohort_integrity_report() where violations <> 0;
+```
+
+Esperado: (1) nenhuma linha; (2) `concluido`, `tem_perfil`, `active` e `onboarding` verdadeiros; (3) uma turma e
+nenhuma violação. Mais o snapshot `before.json` e o backup (Fase 1).
+
+### Checks depois da produção (somente leitura)
+
+```sql
+select * from private.cohort_integrity_report() where violations <> 0;      -- nenhuma linha
+select * from private.cohort_view_drift();                                  -- nenhuma linha
+select user_id from public.admin_masters;                                   -- o administrador do bootstrap
+select count(*) from private.cohort_scoped_tables;                          -- 85
+select key, scope, enabled from public.feature_flags order by key;          -- mesmos valores de antes
+```
+
+Depois, o snapshot "depois" e a comparação `--live`. Colunas novas esperadas: `cohort_id` e `feature_flags.scope`.
+Tabelas movidas para `cohort_data`/`private` são comparadas pelo nome.
+
+### Rollback e forward-fix
+
+- Cada arquivo roda numa transação. Uma publicação inesperada, um bootstrap inconsistente, uma violação de
+  integridade ou um lock acima de 5 s desfazem o arquivo inteiro.
+- Problema depois de aplicado: forward-fix. O app atual não depende do header, então a correção pode ser feita sem
+  pressa.
+- **Reverter a conversão** (último recurso, com autorização, DDL sem perda de dados):
+  1. remover as views `public.<tabela>`;
+  2. `ALTER TABLE cohort_data.<tabela> SET SCHEMA public` para as 85 tabelas;
+  3. devolver `feature_flags` e `payment_terminals` a `public`;
+  4. recriar as views dependentes e as 15 funções de tipo-linha sobre as tabelas.
+
+  `cohort_id` e as tabelas novas podem ficar, porque não mudam o comportamento.
+
 ## Fases seguintes
 
-O PR 2 (autorização e isolamento: `NOT NULL`, contexto, ADMIN_MASTER) acrescenta a sua seção a este runbook, depois do
-spike de isolamento e Realtime.
+- **PR 3 (obrigatório antes de criar uma segunda turma em produção):**
+  - o Portal e o PDV enviam o header da turma;
+  - a listagem de usuários do admin deixa o cliente de chave secreta por um RPC escopado.
+- **PR 5:** restringir o fallback (`private.cohort_fallback_enabled()` → `false`).

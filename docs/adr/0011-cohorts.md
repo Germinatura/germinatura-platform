@@ -1,6 +1,6 @@
 # ADR 0011 — Turmas (multi-turma) e ADMIN_MASTER
 
-- Status: ACCEPTED. A fundação de dados (PR 1) está integrada; o mecanismo de isolamento foi provado pelo spike de 08/10/2026 e será adotado no PR 2.
+- Status: ACCEPTED. Fundação de dados (PR 1) integrada; autorização e isolamento (PR 2) implementados sobre o mecanismo provado pelo spike de 08/10/2026.
 - Data: 2026-10-08
 - Aprovação: proposta técnica da Fase A, com os ajustes do responsável pelo projeto de 08/10/2026.
 
@@ -52,18 +52,18 @@ relatório de integridade confere essa igualdade em cada chave estrangeira entre
   `picpay_receivable_observations`, `picpay_statement_imports`, `picpay_statement_lines`,
   `picpay_statement_line_observations`, `picpay_statement_duplicate_conflicts`.
 
-**Decididas no PR 2, com o modelo de autorização:**
+**Decididas com a autorização (PR 2, decisões de 08/10/2026):**
 
-| Tabela | Questão em aberto |
+| Tabela | Decisão |
 | --- | --- |
-| `user_roles` | Papel por turma. |
-| `audit_logs`, `outbox_events` | `cohort_id` anulável; nulo significa operação global. |
-| `feature_flags` | Separar chaves globais (integrações e homologação) de chaves por turma (módulos). |
-| `suppliers` | Cadastro compartilhado ou por turma. |
-| `payment_terminals` | Equipamento físico. |
-| `finance_balance_checks` | Saldo observado da conta × saldo interno da turma. |
-| `payment_recovery_items`, `payment_link_refund_requests`, `payment_link_provider_refunds` | Venda opcional: a evidência fica sem atribuição até o vínculo. |
-| `picpay_transaction_links`, `picpay_statement_line_resolutions`, `picpay_exception_resolutions`, `picpay_reconciliation_periods`, `picpay_reconciliation_period_events` | Atribuição da evidência ou fechamento da conta. |
+| `user_roles` | Por turma: o papel vale na turma em que foi concedido. |
+| `suppliers` | Por turma, sem cadastro institucional compartilhado nesta etapa. |
+| `finance_balance_checks` | Por turma: a conferência valida o livro e o saldo de uma turma. |
+| `payment_terminals` | **Identidade global** (dispositivo físico que atravessa gerações), código único global e histórico preservado. A turma é autorizada por `cohort_payment_terminals (cohort_id, terminal_id, active)`, e o mesmo terminal pode atender várias turmas sem ser duplicado. |
+| `feature_flags` | Catálogo global. Classificação pelo efeito encontrado no código: `payment_link`, `picpay_checkout`, `picpay_tap` e `meal_voucher` são infraestrutura ou credenciamento compartilhado, logo GLOBAIS e alterados só por ADMIN_MASTER. As demais (módulos e meios de pagamento da turma) valem por turma em `cohort_feature_flags`. |
+| `picpay_transaction_links`, `picpay_statement_line_resolutions`, `payment_recovery_items`, `payment_link_refund_requests`, `payment_link_provider_refunds` | Atribuição com turma anulável: `NULL` = não atribuída; caso contrário, a turma da venda, tentativa ou lançamento atribuído. |
+| `audit_logs`, `outbox_events` | Turma anulável: `NULL` = operação realmente global (identidade, turmas, ADMIN_MASTER, flags globais, identidade de terminal, importação de evidência). O histórico anterior às turmas pertence à Turma 2026. |
+| `picpay_exception_resolutions`, `picpay_reconciliation_periods(_events)` | Continuam globais: tratam a conta e a evidência, não a atribuição a uma turma. |
 
 ## Financeiro: livros por turma, evidência PicPay global
 
@@ -90,31 +90,50 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
 - Para a Turma 2026, o comportamento de produção fica preservado integralmente: todos os livros e atribuições
   existentes são dela.
 
-## Autorização (PR 2, sem efeito no PR 1)
+## Autorização (PR 2)
 
-- RBAC por turma: usuário + turma + papel. `user_roles` ganha a turma, e `has_permission` passa a avaliar a turma do
-  contexto. Um ADMIN comum administra apenas as turmas em que recebeu o papel.
-- **ADMIN_MASTER** é modelado explicitamente, sem bypass de RLS:
-  - acesso a todas as turmas;
-  - cria, altera, arquiva e reativa turmas;
-  - gerencia vínculos e papéis;
-  - continua autenticado, auditado como ator normal e sujeito às proteções do domínio.
-- **Bootstrap da capacidade global de administração.** O primeiro ADMIN_MASTER é
-  `institutional_bootstrap_state.completed_by`, de forma fail-closed. A migration falha com mensagem explícita, sem
-  fallback para outro administrador, se o campo estiver vazio, se o perfil não existir ou se a identidade estiver
-  inativa ou sem onboarding.
-- **Contexto da turma.** Cada requisição declara a turma (uuid) ou `all`, e o banco valida o vínculo ou o
-  ADMIN_MASTER. `all` serve só para leitura e agregação. Toda escrita exige uma turma concreta.
-- **Fallback.** Sem turma declarada, a requisição cai na Turma 2026. Isso é **apenas compatibilidade de rollout**,
-  restrito no PR 5. No estado final:
-  - quem participa de exatamente uma turma tem a turma inferida;
-  - quem participa de várias precisa de contexto explícito;
-  - o ADMIN_MASTER sem turma selecionada nunca escreve em 2026 por acidente.
-- **Isolamento.** As funções `SECURITY DEFINER` pertencem a `postgres`, que tem `BYPASSRLS`, então RLS sozinho não
-  isola os RPCs. O candidato é "tabela base em schema não exposto + view filtrada `security_invoker` com o nome atual
-  + trigger de escrita". Só será adotado depois da prova automatizada do spike do PR 2, que inclui Realtime,
-  publications, Data API, grants, policies, OID/regclass, migrations posteriores, backup/restore e diff de schema.
-  Uma arquitetura híbrida é aceitável onde a prova exigir.
+- **Contexto da requisição.**
+  - O header `x-germinatura-cohort` traz um uuid ou `all` e é validado no banco por `private.cohort_scope()`.
+  - `all` vale só para ADMIN_MASTER e só para leitura e agregação.
+  - Toda escrita em tabela por turma exige uma turma concreta (`COHORT_REQUIRED`), inclusive para ADMIN_MASTER.
+  - Operações sobre o catálogo global (criar ou arquivar turmas, conceder ADMIN_MASTER, identidade de terminal, flags
+    globais) não pertencem a uma turma e são auditadas com turma `NULL`.
+- **Fallback.**
+  - Sem header, a requisição cai na Turma 2026. Isso é **só compatibilidade de rollout**
+    (`private.cohort_fallback_enabled()`), restrita no PR 5.
+  - O estado final já está implementado e testado atrás desse interruptor:
+    - quem tem exatamente uma turma acessível tem a turma inferida;
+    - quem tem várias precisa de contexto explícito;
+    - ADMIN_MASTER nunca tem a turma inferida;
+    - sem turma determinável, a requisição falha fechada.
+- **RBAC.** `has_permission` exige ADMIN_MASTER, ou um papel na turma da requisição mais vínculo ativo nela.
+  `get_my_session` informa os papéis da turma, a turma, o modo (`COHORT`/`ALL`/`NONE`), as turmas acessíveis e
+  `admin_master`.
+- **ADMIN_MASTER** é explícito (`admin_masters`, uma linha por pessoa) e não depende de `user_roles`.
+  - Tem todas as turmas e todas as permissões, inclusive `cohorts.manage`.
+  - É concedido e revogado só por outro ADMIN_MASTER (`set_admin_master`), e o último ativo não pode ser revogado.
+  - **Bootstrap da capacidade global de administração:** é concedido a
+    `institutional_bootstrap_state.completed_by`, de forma fail-closed. Com o bootstrap concluído, a migration
+    exige que a identidade exista, esteja ativa e tenha onboarding concluído; senão, aborta sem fallback. Com o
+    bootstrap pendente, `bootstrap_first_admin` concede no momento do bootstrap.
+- **Vínculo.**
+  - Desativar uma pessoa numa turma tira só o acesso àquela turma.
+  - Sem nenhum vínculo ativo (e sem ser ADMIN_MASTER), a sessão é inativa, como era a desativação global.
+- **Fan-out.**
+  - Avisos chegam só aos membros ativos da turma.
+  - O worker processa cada evento dentro da turma do evento, então `staff_with_permission` e as demais buscas de
+    destinatários ficam restritas a ela.
+- **Unicidades por turma:**
+  - slug de categoria e de produto; SKU;
+  - código de promoção e de cupom;
+  - local central ativo; local do vendedor; turno aberto do vendedor;
+  - documento de fornecedor;
+  - versão da posição de abertura;
+  - papel.
+
+  Singletons por turma: meta de arrecadação, configuração de reservas e configuração de perdas. Identificadores de
+  evidência externa e códigos públicos (link de compartilhamento, número de pedido do Payment Link, código de
+  terminal) continuam globais.
 
 ## Resultado do spike de isolamento (08/10/2026)
 
@@ -155,8 +174,15 @@ Não é necessária arquitetura híbrida para preservar Realtime.
    - backfill explícito e idempotente (no-op);
    - `VALIDATE` das FKs;
    - `private.cohort_integrity_report()`, que aborta a migration se houver qualquer violação.
-4. `NOT NULL`, o default por contexto e as restrições por turma ficam para o PR 2, depois da validação em staging e
-   em produção.
+4. PR 2, em três migrations:
+   - `20261020090000_cohort_classification` expande as tabelas decididas. O histórico de atribuição e de log fica na
+     Turma 2026 por default de catálogo, sem `UPDATE`: os vínculos e as resoluções PicPay são imutáveis.
+   - `20261020090100_cohort_authorization` cria o contexto, o ADMIN_MASTER, o RBAC por turma e os guards.
+   - `20261020090200_cohort_isolation`:
+     - aborta antes de alterar qualquer coisa se houver publicação inesperada;
+     - converte as 85 tabelas e aplica `NOT NULL`, unicidades e singletons por turma;
+     - religa as views dependentes e recria as 15 funções de tipo-linha;
+     - roda o relatório de integridade, que aborta a migration se houver violação.
 
 Nenhuma migration é destrutiva. O teste de upgrade (`pnpm test:upgrade`, que roda na CI) prova a preservação sobre o
 schema anterior populado. O runbook é `docs/operations/cohort-cutover-runbook.md`.
@@ -166,6 +192,16 @@ schema anterior populado. O runbook é `docs/operations/cohort-cutover-runbook.m
 - Turma nova = linha em `cohorts` + vínculos + papéis. Não há banco, schema ou deploy por turma.
 - Toda tabela operacional nova precisa ser classificada: entrar em `private.cohort_scoped_tables` com `cohort_id` ou
   ser documentada como global neste ADR.
+- **Convenção para migrations depois do PR 2:**
+  - Tabelas por turma são alteradas em `cohort_data.<tabela>`, seguidas de
+    `select private.refresh_cohort_view('<tabela>')`. Um `ALTER TABLE public.<tabela>` falha, porque é uma view.
+  - Uma tabela nova por turma entra em `private.cohort_scoped_tables` e passa pela mesma conversão: view, policy
+    restritiva e guard.
+  - `private.cohort_view_drift()` e o relatório de integridade (pgTAP) acusam qualquer divergência.
+  - Funções não devem usar o tipo-linha da tabela base na assinatura.
+  - Ferramentas que enumeram tabelas consideram `public`, `cohort_data` e `private`.
+- O Realtime, quando for preciso, publica a tabela base em `cohort_data`, só onde houver necessidade real. A policy
+  restritiva por escopo autoriza cada assinante, e o cliente entrega o JWT antes do join.
 - Agregações em "Todas as turmas" somam apenas métricas que fazem sentido somadas e mostram sempre a quebra por turma.
 - Ranking, fidelidade, comunidade nova e acréscimos por meio de pagamento serão construídos sobre esta fundação.
   Nada disso faz parte desta etapa.

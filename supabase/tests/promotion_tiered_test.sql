@@ -2,8 +2,8 @@
 begin;
 select plan(24);
 
-select has_table('public','promotion_tiered_rules','tiered rules table exists');
-select has_table('public','promotion_tiered_rule_tiers','tiers table exists');
+select has_table('cohort_data','promotion_tiered_rules','tiered rules table exists');
+select has_table('cohort_data','promotion_tiered_rule_tiers','tiers table exists');
 select has_function('public','get_pricing_inputs',array['promotion_channel','uuid[]','text'],'single pricing inputs exist');
 select ok(not has_table_privilege('authenticated','public.promotion_tiered_rule_tiers','INSERT'),'tiers deny direct insert');
 select ok(not has_function_privilege('authenticated','private.apply_promotion_rule(bigint,bigint,jsonb)','EXECUTE'),'pricing helper is private');

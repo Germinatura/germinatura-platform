@@ -3,7 +3,7 @@
 begin;
 select plan(59);
 
-select has_table('public', 'payment_link_charges', 'payment link intents exist');
+select has_table('cohort_data', 'payment_link_charges', 'payment link intents exist');
 select has_table('public', 'payment_webhook_receipts', 'webhook receipts exist');
 select ok(not has_function_privilege('authenticated', 'public.worker_record_payment_link_event(public.payment_confirmation_source,text,jsonb)', 'EXECUTE'), 'users cannot inject provider events');
 select ok(not has_function_privilege('anon', 'public.worker_claim_payment_link_requests(text,integer,integer)', 'EXECUTE'), 'anonymous cannot claim link requests');

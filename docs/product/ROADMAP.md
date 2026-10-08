@@ -502,8 +502,8 @@ COH-001 a COH-006, ADR 0011. Um único banco e domínio, com segregação lógic
   - relatório de integridade;
   - teste de upgrade sobre o schema anterior populado, que roda na CI;
   - runbook `docs/operations/cohort-cutover-runbook.md`.
-- **Antes do PR 2:** spike automatizado do isolamento (tabela base + view filtrada) e inventário/prova do Realtime.
-- **PR 2:** autorização por turma, ADMIN_MASTER (bootstrap fail-closed), isolamento, `NOT NULL`, unicidades e singletons por turma, testes A/B.
+- **Spike (#177):** isolamento provado (49/49 em bancos limpo, populado e restaurado; Data API; Realtime).
+- **PR 2:** autorização por turma, ADMIN_MASTER (bootstrap fail-closed), isolamento de 85 tabelas, `NOT NULL`, unicidades e singletons por turma, maquininhas globais, flags globais × por turma, atribuição PicPay, testes A/B.
 - **PR 3:** contratos e APIs com o contexto da turma.
 - **PR 4:** seletor no Portal, visão "Todas" com quebra por turma e telas de turmas e vínculos.
 - **PR 5:** restrição do fallback, performance, runbook final e validação em staging. Produção só com autorização.

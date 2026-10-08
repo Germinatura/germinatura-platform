@@ -2,8 +2,8 @@
 begin;
 select plan(30);
 
-select has_table('public','seller_shifts','seller shifts exist');
-select has_table('public','cash_movements','drawer ledger exists');
+select has_table('cohort_data','seller_shifts','seller shifts exist');
+select has_table('cohort_data','cash_movements','drawer ledger exists');
 select ok(not has_function_privilege('anon','public.confirm_cash_payment(uuid,bigint,text,uuid)','EXECUTE'),'anonymous cannot confirm cash');
 select ok(not has_table_privilege('authenticated','public.cash_movements','INSERT'),'drawer ledger denies direct insert');
 select ok(not has_table_privilege('authenticated','public.seller_shifts','UPDATE'),'shifts deny direct update');
