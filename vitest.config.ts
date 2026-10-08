@@ -18,7 +18,7 @@ function appAlias(): Plugin {
 export default defineConfig({
   plugins: [appAlias()],
   test: {
-    include: ["packages/**/*.test.ts", "apps/jobs/**/*.test.ts", "apps/pdv/**/*.test.ts", "apps/portal/**/*.test.ts", "tests/load/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "apps/jobs/**/*.test.ts", "apps/pdv/**/*.test.ts", "apps/portal/**/*.test.ts", "tests/load/**/*.test.ts", "tools/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/.next/**", "**/dist/**"],
     environment: "node",
     coverage: {
