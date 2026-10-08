@@ -265,6 +265,8 @@ textarea.g-input { min-height: calc(var(--g-control-min-height) * 2); resize: ve
 .g-card, [role="dialog"] { overflow-wrap: anywhere; }
 .g-card :where(table), [role="dialog"] :where(table) { overflow-wrap: normal; }
 .g-badge { flex-shrink: 0; white-space: nowrap; }
+/* A button label never breaks inside the button; rows of actions wrap whole buttons instead. */
+.g-button { flex-shrink: 0; white-space: nowrap; }
 
 @keyframes g-spin { to { transform: rotate(360deg); } }
 

@@ -84,3 +84,36 @@ test("as telas administrativas não transbordam nem sobrepõem controles em nenh
   await page.getByRole("button", { name: "Remover capa" }).click();
   await expect(page.getByText("Este produto ainda não tem imagem.")).toBeVisible();
 });
+
+// Every administrative screen and the PDV, on a phone and a small laptop: no page scrolls sideways.
+test("nenhuma tela administrativa nem o PDV rolam na horizontal no celular ou no notebook", async ({ browser }) => {
+  test.setTimeout(900_000);
+  const pdv = process.env.PDV_URL ?? "http://127.0.0.1:3001";
+  const admin = await (await browser.newContext()).newPage();
+  expect((await admin.request.post(`${portal}/api/auth/login`, { headers, data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
+  const paths = ["/", "/admin/catalogo", "/admin/estoque", "/admin/usuarios", "/admin/compras", "/admin/promocoes", "/admin/rifas", "/admin/reservas",
+    "/admin/fechamentos", "/admin/auditoria", "/admin/configuracoes", "/admin/comunicacao/avisos", "/admin/comunicacao/divulgacao", "/admin/comunicacao/eventos",
+    "/admin/financeiro/saldo", "/admin/financeiro/extrato", "/admin/financeiro/lancamentos", "/admin/financeiro/vendas", "/admin/financeiro/turnos",
+    "/admin/financeiro/maquininhas", "/admin/financeiro/pagamentos-online", "/admin/financeiro/indicadores", "/admin/financeiro/contas-a-pagar",
+    "/admin/financeiro/conciliacao-picpay"];
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1024, height: 768 }]) {
+    await admin.setViewportSize(viewport);
+    for (const path of paths) {
+      await admin.goto(`${portal}${path}`);
+      await admin.waitForLoadState("networkidle").catch(() => undefined);
+      await expect(async () => expectNoHorizontalOverflow(admin, `${path} ${viewport.width}×${viewport.height}`)).toPass({ timeout: 15_000 });
+    }
+  }
+  await admin.context().close();
+
+  const seller = await (await browser.newContext()).newPage();
+  expect((await seller.request.post(`${pdv}/api/auth/login`, { headers: { Origin: pdv, "Sec-Fetch-Site": "same-origin" },
+    data: { identifier: "vendedor.teste", password: "Vendedor123!" } })).status()).toBe(200);
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1024, height: 768 }]) {
+    await seller.setViewportSize(viewport);
+    await seller.goto(`${pdv}/`);
+    await seller.waitForLoadState("networkidle").catch(() => undefined);
+    await expect(async () => expectNoHorizontalOverflow(seller, `PDV ${viewport.width}×${viewport.height}`)).toPass({ timeout: 15_000 });
+  }
+  await seller.context().close();
+});
