@@ -69,6 +69,7 @@
   --g-space-2: 0.5rem;
   --g-space-3: 0.75rem;
   --g-space-4: 1rem;
+  --g-input-icon-size: 1.25rem;
   --g-space-6: 1.5rem;
   --g-space-8: 2rem;
   --g-space-12: 3rem;
@@ -192,6 +193,61 @@
 .g-field__error { margin: 0; font: 400 var(--g-font-caption-size) / var(--g-font-caption-line) var(--g-font-sans); }
 .g-field__description { color: var(--g-text-muted); }
 .g-field__error { color: var(--g-status-danger-foreground); }
+.g-field__description--warning { color: var(--g-status-warning-foreground); }
+.g-field__description:empty { display: none; }
+
+/* Input with a leading decorative icon: the group owns the icon slot, so the text and the placeholder always start
+   after it (the start padding wins over the generic .g-input padding by specificity, at any zoom). */
+.g-input-group { position: relative; display: block; min-width: 0; }
+.g-input-group__icon {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: var(--g-space-3);
+  display: inline-flex;
+  align-items: center;
+  width: var(--g-input-icon-size);
+  color: var(--g-text-muted);
+  pointer-events: none;
+}
+.g-input-group__icon > svg { width: var(--g-input-icon-size); height: var(--g-input-icon-size); }
+.g-input-group > .g-input { padding-inline-start: calc(var(--g-space-3) + var(--g-input-icon-size) + var(--g-space-2)); }
+.g-input-group__trailing { position: absolute; inset-block: 0; inset-inline-end: var(--g-space-1); display: inline-flex; align-items: center; }
+.g-input-group--trailing > .g-input { padding-inline-end: calc(var(--g-control-min-height) + var(--g-space-1)); }
+textarea.g-input { min-height: calc(var(--g-control-min-height) * 2); resize: vertical; }
+
+/* Media + text + actions rows (images, files, avatars). The layout follows the row's own width: text gets every spare
+   pixel (min-width 0, long words wrap) and actions never cover it. Narrow rows put the actions below; very narrow rows
+   stack everything. */
+.g-media-row { container-type: inline-size; min-width: 0; }
+.g-media-row__inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: "media body" "actions actions";
+  gap: var(--g-space-3) var(--g-space-4);
+  align-items: start;
+}
+.g-media-row__media { grid-area: media; position: relative; }
+.g-media-row__body { grid-area: body; min-width: 0; overflow-wrap: anywhere; }
+.g-media-row__actions { grid-area: actions; display: flex; flex-wrap: wrap; gap: var(--g-space-2); min-width: 0; }
+@container (min-width: 44rem) {
+  .g-media-row__inner { grid-template-columns: auto minmax(12rem, 1fr) auto; grid-template-areas: "media body actions"; align-items: center; }
+  .g-media-row__actions { justify-content: flex-end; max-width: 24rem; }
+}
+@container (max-width: 19.99rem) {
+  .g-media-row__inner { grid-template-columns: minmax(0, 1fr); grid-template-areas: "media" "body" "actions"; }
+}
+
+/* A form action placed in a row of fields: on wide screens it reserves the label line, so the button lines up with the
+   inputs whatever helper text the fields show below them. Stacked forms drop the spacer. */
+.g-field-action { display: grid; gap: var(--g-space-2); align-content: start; }
+.g-field-action::before {
+  content: "b";
+  font: 600 var(--g-font-small-size) / var(--g-font-small-line) var(--g-font-sans);
+}
+@media (max-width: 47.99rem) {
+  .g-field-action::before { display: none; }
+  .g-field-action > .g-button { width: 100%; }
+}
 
 .g-spinner {
   width: 1rem;
@@ -202,7 +258,13 @@
   animation: g-spin 700ms linear infinite;
 }
 
-.g-money { font-variant-numeric: tabular-nums; }
+.g-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Long unbroken text (e-mails, ids, product names) wraps inside cards and dialogs instead of pushing actions or the
+   page sideways; tables keep their own column rules and scroll in their region. Badges and amounts never shrink. */
+.g-card, [role="dialog"] { overflow-wrap: anywhere; }
+.g-card :where(table), [role="dialog"] :where(table) { overflow-wrap: normal; }
+.g-badge { flex-shrink: 0; white-space: nowrap; }
 
 @keyframes g-spin { to { transform: rotate(360deg); } }
 

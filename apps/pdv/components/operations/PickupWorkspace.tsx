@@ -1,7 +1,7 @@
 "use client";
 
 import { completePickupRequestSchema, type CardPaymentMethod, type CompletePickupRequest, type PaymentTerminal, type PickupReservation } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
 import { AlertTriangle, Banknote, CircleCheck, Clock, CreditCard, Search, Wallet } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -120,7 +120,7 @@ export function PickupWorkspace({ online }: { online: boolean }) {
       </div>
     </Card>
     : <>
-      <Field id="pickup-query" label="Buscar cliente"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--g-text-muted)]" /><Input id="pickup-query" className="pl-9" maxLength={80} value={query} onChange={(event) => setQuery(event.target.value)} /></div></Field>
+      <Field id="pickup-query" label="Buscar cliente"><InputGroup icon={<Search />}><Input id="pickup-query" maxLength={80} value={query} onChange={(event) => setQuery(event.target.value)} /></InputGroup></Field>
       {loading && pickups.length === 0 ? <p role="status" className="p-2">Carregando retiradas…</p>
         : pickups.length === 0 ? <Card className="p-5 text-sm text-[var(--g-text-secondary)]">Nenhuma reserva pronta ou pedido pago para entregar nos seus locais.</Card>
         : <ul aria-label="Reservas e pedidos para entregar" className="grid gap-3">{pickups.map((pickup) => <li key={pickup.reservationId} aria-label={`Reserva de ${pickup.customerName}`}><Card className="p-4">

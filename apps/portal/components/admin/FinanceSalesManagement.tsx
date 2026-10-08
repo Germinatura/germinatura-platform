@@ -10,7 +10,7 @@ import {
   type AdminSaleDetail,
   type AdminSellerShift,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, ChevronDown, ChevronUp, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -202,7 +202,7 @@ function ReversalForm({ detail, onDone }: { detail: AdminSaleDetail; onDone: () 
     <p className="text-sm text-[var(--g-text-secondary)]">{detail.raffle ? "Os números saem do sorteio (e voltam ao quadro se a rifa estiver aberta)" : "O estoque volta ao local da venda"} e o lançamento de estorno fica vinculado ao pagamento original, que não é alterado.</p>
     {detail.payment?.integrationChannel === "PAYMENT_LINK" && <p className="text-sm text-[var(--g-text-secondary)]">Pago pelo link de pagamento: peça a devolução ao PicPay em Financeiro › Pagamentos online e use aqui a referência desse pedido.</p>}
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field id={`reversal-reason-${detail.saleId}`} label="Motivo"><Input id={`reversal-reason-${detail.saleId}`} minLength={8} maxLength={500} value={reason} onChange={(event) => { setReason(event.target.value); setConfirming(false); }} /></Field>
+      <ReasonField id={`reversal-reason-${detail.saleId}`} label="Motivo" minLength={8} maxLength={500} value={reason} onChange={(value) => { setReason(value); setConfirming(false); }} />
       <Field id={`reversal-reference-${detail.saleId}`} label="Referência do estorno" description="Identificador não sensível (nunca número de cartão)."><Input id={`reversal-reference-${detail.saleId}`} maxLength={128} value={reference} onChange={(event) => { setReference(event.target.value); setConfirming(false); }} /></Field>
     </div>
     <fieldset className="grid gap-2 text-sm"><legend className="font-semibold">Como o valor volta ao cliente?</legend>

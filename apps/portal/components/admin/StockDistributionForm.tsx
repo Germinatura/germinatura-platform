@@ -1,7 +1,7 @@
 "use client";
 
 import { distributeStockResponseSchema, distributeStockSchema } from "@germinatura/contracts";
-import { Button, Card, Field, Input } from "@germinatura/ui";
+import { Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useRef, useState } from "react";
 
@@ -57,7 +57,7 @@ export function StockDistributionForm({ locations, balances, products }: { locat
       <Field id="distribution-destination" label="Destino"><select id="distribution-destination" className="g-input" value={toLocationId} onChange={(event) => { changed(); setToLocationId(event.target.value); }}>{sellers.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></Field>
       <Field id="distribution-product" label="Produto"><select id="distribution-product" className="g-input" value={productId} onChange={(event) => { changed(); setProductId(event.target.value); }}>{availableProducts.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.sku} · {product.availableQuantity} disponível</option>)}</select></Field>
       <Field id="distribution-quantity" label="Quantidade" description={selected ? `Até ${selected.availableQuantity} unidade(s) disponíveis agora.` : undefined}><Input id="distribution-quantity" required type="number" inputMode="numeric" min={1} max={selected?.availableQuantity} step={1} value={quantity} onChange={(event) => { changed(); setQuantity(event.target.value); }} /></Field>
-      <div className="lg:col-span-2"><Field id="distribution-reason" label="Motivo" description="A justificativa fica vinculada ao movimento e à auditoria."><Input id="distribution-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { changed(); setReason(event.target.value); }} /></Field></div>
+      <div className="lg:col-span-2"><ReasonField id="distribution-reason" required label="Motivo" description="A justificativa fica vinculada ao movimento e à auditoria." minLength={4} maxLength={500} value={reason} onChange={(value) => { changed(); setReason(value); }} /></div>
       {error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)] lg:col-span-2">{error}</p>}
       {notice && <p role="status" className="text-sm text-[var(--g-status-success-foreground)] lg:col-span-2">{notice}</p>}
       <div className="lg:col-span-2"><Button type="submit" loading={saving}>Distribuir estoque</Button></div>
