@@ -35,12 +35,14 @@ test("as telas administrativas não transbordam nem sobrepõem controles em nenh
     const label = `${viewport.width}×${viewport.height}`;
     await page.setViewportSize(viewport);
 
-    // Product images: the description never runs under the actions, and the actions stay inside the row.
+    // Product images: the description never runs under the actions, and the actions stay inside the row. A resize may
+    // re-mount the dashboard (sidebar or drawer): the checks retry until the layout settles.
     const row = images.getByRole("listitem").first();
-    await expect(row.getByText(altText)).toBeVisible();
-    await expectApart(row.getByText(altText), row.getByRole("button", { name: /^Remover/ }), `imagens ${label}`);
-    await expectInside(row, row.getByRole("button"), `ações da imagem ${label}`);
-    await expectNoHorizontalOverflow(page, `imagens ${label}`);
+    await expect(async () => {
+      await expectApart(row.getByText(altText), row.getByRole("button", { name: /^Remover/ }), `imagens ${label}`);
+      await expectInside(row, row.getByRole("button"), `ações da imagem ${label}`);
+      await expectNoHorizontalOverflow(page, `imagens ${label}`);
+    }).toPass({ timeout: 15_000 });
   }
 
   const screens: Array<{ path: string; ready: RegExp; check?: (label: string) => Promise<void> }> = [
@@ -67,8 +69,10 @@ test("as telas administrativas não transbordam nem sobrepõem controles em nenh
       await page.goto(`${portal}${screen.path}`);
       await expect(page.getByText(screen.ready).first()).toBeVisible({ timeout: 90_000 });
       await page.waitForLoadState("networkidle").catch(() => undefined);
-      await expectNoHorizontalOverflow(page, label);
-      await screen.check?.(label);
+      await expect(async () => {
+        await expectNoHorizontalOverflow(page, label);
+        await screen.check?.(label);
+      }).toPass({ timeout: 15_000 });
     }
   }
 

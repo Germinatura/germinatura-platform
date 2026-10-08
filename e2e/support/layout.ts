@@ -35,18 +35,27 @@ export async function expectNoHorizontalOverflow(page: Page, label: string) {
 
 /** Two boxes do not intersect (a one pixel touch is allowed). */
 export async function expectApart(first: Locator, second: Locator, label: string) {
-  const [a, b] = [await first.boundingBox(), await second.boundingBox()];
-  expect(a && b, `${label}: both elements are visible`).toBeTruthy();
-  if (!a || !b) return;
+  // A resize re-lays out the page: measure only once both elements are rendered again.
+  await expect(first, label).toBeVisible();
+  await expect(second, label).toBeVisible();
+  const rect = (locator: Locator) => locator.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return { x: box.x, y: box.y, width: box.width, height: box.height };
+  });
+  const [a, b] = [await rect(first), await rect(second)];
   const overlap = a.x < b.x + b.width - 1 && b.x < a.x + a.width - 1 && a.y < b.y + b.height - 1 && b.y < a.y + a.height - 1;
   expect(overlap, `${label}: ${JSON.stringify({ a, b })}`).toBe(false);
 }
 
 /** Every element stays inside its container horizontally. */
 export async function expectInside(container: Locator, elements: Locator, label: string) {
-  const outer = await container.boundingBox();
-  expect(outer, `${label}: container is visible`).toBeTruthy();
-  for (const box of await elements.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().toJSON() as DOMRect))) {
+  await expect(container, label).toBeVisible();
+  const outer = await container.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return { x: box.x, width: box.width };
+  });
+  // Zero-size boxes are elements not rendered at the moment (hidden, or replaced while the page re-lays out).
+  for (const box of (await elements.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().toJSON() as DOMRect))).filter((item) => item.width > 0)) {
     expect(box.left, label).toBeGreaterThanOrEqual((outer?.x ?? 0) - 1);
     expect(box.right, label).toBeLessThanOrEqual((outer?.x ?? 0) + (outer?.width ?? 0) + 1);
   }
