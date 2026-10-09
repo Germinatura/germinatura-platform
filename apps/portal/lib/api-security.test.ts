@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiAccessRule, apiAccessRules, rolesSatisfyAccess, writeNeedsCohort } from "./api-security";
+import { apiAccessRule, apiAccessRules, readAllowedInAll, rolesSatisfyAccess, writeNeedsCohort } from "./api-security";
 
 describe("inventory API access", () => {
   it("allows inventory operators and administrators only", () => {
@@ -124,6 +124,7 @@ describe("cohort context of API writes (ADR 0011)", () => {
     expect(global).toEqual([
       "/api/auth/logout", "/api/auth/reset-password", "/api/v1/account/sessions", "/api/v1/account/sessions/:id",
       "/api/v1/admin/bootstrap", "/api/v1/admin/cohorts", "/api/v1/admin/cohorts/:id", "/api/v1/admin/users/:id/admin-master",
+      "/api/v1/admin/users/:id/cohorts",
       "/api/v1/notifications/:id/read", "/api/v1/notifications/preferences", "/api/v1/profile", "/api/v1/session/cohort",
     ]);
     expect(writeNeedsCohort(apiAccessRule("/api/v1/sales/checkout"), "POST")).toBe(true);
@@ -131,5 +132,32 @@ describe("cohort context of API writes (ADR 0011)", () => {
     expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/users"), "GET")).toBe(false);
     expect(writeNeedsCohort(undefined, "POST")).toBe(true);
     expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/cohorts"), "POST")).toBe(false);
+  });
+});
+
+describe("reads in Todas as turmas (ADR 0011, PR 4)", () => {
+  it("allows only the declared consolidated reads, fail-closed for every other route", () => {
+    const consolidated = apiAccessRules.filter((rule) => rule.all === "read").map((rule) => rule.path).sort();
+    expect(consolidated).toEqual([
+      "/api/auth/me", "/api/v1/admin/audit", "/api/v1/admin/audit/correlations/:id", "/api/v1/admin/audit/security",
+      "/api/v1/admin/consolidated/indicators", "/api/v1/admin/consolidated/picpay", "/api/v1/admin/finance/sales",
+      "/api/v1/admin/finance/sales/:id", "/api/v1/admin/users", "/api/v1/auth/session", "/api/v1/feature-flags", "/api/v1/health",
+      "/api/v1/notifications",
+    ]);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/sales"), "GET")).toBe(true);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/payables"), "GET")).toBe(false);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/balances"), "GET")).toBe(false);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/catalog/products"), "GET")).toBe(false);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/users/10000000-0000-4000-8000-000000000001/cohorts"), "GET")).toBe(true);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/sales"), "POST")).toBe(false);
+    expect(readAllowedInAll(undefined, "GET")).toBe(false);
+  });
+
+  it("keeps membership changes inside a concrete cohort and the consolidated views to ADMIN_MASTER", () => {
+    const membership = apiAccessRule("/api/v1/admin/users/10000000-0000-4000-8000-000000000001/membership");
+    expect(membership?.access).toBe("admin");
+    expect(writeNeedsCohort(membership, "PUT")).toBe(true);
+    expect(apiAccessRule("/api/v1/admin/consolidated/indicators")?.access).toBe("master");
+    expect(rolesSatisfyAccess(["ADMIN"], "master")).toBe(false);
   });
 });

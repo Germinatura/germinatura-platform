@@ -1,5 +1,6 @@
 import { hasPermission } from "@germinatura/auth";
 import { redirect } from "next/navigation";
+import { CohortComparisonView } from "@/components/admin/CohortComparisonView";
 import { FinanceBalancesSummary } from "@/components/admin/FinanceBalancesSummary";
 import { ManagementIndicatorsView } from "@/components/admin/ManagementIndicatorsView";
 import { requireSession } from "@/lib/auth";
@@ -15,7 +16,7 @@ export default async function ManagementIndicatorsPage() {
       <h1 className="mt-1 text-3xl font-bold tracking-tight">Indicadores</h1>
       <p className="mt-2 max-w-2xl text-base text-[var(--g-text-secondary)]">Receita, custo real, perdas, despesas, margem e lucro de qualquer período, por canal, forma de pagamento, produto e vendedor.</p>
     </header>
-    <FinanceBalancesSummary />
-    <ManagementIndicatorsView />
+    {/* ADR 0011 (PR 4): in "Todas as turmas" the cohorts are compared side by side; balances stay per cohort. */}
+    {user.cohortMode === "ALL" ? <CohortComparisonView /> : <><FinanceBalancesSummary /><ManagementIndicatorsView /></>}
   </div></div>;
 }

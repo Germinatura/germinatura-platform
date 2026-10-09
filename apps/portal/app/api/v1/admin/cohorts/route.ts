@@ -1,15 +1,18 @@
-import { cohortCreateRequestSchema, cohortListResponseSchema, cohortResponseSchema, createApiError, idempotencyKeySchema } from "@germinatura/contracts";
+import { cohortCreateRequestSchema, cohortOverviewResponseSchema, cohortResponseSchema, createApiError, idempotencyKeySchema } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
-import { cohortAdminFailure, requireAdminMaster, toCohortSummary } from "@/lib/cohort-admin";
+import { cohortAdminFailure, requireAdminMaster, toCohortOverview, toCohortSummary } from "@/lib/cohort-admin";
 
-/** ADR 0011: every cohort, archived included (ADMIN_MASTER only). */
+/** ADR 0011: every cohort, archived included, with memberships, roles and open work (ADMIN_MASTER only). */
 export async function GET(request: Request) {
   const requestId = createRequestId(request.headers);
   try {
-    const user = await requireAdminMaster();
-    return NextResponse.json(cohortListResponseSchema.parse({ data: user.cohorts, request_id: requestId }),
+    await requireAdminMaster();
+    const client = await createAuthenticatedSupabaseClient(request);
+    const { data, error } = await client.rpc("cohort_overview");
+    if (error) throw error;
+    return NextResponse.json(cohortOverviewResponseSchema.parse({ data: toCohortOverview(data), request_id: requestId }),
       { headers: { "Cache-Control": "no-store", "x-request-id": requestId } });
   } catch (error) {
     return cohortAdminFailure(error, requestId, "Não foi possível consultar as turmas.");

@@ -511,5 +511,10 @@ COH-001 a COH-006, ADR 0011. Um único banco e domínio, com segregação lógic
   - Gestão de usuários escopada, com filtros e paginação no servidor.
   - PDV: sempre numa turma; o handoff carrega a turma.
   - Testes A/B.
-- **PR 4:** visão "Todas" com quebra por turma nos módulos e tela de vínculos.
+- **PR 4:** visão consolidada e vínculos.
+  - Em "Todas", só telas consolidadas abrem e só leituras declaradas passam; o resto pede a turma.
+  - Telas consolidadas: visão geral comparada, indicadores lado a lado, vendas e auditoria com a turma de cada registro.
+  - Conta PicPay como evidência global.
+  - Vínculos usuário ↔ turma com papéis por turma, travas de operações em aberto e histórico.
+  - `/admin/turmas` com contagens e trava de arquivamento.
 - **PR 5:** restrição do fallback, performance, runbook final e validação em staging. Produção só com autorização.

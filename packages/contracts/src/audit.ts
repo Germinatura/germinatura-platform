@@ -30,6 +30,8 @@ export const auditEntrySchema = z.object({
   entityId: z.string(),
   correlationId: z.uuid().nullable(),
   metadata: z.record(z.string(), z.unknown()),
+  // ADR 0011 (PR 4): the cohort of the record; null marks a global operation. Present in the consolidated view.
+  cohortId: z.uuid().nullable().optional(),
 }).strict();
 export type AuditEntry = z.infer<typeof auditEntrySchema>;
 

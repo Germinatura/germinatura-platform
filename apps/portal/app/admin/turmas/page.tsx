@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { CohortsManager } from "@/components/admin/CohortsManager";
 import { requireSession } from "@/lib/auth";
+import { toCohortOverview } from "@/lib/cohort-admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -8,5 +10,6 @@ export const dynamic = "force-dynamic";
 export default async function AdminCohortsPage() {
   const user = await requireSession();
   if (!user.adminMaster) redirect("/");
-  return <CohortsManager initial={user.cohorts} />;
+  const { data, error } = await (await createSupabaseServerClient()).rpc("cohort_overview");
+  return <CohortsManager initial={error ? [] : toCohortOverview(data)} unavailable={Boolean(error)} />;
 }

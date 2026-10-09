@@ -183,6 +183,55 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   - o comentário em `cohort-context.ts`;
   - o PDV, que já exige seleção explícita para mais de uma turma.
 
+## Visão consolidada e vínculos (PR 4)
+
+- **"Todas as turmas" é uma visão consolidada, não um contexto genérico.**
+  - Fora das telas consolidadas, o proxy do Portal manda "Todas" para `/selecionar-turma`. A pessoa escolhe a turma
+    explicitamente e volta à tela.
+  - Uma API só lê em "Todas" se a regra dela estiver marcada `all: "read"`; qualquer outra leitura recebe 409
+    `COHORT_REQUIRED`. Toda escrita que não seja global também é recusada, inclusive em rotas públicas. É fail-closed:
+    uma rota ou tela nova nasce "só por turma".
+  - Consolidado nunca soma turmas em um número único. Listas rotulam cada registro com a turma. Agregados são
+    calculados dentro de cada turma, com a turma explícita no header, e mostrados lado a lado. A coluna "Soma dos livros"
+    aparece só para métricas aditivas, nunca para caixa, margem ou ticket.
+- **Inventário de telas** (`apps/portal/lib/consolidated-screens.ts`):
+
+  | Tela | Em "Todas" | Motivo |
+  |---|---|---|
+  | Visão geral | Comparação lado a lado + evidência PicPay global | Cada turma pelo próprio livro |
+  | Indicadores | Tabela por turma; soma só do aditivo | Margem, ticket e caixa não se somam; caixa do livro não é saldo bancário |
+  | Vendas | Lista com a turma de cada venda; filtro por turma; estorno exige a turma | Cada venda pertence a uma turma |
+  | Auditoria | Turma de cada registro (Global para operações globais); filtro por turma | Leitura pura |
+  | Usuários | Turmas e papéis por turma; vínculos (ADMIN_MASTER) | Dados relacionais por turma |
+  | Turmas | Vínculos, papéis e operações em aberto | Operação global |
+  | Saldo, extrato, importação, conciliação PicPay | Só por turma | A conta PicPay é global e o extrato não se divide em saldos por turma; a atribuição acontece dentro de uma turma |
+  | Contas a pagar, lançamentos, turnos, maquininhas, pagamentos online | Só por turma | Livro de uma turma; somar sugeriria um caixa único |
+  | Estoque, lotes, fechamentos, compras | Só por turma | Operações nos locais de uma turma |
+  | Catálogo, promoções, reservas, rifas, comunicação e eventos, configurações | Só por turma | Cada turma tem os próprios produtos, campanhas, públicos e módulos |
+
+- **Conta PicPay.** No consolidado, a conta aparece como evidência global: extratos, entradas e saídas, linhas pendentes,
+  linhas classificadas como globais e linhas atribuídas a cada turma (`picpay_evidence_overview`). Nenhum saldo por turma
+  é derivado do extrato.
+- **Vínculos.** `user_cohorts` + `user_roles` por turma; nunca um array no perfil.
+  - ADMIN_MASTER vê todas as turmas de uma pessoa (`user_cohort_memberships`).
+  - Ele adiciona, inativa e reativa vínculos e atribui papéis separadamente em cada turma. Cada ação vai para a turma
+    escolhida pelo header, nunca para "Todas".
+  - Inativar um vínculo (`set_cohort_membership(false)`) é recusado, com `MEMBERSHIP_HAS_OPEN_OPERATIONS`, quando a
+    pessoa tem naquela turma:
+    - turno de caixa aberto;
+    - estoque no local de vendedor;
+    - transferência ou devolução pendente;
+    - venda aguardando pagamento;
+    - ou quando é o último ADMIN ativo da turma.
+  - A revogação imediata de acesso (`set_user_access` com `active=false`) continua sempre possível, por segurança.
+  - O vínculo inativo e os papéis ficam como histórico, e cada mudança é auditada na turma.
+- **Turmas.**
+  - `cohort_overview` mostra vínculos ativos e inativos, pessoas por papel e operações em aberto.
+  - Arquivar é recusado (`COHORT_HAS_OPEN_OPERATIONS`) enquanto houver turno aberto, venda ou pagamento pendente, link de
+    pagamento ativo, reserva, transferência, aprovação pendente ou rifa ativa.
+  - Definir outra turma padrão não foi implementado: as colunas `cohort_id` têm a Turma 2026 como default de catálogo,
+    e trocar a padrão exige decidir antes o que acontece com escritas de sistema sem contexto (PR 5).
+
 ## Resultado do spike de isolamento (08/10/2026)
 
 O spike (`tools/spikes/cohort-isolation`; evidências em `REPORT.md`) converteu um recorte real com ledgers, triggers,
@@ -239,6 +288,13 @@ Não é necessária arquitetura híbrida para preservar Realtime.
      mudança.
    - Provisionamento com turma.
    - A migration é aditiva e não altera nenhuma linha.
+
+6. PR 4: `20261022090000_cohort_consolidated`.
+   - Só funções; nenhuma tabela, coluna ou linha muda. A migration tem pré-checagens fail-closed.
+   - Novas: `membership_blockers`, `user_cohort_memberships`, `cohort_open_operations`, `cohort_overview`,
+     `picpay_evidence_overview` e `audit_log_cohorts`.
+   - Substituídas, com a mesma assinatura: `set_cohort_membership` (trava de operações em aberto) e `update_cohort`
+     (trava de arquivamento).
 
 Nenhuma migration é destrutiva. O teste de upgrade (`pnpm test:upgrade`, que roda na CI) prova a preservação sobre o
 schema anterior populado. O runbook é `docs/operations/cohort-cutover-runbook.md`.

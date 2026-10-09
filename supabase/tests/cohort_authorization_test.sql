@@ -2,7 +2,7 @@
 -- turma, isolamento A/B por views/RLS/guards, maquininhas globais, flags por turma, atribuição PicPay, fan-out,
 -- unicidades e singletons por turma, auditoria.
 begin;
-select plan(76);
+select plan(77);
 
 create function pg_temp.ctx(p_user uuid, p_header text) returns void language plpgsql as $$
 begin
@@ -281,10 +281,18 @@ select pg_temp.sys();
 select results_eq($$select target_cents from cohort_data.fundraising_goal where cohort_id in ('c0000000-0000-4000-8000-000000002026', pg_temp.id('cohort_b')) order by target_cents$$,
   $$values (100000::bigint), (250000::bigint)$$, 'one goal per cohort');
 
--- Archived cohort: readable, not writable.
+-- Archived cohort: readable, not writable. PR 4: archiving waits until the open work of B (the sale and the payment of
+-- the terminal checks above) is closed, through the same state transitions the operations use.
+select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select throws_ok(format($$select public.update_cohort(%L, 'Turma B', 'ARCHIVED', 'Formatura concluída', gen_random_uuid())$$, pg_temp.b()),
+  'P0001', 'COHORT_HAS_OPEN_OPERATIONS', 'B cannot be archived while a sale and a payment are open');
+select pg_temp.sys();
+select private.enter_cohort_context(pg_temp.id('cohort_b'));
+select private.transition_payment_attempt('5f000000-0000-4000-8000-00000000000b', 'CANCELLED', '10000000-0000-4000-8000-000000000001', gen_random_uuid(), 'Turma encerrada');
+select private.transition_sale_state('5e000000-0000-4000-8000-00000000000b', 'CANCELLED', '10000000-0000-4000-8000-000000000001', gen_random_uuid(), 'Turma encerrada');
 select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
 select lives_ok(format($$select public.update_cohort(%L, 'Turma B', 'ARCHIVED', 'Formatura concluída', gen_random_uuid())$$, pg_temp.b()),
-  'ADMIN_MASTER archives B');
+  'ADMIN_MASTER archives B once nothing is open');
 select throws_ok($$select public.update_cohort('c0000000-0000-4000-8000-000000002026', 'Turma 2026', 'ARCHIVED', 'Tentativa', gen_random_uuid())$$,
   'P0001', 'DEFAULT_COHORT_CANNOT_BE_ARCHIVED', 'the default cohort is never archived');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000b1', null);

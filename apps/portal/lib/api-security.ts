@@ -10,13 +10,18 @@ interface ApiAccessRule {
    * without any determinable cohort) the proxy refuses it with COHORT_REQUIRED, and the database refuses it too.
    */
   cohort?: "global";
+  /**
+   * ADR 0011 (PR 4): reads allowed in "Todas as turmas". Every other read in "all" is refused with COHORT_REQUIRED
+   * (fail-closed): only routes that label each row with its cohort, or that read no cohort data, are listed here.
+   */
+  all?: "read";
 }
 
 export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/catalog/categories", methods: ["POST"], access: "admin" },
-  { path: "/api/v1/admin/audit", methods: ["GET"], access: "admin" },
-  { path: "/api/v1/admin/audit/security", methods: ["GET"], access: "admin" },
-  { path: "/api/v1/admin/audit/correlations/:id", methods: ["GET"], access: "admin" },
+  { path: "/api/v1/admin/audit", methods: ["GET"], access: "admin", all: "read" },
+  { path: "/api/v1/admin/audit/security", methods: ["GET"], access: "admin", all: "read" },
+  { path: "/api/v1/admin/audit/correlations/:id", methods: ["GET"], access: "admin", all: "read" },
   { path: "/api/v1/admin/promotions", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/catalog/products", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/catalog/product-prices", methods: ["POST"], access: "admin" },
@@ -53,8 +58,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/online-payments/refunds/:id/reconcile", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals/:id", methods: ["PATCH"], access: "finance" },
-  { path: "/api/v1/admin/finance/sales", methods: ["GET"], access: "finance" },
-  { path: "/api/v1/admin/finance/sales/:id", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/sales", methods: ["GET"], access: "finance", all: "read" },
+  { path: "/api/v1/admin/finance/sales/:id", methods: ["GET"], access: "finance", all: "read" },
   { path: "/api/v1/admin/finance/entries", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/entries/:id/reverse", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/statement", methods: ["GET"], access: "finance" },
@@ -85,7 +90,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/account/sessions", methods: ["GET", "DELETE"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/account/sessions/:id", methods: ["DELETE"], access: "authenticated", cohort: "global" },
-  { path: "/api/v1/health", methods: ["GET"], access: "public" },
+  { path: "/api/v1/health", methods: ["GET"], access: "public", all: "read" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
   { path: "/api/v1/pricing/quote", methods: ["POST"], access: "public" },
   { path: "/api/v1/sales/checkout", methods: ["POST"], access: "authenticated" },
@@ -114,12 +119,12 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/reservations/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/reservations/:id/payment-link", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/reservations/:id/convert", methods: ["POST"], access: "authenticated" },
-  { path: "/api/v1/notifications", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/notifications", methods: ["GET"], access: "authenticated", all: "read" },
   { path: "/api/v1/notifications/:id/read", methods: ["POST"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/notifications/preferences", methods: ["GET", "PUT"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/catalog/stock-alerts", methods: ["GET"], access: "authenticated" },
   { path: "/api/v1/catalog/products/:id/stock-alert", methods: ["PUT"], access: "authenticated" },
-  { path: "/api/v1/feature-flags", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/feature-flags", methods: ["GET"], access: "authenticated", all: "read" },
   { path: "/api/v1/admin/feature-flags/:key", methods: ["PATCH"], access: "admin" },
   { path: "/api/v1/admin/raffles", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/raffles/:id/close", methods: ["POST"], access: "admin" },
@@ -141,7 +146,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/auth/password-recovery/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/password-recovery/complete", methods: ["POST"], access: "public" },
   { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated", cohort: "global" },
-  { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin" },
+  { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin", all: "read" },
   { path: "/api/v1/admin/reservations", methods: ["GET"], access: "admin" },
   { path: "/api/v1/admin/announcements", methods: ["GET", "POST"], access: "communications" },
   { path: "/api/v1/admin/share-campaigns", methods: ["GET", "POST"], access: "communications" },
@@ -160,13 +165,17 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/users/:id/signup-code", methods: ["POST"], access: "admin" },
   { path: "/api/auth/login", methods: ["POST"], access: "public" },
   { path: "/api/auth/logout", methods: ["POST"], access: "authenticated", cohort: "global" },
-  { path: "/api/auth/me", methods: ["GET"], access: "authenticated" },
+  { path: "/api/auth/me", methods: ["GET"], access: "authenticated", all: "read" },
   { path: "/api/auth/reset-password", methods: ["POST"], access: "authenticated", cohort: "global" },
-  { path: "/api/v1/auth/session", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/auth/session", methods: ["GET"], access: "authenticated", all: "read" },
   { path: "/api/v1/session/cohort", methods: ["POST", "DELETE"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/admin/cohorts", methods: ["GET", "POST"], access: "master", cohort: "global" },
   { path: "/api/v1/admin/cohorts/:id", methods: ["PATCH"], access: "master", cohort: "global" },
   { path: "/api/v1/admin/users/:id/admin-master", methods: ["PUT"], access: "master", cohort: "global" },
+  { path: "/api/v1/admin/users/:id/cohorts", methods: ["GET"], access: "master", cohort: "global" },
+  { path: "/api/v1/admin/users/:id/membership", methods: ["PUT"], access: "admin" },
+  { path: "/api/v1/admin/consolidated/indicators", methods: ["GET"], access: "master", all: "read" },
+  { path: "/api/v1/admin/consolidated/picpay", methods: ["GET"], access: "master", all: "read" },
 ];
 
 export function apiAccessRule(path: string): ApiAccessRule | undefined {
@@ -188,6 +197,12 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/cohorts/:id") {
       return /^\/api\/v1\/admin\/cohorts\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/users/:id/cohorts") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/cohorts$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/users/:id/membership") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/membership$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/users/:id/admin-master") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/admin-master$/i.test(path);
@@ -361,6 +376,12 @@ function configuredOrigins(): Set<string> {
 /** Writes that need a concrete cohort: every write except the routes marked as global. */
 export function writeNeedsCohort(rule: ApiAccessRule | undefined, method: string): boolean {
   return !["GET", "HEAD", "OPTIONS"].includes(method) && rule?.cohort !== "global";
+}
+
+/** Reads in "Todas as turmas" are allowed only where declared (routes marked `all: "read"`, or global ones). */
+export function readAllowedInAll(rule: ApiAccessRule | undefined, method: string): boolean {
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) return false;
+  return rule?.all === "read" || rule?.cohort === "global";
 }
 
 export function isTrustedMutation(request: Request): boolean {
