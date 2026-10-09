@@ -248,6 +248,9 @@ test("Password recovery changes the password and the third request requires an a
   await page.getByLabel("Código de 6 a 10 dígitos").fill(await latestEmailCode(request, email));
   await page.getByRole("button", { name: "Confirmar código" }).click();
   await expect(page).toHaveURL(`${portalUrl}/recuperar-senha`, { timeout: 45_000 });
+  // The page is compiled on first visit; filling before React hydrates loses the typed values (the form then submits
+  // empty fields). Wait for it to settle, as the other steps of this file do.
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Nova senha", { exact: true }).fill("Consumidor456!");
   await page.getByLabel("Confirmar nova senha").fill("Consumidor456!");
   await page.getByRole("button", { name: "Salvar nova senha" }).click();
