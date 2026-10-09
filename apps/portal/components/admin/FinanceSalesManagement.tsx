@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  COHORT_HEADER,
   adminSaleDetailResponseSchema,
   adminSalesResponseSchema,
   adminSellerShiftsResponseSchema,
@@ -9,6 +10,7 @@ import {
   type AdminSale,
   type AdminSaleDetail,
   type AdminSellerShift,
+  type CohortSummary,
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, ChevronDown, ChevronUp, Loader2, RefreshCw, RotateCcw } from "lucide-react";
@@ -58,11 +60,17 @@ async function messageFrom(response: Response, fallback: string) {
   return body?.message ?? fallback;
 }
 
-type Filters = { status: string; channel: string; pending: boolean; from: string; to: string };
+type Filters = { status: string; channel: string; pending: boolean; from: string; to: string; cohort: string };
 
-/** Etapa 6: finance reviews every sale and reverses confirmed ones, handing cash back from an open drawer when needed. */
-export function FinanceSalesManagement() {
-  const [filters, setFilters] = useState<Filters>({ status: "", channel: "", pending: false, from: "", to: "" });
+/**
+ * Etapa 6: finance reviews every sale and reverses confirmed ones, handing cash back from an open drawer when needed.
+ * ADR 0011 (PR 4): in "Todas as turmas" (`cohorts` given) every sale shows its cohort, the cohort filter reads inside
+ * the chosen cohort, and nothing is reversed: that needs the cohort selected in the selector.
+ */
+export function FinanceSalesManagement({ cohorts }: { cohorts?: CohortSummary[] } = {}) {
+  const consolidated = Boolean(cohorts);
+  const cohortName = (id?: string) => cohorts?.find((cohort) => cohort.id === id)?.name ?? "—";
+  const [filters, setFilters] = useState<Filters>({ status: "", channel: "", pending: false, from: "", to: "", cohort: "" });
   const [sales, setSales] = useState<AdminSale[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +87,7 @@ export function FinanceSalesManagement() {
       if (filters.from) params.set("from", filters.from);
       if (filters.to) params.set("to", filters.to);
       if (cursor) params.set("cursor", cursor);
-      const response = await fetch(`/api/v1/admin/finance/sales?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/v1/admin/finance/sales?${params}`, { cache: "no-store", headers: filters.cohort ? { [COHORT_HEADER]: filters.cohort } : undefined });
       if (!response.ok) throw new Error(await messageFrom(response, "Não foi possível carregar as vendas."));
       const parsed = adminSalesResponseSchema.safeParse(await response.json());
       if (!parsed.success) throw new Error("A consulta retornou dados inválidos.");
@@ -93,6 +101,7 @@ export function FinanceSalesManagement() {
   return <div className="grid gap-6">
     <Card className="p-5">
       <form aria-label="Filtrar vendas" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end" onSubmit={(event) => { event.preventDefault(); void load(); }}>
+        {consolidated && <Field id="sales-cohort" label="Turma"><select id="sales-cohort" className="g-input min-h-11 w-full" value={filters.cohort} onChange={(event) => setFilters({ ...filters, cohort: event.target.value })}><option value="">Todas</option>{cohorts?.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></Field>}
         <Field id="sales-status" label="Situação"><select id="sales-status" className="g-input min-h-11 w-full" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Todas</option><option value="AWAITING_PAYMENT">Aguardando pagamento</option><option value="CONFIRMED">Concluídas</option><option value="CANCELLED">Canceladas</option></select></Field>
         <Field id="sales-channel" label="Canal"><select id="sales-channel" className="g-input min-h-11 w-full" value={filters.channel} onChange={(event) => setFilters({ ...filters, channel: event.target.value })}><option value="">Todos</option><option value="PDV">PDV</option><option value="PORTAL">Portal</option><option value="RESERVA">Reserva</option></select></Field>
         <Field id="sales-from" label="De"><Input id="sales-from" type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} /></Field>
@@ -112,11 +121,11 @@ export function FinanceSalesManagement() {
             <button type="button" aria-expanded={openSale === sale.saleId} onClick={() => setOpenSale(openSale === sale.saleId ? null : sale.saleId)} className="flex w-full flex-wrap items-center justify-between gap-3 p-5 text-left hover:bg-[var(--g-surface-hover)]">
               <span className="min-w-0">
                 <span className="g-money block text-lg font-bold">{formatMoney(sale.totalCents)}</span>
-                <span className="block text-sm text-[var(--g-text-secondary)]">{formatDate(sale.createdAt)} · {channelLabels[sale.channel] ?? sale.channel} · {sale.sellerName} · {paymentLine(sale.payment)}</span>
+                <span className="block text-sm text-[var(--g-text-secondary)]">{consolidated && <><strong className="font-semibold text-[var(--g-text-primary)]">{cohortName(sale.cohortId)}</strong> · </>}{formatDate(sale.createdAt)} · {channelLabels[sale.channel] ?? sale.channel} · {sale.sellerName} · {paymentLine(sale.payment)}</span>
               </span>
               <span className="flex items-center gap-2">{statusBadge(sale)}{openSale === sale.saleId ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</span>
             </button>
-            {openSale === sale.saleId && <SaleDetail saleId={sale.saleId} onChanged={() => void load()} />}
+            {openSale === sale.saleId && <SaleDetail saleId={sale.saleId} readOnlyIn={consolidated ? cohortName(sale.cohortId) : undefined} onChanged={() => void load()} />}
           </li>)}
         </ul>}
     </Card>
@@ -124,7 +133,7 @@ export function FinanceSalesManagement() {
   </div>;
 }
 
-function SaleDetail({ saleId, onChanged }: { saleId: string; onChanged: () => void }) {
+function SaleDetail({ saleId, readOnlyIn, onChanged }: { saleId: string; readOnlyIn?: string; onChanged: () => void }) {
   const [detail, setDetail] = useState<AdminSaleDetail | null>(null);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -150,7 +159,9 @@ function SaleDetail({ saleId, onChanged }: { saleId: string; onChanged: () => vo
     <section aria-label="Lançamentos financeiros"><h3 className="text-sm font-semibold">Lançamentos</h3><ul className="mt-2 space-y-1 text-sm">{detail.ledger.length === 0 ? <li className="text-[var(--g-text-muted)]">Nenhum lançamento.</li> : detail.ledger.map((entry) => <li key={entry.id} className="flex justify-between gap-3"><span>{ledgerLabels[entry.entryType] ?? entry.entryType}{entry.refundMethod ? ` (${entry.refundMethod === "CASH_DRAWER" ? "dinheiro do caixa" : "outro meio"})` : ""}{entry.reference ? ` · ${entry.reference}` : ""}</span><span className="g-money">{formatMoney(entry.amountCents)}</span></li>)}</ul>
       {detail.cashMovements.length > 0 && <ul aria-label="Movimentos de caixa" className="mt-3 space-y-1 text-sm">{detail.cashMovements.map((movement) => <li key={movement.id} className="flex justify-between gap-3"><span>{movementLabels[movement.movementType]} · turno {movement.shiftId.slice(0, 8)}</span><span className="g-money">{formatMoney(movement.amountCents)}</span></li>)}</ul>}</section>
     <section aria-label="Histórico"><h3 className="text-sm font-semibold">Histórico</h3><ul className="mt-2 space-y-1 text-sm">{detail.history.map((entry) => <li key={`${entry.toStatus}-${entry.createdAt}`}>{formatDate(entry.createdAt)} · {statusLabels[entry.toStatus] ?? entry.toStatus}{entry.reason ? ` — ${entry.reason}` : ""}</li>)}</ul></section>
-    <div className="lg:col-span-2">{detail.reversal.allowed
+    <div className="lg:col-span-2">{readOnlyIn !== undefined
+      ? (detail.reversal.allowed ? <p className="text-sm text-[var(--g-text-secondary)]">Para estornar, selecione a turma {readOnlyIn} no seletor acima.</p> : null)
+      : detail.reversal.allowed
       ? <ReversalForm detail={detail} onDone={() => { void load(); onChanged(); }} />
       : detail.status === "CONFIRMED" && detail.reversal.blockedReason ? <p className="text-sm text-[var(--g-text-secondary)]">{blockedLabels[detail.reversal.blockedReason] ?? "Esta venda não pode ser estornada."}</p> : null}</div>
   </div>;

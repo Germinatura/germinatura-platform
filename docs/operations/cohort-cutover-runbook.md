@@ -288,8 +288,56 @@ publica os dois juntos.
   A coluna `cohort_id` e as funções novas podem ficar. Nenhuma reversão apaga dados.
 - **Não criar uma segunda turma em produção** antes da autorização explícita da comissão, mesmo com o PR 3 aplicado.
 
+## Fase 4 — visão consolidada e vínculos (PR 4)
+
+### Migration e impacto esperado
+
+`20261022090000_cohort_consolidated`: só funções, `lock_timeout` de 5 s, uma transação.
+
+- **Pré-checagens:** a migration aborta antes de criar qualquer coisa se:
+  - não houver exatamente uma turma padrão, ou ela estiver arquivada;
+  - faltar alguma função dos PRs 2 e 3;
+  - houver vínculo sem perfil.
+- **Funções novas:**
+  - `private.membership_blockers` e `private.cohort_open_operations`;
+  - `public.user_cohort_memberships`, `public.cohort_overview`, `public.picpay_evidence_overview`, `public.audit_log_cohorts`.
+- **Substituídas, mesma assinatura:**
+  - `public.set_cohort_membership` passa a recusar a inativação com operações em aberto;
+  - `public.update_cohort` passa a recusar o arquivamento com operações em aberto.
+- **Dados:** nenhuma linha, tabela ou coluna muda. `pnpm test:upgrade` compara contagens, hashes, tuplas e agregados.
+
+### Ordem do deploy
+
+1. Migration.
+2. Portal e PDV juntos (deploy governado).
+
+O Portal anterior continua funcionando com a migration nova: as assinaturas não mudaram. O Portal novo depende das
+funções novas.
+
+### Checks depois da produção (somente leitura)
+
+- `select count(*) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('user_cohort_memberships',
+  'cohort_overview', 'picpay_evidence_overview', 'audit_log_cohorts')` → 4.
+- `select count(*) from public.cohorts where is_default` → 1.
+- Smokes:
+  - em "Todas", a visão geral comparada abre;
+  - uma tela só por turma vai para `/selecionar-turma`;
+  - `GET /api/v1/admin/finance/payables` em "Todas" → 409.
+
+### Rollback e forward-fix
+
+- A migration roda numa transação: qualquer erro desfaz tudo.
+- Depois de aplicada, o caminho é forward-fix. Reverter, só com autorização:
+  - recriar `set_cohort_membership` (envoltório do PR 3) e `update_cohort` (PR 2) pelas definições das migrations
+    `20261021090000` e `20261020090100`;
+  - remover as funções novas.
+
+  Nenhum dado é apagado.
+- **Não criar a Turma 2027 em produção** antes da autorização explícita da comissão.
+
 ## Fases seguintes
 
-- **PR 4:** visão "Todas as turmas" com quebra por turma nos módulos (indicadores, financeiro, estoque) e tela de
-  vínculos.
-- **PR 5:** restringir o fallback (`private.cohort_fallback_enabled()` → `false`).
+- **PR 5:**
+  - restringir o fallback (`private.cohort_fallback_enabled()` → `false`);
+  - remover o default constante da Turma 2026 nas colunas `cohort_id`;
+  - decidir a troca de turma padrão e o público anônimo de outra turma.

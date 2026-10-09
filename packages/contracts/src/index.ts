@@ -449,6 +449,8 @@ export const adminSaleSchema = z.object({
     cardMethod: cardPaymentMethodSchema.nullable(),
     terminalCode: z.string().nullable(),
   }).strict().nullable(),
+  // ADR 0011 (PR 4): the cohort of the sale, so a consolidated list never mixes cohorts without saying so.
+  cohortId: z.uuid().optional(),
 }).strict();
 export type AdminSale = z.infer<typeof adminSaleSchema>;
 
@@ -1063,6 +1065,46 @@ export const cohortUpdateRequestSchema = z.object({
 export type CohortUpdateRequest = z.infer<typeof cohortUpdateRequestSchema>;
 export const cohortResponseSchema = z.object({ data: cohortSummarySchema, request_id: z.string() }).strict();
 export const cohortListResponseSchema = z.object({ data: z.array(cohortSummarySchema), request_id: z.string() }).strict();
+// ADR 0011 (PR 4): cohort overview, user ↔ cohort membership and the consolidated view of ADMIN_MASTER.
+export const cohortOverviewSchema = cohortSummarySchema.extend({
+  membersActive: z.number().int().nonnegative(),
+  membersInactive: z.number().int().nonnegative(),
+  roles: z.record(z.string(), z.number().int().nonnegative()),
+  openOperations: z.array(z.string()),
+}).strict();
+export type CohortOverview = z.infer<typeof cohortOverviewSchema>;
+export const cohortOverviewResponseSchema = z.object({ data: z.array(cohortOverviewSchema), request_id: z.string() }).strict();
+
+export const membershipStatusSchema = z.enum(["ACTIVE", "INACTIVE", "NONE"]);
+export const userCohortMembershipSchema = z.object({
+  cohortId: z.uuid(),
+  name: z.string(),
+  year: z.number().int(),
+  status: cohortStatusSchema,
+  isDefault: z.boolean(),
+  membership: membershipStatusSchema,
+  roles: z.array(appRoleSchema),
+  blockers: z.array(z.string()),
+}).strict();
+export type UserCohortMembership = z.infer<typeof userCohortMembershipSchema>;
+export const userCohortMembershipsResponseSchema = z.object({ data: z.array(userCohortMembershipSchema), request_id: z.string() }).strict();
+export const membershipUpdateRequestSchema = z.object({
+  active: z.boolean(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+
+export const picpayEvidenceOverviewSchema = z.object({
+  imports: z.number().int().nonnegative(),
+  lastPeriodTo: z.string().nullable(),
+  inflowCents: z.number().int(),
+  outflowCents: z.number().int(),
+  lines: z.number().int().nonnegative(),
+  linesPending: z.number().int().nonnegative(),
+  linesGlobal: z.number().int().nonnegative(),
+  linesByCohort: z.array(z.object({ cohortId: z.uuid(), lines: z.number().int().nonnegative() }).strict()),
+}).strict();
+export type PicpayEvidenceOverview = z.infer<typeof picpayEvidenceOverviewSchema>;
+
 export const adminMasterUpdateRequestSchema = z.object({
   granted: z.boolean(),
   reason: z.string().trim().min(4).max(500),

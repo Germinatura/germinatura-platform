@@ -1,6 +1,6 @@
 "use client";
 
-import { auditCorrelationResponseSchema, auditSearchResponseSchema, type AuditCorrelation, type AuditEntry, type AuditSeverity } from "@germinatura/contracts";
+import { COHORT_HEADER, auditCorrelationResponseSchema, auditSearchResponseSchema, type AuditCorrelation, type AuditEntry, type AuditSeverity, type CohortSummary } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
 import { AlertTriangle, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -13,16 +13,22 @@ const severityLabels: Record<AuditSeverity, { label: string; tone: "danger" | "w
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 function shift(day: string, days: number) { const date = new Date(`${day}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); }
 
-type Filters = { from: string; to: string; actor: string; action: string; entityType: string; entityId: string; correlationId: string; severity: string };
+type Filters = { from: string; to: string; actor: string; action: string; entityType: string; entityId: string; correlationId: string; severity: string; cohort: string };
 
 async function readError(response: Response, fallback: string) {
   const body = await response.json().catch(() => null) as { message?: string } | null;
   return body?.message ?? fallback;
 }
 
-/** AUD-001 (spec 5.16): investigate what happened — by user, action, entity, period, severity and correlation. */
-export function AuditExplorer() {
-  const [filters, setFilters] = useState<Filters>(() => ({ from: shift(today(), -6), to: today(), actor: "", action: "", entityType: "", entityId: "", correlationId: "", severity: "" }));
+/**
+ * AUD-001 (spec 5.16): investigate what happened — by user, action, entity, period, severity and correlation.
+ * ADR 0011 (PR 4): in "Todas as turmas" (`cohorts` given) every record shows its cohort ("Global" for global operations)
+ * and the cohort filter reads inside the chosen cohort.
+ */
+export function AuditExplorer({ cohorts }: { cohorts?: CohortSummary[] } = {}) {
+  const consolidated = Boolean(cohorts);
+  const cohortLabel = (row: AuditEntry) => (row.cohortId === null ? "Global" : cohorts?.find((cohort) => cohort.id === row.cohortId)?.name ?? "—");
+  const [filters, setFilters] = useState<Filters>(() => ({ from: shift(today(), -6), to: today(), actor: "", action: "", entityType: "", entityId: "", correlationId: "", severity: "", cohort: "" }));
   const [applied, setApplied] = useState(filters);
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [cursor, setCursor] = useState<{ createdAt: string; id: string } | null>(null);
@@ -36,7 +42,7 @@ export function AuditExplorer() {
       const params = new URLSearchParams({ from: applied.from, to: applied.to });
       for (const key of ["actor", "action", "entityType", "entityId", "correlationId", "severity"] as const) if (applied[key].trim()) params.set(key, applied[key].trim());
       if (after) { params.set("cursorCreatedAt", after.createdAt); params.set("cursorId", after.id); }
-      const response = await fetch(`/api/v1/admin/audit?${params}`, { cache: "no-store" });
+      const response = await fetch(`/api/v1/admin/audit?${params}`, { cache: "no-store", headers: applied.cohort ? { [COHORT_HEADER]: applied.cohort } : undefined });
       if (!response.ok) throw new Error(await readError(response, "Não foi possível consultar a auditoria."));
       const parsed = auditSearchResponseSchema.safeParse(await response.json());
       if (!parsed.success) throw new Error("A auditoria retornou dados inválidos.");
@@ -62,6 +68,7 @@ export function AuditExplorer() {
   return <div className="grid gap-6">
     <Card className="p-5">
       <form aria-label="Filtrar auditoria" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" onSubmit={(event) => { event.preventDefault(); setCorrelation(null); setApplied(filters); }}>
+        {consolidated && <Field id="audit-cohort" label="Turma"><select id="audit-cohort" className="g-input min-h-11 w-full" value={filters.cohort} onChange={set("cohort")}><option value="">Todas (inclui operações globais)</option>{cohorts?.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></Field>}
         <Field id="audit-from" label="De"><Input id="audit-from" type="date" value={filters.from} onChange={set("from")} /></Field>
         <Field id="audit-to" label="Até"><Input id="audit-to" type="date" value={filters.to} onChange={set("to")} /></Field>
         <Field id="audit-actor" label="Usuário"><Input id="audit-actor" value={filters.actor} maxLength={80} onChange={set("actor")} placeholder="nome, e-mail ou usuário" /></Field>
@@ -82,7 +89,7 @@ export function AuditExplorer() {
       {loading && rows.length === 0 ? <p role="status" className="p-5 text-sm">Consultando…</p>
         : rows.length === 0 ? <p className="p-5 text-sm text-[var(--g-text-secondary)]">Nenhum registro com esses filtros.</p>
         : <ul aria-label="Registros de auditoria" className="divide-y divide-[var(--g-border-subtle)]">{rows.map((row) => <li key={row.id} aria-label={`${row.action} em ${row.entityType}`} className="p-4 text-sm">
-          <div className="flex flex-wrap items-center gap-2"><Badge tone={severityLabels[row.severity].tone}>{severityLabels[row.severity].label}</Badge><code className="font-semibold">{row.action}</code><span className="text-[var(--g-text-muted)]">{dateTime.format(new Date(row.createdAt))}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><Badge tone={severityLabels[row.severity].tone}>{severityLabels[row.severity].label}</Badge><code className="font-semibold">{row.action}</code><span className="text-[var(--g-text-muted)]">{dateTime.format(new Date(row.createdAt))}</span>{consolidated && <Badge tone="info">{cohortLabel(row)}</Badge>}</div>
           <p className="mt-1 text-[var(--g-text-secondary)]">{row.actorName ?? "Sistema"} · {row.entityType} <code className="break-all">{row.entityId}</code></p>
           <div className="mt-2 flex flex-wrap gap-2">
             {row.correlationId && <Button type="button" size="sm" variant="secondary" onClick={() => void openCorrelation(row.correlationId as string)}>Ver correlação</Button>}

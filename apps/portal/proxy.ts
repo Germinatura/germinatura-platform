@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiError } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
-import { apiAccessRule, isTrustedMutation, rolesSatisfyAccess, writeNeedsCohort } from "@/lib/api-security";
+import { apiAccessRule, isTrustedMutation, readAllowedInAll, rolesSatisfyAccess, writeNeedsCohort } from "@/lib/api-security";
 import { updateSession } from "@/lib/auth";
 import { COHORT_COOKIE, requestedCohort, selectionAccepted } from "@/lib/cohort-context";
+import { screenAllowedInAll } from "@/lib/consolidated-screens";
 
 const publicRoutes = new Set(["/login", "/cadastro", "/cadastro/perfil", "/esqueci-senha", "/recuperar-senha"]);
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -70,6 +71,16 @@ export default async function proxy(request: NextRequest) {
     if (session && rule?.access !== "public" && writeNeedsCohort(rule, request.method) && session.user.cohortMode !== "COHORT") {
       return apiError("COHORT_REQUIRED", "Selecione uma turma antes de alterar dados.", requestId, 409);
     }
+    // In "Todas as turmas" a write is always global or refused, public routes included; a read must be declared
+    // consolidated (PR 4), so no route returns rows of several cohorts without saying which cohort each one is.
+    if (session?.user.cohortMode === "ALL") {
+      if (!safeMethods.has(request.method) && rule?.cohort !== "global") {
+        return apiError("COHORT_REQUIRED", "Selecione uma turma antes de alterar dados.", requestId, 409);
+      }
+      if (safeMethods.has(request.method) && !readAllowedInAll(rule, request.method)) {
+        return apiError("COHORT_REQUIRED", "Selecione uma turma para consultar estes dados.", requestId, 409);
+      }
+    }
 
     response.headers.set("Cache-Control", "no-store");
     response.headers.set("x-request-id", requestId);
@@ -85,6 +96,12 @@ export default async function proxy(request: NextRequest) {
   }
   if (session?.user.onboardingCompleted && isPublicRoute && path !== "/recuperar-senha") {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+  // ADR 0011 (PR 4): in "Todas as turmas" only consolidated screens open; the others ask for a cohort first.
+  if (session?.user.onboardingCompleted && session.user.cohortMode === "ALL" && !isPublicRoute && !screenAllowedInAll(path)) {
+    const choose = new URL("/selecionar-turma", request.url);
+    choose.searchParams.set("next", `${path}${request.nextUrl.search}`);
+    return NextResponse.redirect(choose);
   }
   return response;
 }

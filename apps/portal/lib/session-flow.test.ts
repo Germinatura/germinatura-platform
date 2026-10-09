@@ -275,6 +275,32 @@ describe("cohort context (ADR 0011)", () => {
     }
   });
 
+  it("in \"all\" only declared consolidated reads pass; any other read asks for a cohort (PR 4)", async () => {
+    const authorization = `Bearer ${await token(masterId)}`;
+    for (const path of ["/api/v1/admin/finance/payables", "/api/v1/admin/finance/balances", "/api/v1/admin/inventory/lots", "/api/v1/catalog/products"]) {
+      const { response } = await viaProxy(path, { authorization, "x-germinatura-cohort": "all" });
+      expect(response.status, path).toBe(409);
+      expect((await response.json()).code).toBe("COHORT_REQUIRED");
+    }
+    for (const path of ["/api/v1/admin/finance/sales", "/api/v1/admin/audit", "/api/v1/admin/consolidated/indicators", `/api/v1/admin/users/${adminId}/cohorts`]) {
+      const { response, forwarded } = await viaProxy(path, { authorization, "x-germinatura-cohort": "all" });
+      expect(response.status, path).toBe(200);
+      expect(forwarded?.get("x-germinatura-cohort"), path).toBe("all");
+    }
+    const quote = await viaProxy("/api/v1/pricing/quote", { authorization, "x-germinatura-cohort": "all", ...origin }, "POST");
+    expect(quote.response.status).toBe(409);
+  });
+
+  it("in \"all\" a cohort-only screen goes to the explicit cohort selection and comes back", async () => {
+    const authorization = `Bearer ${await token(masterId)}`;
+    const blocked = await viaProxy("/admin/estoque?q=bolo", { authorization, "x-germinatura-cohort": "all" });
+    expect(blocked.response.headers.get("location")).toBe(`${portalUrl}/selecionar-turma?next=%2Fadmin%2Festoque%3Fq%3Dbolo`);
+    for (const path of ["/", "/admin/usuarios", "/admin/financeiro/vendas", "/selecionar-turma"]) {
+      expect((await viaProxy(path, { authorization, "x-germinatura-cohort": "all" })).response.headers.get("location"), path).toBeNull();
+    }
+    expect((await viaProxy("/admin/estoque", { authorization, "x-germinatura-cohort": cohortA })).response.headers.get("location")).toBeNull();
+  });
+
   it("cohort administration is ADMIN_MASTER only, even for an ADMIN of the cohort", async () => {
     const { response } = await viaProxy("/api/v1/admin/cohorts", { authorization: `Bearer ${await token(adminId)}`, "x-germinatura-cohort": cohortA });
     expect(response.status).toBe(403);

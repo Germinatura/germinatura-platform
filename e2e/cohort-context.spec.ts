@@ -154,7 +154,7 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
     const main = page.getByRole("main");
     await expect(main.getByRole("button", { name: "Adicionar usuário" })).toBeDisabled();
     await expect(main.getByText(/\d+ de \d+ usuários/)).toBeVisible();
-    await main.getByLabel("Turma").selectOption(cohortB);
+    await main.getByRole("combobox", { name: "Turma", exact: true }).selectOption(cohortB);
     await expect(main.getByRole("button", { name: `Remover filtro Turma: ${cohortBName}` })).toBeVisible();
     await expect(main.getByText(people.adminB.email).first()).toBeVisible();
     await expect(main.getByText(people.adminA.email)).toHaveCount(0);

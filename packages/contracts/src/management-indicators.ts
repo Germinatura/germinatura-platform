@@ -42,3 +42,19 @@ export const managementIndicatorsSchema = z.object({
 export type ManagementIndicators = z.infer<typeof managementIndicatorsSchema>;
 
 export const managementIndicatorsResponseSchema = z.object({ data: managementIndicatorsSchema, request_id: z.string().min(1) }).strict();
+
+// ADR 0011 (PR 4): the same indicators computed inside each cohort, side by side. Never one figure mixing cohorts.
+export const consolidatedIndicatorsResponseSchema = z.object({
+  data: z.object({
+    from: isoDate,
+    to: isoDate,
+    cohorts: z.array(z.object({
+      cohortId: z.uuid(),
+      name: z.string(),
+      status: z.enum(["PREPARING", "ACTIVE", "ARCHIVED"]),
+      indicators: managementIndicatorsSchema.nullable(),
+    }).strict()),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type ConsolidatedIndicators = z.infer<typeof consolidatedIndicatorsResponseSchema>["data"];

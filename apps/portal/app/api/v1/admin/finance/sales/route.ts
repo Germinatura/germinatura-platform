@@ -5,6 +5,7 @@ import { z } from "zod";
 import { adminSalesErrorResponse, databaseAdminSaleSchema, toAdminSale } from "@/lib/admin-sales";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { salesCohorts } from "@/lib/cohort-labels";
 
 const databaseListSchema = z.object({ items: z.array(databaseAdminSaleSchema), next_cursor: z.uuid().nullable() });
 
@@ -23,8 +24,14 @@ export async function GET(request: Request) {
     if (error?.message.includes("INVALID_SALES")) return adminSalesErrorResponse("INVALID_SALES_QUERY", "Filtros de vendas inválidos.", requestId, 422);
     const rows = databaseListSchema.safeParse(data);
     if (error || !rows.success) return adminSalesErrorResponse("SALES_UNAVAILABLE", "Não foi possível consultar as vendas.", requestId, 503);
+    const cohorts = await salesCohorts(client, rows.data.items.map((item) => item.sale_id));
     const response = adminSalesResponseSchema.safeParse({
-      data: rows.data.items.map(toAdminSale), nextCursor: rows.data.next_cursor, request_id: requestId,
+      data: rows.data.items.map((item) => {
+        const sale = toAdminSale(item);
+        const cohortId = cohorts.get(sale.saleId);
+        return cohortId ? { ...sale, cohortId } : sale;
+      }),
+      nextCursor: rows.data.next_cursor, request_id: requestId,
     });
     if (!response.success) return adminSalesErrorResponse("SALES_UNAVAILABLE", "Dados de vendas inválidos.", requestId, 503);
     return NextResponse.json(response.data, { headers: { "Cache-Control": "no-store", "x-request-id": requestId } });

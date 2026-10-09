@@ -85,6 +85,16 @@ Um único banco e domínio, com segregação lógica e de segurança por turma.
     (`app_metadata.germinatura_provisioning`, que só o service role grava) e que nunca entrou.
   - O PDV opera numa turma concreta, revalidada em toda página; `all` nunca é contexto do PDV. A turma do handoff vem
     do código gravado no servidor, não da URL.
+- **Visão consolidada (PR 4).**
+  - Em "Todas as turmas", só leem as APIs marcadas `all: "read"`; as demais respondem 409, inclusive as públicas.
+    Fora das telas consolidadas, o proxy manda para `/selecionar-turma`. É fail-closed para rotas e telas novas.
+  - Agregados são calculados dentro de cada turma e mostrados lado a lado; a conta PicPay aparece como evidência
+    global, sem saldo por turma.
+  - Vínculos são geridos por ADMIN_MASTER na turma escolhida explicitamente. ADMIN comum não lista turmas nem vínculos
+    e não alcança pessoas de outra turma.
+  - Inativar um vínculo ou arquivar uma turma com operações em aberto é recusado. A revogação imediata de acesso
+    continua sempre possível.
+  - Os rótulos de turma da auditoria respeitam o escopo da requisição (`audit_log_cohorts`).
 - **Lacuna conhecida, para o PR 3:** a listagem de usuários do admin lê `profiles`/`user_roles` com o cliente de
   chave secreta, sem escopo de turma. Nenhuma segunda turma deve ser criada em produção antes de essa rota passar a
   usar um RPC escopado.
