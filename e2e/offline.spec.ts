@@ -1,14 +1,27 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const pdvUrl = process.env.PDV_URL ?? "http://127.0.0.1:3001";
+const cohortA = "c0000000-0000-4000-8000-000000002026";
+const catalogA = `germinatura-pdv-catalog-v2:${cohortA}`;
 
-test("PDV reloads a session-free public catalog offline without queuing operations", async ({ page, context }) => {
+const catalogCaches = (page: Page) => page.evaluate(async () => (await caches.keys()).filter((name) => name.startsWith("germinatura-pdv-catalog-")));
+
+test("PDV reloads its cohort's session-free public catalog offline without queuing operations", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${pdvUrl}/login`);
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
-  await expect.poll(() => page.evaluate(async () => Boolean(await (await caches.open("germinatura-pdv-catalog-v1")).match("/offline/catalog-snapshot")))).toBe(true);
-  const snapshot = await page.evaluate(async () => (await (await caches.open("germinatura-pdv-catalog-v1")).match("/offline/catalog-snapshot"))?.json() as Promise<{ products: Array<{ name: string; amountCents: number }> }>);
+  // ADR 0011: before a cohort is chosen there is no copy at all (no anonymous or default-cohort snapshot).
+  expect(await catalogCaches(page)).toEqual([]);
+
+  await page.getByLabel("Usuário ou e-mail").fill("vendedor.teste");
+  await page.getByLabel("Senha").fill("Vendedor123!");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.waitForURL(`${pdvUrl}/`, { timeout: 60_000 });
+  await expect.poll(() => page.evaluate(async (name) => Boolean(await (await caches.open(name)).match("/offline/catalog-snapshot")), catalogA), { timeout: 30_000 }).toBe(true);
+  expect(await catalogCaches(page)).toEqual([catalogA]);
+  const snapshot = await page.evaluate(async (name) => (await (await caches.open(name)).match("/offline/catalog-snapshot"))?.json() as Promise<{ cohortId: string; cohortName: string; products: Array<{ name: string; amountCents: number }> }>, catalogA);
+  expect(snapshot.cohortId).toBe(cohortA);
   expect(snapshot.products.length).toBeGreaterThan(0);
   const keys = await page.evaluate(async () => {
     const all = [];
@@ -21,6 +34,7 @@ test("PDV reloads a session-free public catalog offline without queuing operatio
   await context.setOffline(true);
   await page.goto(`${pdvUrl}/`);
   await expect(page.getByRole("heading", { name: "Catálogo salvo" })).toBeVisible();
+  await expect(page.getByText(`Turma: ${snapshot.cohortName}`)).toBeVisible();
   await expect(page.getByText("Esta tela não mantém", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: snapshot.products[0].name, exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /Cobrar|Confirmar|Finalizar/ })).toHaveCount(0);
@@ -38,18 +52,19 @@ test("PDV reloads a session-free public catalog offline without queuing operatio
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Voltar ao PDV online" })).toBeFocused();
   }
-  await page.evaluate(async () => {
-    const cache = await caches.open("germinatura-pdv-catalog-v1");
+  await page.evaluate(async (name) => {
+    const cache = await caches.open(name);
     const response = await cache.match("/offline/catalog-snapshot");
     const data = await response?.json();
     await cache.put("/offline/catalog-snapshot", Response.json({ ...data, savedAt: Date.now() - 86400001 }));
-  });
+  }, catalogA);
   await page.reload();
   await expect(page.getByText("Nenhuma cópia válida disponível.", { exact: false })).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(0);
-  await page.getByRole("button", { name: "Apagar catálogo salvo" }).click();
-  await expect(page.getByText("Catálogo salvo apagado deste dispositivo.")).toBeVisible();
+  await page.getByRole("button", { name: "Apagar catálogos salvos" }).click();
+  await expect(page.getByText("Catálogos salvos apagados deste dispositivo.")).toBeVisible();
+  expect(await catalogCaches(page)).toEqual([]);
   await context.setOffline(false);
   await page.getByRole("link", { name: "Voltar ao PDV online" }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(`${pdvUrl}/`);
 });

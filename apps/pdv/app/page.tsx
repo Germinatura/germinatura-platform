@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/api";
 export interface PdvCohort {
   id: string;
   name: string;
+  slug?: string;
   isDefault?: boolean;
 }
 
@@ -35,15 +36,17 @@ export default function PdvHome() {
       .catch(() => window.location.assign("/login"));
   }, []);
 
-  // The offline snapshot is the anonymous public catalog, which belongs to the default cohort only (ADR 0011).
-  const defaultCohort = user ? user.cohorts.some((cohort) => cohort.id === user.cohort?.id && cohort.isDefault === true) : null;
+  // ADR 0011: the offline copy is the public catalog of the cohort this session operates in, saved under that cohort.
+  const cohortId = user?.cohort?.id ?? null;
+  const cohortSlug = user?.cohort?.slug ?? null;
+  const cohortName = user?.cohort?.name ?? null;
   useEffect(() => {
-    if (defaultCohort === null) return;
-    const refresh = () => refreshOfflineCatalog(defaultCohort);
+    if (!cohortId || !cohortSlug || !cohortName) return;
+    const refresh = () => refreshOfflineCatalog({ id: cohortId, slug: cohortSlug, name: cohortName });
     refresh();
     window.addEventListener("online", refresh);
     return () => window.removeEventListener("online", refresh);
-  }, [defaultCohort]);
+  }, [cohortId, cohortSlug, cohortName]);
 
   if (!user) {
     return (

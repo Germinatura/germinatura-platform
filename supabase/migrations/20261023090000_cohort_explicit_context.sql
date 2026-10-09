@@ -493,6 +493,26 @@ alter policy stock_loss_photos_read on storage.objects using (
   bucket_id = 'stock-loss-photos' and (owner_id = (select auth.uid())::text
     or ((select public.has_permission('inventory.manage')) and public.storage_entity_in_scope('loss_photo', name))));
 
+-- 12. Seller links (GROW-002): a team campaign (no seller) is listed as "not mine". The comparison with a NULL seller
+-- returned NULL, which the PDV refuses, so any communications campaign in the cohort took the seller's screen down.
+-- Same signature and body; only `mine` is now always a boolean.
+create or replace function public.list_my_share_links()
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+begin
+  if auth.uid() is null or not public.has_permission('sales.create') then
+    raise exception using errcode = '42501', message = 'SALES_CREATE_REQUIRED';
+  end if;
+  return jsonb_build_object(
+    'links', coalesce((select jsonb_agg(private.share_campaign_json(campaign) order by campaign.created_at desc, campaign.id desc)
+      from (select * from public.share_campaigns where seller_id = auth.uid() order by created_at desc, id desc limit 20) campaign), '[]'::jsonb),
+    'campaigns', coalesce((select jsonb_agg(jsonb_build_object('code', campaign.code, 'title', campaign.title, 'channel', campaign.channel,
+        'mine', campaign.seller_id is not distinct from auth.uid()) order by campaign.created_at desc)
+      from (select * from public.share_campaigns
+        where (seller_id is null or seller_id = auth.uid()) and created_at > now() - interval '180 days'
+        order by created_at desc limit 50) campaign), '[]'::jsonb));
+end;
+$$;
+
 -- Post-checks ------------------------------------------------------------------------------------------------------
 do $$
 begin

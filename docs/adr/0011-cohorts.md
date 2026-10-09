@@ -175,8 +175,7 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
     - **senha:** se houver uma única turma elegível, ela é usada;
     - nos demais casos, a turma é escolhida em `/turma`, que lista só as turmas confirmadas pelo banco.
   - As rotas próprias do PDV (`/api/auth/login|handoff|cohort`) não são encaminhadas ao Portal pelo Worker.
-  - A cópia offline do catálogo público só existe para a turma padrão, porque o catálogo anônimo é dela. Em outra
-    turma, a cópia é apagada.
+  - A cópia offline do catálogo público é de cada turma (PR 5, ver "PDV offline" abaixo).
 - **Fallback temporário (removido no PR 5, ver abaixo).** Sem seleção, o banco usa a Turma 2026 (`private.cohort_fallback_enabled()`).
   O Portal e o PDV não dependem mais dele para quem escolheu uma turma. Pontos que mudam no PR 5:
   - o interruptor no banco;
@@ -273,12 +272,22 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   - "Conta ativa" continua revogando na hora, e o retorno lista as pendências (`pending_operations`), sem alterá-las;
   - outro ADMIN ou o FINANCEIRO assume pelas ferramentas da turma: `close_seller_shift_on_behalf` (novo, justificativa obrigatória, auditoria com o vendedor), `transfer_stock`, `cancel_sale`, `resolve_seller_stock_transfer`, `resolve_stock_return`.
 - **Menu em "Todas":** itens só por turma aparecem marcados "por turma", com o motivo; nada é escondido.
+- **PDV offline (Cache Storage do service worker):**
+  - Uma cópia por turma concreta, no cache `germinatura-pdv-catalog-v2:<id da turma>`. Não existe cópia anônima, compartilhada ou da turma padrão; a ativação apaga a cópia única da versão anterior (`-v1`).
+  - A home do PDV pede a cópia da turma da sessão. O worker busca o catálogo público dessa turma sem sessão (`?turma=<slug>`) e só grava se o Portal responder com a mesma turma no header `x-germinatura-cohort`. Uma resposta 404 (turma não pública) apaga a cópia daquela turma.
+  - A tela offline lê o cookie `germinatura_pdv_cohort` e abre só o cache dessa turma. A cópia precisa dizer a mesma turma, e as imagens também vêm desse cache.
+  - Sem turma concreta (nenhuma, `all` ou valor malformado), ou sem cópia da turma, nada aparece. Cópia vencida (24 h) também não aparece. Nunca se mostra a cópia de outra turma.
+  - Trocar de turma não reaproveita cópia. Sair do PDV, abrir o login ou concluir um login/handoff apaga todas as cópias; sair também apaga o cookie de turma.
+  - **Outras persistências locais revisadas:**
+    - O carrinho de reserva do Portal (`sessionStorage`) agora é um por turma; sem turma, não é guardado.
+    - O cookie de origem dos links `/d/` guarda só o código da campanha. A atribuição o procura pela view da turma da requisição, então o código de outra turma é ignorado.
+    - Os demais itens são preferências de interface ou o e-mail do cadastro, sem dado por turma.
 - **O que ainda menciona a Turma 2026, e por quê:**
   - `private.bootstrap_cohort_id()`: id fixo do bootstrap, usado só nas migrations históricas do PR 1 e do PR 2 e na checagem "a turma de bootstrap existe" do relatório de integridade;
   - seed local e fixtures de teste: nomeiam a Turma 2026 explicitamente;
   - ferramenta de upgrade e spike: base histórica;
   - a turma padrão atual é a Turma 2026, por escolha explícita, trocável pelo ADMIN_MASTER.
-  - Nenhum fluxo de produção atribui 2026 por ausência de contexto.
+  - Nenhum fluxo de produção, online ou offline, atribui 2026 ou a turma padrão por ausência de contexto.
 
 ## Resultado do spike de isolamento (08/10/2026)
 
@@ -353,6 +362,7 @@ Não é necessária arquitetura híbrida para preservar Realtime.
      - nenhum default em `cohort_id`;
      - relatório de integridade limpo.
    - Pós-checagens: fallback desligado; guard sem referência à turma padrão.
+   - Também corrige `list_my_share_links`, com a mesma assinatura: campanha da equipe (sem vendedor) volta `mine: false`, não `null`. O `null` derrubava a tela "Divulgação" do PDV sempre que a Comunicação criava uma campanha na turma.
 
 Nenhuma migration é destrutiva. O teste de upgrade (`pnpm test:upgrade`, que roda na CI) prova a preservação sobre o
 schema anterior populado. O runbook é `docs/operations/cohort-cutover-runbook.md`.

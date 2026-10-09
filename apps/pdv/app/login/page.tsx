@@ -3,7 +3,8 @@
 import { credentialLoginRequestSchema } from "@germinatura/contracts";
 import { BrandMark, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
 import { LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { clearOfflineCatalogs } from "@/components/OfflineRegistration";
 import { useToast } from "@/components/ui/Toast";
 
 export default function LoginPage() {
@@ -12,6 +13,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { showToast } = useToast();
+  // ADR 0011: a sign-in page holds no cohort's offline copy; the next session saves the copy of its own cohort.
+  useEffect(() => { void clearOfflineCatalogs(); }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -27,6 +30,7 @@ export default function LoginPage() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? "Usuário/e-mail ou senha inválidos");
+      await clearOfflineCatalogs();
       window.location.assign("/");
     } catch (loginError) {
       const message = loginError instanceof Error ? loginError.message : "Erro ao conectar com o servidor";

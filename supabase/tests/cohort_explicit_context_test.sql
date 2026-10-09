@@ -2,7 +2,7 @@
 -- falha, sem fallback para a turma padrão; turma padrão explícita (só para entrada pública e cadastro), trocada pelo
 -- ADMIN_MASTER; visitantes resolvem a turma pelo slug ou pelo link no servidor; revogação imediata informa pendências.
 begin;
-select plan(52);
+select plan(54);
 
 create function pg_temp.ctx(p_user uuid, p_header text) returns void language plpgsql as $$
 begin
@@ -170,6 +170,17 @@ select pg_temp.sys();
 select is((select string_agg(visit.cohort_id::text, ',' order by visit.cohort_id) from cohort_data.share_visits visit
   join cohort_data.share_campaigns campaign on campaign.id = visit.campaign_id where campaign.code in (select code from ids where code is not null)),
   (select string_agg(id::text, ',' order by id) from unnest(array[pg_temp.a(), pg_temp.b()]) id), 'each visit is recorded in the cohort of its link');
+-- The origin cookie of a link holds only its code; attribution (attribute_reservation / attribute_online_sale, definer)
+-- looks it up through public.share_campaigns, filtered by the request's cohort: a code of B never attributes in A.
+-- The lookup runs as the function owner, with the caller's claims and cohort.
+select pg_temp.ctx(pg_temp.master(), pg_temp.a()::text);
+select set_config('role', 'postgres', true);
+select is((select count(*)::integer from public.share_campaigns where code = (select code from ids where name = 'link_b')), 0,
+  'inside A, the code of a link of B resolves to no campaign (its attribution is ignored)');
+select pg_temp.ctx(pg_temp.master(), pg_temp.b()::text);
+select set_config('role', 'postgres', true);
+select is((select count(*)::integer from public.share_campaigns where code = (select code from ids where name = 'link_b')), 1,
+  'inside B, the same code resolves to its campaign');
 
 -- 5. Revoking access is immediate and names what remains; another ADMIN/FINANCEIRO takes over; nothing is changed.
 select pg_temp.ctx('5c000000-0000-4000-8000-0000000000b1', pg_temp.b()::text);

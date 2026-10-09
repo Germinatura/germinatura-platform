@@ -53,12 +53,14 @@ export async function GET(request: Request) {
   // inactive slug is 404, never the default cohort. The filters below repeat the public read rules.
   const slug = url.searchParams.get("turma");
   let supabase;
+  let resolvedCohort: string | null = null;
   if (await getSession()) {
     supabase = await createAuthenticatedSupabaseClient(request);
   } else if (slug !== null) {
     const cohort = await resolvePublicCohort(slug);
     if (!cohort) return errorResponse("COHORT_NOT_FOUND", "Turma não encontrada ou indisponível.", requestId, 404);
     supabase = createPublicSupabaseClient(cohort.id);
+    resolvedCohort = cohort.id;
   } else {
     supabase = createPublicSupabaseClient();
   }
@@ -126,7 +128,8 @@ export async function GET(request: Request) {
     request_id: requestId,
   });
 
+  // A catalog resolved from a slug names its cohort, so the PDV offline copy is stored only under that cohort.
   return NextResponse.json(response, {
-    headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+    headers: { "Cache-Control": "no-store", "x-request-id": requestId, ...(resolvedCohort ? { "x-germinatura-cohort": resolvedCohort } : {}) },
   });
 }

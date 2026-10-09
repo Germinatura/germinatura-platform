@@ -76,8 +76,9 @@ export function MembershipDialog({ user, onClose, onChanged }: { user: { id: str
           body: JSON.stringify({ roles: Array.from(new Set([...(drafts[row.cohortId] ?? []), "CONSUMIDOR"])), active: true }) });
         if (!roles.ok) throw new Error(await readError(roles));
       }
-      setNotice({ add: `Adicionada a ${row.name}.`, deactivate: `Vínculo com ${row.name} inativado.`, reactivate: `Vínculo com ${row.name} reativado.`, roles: `Papéis em ${row.name} atualizados.` }[kind]);
+      // The reload replaces the role drafts, so the result is announced (and the roles editable) only after it.
       await load();
+      setNotice({ add: `Adicionada a ${row.name}.`, deactivate: `Vínculo com ${row.name} inativado.`, reactivate: `Vínculo com ${row.name} reativado.`, roles: `Papéis em ${row.name} atualizados.` }[kind]);
       onChanged();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível concluir a operação.");
@@ -112,7 +113,7 @@ export function MembershipDialog({ user, onClose, onChanged }: { user: { id: str
                 {row.membership !== "NONE" && <p className="text-sm">Papéis nesta turma: {row.roles.length ? row.roles.map((role) => roleLabels[role]).join(", ") : "nenhum"}</p>}
                 {!archived && row.membership !== "INACTIVE" && <fieldset><legend className="text-xs font-semibold text-[var(--g-text-muted)]">{row.membership === "NONE" ? "Papéis ao adicionar" : "Papéis"}</legend>
                   <div className="mt-2 flex flex-wrap gap-2">{assignableRoles.map((role) => <label key={role} className="flex min-h-10 items-center gap-2 rounded-[var(--g-radius-control)] border border-[var(--g-border-subtle)] px-3 text-sm">
-                    <input type="checkbox" checked={draft.includes(role)} onChange={(event) => setDrafts({ ...drafts, [row.cohortId]: event.target.checked ? [...draft, role] : draft.filter((value) => value !== role) })} className="size-4 accent-[var(--g-brand-primary)]" />{roleLabels[role]}</label>)}</div>
+                    <input type="checkbox" checked={draft.includes(role)} disabled={busy !== null} onChange={(event) => setDrafts({ ...drafts, [row.cohortId]: event.target.checked ? [...draft, role] : draft.filter((value) => value !== role) })} className="size-4 accent-[var(--g-brand-primary)]" />{roleLabels[role]}</label>)}</div>
                 </fieldset>}
                 {row.membership === "ACTIVE" && row.blockers.length > 0 && <p className="text-xs text-[var(--g-status-warning-foreground)]">Não pode ser inativado agora: {row.blockers.map((code) => blockerLabels[code] ?? code).join(", ")}.</p>}
                 {archived ? <p className="text-xs text-[var(--g-text-muted)]">Turma arquivada: vínculos e papéis ficam como estão.</p> : <div className="flex flex-wrap gap-2">

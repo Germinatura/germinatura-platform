@@ -356,6 +356,7 @@ funções novas.
   - `record_share_visit` e `set_user_access` são substituídas (mesma assinatura).
 - **Trigger** `cohorts_default_active`: a turma padrão é sempre ATIVA.
 - **Storage:** `ALTER POLICY` em 4 políticas (imagens de produto, capas de evento, fotos de perda). Nenhum arquivo muda.
+- **Links de vendedor:** `list_my_share_links` (mesma assinatura): `mine` sempre booleano. O rollback dessa função volta ao corpo de `20261010210000_sale_attribution`.
 - **Dados:** nenhuma linha muda (`pnpm test:upgrade`).
 
 ### O que muda para as pessoas
