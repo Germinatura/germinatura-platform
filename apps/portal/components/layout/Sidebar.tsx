@@ -9,7 +9,12 @@ import { activeSection, navigationFor, type NavigationItem } from "@/lib/navigat
 import { BrandMark } from "@/components/brand/BrandMark";
 import { useCollapsedSections } from "./navigation-state";
 
-export interface SidebarUser { nome: string; perfil: string; roles: string[]; avatarUrl?: string | null; }
+export interface SidebarUser {
+  nome: string; perfil: string; roles: string[]; avatarUrl?: string | null;
+  // ADR 0011: the cohort the Portal works in and the cohorts the person may select.
+  adminMaster?: boolean; cohortMode?: "COHORT" | "ALL" | "NONE";
+  cohort?: { id: string; name: string } | null; cohorts?: { id: string; name: string; status: string }[];
+}
 interface SidebarProps {
   user: SidebarUser | null;
   experience?: PortalExperience;
@@ -27,7 +32,7 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
   const pathname = usePathname();
   const baseId = useId();
   const roles = useMemo(() => user?.roles ?? [], [user]);
-  const hasAdminRole = roles.includes("ADMIN");
+  const hasAdminRole = roles.includes("ADMIN") || roles.includes("ADMIN_MASTER");
   const isAdmin = hasAdminRole && experience === "admin";
   const home = isAdmin ? "/" : "/inicio";
   const sections = useMemo(() => navigationFor({ roles, experience, features: enabledFeatures, pdvUrl }), [roles, experience, enabledFeatures]);

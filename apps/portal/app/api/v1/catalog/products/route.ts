@@ -6,6 +6,8 @@ import {
 import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSession } from "@/lib/auth";
+import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
 
 const databaseProductSchema = z.object({
@@ -45,7 +47,10 @@ export async function GET(request: Request) {
   }
 
   const { cursor, limit } = parsedQuery.data;
-  const supabase = createPublicSupabaseClient();
+  // ADR 0011: a signed-in person sees the public catalog of the cohort in context (validated by the proxy); a visitor
+  // sees the default cohort's. The filters below repeat the public read rules, so a manager session adds nothing.
+  const supabase = await getSession() ? await createAuthenticatedSupabaseClient(request) : createPublicSupabaseClient();
+  const now = new Date().toISOString();
   let query = supabase
     .from("products")
     .select(`
@@ -62,6 +67,10 @@ export async function GET(request: Request) {
     `)
     .eq("active", true)
     .eq("published", true)
+    .eq("category.active", true)
+    .lte("prices.valid_from", now)
+    .or(`valid_to.is.null,valid_to.gt."${now}"`, { referencedTable: "prices" })
+    .eq("images.status", "ACTIVE")
     .order("id", { ascending: true })
     .limit(limit + 1);
 

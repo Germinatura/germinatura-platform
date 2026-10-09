@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiAccessRule, rolesSatisfyAccess } from "./api-security";
+import { apiAccessRule, apiAccessRules, rolesSatisfyAccess, writeNeedsCohort } from "./api-security";
 
 describe("inventory API access", () => {
   it("allows inventory operators and administrators only", () => {
@@ -105,5 +105,31 @@ describe("cash and shift API access", () => {
     expect(apiAccessRule("/api/v1/sales/67000000-0000-4000-8000-000000000001/payments/cash")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/shifts/not-a-uuid!/close")).toBeUndefined();
     expect(rolesSatisfyAccess(["CONSUMIDOR"], "seller")).toBe(false);
+  });
+});
+
+describe("cohort context of API writes (ADR 0011)", () => {
+  it("ADMIN_MASTER satisfies every level; cohort administration is ADMIN_MASTER only", () => {
+    for (const level of ["admin", "finance", "inventory", "stock", "communications", "seller", "master"] as const) {
+      expect(rolesSatisfyAccess(["ADMIN_MASTER"], level)).toBe(true);
+    }
+    expect(rolesSatisfyAccess(["ADMIN"], "master")).toBe(false);
+    expect(apiAccessRule("/api/v1/admin/cohorts")?.access).toBe("master");
+    expect(apiAccessRule("/api/v1/admin/cohorts/c0000000-0000-4000-8000-000000002026")?.access).toBe("master");
+    expect(apiAccessRule("/api/v1/admin/users/10000000-0000-4000-8000-000000000001/admin-master")?.access).toBe("master");
+  });
+
+  it("every write needs a concrete cohort except the documented global operations", () => {
+    const global = apiAccessRules.filter((rule) => rule.cohort === "global").map((rule) => rule.path).sort();
+    expect(global).toEqual([
+      "/api/auth/logout", "/api/auth/reset-password", "/api/v1/account/sessions", "/api/v1/account/sessions/:id",
+      "/api/v1/admin/bootstrap", "/api/v1/admin/cohorts", "/api/v1/admin/cohorts/:id", "/api/v1/admin/users/:id/admin-master",
+      "/api/v1/notifications/:id/read", "/api/v1/notifications/preferences", "/api/v1/profile", "/api/v1/session/cohort",
+    ]);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/sales/checkout"), "POST")).toBe(true);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/users"), "POST")).toBe(true);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/users"), "GET")).toBe(false);
+    expect(writeNeedsCohort(undefined, "POST")).toBe(true);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/cohorts"), "POST")).toBe(false);
   });
 });

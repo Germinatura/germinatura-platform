@@ -237,9 +237,59 @@ Tabelas movidas para `cohort_data`/`private` são comparadas pelo nome.
 
   `cohort_id` e as tabelas novas podem ficar, porque não mudam o comportamento.
 
+## Fase 3 — contexto no Portal e no PDV (PR 3)
+
+### Migration e impacto esperado
+
+`20261021090000_cohort_context_api` (aditiva, `lock_timeout` de 5 s, uma transação):
+
+- `alter table public.pdv_handoff_codes add column cohort_id uuid references public.cohorts` (anulável, sem default:
+  só catálogo). Os códigos emitidos antes ficam `NULL`; eles expiram em 60 s, e o PDV pede a turma.
+- Novas funções:
+  - `list_cohort_users`;
+  - `private.cohort_member_visible`;
+  - `complete_admin_provisioned_profile` com turma (6 argumentos). A versão de 5 argumentos continua existindo.
+- Recriadas: `create_pdv_handoff`, que grava a turma, e `consume_pdv_handoff`, que a devolve.
+- `set_user_access`, `unlock_password_recovery`, `unlock_signup_code_requests` e `set_cohort_membership`:
+  - as originais são renomeadas para `private.<nome>_in_cohort`, sem mudança de corpo;
+  - os nomes públicos viram envoltórios que recusam pessoa fora da turma da requisição;
+  - as assinaturas não mudam, então o app anterior continua funcionando durante a promoção.
+- Nenhuma linha existente é alterada (provado por `pnpm test:upgrade`, que compara contagens, hashes, tuplas e
+  agregados).
+
+### Ordem do deploy
+
+1. Migration.
+2. Portal.
+3. PDV.
+
+O Portal novo funciona com o PDV antigo, que ainda não manda header e por isso recebe o fallback da Turma 2026. O PDV
+novo exige o Portal novo, por causa de `consume_pdv_handoff` com turma e do header nas chamadas. O deploy governado
+publica os dois juntos.
+
+### Checks depois da produção (somente leitura)
+
+- Depois de alguns minutos, os novos códigos de handoff têm turma:
+  `select count(*) from public.pdv_handoff_codes where cohort_id is null and created_at > now() - interval '5 minutes'`
+  tende a 0.
+- Os quatro envoltórios existem: `select count(*) from pg_proc where pronamespace = 'private'::regnamespace and
+  proname in ('set_user_access_in_cohort', 'unlock_password_recovery_in_cohort', 'unlock_signup_code_requests_in_cohort',
+  'set_cohort_membership_in_cohort')` → 4.
+- Smokes: abrir o PDV pelo Portal; listar usuários; trocar de turma no seletor; uma escrita em "Todas" deve dar 409.
+
+### Rollback e forward-fix
+
+- A migration roda numa transação: qualquer erro desfaz o arquivo inteiro.
+- Depois de aplicada, o caminho é forward-fix. Reverter, só com autorização:
+  1. remover os envoltórios públicos;
+  2. devolver `private.<nome>_in_cohort` a `public` com o nome original;
+  3. recriar `create_pdv_handoff`/`consume_pdv_handoff` da migration `20261020090200`.
+
+  A coluna `cohort_id` e as funções novas podem ficar. Nenhuma reversão apaga dados.
+- **Não criar uma segunda turma em produção** antes da autorização explícita da comissão, mesmo com o PR 3 aplicado.
+
 ## Fases seguintes
 
-- **PR 3 (obrigatório antes de criar uma segunda turma em produção):**
-  - o Portal e o PDV enviam o header da turma;
-  - a listagem de usuários do admin deixa o cliente de chave secreta por um RPC escopado.
+- **PR 4:** visão "Todas as turmas" com quebra por turma nos módulos (indicadores, financeiro, estoque) e tela de
+  vínculos.
 - **PR 5:** restringir o fallback (`private.cohort_fallback_enabled()` → `false`).

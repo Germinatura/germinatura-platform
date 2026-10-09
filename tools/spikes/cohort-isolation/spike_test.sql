@@ -105,16 +105,16 @@ select is(pg_temp.definer($$delete from public.product_stock_alerts where produc
   'DELETE of rows of another cohort affects nothing');
 select throws_ok($$select public.save_catalog_category('5a000000-0000-4000-8000-00000000000b', 1, 'Invadida', 'spike-b', true, 1, 'Tentativa entre turmas', 'spike-cross', gen_random_uuid())$$,
   'P0002', 'CATEGORY_NOT_FOUND', 'an existing RPC cannot touch a category of another cohort');
-select throws_ok($$select public.set_catalog_product_price('5b000000-0000-4000-8000-00000000000b', 1, 999, 'PreÃ§o entre turmas', 'spike-cross-price', gen_random_uuid())$$,
+select throws_ok($$select public.set_catalog_product_price('5b000000-0000-4000-8000-00000000000b', 1, 999, 'Preço entre turmas', 'spike-cross-price', gen_random_uuid())$$,
   null, null, 'nor price a product of another cohort (immutable ledger)');
 select throws_ok($$select public.save_catalog_product(null, null, '5a000000-0000-4000-8000-00000000000b', 'spike-cruzado', 'Cruzado', null, true, true, true, false, false, 'Produto entre turmas', 'spike-cross-product', gen_random_uuid())$$,
   null, null, 'nor create a product of A under a category of B');
 select throws_ok($$select pg_temp.definer($q$insert into public.products (category_id, sku, slug, name) values ('5a000000-0000-4000-8000-00000000000b', 'SPIKE-X', 'spike-x', 'X')$q$)$$,
   '42501', 'COHORT_MISMATCH', 'a raw insert pointing at a parent of another cohort is refused by the guard');
-select throws_ok($$select pg_temp.definer($q$insert into public.categories (name, slug, cohort_id) values ('ForÃ§ada', 'spike-forcada', 'c0000000-0000-4000-8000-000000002027')$q$)$$,
+select throws_ok($$select pg_temp.definer($q$insert into public.categories (name, slug, cohort_id) values ('Forçada', 'spike-forcada', 'c0000000-0000-4000-8000-000000002027')$q$)$$,
   '42501', 'COHORT_MISMATCH', 'a raw insert naming another cohort is refused');
 
--- Writes through existing RPCs land in the request cohort (INSERT â€¦ RETURNING, ON CONFLICT, ledger, identity).
+-- Writes through existing RPCs land in the request cohort (INSERT … RETURNING, ON CONFLICT, ledger, identity).
 insert into ids select 'cat_a', (public.save_catalog_category(null, null, 'Spike A2', 'spike-a2', true, 3, 'Categoria nova', 'spike-cat-a2', gen_random_uuid()) ->> 'id')::uuid;
 select is((select cohort_id from cohort_data.categories where id = (select id from ids where name = 'cat_a')), 'c0000000-0000-4000-8000-000000002026'::uuid,
   'an RPC insert (RETURNING) of the admin of A lands in A');
@@ -136,7 +136,7 @@ select lives_ok($$select public.save_portal_highlight('Destaque A', 'Mensagem da
 select is(pg_temp.definer_count($$select 1 from public.portal_highlights where title = 'Destaque A' and sequence is not null$$), 1::bigint, 'the identity sequence is assigned');
 
 select pg_temp.ctx('1c000000-0000-4000-8000-00000000000b', null);
-select lives_ok($$select public.reverse_finance_entry('5c000000-0000-4000-8000-00000000000b', 'Estorno legÃ­timo', 'spike-reverse-b-own', gen_random_uuid())$$,
+select lives_ok($$select public.reverse_finance_entry('5c000000-0000-4000-8000-00000000000b', 'Estorno legítimo', 'spike-reverse-b-own', gen_random_uuid())$$,
   'the admin of B reverses the entry of B (self reference)');
 select is(pg_temp.definer_count($$select 1 from public.finance_manual_entries where reversal_of = '5c000000-0000-4000-8000-00000000000b' and cohort_id = 'c0000000-0000-4000-8000-000000002027'$$), 1::bigint,
   'the reversal belongs to B');

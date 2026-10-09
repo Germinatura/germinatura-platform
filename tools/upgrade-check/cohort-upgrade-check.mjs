@@ -115,10 +115,11 @@ function main() {
   console.log("\n▶ Snapshot depois");
   const after = snapshot(target, { columns: columnsOf(before), perRow: true });
   const scoped = psql(target, "select table_name from private.cohort_scoped_tables order by 1;").split("\n").filter(Boolean);
-  // New columns allowed on pre-existing tables: cohort_id on every classified table, and the scope of the flag catalogue.
+  // New columns allowed on pre-existing tables: cohort_id on every classified table, the scope of the flag catalogue and
+  // the cohort of PDV handoff codes (PR 3).
   // Table legitimately rewritten: the four global flags get their scope (pre-existing values unchanged).
   const upgrade = compareSnapshots(before, after, {
-    expectedNewColumns: { ...Object.fromEntries(scoped.map((name) => [name, ["cohort_id"]])), feature_flags: ["scope"] },
+    expectedNewColumns: { ...Object.fromEntries(scoped.map((name) => [name, ["cohort_id"]])), feature_flags: ["scope"], pdv_handoff_codes: ["cohort_id"] },
     requireSameTuples: true,
     rewrittenTables: ["feature_flags"],
     // The permission catalogue gains cohorts.manage.

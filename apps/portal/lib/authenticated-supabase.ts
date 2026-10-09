@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { COHORT_HEADER, cohortHeaders, parseCohortSelection } from "@/lib/cohort-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function createAuthenticatedSupabaseClient(request: Request): Promise<SupabaseClient> {
@@ -9,6 +10,7 @@ export async function createAuthenticatedSupabaseClient(request: Request): Promi
   if (!url || !key) throw new Error("Supabase public environment is not configured");
   return createClient(url, key, {
     auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-    global: { headers: { Authorization: authorization } },
+    // The proxy left only the validated cohort selection in the request (lib/cohort-context.ts).
+    global: { headers: { Authorization: authorization, ...cohortHeaders(parseCohortSelection(request.headers.get(COHORT_HEADER))) } },
   });
 }

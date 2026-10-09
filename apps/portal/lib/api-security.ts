@@ -1,9 +1,15 @@
-export type ApiAccessLevel = "public" | "authenticated" | "seller" | "stock" | "finance" | "inventory" | "procurement" | "communications" | "admin";
+export type ApiAccessLevel = "public" | "authenticated" | "seller" | "stock" | "finance" | "inventory" | "procurement" | "communications" | "admin" | "master";
 
 interface ApiAccessRule {
   path: string;
   methods: readonly string[];
   access: ApiAccessLevel;
+  /**
+   * ADR 0011: "global" marks a route whose writes do not belong to any cohort (the person's own profile, sessions and
+   * notifications, the session itself, cohort selection). Every other write needs a concrete cohort: in "all" (and
+   * without any determinable cohort) the proxy refuses it with COHORT_REQUIRED, and the database refuses it too.
+   */
+  cohort?: "global";
 }
 
 export const apiAccessRules: readonly ApiAccessRule[] = [
@@ -76,9 +82,9 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/settings/fundraising-goal", methods: ["GET", "PUT"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/settlements/:id/reverse", methods: ["POST"], access: "finance" },
-  { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated" },
-  { path: "/api/v1/account/sessions", methods: ["GET", "DELETE"], access: "authenticated" },
-  { path: "/api/v1/account/sessions/:id", methods: ["DELETE"], access: "authenticated" },
+  { path: "/api/v1/profile", methods: ["GET", "PATCH"], access: "authenticated", cohort: "global" },
+  { path: "/api/v1/account/sessions", methods: ["GET", "DELETE"], access: "authenticated", cohort: "global" },
+  { path: "/api/v1/account/sessions/:id", methods: ["DELETE"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/health", methods: ["GET"], access: "public" },
   { path: "/api/v1/catalog/products", methods: ["GET"], access: "public" },
   { path: "/api/v1/pricing/quote", methods: ["POST"], access: "public" },
@@ -109,8 +115,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/reservations/:id/payment-link", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/reservations/:id/convert", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/notifications", methods: ["GET"], access: "authenticated" },
-  { path: "/api/v1/notifications/:id/read", methods: ["POST"], access: "authenticated" },
-  { path: "/api/v1/notifications/preferences", methods: ["GET", "PUT"], access: "authenticated" },
+  { path: "/api/v1/notifications/:id/read", methods: ["POST"], access: "authenticated", cohort: "global" },
+  { path: "/api/v1/notifications/preferences", methods: ["GET", "PUT"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/catalog/stock-alerts", methods: ["GET"], access: "authenticated" },
   { path: "/api/v1/catalog/products/:id/stock-alert", methods: ["PUT"], access: "authenticated" },
   { path: "/api/v1/feature-flags", methods: ["GET"], access: "authenticated" },
@@ -134,7 +140,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/auth/password-recovery/request", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/password-recovery/verify", methods: ["POST"], access: "public" },
   { path: "/api/v1/auth/password-recovery/complete", methods: ["POST"], access: "public" },
-  { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated" },
+  { path: "/api/v1/admin/bootstrap", methods: ["POST"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/admin/users", methods: ["GET", "POST"], access: "admin" },
   { path: "/api/v1/admin/reservations", methods: ["GET"], access: "admin" },
   { path: "/api/v1/admin/announcements", methods: ["GET", "POST"], access: "communications" },
@@ -153,10 +159,14 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/users/:id/password-recovery", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/signup-code", methods: ["POST"], access: "admin" },
   { path: "/api/auth/login", methods: ["POST"], access: "public" },
-  { path: "/api/auth/logout", methods: ["POST"], access: "authenticated" },
+  { path: "/api/auth/logout", methods: ["POST"], access: "authenticated", cohort: "global" },
   { path: "/api/auth/me", methods: ["GET"], access: "authenticated" },
-  { path: "/api/auth/reset-password", methods: ["POST"], access: "authenticated" },
+  { path: "/api/auth/reset-password", methods: ["POST"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/auth/session", methods: ["GET"], access: "authenticated" },
+  { path: "/api/v1/session/cohort", methods: ["POST", "DELETE"], access: "authenticated", cohort: "global" },
+  { path: "/api/v1/admin/cohorts", methods: ["GET", "POST"], access: "master", cohort: "global" },
+  { path: "/api/v1/admin/cohorts/:id", methods: ["PATCH"], access: "master", cohort: "global" },
+  { path: "/api/v1/admin/users/:id/admin-master", methods: ["PUT"], access: "master", cohort: "global" },
 ];
 
 export function apiAccessRule(path: string): ApiAccessRule | undefined {
@@ -175,6 +185,12 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/finance/payables/settlements/:id/reverse") {
       return /^\/api\/v1\/admin\/finance\/payables\/settlements\/[0-9a-f-]+\/reverse$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/cohorts/:id") {
+      return /^\/api\/v1\/admin\/cohorts\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/users/:id/admin-master") {
+      return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/admin-master$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/users/:id/roles") {
       return /^\/api\/v1\/admin\/users\/[0-9a-f-]+\/roles$/i.test(path);
@@ -322,6 +338,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
 
 export function rolesSatisfyAccess(roles: readonly string[], access: ApiAccessLevel): boolean {
   if (access === "public" || access === "authenticated") return true;
+  // ADR 0011: the global administration capability satisfies every level (the database still checks each action).
+  if (roles.includes("ADMIN_MASTER")) return true;
+  if (access === "master") return false;
   if (access === "admin") return roles.includes("ADMIN");
   if (access === "finance") return roles.includes("ADMIN") || roles.includes("FINANCEIRO");
   if (access === "inventory") return roles.includes("ADMIN") || roles.includes("ESTOQUE");
@@ -337,6 +356,11 @@ function configuredOrigins(): Set<string> {
     process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001",
   ];
   return new Set(values.map((value) => new URL(value).origin));
+}
+
+/** Writes that need a concrete cohort: every write except the routes marked as global. */
+export function writeNeedsCohort(rule: ApiAccessRule | undefined, method: string): boolean {
+  return !["GET", "HEAD", "OPTIONS"].includes(method) && rule?.cohort !== "global";
 }
 
 export function isTrustedMutation(request: Request): boolean {

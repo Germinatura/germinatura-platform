@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { COHORT_HEADER, cohortHeaders, parseCohortSelection } from "@/lib/cohort-context";
 
 function publicConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,10 +9,14 @@ function publicConfig() {
   return { url, publishableKey };
 }
 
+// Pages and routes run after the proxy, which leaves in the request only the cohort selection it validated
+// (lib/cohort-context.ts); every database call of the request carries it.
 export async function createSupabaseServerClient() {
   const { url, publishableKey } = publicConfig();
   const cookieStore = await cookies();
+  const cohort = parseCohortSelection((await headers()).get(COHORT_HEADER));
   return createServerClient(url, publishableKey, {
+    global: { headers: cohortHeaders(cohort) },
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {

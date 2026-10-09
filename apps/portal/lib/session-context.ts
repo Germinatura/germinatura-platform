@@ -1,4 +1,4 @@
-import { appRoleSchema } from "@germinatura/contracts";
+import { cohortModeSchema, cohortSelectionSchema, cohortSummarySchema, sessionRoleSchema } from "@germinatura/contracts";
 import { z } from "zod";
 
 /**
@@ -12,18 +12,24 @@ export const SESSION_CONTEXT_HEADER = "x-germinatura-session-context";
 const LIFETIME_MS = 30_000;
 
 const sessionSchema = z.object({
+  // The cohort selection the session was resolved for: a route reuses it only for the same selection.
+  selection: cohortSelectionSchema.nullable().optional(),
   user: z.object({
     id: z.string().uuid(),
     authId: z.string().uuid(),
     email: z.string().email(),
-    perfil: appRoleSchema,
+    perfil: sessionRoleSchema,
     nome: z.string(),
     username: z.string().nullable(),
     avatarPath: z.string().nullable(),
-    roles: z.array(appRoleSchema).min(1),
+    roles: z.array(sessionRoleSchema).min(1),
     active: z.literal(true),
     onboardingCompleted: z.boolean(),
     needsPasswordReset: z.literal(false),
+    adminMaster: z.boolean(),
+    cohortMode: cohortModeSchema,
+    cohort: cohortSummarySchema.nullable(),
+    cohorts: z.array(cohortSummarySchema),
   }).strict(),
 }).strict();
 const contextSchema = z.object({ v: z.literal(1), t: z.string(), e: z.number(), s: sessionSchema }).strict();

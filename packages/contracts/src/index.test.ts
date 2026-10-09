@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   apiErrorSchema,
+  adminUsersQuerySchema,
   adminUsersResponseSchema,
+  cohortSelectionSchema,
   catalogProductFlagsSchema,
   catalogSlugSchema,
   commercialReservationCancelResponseSchema,
@@ -142,10 +144,28 @@ describe("shared contracts", () => {
         onboardingCompleted: true,
         roles: ["ADMIN", "CONSUMIDOR"],
       }],
+      page: { total: 1, matched: 1, offset: 0, limit: 25 },
       request_id: "20000000-0000-4000-8000-000000000001",
     });
     expect(parsed.data[0]?.roles).toEqual(["ADMIN", "CONSUMIDOR"]);
     expect(JSON.stringify(parsed)).not.toContain("password");
+  });
+
+  it("parses the administrative user filters from the query string", () => {
+    expect(adminUsersQuerySchema.parse({})).toEqual({ status: "ALL", onboarding: "ALL", roles: [], roleMatch: "ANY", offset: 0, limit: 25 });
+    expect(adminUsersQuerySchema.parse({ q: " ana ", roles: "ADMIN,VENDEDOR", roleMatch: "ALL", offset: "50", limit: "25" }))
+      .toMatchObject({ q: "ana", roles: ["ADMIN", "VENDEDOR"], roleMatch: "ALL", offset: 50, limit: 25 });
+    for (const query of [{ roles: "ADMIN_MASTER" }, { limit: "101" }, { cohort: "all" }, { status: "BLOCKED" }, { extra: "1" }]) {
+      expect(adminUsersQuerySchema.safeParse(query).success).toBe(false);
+    }
+  });
+
+  it("accepts a cohort selection only as a uuid or all", () => {
+    expect(cohortSelectionSchema.safeParse("all").success).toBe(true);
+    expect(cohortSelectionSchema.safeParse("c0000000-0000-4000-8000-000000002026").success).toBe(true);
+    for (const value of ["", "ALL", "2026", "c0000000-0000-4000-8000-000000002026;drop"]) {
+      expect(cohortSelectionSchema.safeParse(value).success).toBe(false);
+    }
   });
 
   it("rejects an invalid session identity", () => {

@@ -8,5 +8,5 @@ export const dynamic = "force-dynamic";
 export default async function AdminUsersPage() {
   const user = await requireSession();
   if (!hasPermission(user, "users.manage")) redirect("/");
-  return <UsersManager />;
+  return <UsersManager cohortMode={user.cohortMode} cohorts={user.cohorts} canFilterCohort={user.adminMaster && user.cohortMode === "ALL"} isMaster={user.adminMaster} />;
 }

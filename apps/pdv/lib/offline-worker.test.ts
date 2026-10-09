@@ -63,7 +63,7 @@ describe("PDV offline cache boundary", () => {
     w.fetcher
       .mockResolvedValueOnce(Response.json({ data: [{ name: "Produto", sellablePdv: true, price: { amountCents: 1250, currency: "BRL" }, images: [{ sortOrder: 0, publicUrl: imageUrl, altText: "Produto embalado" }], balance: 10, user: "private" }], nextCursor: "more", request_id: "not-cached" }))
       .mockResolvedValueOnce(new Response("image", { headers: { "Content-Type": "image/webp" } }));
-    const message = { data: { type: "REFRESH_PUBLIC_CATALOG" }, source: { url: "https://pdv.test/login" } };
+    const message = { data: { type: "REFRESH_PUBLIC_CATALOG", defaultCohort: true }, source: { url: "https://pdv.test/login" } };
     await w.lifecycle("message", message);
     const snapshot = w.stores.get("germinatura-pdv-catalog-v1")?.get("/offline/catalog-snapshot");
     expect(await snapshot?.clone().json()).toEqual({ savedAt: expect.any(Number), partial: true, products: [{ name: "Produto", amountCents: 1250, imageUrl, imageAlt: "Produto embalado" }] });
@@ -74,12 +74,24 @@ describe("PDV offline cache boundary", () => {
     expect(w.stores.get("germinatura-pdv-catalog-v1")?.get("/offline/catalog-snapshot")).toBe(snapshot);
   });
 
+  it("drops the snapshot outside the default cohort, whose catalog is the only public one", async () => {
+    const w = worker();
+    w.fetcher.mockResolvedValueOnce(Response.json({ data: [{ name: "Produto", sellablePdv: true, price: { amountCents: 1250, currency: "BRL" } }] }));
+    await w.lifecycle("message", { data: { type: "REFRESH_PUBLIC_CATALOG", defaultCohort: true }, source: { url: "https://pdv.test/" } });
+    expect(w.stores.get("germinatura-pdv-catalog-v1")?.has("/offline/catalog-snapshot")).toBe(true);
+    for (const data of [{ type: "REFRESH_PUBLIC_CATALOG", defaultCohort: false }, { type: "REFRESH_PUBLIC_CATALOG" }]) {
+      await w.lifecycle("message", { data, source: { url: "https://pdv.test/" } });
+      expect(w.stores.has("germinatura-pdv-catalog-v1")).toBe(false);
+    }
+    expect(w.fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects invalid cent values and foreign refresh messages", async () => {
     const w = worker();
-    await w.lifecycle("message", { data: { type: "REFRESH_PUBLIC_CATALOG" }, source: { url: "https://foreign.test/" } });
+    await w.lifecycle("message", { data: { type: "REFRESH_PUBLIC_CATALOG", defaultCohort: true }, source: { url: "https://foreign.test/" } });
     expect(w.fetcher).not.toHaveBeenCalled();
     w.fetcher.mockResolvedValueOnce(Response.json({ data: [{ name: "Bad", sellablePdv: true, price: { amountCents: 1.5, currency: "BRL" } }] }));
-    await w.lifecycle("message", { data: { type: "REFRESH_PUBLIC_CATALOG" }, source: { url: "https://pdv.test/" } });
+    await w.lifecycle("message", { data: { type: "REFRESH_PUBLIC_CATALOG", defaultCohort: true }, source: { url: "https://pdv.test/" } });
     expect(w.stores.size).toBe(0);
   });
 });

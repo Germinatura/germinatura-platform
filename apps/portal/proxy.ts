@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiError } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
-import { apiAccessRule, isTrustedMutation, rolesSatisfyAccess } from "@/lib/api-security";
+import { apiAccessRule, isTrustedMutation, rolesSatisfyAccess, writeNeedsCohort } from "@/lib/api-security";
 import { updateSession } from "@/lib/auth";
+import { COHORT_COOKIE, requestedCohort, selectionAccepted } from "@/lib/cohort-context";
 
 const publicRoutes = new Set(["/login", "/cadastro", "/cadastro/perfil", "/esqueci-senha", "/recuperar-senha"]);
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -17,7 +18,34 @@ function apiError(code: string, message: string, requestId: string, status: numb
 export default async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith("/api/");
-  const { response, session, client } = await updateSession(request);
+
+  // ADR 0011: the cohort selection (header or cookie) is validated here, once, for every page and route
+  // (lib/cohort-context.ts). A malformed selection is refused, never ignored.
+  const requested = requestedCohort(request);
+  if (requested.kind === "invalid") {
+    if (isApi) {
+      const invalid = apiError("INVALID_COHORT_CONTEXT", "Turma inválida.", createRequestId(request.headers), 400);
+      if (requested.source === "cookie") invalid.cookies.delete(COHORT_COOKIE);
+      return invalid;
+    }
+    const retry = NextResponse.redirect(request.nextUrl);
+    retry.cookies.delete(COHORT_COOKIE);
+    return retry;
+  }
+  const selection = requested.kind === "selected" ? requested.value : null;
+  const { response, session, client } = await updateSession(request, selection);
+
+  // A selection the database did not accept (unknown cohort, no active membership, "all" without ADMIN_MASTER).
+  if (session && selection && !selectionAccepted(selection, session.user)) {
+    if (isApi) {
+      const forbidden = apiError("COHORT_FORBIDDEN", "Você não tem acesso a esta turma.", createRequestId(request.headers), 403);
+      if (requested.kind === "selected" && requested.source === "cookie") forbidden.cookies.delete(COHORT_COOKIE);
+      return forbidden;
+    }
+    const retry = NextResponse.redirect(request.nextUrl);
+    retry.cookies.delete(COHORT_COOKIE);
+    return retry;
+  }
 
   if (isApi) {
     const requestId = createRequestId(request.headers);
@@ -37,6 +65,10 @@ export default async function proxy(request: NextRequest) {
     }
     if (!safeMethods.has(request.method) && !isTrustedMutation(request)) {
       return apiError("INVALID_ORIGIN", "Origem não autorizada", requestId, 403);
+    }
+    // Writes into cohort data need one concrete cohort: never in "all", never without a determinable cohort.
+    if (session && rule?.access !== "public" && writeNeedsCohort(rule, request.method) && session.user.cohortMode !== "COHORT") {
+      return apiError("COHORT_REQUIRED", "Selecione uma turma antes de alterar dados.", requestId, 409);
     }
 
     response.headers.set("Cache-Control", "no-store");
