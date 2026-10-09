@@ -1048,12 +1048,21 @@ export const cohortSummarySchema = z.object({
 export type CohortSummary = z.infer<typeof cohortSummarySchema>;
 export const cohortSelectionRequestSchema = z.object({ cohort: cohortSelectionSchema }).strict();
 
+// ADR 0011: a cohort's public slug has one rule everywhere: the database check `cohorts_slug_check`, the API, the
+// admin form, the public `?turma=` parameter and the PDV service worker. 1 to 32 characters: lowercase letters, digits
+// and hyphens, starting and ending with a letter or digit. The slug is set at creation and never edited.
+export const COHORT_SLUG_MAX_LENGTH = 32;
+export const COHORT_SLUG_PATTERN = "^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$";
+export const cohortSlugSchema = z.string().max(COHORT_SLUG_MAX_LENGTH).regex(new RegExp(COHORT_SLUG_PATTERN));
+/** The same rule for an HTML `pattern` attribute, which browsers compile with the `v` flag (a bare "-" in a class is invalid there). */
+export const COHORT_SLUG_HTML_PATTERN = String.raw`[a-z0-9]([a-z0-9\-]{0,30}[a-z0-9])?`;
+
 // ADR 0011: cohort administration (ADMIN_MASTER only; global operations, allowed in "Todas as turmas").
 const cohortNameSchema = z.string().trim().min(3).max(80);
 export const cohortCreateRequestSchema = z.object({
   name: cohortNameSchema,
   year: z.number().int().min(2000).max(2100),
-  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
+  slug: z.string().trim().toLowerCase().pipe(cohortSlugSchema),
   status: z.enum(["PREPARING", "ACTIVE"]),
 }).strict();
 export type CohortCreateRequest = z.infer<typeof cohortCreateRequestSchema>;

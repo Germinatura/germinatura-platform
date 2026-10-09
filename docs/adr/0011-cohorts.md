@@ -264,6 +264,9 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   - sem referência, veem a turma padrão;
   - com `?turma=<slug>`, o servidor resolve o slug para uma turma ATIVA; slug desconhecido, malformado, PREPARING ou ARCHIVED responde 404, sem cair na padrão;
   - um `cohort_id` da URL nunca é aceito;
+  - o slug segue uma regra única: de 1 a 32 caracteres, letras minúsculas, números e hífen, começando e terminando com letra ou número;
+    - a mesma regra vale no banco (`cohorts_slug_check`), no contrato (`COHORT_SLUG_PATTERN`), na API, no formulário, no `?turma=` e no service worker do PDV;
+    - o slug é definido na criação e nunca é editado;
   - o link `/d/<código>` resolve a campanha e a turma no servidor, registra a visita nela e abre o catálogo com o slug;
   - logado, o `?turma=` só seleciona a turma se a pessoa tiver vínculo nela; senão, é descartado.
 - **Cadastro novo:** entra na turma padrão ATIVA. O vínculo e o papel `CONSUMIDOR` são gravados explicitamente nessa turma. Sem turma padrão ativa, o cadastro falha.

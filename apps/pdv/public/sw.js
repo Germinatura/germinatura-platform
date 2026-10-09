@@ -5,6 +5,7 @@ const SHELL = "germinatura-pdv-shell-v2";
 const CATALOG_PREFIX = "germinatura-pdv-catalog-v2:";
 const SNAPSHOT = "/offline/catalog-snapshot";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// The cohort slug rule of the contracts (COHORT_SLUG_PATTERN) and the database; offline-worker.test.ts keeps them equal.
 const SLUG = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
 const ASSETS = ["/offline", "/offline.css", "/offline.js", "/offline/brand.svg", "/manifest.webmanifest"];
 

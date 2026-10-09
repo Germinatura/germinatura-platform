@@ -1,3 +1,4 @@
+import { cohortSlugSchema } from "@germinatura/contracts";
 import { z } from "zod";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
 
@@ -10,7 +11,8 @@ export type PublicCohort = z.infer<typeof resolvedSchema>;
  * falling back to the default cohort.
  */
 export async function resolvePublicCohort(slug: string): Promise<PublicCohort | null> {
-  if (!/^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/.test(slug)) return null;
+  // The same slug rule as the database and the admin form (contracts: cohortSlugSchema); anything else is not looked up.
+  if (!cohortSlugSchema.safeParse(slug).success) return null;
   const { data, error } = await createPublicSupabaseClient().rpc("resolve_public_cohort", { p_slug: slug });
   if (error || data === null) return null;
   const parsed = resolvedSchema.safeParse(data);
