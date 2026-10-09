@@ -1,9 +1,10 @@
 "use client";
 
 import { adminSellerShiftsResponseSchema, type AdminSellerShift } from "@germinatura/contracts";
-import { Badge, Button, Card } from "@germinatura/ui";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { parseReais } from "@/lib/money-input";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
@@ -69,7 +70,46 @@ export function SellerShiftsReview() {
             <div><dt className="text-[var(--g-text-muted)]">Diferença</dt><dd className="g-money font-semibold">{shift.differenceCents === null ? "—" : formatMoney(shift.differenceCents)}</dd></div>
           </dl>
           {shift.justification && <p className="mt-3 text-sm"><span className="text-[var(--g-text-muted)]">Justificativa: </span>{shift.justification}</p>}
+          {shift.status === "OPEN" && <CloseOnBehalf shift={shift} onClosed={() => void load()} />}
         </li>)}
       </ul>}
   </Card>;
+}
+
+/**
+ * ADR 0011 (PR 5): finance takes over the open drawer of another person (for example, one whose access was revoked).
+ * The counted cash and a justification are mandatory; the audit names the seller and who closed it.
+ */
+function CloseOnBehalf({ shift, onClosed }: { shift: AdminSellerShift; onClosed: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [counted, setCounted] = useState("");
+  const [justification, setJustification] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const key = useRef(`shift-close-on-behalf:${crypto.randomUUID()}`);
+  const cents = parseReais(counted);
+  const valid = cents !== null && justification.trim().length >= 8;
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!valid) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/v1/admin/finance/shifts/${shift.shiftId}/close`, {
+        method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key.current },
+        body: JSON.stringify({ countedCashCents: cents, justification: justification.trim() }),
+      });
+      const body = await response.json().catch(() => null) as { message?: string } | null;
+      if (!response.ok) throw new Error(body?.message ?? "Não foi possível encerrar o turno.");
+      onClosed();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível encerrar o turno."); }
+    finally { setBusy(false); }
+  }
+  if (!open) return <Button type="button" size="sm" variant="secondary" className="mt-4" onClick={() => setOpen(true)}>Encerrar pelo vendedor</Button>;
+  return <form aria-label={`Encerrar o turno de ${shift.sellerName}`} onSubmit={(event) => void submit(event)} className="mt-4 grid gap-3 rounded-[var(--g-radius-card)] border border-[var(--g-border-default)] p-4 sm:grid-cols-2">
+    <p className="text-sm text-[var(--g-text-secondary)] sm:col-span-2">Use quando a pessoa não pode encerrar (por exemplo, acesso revogado). O dinheiro contado é conferido com o esperado ({formatMoney(shift.expectedCashCents)}).</p>
+    <Field id={`counted-${shift.shiftId}`} label="Dinheiro contado (R$)"><Input id={`counted-${shift.shiftId}`} inputMode="decimal" value={counted} onChange={(event) => setCounted(event.target.value)} /></Field>
+    <ReasonField id={`close-reason-${shift.shiftId}`} label="Justificativa" minLength={8} maxLength={500} value={justification} onChange={setJustification} />
+    {error && <p role="alert" className="text-sm text-[var(--g-status-danger)] sm:col-span-2">{error}</p>}
+    <div className="flex gap-2 sm:col-span-2"><Button type="submit" size="sm" loading={busy} disabled={!valid || busy}>Encerrar turno</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Cancelar</Button></div>
+  </form>;
 }

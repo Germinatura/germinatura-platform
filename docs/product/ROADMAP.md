@@ -517,4 +517,12 @@ COH-001 a COH-006, ADR 0011. Um único banco e domínio, com segregação lógic
   - Conta PicPay como evidência global.
   - Vínculos usuário ↔ turma com papéis por turma, travas de operações em aberto e histórico.
   - `/admin/turmas` com contagens e trava de arquivamento.
-- **PR 5:** restrição do fallback, performance, runbook final e validação em staging. Produção só com autorização.
+- **PR 5:** fechamento técnico.
+  - Nenhum registro cai numa turma por falta de contexto (fallback e guard).
+  - Turma padrão explícita, definida pelo ADMIN_MASTER.
+  - Visitante por slug e link resolvidos no servidor.
+  - Cadastro explícito na turma padrão.
+  - Storage por turma.
+  - Revogação com pendências e encerramento de turno pelo financeiro.
+  - Menu em "Todas" marcando as telas por turma.
+  - Produção só com autorização.

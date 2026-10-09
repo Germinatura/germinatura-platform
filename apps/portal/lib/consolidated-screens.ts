@@ -37,6 +37,12 @@ const cohortOnlyReasons: readonly { prefix: string; reason: string }[] = [
   { prefix: "/admin/configuracoes", reason: "As configurações e os módulos ligados valem por turma." },
 ];
 
+/**
+ * Screens that read nothing of one cohort: open even without a determinable cohort (personal screens, and the cohort
+ * administration of ADMIN_MASTER, a global operation).
+ */
+export const personalScreens: ReadonlySet<string> = new Set(["/perfil", "/notificacoes", "/trocar-senha", "/selecionar-turma", "/admin/turmas"]);
+
 export function screenAllowedInAll(path: string): boolean {
   return consolidatedScreens.some((screen) => screen.path === path);
 }

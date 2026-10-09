@@ -263,7 +263,7 @@ Tabelas movidas para `cohort_data`/`private` são comparadas pelo nome.
 2. Portal.
 3. PDV.
 
-O Portal novo funciona com o PDV antigo, que ainda não manda header e por isso recebe o fallback da Turma 2026. O PDV
+O Portal novo funciona com o PDV antigo, que ainda não manda header e por isso recebia o fallback da Turma 2026 (desligado no PR 5). O PDV
 novo exige o Portal novo, por causa de `consume_pdv_handoff` com turma e do header nas chamadas. O deploy governado
 publica os dois juntos.
 
@@ -335,9 +335,61 @@ funções novas.
   Nenhum dado é apagado.
 - **Não criar a Turma 2027 em produção** antes da autorização explícita da comissão.
 
-## Fases seguintes
+## Fase 5 — contexto explícito e turma padrão (PR 5)
 
-- **PR 5:**
-  - restringir o fallback (`private.cohort_fallback_enabled()` → `false`);
-  - remover o default constante da Turma 2026 nas colunas `cohort_id`;
-  - decidir a troca de turma padrão e o público anônimo de outra turma.
+### Migration e impacto esperado
+
+`20261023090000_cohort_explicit_context`: uma transação, `lock_timeout` de 5 s.
+
+- **Pré-checagens fail-closed:**
+  - exatamente uma turma padrão, ATIVA;
+  - nenhuma linha de tabela por turma sem turma;
+  - nenhuma coluna `cohort_id` com default (o PR 2 já removeu);
+  - relatório de integridade limpo.
+- **Funções:**
+  - o fallback é desligado;
+  - o escopo de visitante passa a aceitar só turma ATIVA resolvida no servidor;
+  - o guard de escrita deixa de usar a turma padrão;
+  - a auditoria e o outbox ficam fail-closed;
+  - cadastro explícito (`join_default_cohort`, `handle_new_auth_user`);
+  - novas: `set_default_cohort`, `resolve_public_cohort`, `storage_entity_in_scope`, `close_seller_shift_on_behalf`;
+  - `record_share_visit` e `set_user_access` são substituídas (mesma assinatura).
+- **Trigger** `cohorts_default_active`: a turma padrão é sempre ATIVA.
+- **Storage:** `ALTER POLICY` em 4 políticas (imagens de produto, capas de evento, fotos de perda). Nenhum arquivo muda.
+- **Dados:** nenhuma linha muda (`pnpm test:upgrade`).
+
+### O que muda para as pessoas
+
+- **ADMIN_MASTER e quem tem várias turmas:** escolhem a turma ao entrar (`/selecionar-turma`); antes, recebiam a Turma 2026 sem escolher.
+- **Quem tem uma turma só:** nada muda.
+- **PDV:** nada muda; ele já exigia turma explícita.
+
+### Ordem do deploy
+
+1. Migration.
+2. Portal e PDV juntos (deploy governado).
+
+O Portal anterior com a migration nova:
+- quem tem uma turma continua igual;
+- master e multi-turma sem seleção passam a ver "sem turma" até escolher no seletor, que já existe.
+
+### Checks depois da produção (somente leitura)
+
+- `select private.cohort_fallback_enabled()` → `false`.
+- `select count(*) from public.cohorts where is_default and status = 'ACTIVE'` → 1.
+- `select count(*) from pg_proc where proname in ('set_default_cohort', 'resolve_public_cohort', 'storage_entity_in_scope', 'close_seller_shift_on_behalf')` → 4.
+- **Smokes:**
+  - `/api/v1/catalog/products` anônimo → 200;
+  - `?turma=nao-existe` → 404;
+  - um link `/d/` da Turma 2026 abre o catálogo;
+  - master sem seleção → `/selecionar-turma`.
+
+### Rollback e forward-fix
+
+- A transação desfaz tudo em qualquer erro.
+- Depois de aplicada, o caminho é forward-fix. Reverter, só com autorização e sem perda de dados:
+  - recriar as funções pelas definições das migrations `20261020090100`, `20261021090000` e `20261022090000`;
+  - `cohort_fallback_enabled` voltando a `true`;
+  - remover o trigger `cohorts_default_active` e as funções novas;
+  - restaurar as 4 políticas de Storage pela migration que as criou.
+- **Não trocar a turma padrão em produção nem criar a Turma 2027** sem autorização explícita da comissão.

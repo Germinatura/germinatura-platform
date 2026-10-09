@@ -30,6 +30,15 @@ async function admin<T = Record<string, unknown>>(name: string, body: Record<str
   return call<T>({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, name, body);
 }
 
+// ADR 0011: global flags belong to ADMIN_MASTER.
+async function master<T = Record<string, unknown>>(name: string, body: Record<string, unknown>) {
+  const { url, key } = supabase();
+  const login = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
+  const { access_token: token } = await login.json() as { access_token: string };
+  return call<T>({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, name, body);
+}
+
 // Plays the jobs worker and PicPay, which are not part of the E2E environment.
 function worker<T = Record<string, unknown>>(name: string, body: Record<string, unknown>) {
   const { serviceKey } = supabase();
@@ -40,7 +49,7 @@ test("o consumidor paga a reserva online e acompanha a confirmação do PicPay",
   test.slow();
   await admin("adjust_stock", { p_location_id: centralLocationId, p_product_id: productId, p_quantity_delta: 1,
     p_reason: "Preparar pagamento online E2E", p_idempotency_key: `e2e-portal-link-stock:${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() });
-  await admin("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E pagamento online do consumidor", p_correlation_id: crypto.randomUUID() });
+  await master("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E pagamento online do consumidor", p_correlation_id: crypto.randomUUID() });
   try {
     expect((await page.request.post(`${portalUrl}/api/auth/login`, { headers, data: { identifier: "consumidor.teste", password: "Consumidor123!" } })).status()).toBe(200);
     const created = await page.request.post(`${portalUrl}/api/v1/reservations`, { headers: { ...headers, "Idempotency-Key": `e2e-portal-link-${Date.now().toString(36)}` },
@@ -78,6 +87,6 @@ test("o consumidor paga a reserva online e acompanha a confirmação do PicPay",
       p_payload: { type: "PAYMENT", data: { transaction: { id: `e2e-portal-tx-${crypto.randomUUID()}`, status: "PAYED", amount: charge.amountCents, paymentType: "PIX" }, charge: { paymentLinkId: linkId } } } });
     await expect(page.getByRole("heading", { name: "Pagamento confirmado" })).toBeVisible({ timeout: 15_000 });
   } finally {
-    await admin("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E pagamento online do consumidor", p_correlation_id: crypto.randomUUID() });
+    await master("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E pagamento online do consumidor", p_correlation_id: crypto.randomUUID() });
   }
 });

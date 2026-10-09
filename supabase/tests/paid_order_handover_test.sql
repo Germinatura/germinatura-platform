@@ -9,7 +9,9 @@ on conflict (location_id, product_id) do nothing;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select public.adjust_stock('50000000-0000-4000-8000-000000000001', '33f00000-0000-4000-8000-000000000001', 3, 'Estoque entrega paga', 'handover-stock', gen_random_uuid());
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000005'; -- ADR 0011: global flags belong to ADMIN_MASTER
 select public.update_feature_flag('payment_link', true, 'Teste da entrega paga', gen_random_uuid());
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000003';
 create temp table orders (label text primary key, reservation_id uuid, charge_id uuid, amount_cents bigint);

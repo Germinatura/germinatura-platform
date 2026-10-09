@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { resolvePublicCohort } from "@/lib/public-cohort";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
 
 const databaseProductSchema = z.object({
@@ -47,9 +48,20 @@ export async function GET(request: Request) {
   }
 
   const { cursor, limit } = parsedQuery.data;
-  // ADR 0011: a signed-in person sees the public catalog of the cohort in context (validated by the proxy); a visitor
-  // sees the default cohort's. The filters below repeat the public read rules, so a manager session adds nothing.
-  const supabase = await getSession() ? await createAuthenticatedSupabaseClient(request) : createPublicSupabaseClient();
+  // ADR 0011: a signed-in person sees the public catalog of the cohort in context (validated by the proxy). A visitor
+  // sees the default cohort's, or the ACTIVE cohort named by its public slug (?turma=), resolved here; an unknown or
+  // inactive slug is 404, never the default cohort. The filters below repeat the public read rules.
+  const slug = url.searchParams.get("turma");
+  let supabase;
+  if (await getSession()) {
+    supabase = await createAuthenticatedSupabaseClient(request);
+  } else if (slug !== null) {
+    const cohort = await resolvePublicCohort(slug);
+    if (!cohort) return errorResponse("COHORT_NOT_FOUND", "Turma não encontrada ou indisponível.", requestId, 404);
+    supabase = createPublicSupabaseClient(cohort.id);
+  } else {
+    supabase = createPublicSupabaseClient();
+  }
   const now = new Date().toISOString();
   let query = supabase
     .from("products")

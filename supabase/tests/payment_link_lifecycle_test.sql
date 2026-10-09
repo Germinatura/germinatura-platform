@@ -12,7 +12,9 @@ on conflict (location_id, product_id) do nothing;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select lives_ok($$select public.adjust_stock('50000000-0000-4000-8000-000000000002','33f00000-0000-4000-8000-000000000001',12,'Estoque ciclo do link','life-stock','6c000000-0000-4000-8000-000000000001')$$, 'admin prepares seller stock');
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000005'; -- ADR 0011: global flags belong to ADMIN_MASTER
 select lives_ok($$select public.update_feature_flag('payment_link', true, 'Teste do ciclo do link', gen_random_uuid())$$, 'admin turns the flag on');
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
 create temp table life_sales(label text primary key, sale_id uuid);

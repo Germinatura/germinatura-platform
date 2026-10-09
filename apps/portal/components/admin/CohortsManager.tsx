@@ -32,6 +32,7 @@ export function CohortsManager({ initial, unavailable = false }: { initial: Coho
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CohortSummary | null>(null);
+  const [makingDefault, setMakingDefault] = useState<CohortSummary | null>(null);
 
   async function completed(message: string) {
     setNotice(message); setCreating(false); setEditing(null);
@@ -59,12 +60,14 @@ export function CohortsManager({ initial, unavailable = false }: { initial: Coho
                 {cohort.openOperations.length > 0 && <p className="mt-1 text-xs text-[var(--g-status-warning-foreground)]">Em aberto: {cohort.openOperations.map((code) => operationLabels[code] ?? code).join(", ")}</p>}
               </div></div>
               <div className="flex flex-wrap items-center gap-2"><Badge tone={statusTones[cohort.status]}>{statusLabels[cohort.status]}</Badge>{cohort.isDefault && <Badge tone="info">Padrão</Badge>}
+                {!cohort.isDefault && cohort.status === "ACTIVE" && <Button type="button" variant="ghost" size="sm" onClick={() => { setNotice(null); setMakingDefault(cohort); }} aria-label={`Tornar ${cohort.name} a turma padrão`}>Tornar padrão</Button>}
                 <Button type="button" variant="ghost" size="sm" onClick={() => { setNotice(null); setEditing(cohort); }} aria-label={`Alterar ${cohort.name}`}><Pencil className="size-4" /> Alterar</Button></div>
             </li>)}
           </ul>
         </Card>
       </div>
       {creating && <CreateCohortDialog onClose={() => setCreating(false)} onComplete={(name) => void completed(`Turma ${name} criada.`)} />}
+      {makingDefault && <DefaultCohortDialog cohort={makingDefault} onClose={() => setMakingDefault(null)} onComplete={() => void completed(`${makingDefault.name} agora é a turma padrão.`)} />}
       {editing && <EditCohortDialog cohort={editing} openOperations={cohorts.find((item) => item.id === editing.id)?.openOperations ?? []} onClose={() => setEditing(null)} onComplete={(name) => void completed(`Turma ${name} atualizada.`)} />}
     </div>
   );
@@ -114,12 +117,35 @@ function EditCohortDialog({ cohort, openOperations, onClose, onComplete }: { coh
   return <Dialog title={`Alterar ${cohort.name}`} onClose={onClose}><form onSubmit={submit} className="mt-6 space-y-4">
     <Field id="cohort-edit-name" label="Nome"><Input id="cohort-edit-name" required minLength={3} maxLength={80} value={name} onChange={(event) => setName(event.target.value)} /></Field>
     <label className="block text-sm font-semibold">Situação<select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value as CohortStatus)}>
-      <option value="PREPARING">Em preparação</option><option value="ACTIVE">Ativa</option>{!cohort.isDefault && <option value="ARCHIVED">Arquivada</option>}
+      {!cohort.isDefault && <option value="PREPARING">Em preparação</option>}<option value="ACTIVE">Ativa</option>{!cohort.isDefault && <option value="ARCHIVED">Arquivada</option>}
     </select></label>
     {status === "ARCHIVED" && cohort.status !== "ARCHIVED" && <p className="text-sm text-[var(--g-text-secondary)]">Arquivar mantém todo o histórico consultável e bloqueia novas vendas, estoque e lançamentos nesta turma.</p>}
     {status === "ARCHIVED" && cohort.status !== "ARCHIVED" && openOperations.length > 0 && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">Ainda não é possível arquivar: {openOperations.map((code) => operationLabels[code] ?? code).join(", ")}. Encerre essas operações na turma primeiro.</p>}
     <Field id="cohort-edit-reason" label="Motivo"><Input id="cohort-edit-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
     {error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}
     <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button type="submit" loading={saving} disabled={reason.trim().length < 4}>Salvar</Button></div>
+  </form></Dialog>;
+}
+
+/**
+ * ADR 0011 (PR 5): the default cohort is what visitors see and where new sign-ups join; it is never where a write goes
+ * by lack of context. Only an ACTIVE cohort can become the default, and the previous one stops being it in the same
+ * transaction.
+ */
+function DefaultCohortDialog({ cohort, onClose, onComplete }: { cohort: CohortSummary; onClose: () => void; onComplete: () => void }) {
+  const [reason, setReason] = useState(""); const [saving, setSaving] = useState(false); const [error, setError] = useState<string | null>(null);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setSaving(true); setError(null);
+    try {
+      const response = await fetch(`/api/v1/admin/cohorts/${cohort.id}/default`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: reason.trim() }) });
+      if (!response.ok) throw new Error(await readError(response));
+      onComplete();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível trocar a turma padrão."); } finally { setSaving(false); }
+  }
+  return <Dialog title={`Tornar ${cohort.name} a turma padrão`} onClose={onClose}><form onSubmit={submit} className="mt-6 space-y-4">
+    <p className="text-sm text-[var(--g-text-secondary)]">Visitantes passam a ver o catálogo público desta turma, e cadastros novos entram nela. Nada já registrado muda de turma.</p>
+    <Field id="default-reason" label="Motivo"><Input id="default-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
+    {error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}
+    <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button><Button type="submit" loading={saving} disabled={reason.trim().length < 4}>Tornar padrão</Button></div>
   </form></Dialog>;
 }

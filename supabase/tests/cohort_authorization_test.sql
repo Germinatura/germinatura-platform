@@ -38,7 +38,7 @@ create function pg_temp.id(p_name text) returns uuid language sql as $$ select i
 create function pg_temp.a() returns text language sql as $$ select 'c0000000-0000-4000-8000-000000002026' $$;
 create function pg_temp.b() returns text language sql as $$ select id::text from ids where name = 'cohort_b' $$;
 
--- People: admin.teste (fixture) is the bootstrap ADMIN_MASTER; the others start as consumers of Turma 2026.
+-- People: master.teste (fixture) is the ADMIN_MASTER; the others start as consumers of Turma 2026.
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 select '00000000-0000-0000-0000-000000000000', id, 'authenticated', 'authenticated', email, extensions.crypt('Turmas123!', extensions.gen_salt('bf')), now(),
   '{}', jsonb_build_object('name', name, 'username', username), now(), now()
@@ -50,12 +50,12 @@ from (values
 ) people(id, email, name, username);
 
 -- A. ADMIN_MASTER creates Turma B (a global operation) and is audited as a normal actor.
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 insert into ids select 'cohort_b', (public.create_cohort('Turma B', 2031, 'turma-b', 'ACTIVE', 'cohort-test-create-b', gen_random_uuid()) ->> 'id')::uuid;
 select pg_temp.sys();
 select is((select name || '/' || status from public.cohorts where id = pg_temp.id('cohort_b')), 'Turma B/ACTIVE', 'ADMIN_MASTER creates a cohort');
 select is((select count(*)::integer from cohort_data.audit_logs where action = 'cohorts.created' and entity_id = pg_temp.b()
-  and actor_id = '10000000-0000-4000-8000-000000000001' and cohort_id is null), 1, 'the creation is audited, global, with ADMIN_MASTER as actor');
+  and actor_id = '10000000-0000-4000-8000-000000000005' and cohort_id is null), 1, 'the creation is audited, global, with ADMIN_MASTER as actor');
 select ok(exists (select 1 from cohort_data.stock_locations where cohort_id = pg_temp.id('cohort_b') and location_type = 'CENTRAL' and active)
   and exists (select 1 from cohort_data.reservation_settings where cohort_id = pg_temp.id('cohort_b'))
   and (select count(*) from cohort_data.cohort_feature_flags where cohort_id = pg_temp.id('cohort_b'))
@@ -64,12 +64,12 @@ select throws_ok($$select public.create_cohort('Turma B de novo', 2031, 'turma-b
   '42501', 'COHORTS_MANAGE_REQUIRED', 'without a session nobody creates cohorts');
 
 -- Roles per cohort, granted by ADMIN_MASTER inside each concrete cohort.
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.a());
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.a());
 select public.set_user_access('1d000000-0000-4000-8000-0000000000a1', array['ADMIN'], true, gen_random_uuid());
 select public.set_user_access('1d000000-0000-4000-8000-0000000000d1', array['VENDEDOR'], true, gen_random_uuid());
 select public.set_user_access('1d000000-0000-4000-8000-0000000000b1', array[]::text[], false, gen_random_uuid());
 select public.set_user_access('1d000000-0000-4000-8000-0000000000c1', array[]::text[], false, gen_random_uuid());
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.b());
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.b());
 select public.set_cohort_membership(person, true, 'Entrada na turma B', gen_random_uuid())
 from unnest(array['1d000000-0000-4000-8000-0000000000b1', '1d000000-0000-4000-8000-0000000000d1', '1d000000-0000-4000-8000-0000000000c1']::uuid[]) person;
 select public.set_user_access('1d000000-0000-4000-8000-0000000000b1', array['ADMIN'], true, gen_random_uuid());
@@ -136,40 +136,38 @@ select is(pg_temp.seen($$select 1 from public.user_roles where user_id = '1d0000
   'the admin of A sees only the roles granted in A');
 
 -- A. ADMIN_MASTER reads A, B and "all", and writes only into a concrete cohort.
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.a());
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.a());
 select is(pg_temp.seen($$select 1 from public.categories where slug = 'mesma-categoria'$$), 1::bigint, 'ADMIN_MASTER in A sees A');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.b());
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.b());
 select is(pg_temp.seen($$select 1 from public.categories where slug = 'mesma-categoria'$$), 1::bigint, 'ADMIN_MASTER in B sees B');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 select is(pg_temp.seen($$select 1 from public.categories where slug = 'mesma-categoria'$$), 2::bigint, 'ADMIN_MASTER in "all" sees both');
 select is((public.get_my_session() ->> 'cohort_mode'), 'ALL', 'the session reports the "all" mode');
 select throws_ok($$select public.save_catalog_category(null, null, 'Sem turma', 'sem-turma', true, 1, 'Escrita em Todas', 'cohort-test-all', gen_random_uuid())$$,
   '22023', 'COHORT_REQUIRED', 'F. ADMIN_MASTER cannot write in "all"');
 select throws_ok($$select public.set_user_access('1d000000-0000-4000-8000-0000000000a1', array['ADMIN'], true, gen_random_uuid())$$,
   '22023', 'COHORT_REQUIRED', 'nor grant roles in "all"');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.b());
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.b());
 insert into ids select 'category_master_b', (public.save_catalog_category(null, null, 'Do master em B', 'do-master', true, 3, 'Categoria criada pelo master', 'cohort-test-master-b', gen_random_uuid()) ->> 'id')::uuid;
 select pg_temp.sys();
 select is((select cohort_id::text from cohort_data.categories where id = pg_temp.id('category_master_b')), pg_temp.b(),
   'ADMIN_MASTER with a concrete cohort writes into it');
 select is((select cohort_id::text from cohort_data.audit_logs where entity_id = pg_temp.id('category_master_b')::text
-  and actor_id = '10000000-0000-4000-8000-000000000001' order by created_at desc limit 1), pg_temp.b(),
+  and actor_id = '10000000-0000-4000-8000-000000000005' order by created_at desc limit 1), pg_temp.b(),
   'the audit names the cohort and ADMIN_MASTER as a normal actor');
 
--- F. Context: fallback while the rollout allows it, explicit context in the final state.
+-- F. Context (final state, PR 5): no fallback. A single-cohort user has the cohort resolved from the only membership;
+-- anyone else names it explicitly, or reads and writes nothing.
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000c1', null);
-select is((public.get_my_session() -> 'cohort' ->> 'id'), pg_temp.b(), 'a single-cohort user without header is inferred (fallback)');
+select is((public.get_my_session() -> 'cohort' ->> 'id'), pg_temp.b(), 'a single-cohort user without header has the only cohort resolved');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000d1', null);
-select is((public.get_my_session() -> 'cohort' ->> 'id'), pg_temp.a(), 'during the rollout a multi-cohort user without header falls back to the default cohort');
-select pg_temp.sys();
-create or replace function private.cohort_fallback_enabled() returns boolean language sql immutable set search_path = '' as $$ select false $$;
-select pg_temp.ctx('1d000000-0000-4000-8000-0000000000d1', null);
-select is((public.get_my_session() ->> 'cohort_mode'), 'NONE', 'in the final state a multi-cohort user needs an explicit cohort');
+select is((public.get_my_session() -> 'cohort' ->> 'id'), null, 'a multi-cohort user without header never falls back to the default cohort');
+select is((public.get_my_session() ->> 'cohort_mode'), 'NONE', 'and needs an explicit cohort');
 select throws_ok($$select public.save_catalog_category(null, null, 'Sem contexto', 'sem-contexto', true, 1, 'Sem turma explícita', 'cohort-test-none', gen_random_uuid())$$,
   '42501', null, 'and cannot write without it');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000c1', null);
 select is((public.get_my_session() -> 'cohort' ->> 'id'), pg_temp.b(), 'a single-cohort user is still inferred');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', null);
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', null);
 select is((public.get_my_session() ->> 'cohort_mode'), 'NONE', 'ADMIN_MASTER is never inferred');
 select pg_temp.sys();
 create or replace function private.cohort_fallback_enabled() returns boolean language sql immutable set search_path = '' as $$ select true $$;
@@ -189,13 +187,13 @@ select throws_ok(format($$select public.set_cohort_payment_terminal(%L, true, 'U
 select pg_temp.sys();
 insert into public.sales (id, channel, location_id, created_by, original_total_cents, total_cents, quoted_at, correlation_id, cohort_id)
 select '5e000000-0000-4000-8000-00000000000a', 'PDV', (select id from cohort_data.stock_locations where cohort_id = 'c0000000-0000-4000-8000-000000002026' and location_type = 'CENTRAL' and active),
-  '10000000-0000-4000-8000-000000000001', 500, 500, now(), gen_random_uuid(), 'c0000000-0000-4000-8000-000000002026';
+  '10000000-0000-4000-8000-000000000005', 500, 500, now(), gen_random_uuid(), 'c0000000-0000-4000-8000-000000002026';
 insert into public.sales (id, channel, location_id, created_by, original_total_cents, total_cents, quoted_at, correlation_id, cohort_id)
 select '5e000000-0000-4000-8000-00000000000b', 'PDV', (select id from cohort_data.stock_locations where cohort_id = pg_temp.id('cohort_b') and location_type = 'CENTRAL' and active),
-  '10000000-0000-4000-8000-000000000001', 700, 700, now(), gen_random_uuid(), pg_temp.id('cohort_b');
+  '10000000-0000-4000-8000-000000000005', 700, 700, now(), gen_random_uuid(), pg_temp.id('cohort_b');
 insert into public.payment_attempts (id, sale_id, amount_cents, operator_id, idempotency_key, correlation_id) values
-  ('5f000000-0000-4000-8000-00000000000a', '5e000000-0000-4000-8000-00000000000a', 500, '10000000-0000-4000-8000-000000000001', 'cohort-test-attempt-a', gen_random_uuid()),
-  ('5f000000-0000-4000-8000-00000000000b', '5e000000-0000-4000-8000-00000000000b', 700, '10000000-0000-4000-8000-000000000001', 'cohort-test-attempt-b', gen_random_uuid());
+  ('5f000000-0000-4000-8000-00000000000a', '5e000000-0000-4000-8000-00000000000a', 500, '10000000-0000-4000-8000-000000000005', 'cohort-test-attempt-a', gen_random_uuid()),
+  ('5f000000-0000-4000-8000-00000000000b', '5e000000-0000-4000-8000-00000000000b', 700, '10000000-0000-4000-8000-000000000005', 'cohort-test-attempt-b', gen_random_uuid());
 select is((select string_agg(cohort_id::text, ',' order by id) from cohort_data.payment_attempts where id in
   ('5f000000-0000-4000-8000-00000000000a', '5f000000-0000-4000-8000-00000000000b')), 'c0000000-0000-4000-8000-000000002026,' || pg_temp.b(),
   'each payment attempt inherits the cohort of its sale');
@@ -203,7 +201,7 @@ select lives_ok(format($$update public.payment_attempts set terminal_id = %L whe
   'a payment of A uses the terminal authorized for A');
 select throws_ok(format($$update public.payment_attempts set terminal_id = %L where id = '5f000000-0000-4000-8000-00000000000b'$$, pg_temp.id('terminal')),
   'P0001', 'PAYMENT_TERMINAL_NOT_ALLOWED', 'a payment of B cannot use it');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.b());
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.b());
 select lives_ok(format($$select public.set_cohort_payment_terminal(%L, true, 'Maquininha passa a atender a turma B', gen_random_uuid())$$, pg_temp.id('terminal')),
   'ADMIN_MASTER authorizes the same terminal for B');
 select pg_temp.sys();
@@ -219,22 +217,22 @@ select pg_temp.sys();
 insert into public.picpay_source_imports (id, source_type, file_name, file_sha256, file_size_bytes, row_count, period_from, period_to,
   new_count, known_count, updated_count, actor_id, correlation_id)
 values ('5d000000-0000-4000-8000-000000000001', 'PICPAY_SALES', 'vendas.csv', repeat('ab', 32), 10, 1, current_date, current_date, 1, 0, 0,
-  '10000000-0000-4000-8000-000000000001', gen_random_uuid());
+  '10000000-0000-4000-8000-000000000005', gen_random_uuid());
 insert into public.picpay_transactions (id, transaction_ref, first_import_id)
 values ('5c000000-0000-4000-8000-000000000001', 'E-TURMAS-0001', '5d000000-0000-4000-8000-000000000001');
 select ok(not exists (select 1 from information_schema.columns where table_name in ('picpay_transactions', 'picpay_source_imports') and column_name = 'cohort_id'),
   'the evidence itself has no cohort');
 select throws_ok($$insert into public.picpay_source_imports (source_type, file_name, file_sha256, file_size_bytes, row_count, period_from, period_to,
   new_count, known_count, updated_count, actor_id, correlation_id) values ('PICPAY_SALES', 'outra.csv', repeat('ab', 32), 10, 1, current_date, current_date,
-  1, 0, 0, '10000000-0000-4000-8000-000000000001', gen_random_uuid())$$, '23505', null, 'the same file is unique across cohorts');
+  1, 0, 0, '10000000-0000-4000-8000-000000000005', gen_random_uuid())$$, '23505', null, 'the same file is unique across cohorts');
 insert into public.picpay_transaction_links (transaction_id, payment_attempt_id, action, automatic, evidence, reason, actor_id, correlation_id)
 values ('5c000000-0000-4000-8000-000000000001', '5f000000-0000-4000-8000-00000000000a', 'LINK', false, 'MANUAL', 'Vínculo com a venda da turma A',
-  '10000000-0000-4000-8000-000000000001', gen_random_uuid());
+  '10000000-0000-4000-8000-000000000005', gen_random_uuid());
 select is((select cohort_id::text from cohort_data.picpay_transaction_links where transaction_id = '5c000000-0000-4000-8000-000000000001'),
   'c0000000-0000-4000-8000-000000002026', 'linking the evidence to a sale of A attributes it to A');
 select throws_ok($$insert into public.picpay_transaction_links (transaction_id, payment_attempt_id, action, automatic, evidence, reason, actor_id, correlation_id)
   values ('5c000000-0000-4000-8000-000000000001', '5f000000-0000-4000-8000-00000000000b', 'LINK', false, 'MANUAL', 'Vínculo conflitante',
-  '10000000-0000-4000-8000-000000000001', gen_random_uuid())$$,
+  '10000000-0000-4000-8000-000000000005', gen_random_uuid())$$,
   '42501', 'PICPAY_EVIDENCE_ATTRIBUTED_TO_ANOTHER_COHORT', 'the same evidence cannot be attributed to a sale of B');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000b1', null);
 select is(pg_temp.seen($$select 1 from public.picpay_transaction_links where transaction_id = '5c000000-0000-4000-8000-000000000001'$$), 0::bigint,
@@ -283,14 +281,14 @@ select results_eq($$select target_cents from cohort_data.fundraising_goal where 
 
 -- Archived cohort: readable, not writable. PR 4: archiving waits until the open work of B (the sale and the payment of
 -- the terminal checks above) is closed, through the same state transitions the operations use.
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 select throws_ok(format($$select public.update_cohort(%L, 'Turma B', 'ARCHIVED', 'Formatura concluída', gen_random_uuid())$$, pg_temp.b()),
   'P0001', 'COHORT_HAS_OPEN_OPERATIONS', 'B cannot be archived while a sale and a payment are open');
 select pg_temp.sys();
 select private.enter_cohort_context(pg_temp.id('cohort_b'));
-select private.transition_payment_attempt('5f000000-0000-4000-8000-00000000000b', 'CANCELLED', '10000000-0000-4000-8000-000000000001', gen_random_uuid(), 'Turma encerrada');
-select private.transition_sale_state('5e000000-0000-4000-8000-00000000000b', 'CANCELLED', '10000000-0000-4000-8000-000000000001', gen_random_uuid(), 'Turma encerrada');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select private.transition_payment_attempt('5f000000-0000-4000-8000-00000000000b', 'CANCELLED', '10000000-0000-4000-8000-000000000005', gen_random_uuid(), 'Turma encerrada');
+select private.transition_sale_state('5e000000-0000-4000-8000-00000000000b', 'CANCELLED', '10000000-0000-4000-8000-000000000005', gen_random_uuid(), 'Turma encerrada');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 select lives_ok(format($$select public.update_cohort(%L, 'Turma B', 'ARCHIVED', 'Formatura concluída', gen_random_uuid())$$, pg_temp.b()),
   'ADMIN_MASTER archives B once nothing is open');
 select throws_ok($$select public.update_cohort('c0000000-0000-4000-8000-000000002026', 'Turma 2026', 'ARCHIVED', 'Tentativa', gen_random_uuid())$$,

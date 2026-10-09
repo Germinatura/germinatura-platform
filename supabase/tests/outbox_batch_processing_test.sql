@@ -1,6 +1,7 @@
 -- The outbox batch RPC processes many events per call, isolating failures into the retry path.
 begin;
 select plan(7);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 -- A clean slate: earlier fixtures may have queued events.
 update public.outbox_events set status = 'PUBLISHED', locked_at = null, locked_by = null, published_at = now()

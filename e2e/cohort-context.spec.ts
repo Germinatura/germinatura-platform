@@ -31,7 +31,7 @@ async function masterRpc(name: string, body: Record<string, unknown>, cohort: st
   const key = status.match(/^PUBLISHABLE_KEY="?([^"\r\n]+)"?$/m)?.[1];
   if (!url || !key) throw new Error("Supabase local indisponível");
   const login = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "admin.teste@institutojef.org.br", password: "Admin123!" }) });
+    body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
   const { access_token: token } = await login.json() as { access_token: string };
   const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST",
     headers: { apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json", [COHORT]: cohort }, body: JSON.stringify(body) });
@@ -53,7 +53,7 @@ async function provision(request: APIRequestContext, cohort: string, who: keyof 
 test.describe.serial("turmas A/B (ADR 0011)", () => {
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(180_000);
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     // Creating a cohort is global: allowed in "Todas as turmas".
     for (let attempt = 0; attempt < 5 && !cohortB; attempt += 1) {
       const year = 2040 + Math.floor(Math.random() * 60);
@@ -76,7 +76,7 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
 
   // The people stay (identities are never deleted); they leave A and B is archived, so later journeys see one cohort.
   test.afterAll(async ({ browser }) => {
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     for (const who of ["adminA", "sellerAB"] as const) {
       if (ids[who]) await master.request.patch(`/api/v1/admin/users/${ids[who]}/roles`, { headers: inCohort(cohortA), data: { roles: ["CONSUMIDOR"], active: false } });
     }
@@ -130,7 +130,7 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
     const sellerB = await signIn(browser, people.sellerB.username, password);
     expect(JSON.stringify(await (await sellerB.request.get("/api/v1/pdv/terminals")).json())).toContain(code);
 
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     expect((await master.request.patch("/api/v1/admin/feature-flags/raffles", { headers: inCohort(cohortB), data: { enabled: false, reason: "Rifas pausadas só na turma B" } })).status()).toBe(200);
     const flag = async (context: BrowserContext) => ((await (await context.request.get("/api/v1/feature-flags")).json()) as { data: { key: string; enabled: boolean }[] })
       .data.find((item) => item.key === "raffles")?.enabled;
@@ -140,7 +140,7 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
   });
 
   test("ADMIN_MASTER em Todas as turmas consulta e filtra, mas só escreve dado de turma dentro de uma turma", async ({ browser }) => {
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     expect((await master.request.post("/api/v1/session/cohort", { headers: { Origin: portalUrl }, data: { cohort: "all" } })).status()).toBe(200);
     const write = await master.request.post("/api/v1/admin/catalog/categories", { headers: { Origin: portalUrl },
       data: { name: "Categoria em todas", slug: `todas-${suffix}`, active: true, sortOrder: 1, description: "Não deve existir" } });

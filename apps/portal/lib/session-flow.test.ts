@@ -207,7 +207,8 @@ describe("cohort context (ADR 0011)", () => {
     const base = row(subject, subject === adminId ? ["ADMIN", "CONSUMIDOR"] : [], { admin_master: master,
       cohorts: master ? [summary(cohortA), summary(cohortB)] : [summary(cohortA)] });
     if (all) return { ...base, roles: [], cohort_mode: "ALL", cohort: null };
-    if (!member || cohort === "all") return { ...base, roles: [], cohort_mode: "NONE", cohort: null };
+    // PR 5: ADMIN_MASTER always names the cohort; nobody falls back to a default one.
+    if (!member || cohort === "all" || (master && cohort === null)) return { ...base, roles: [], cohort_mode: "NONE", cohort: null };
     const resolved = cohort ?? cohortA;
     return { ...base, cohort_mode: "COHORT", cohort: summary(resolved) };
   }
@@ -299,6 +300,24 @@ describe("cohort context (ADR 0011)", () => {
       expect((await viaProxy(path, { authorization, "x-germinatura-cohort": "all" })).response.headers.get("location"), path).toBeNull();
     }
     expect((await viaProxy("/admin/estoque", { authorization, "x-germinatura-cohort": cohortA })).response.headers.get("location")).toBeNull();
+  });
+
+  it("without a determinable cohort, screens ask for one instead of falling back to a default (PR 5)", async () => {
+    const authorization = `Bearer ${await token(masterId)}`;
+    const none = await viaProxy("/admin/usuarios", { authorization });
+    expect(none.response.headers.get("location")).toBe(`${portalUrl}/selecionar-turma?next=%2Fadmin%2Fusuarios`);
+    for (const path of ["/perfil", "/notificacoes", "/selecionar-turma", "/admin/turmas"]) {
+      expect((await viaProxy(path, { authorization })).response.headers.get("location"), path).toBeNull();
+    }
+  });
+
+  it("?turma= selects a cohort only for a member, resolved against the session, and is dropped otherwise (PR 5)", async () => {
+    const member = await viaProxy("/catalogo?turma=turma-2027&q=bolo", { authorization: `Bearer ${await token(masterId)}`, "x-germinatura-cohort": cohortA });
+    expect(member.response.headers.get("location")).toBe(`${portalUrl}/catalogo?q=bolo`);
+    expect(member.response.headers.get("set-cookie")).toContain(`germinatura_cohort=${cohortB}`);
+    const outsider = await viaProxy("/catalogo?turma=turma-2027", { authorization: `Bearer ${await token(adminId)}`, "x-germinatura-cohort": cohortA });
+    expect(outsider.response.headers.get("location")).toBe(`${portalUrl}/catalogo`);
+    expect(outsider.response.headers.get("set-cookie") ?? "").not.toContain("germinatura_cohort=");
   });
 
   it("cohort administration is ADMIN_MASTER only, even for an ADMIN of the cohort", async () => {

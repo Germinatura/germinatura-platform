@@ -1,5 +1,6 @@
 begin;
 select plan(72);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 select has_table('cohort_data', 'payment_attempts', 'payment attempts table exists');
 select has_table('cohort_data', 'payment_attempt_status_history', 'payment attempt history table exists');

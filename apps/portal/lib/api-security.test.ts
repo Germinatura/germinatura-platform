@@ -123,7 +123,7 @@ describe("cohort context of API writes (ADR 0011)", () => {
     const global = apiAccessRules.filter((rule) => rule.cohort === "global").map((rule) => rule.path).sort();
     expect(global).toEqual([
       "/api/auth/logout", "/api/auth/reset-password", "/api/v1/account/sessions", "/api/v1/account/sessions/:id",
-      "/api/v1/admin/bootstrap", "/api/v1/admin/cohorts", "/api/v1/admin/cohorts/:id", "/api/v1/admin/users/:id/admin-master",
+      "/api/v1/admin/bootstrap", "/api/v1/admin/cohorts", "/api/v1/admin/cohorts/:id", "/api/v1/admin/cohorts/:id/default", "/api/v1/admin/users/:id/admin-master",
       "/api/v1/admin/users/:id/cohorts",
       "/api/v1/notifications/:id/read", "/api/v1/notifications/preferences", "/api/v1/profile", "/api/v1/session/cohort",
     ]);

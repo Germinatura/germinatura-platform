@@ -1,6 +1,7 @@
 -- PROMO-004: non-cumulative precedence. Mirrors the domain tests in packages/domain/src/index.test.ts.
 begin;
 select plan(16);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 create temp table precedence_fixture(id uuid, code text, priority integer, cumulative boolean, rule_type text, amount bigint, basis_points integer);
 -- Inserted with the larger UUID first to prove the winner does not depend on insertion or read order.

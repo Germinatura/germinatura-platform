@@ -1,5 +1,6 @@
 begin;
 select plan(30);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 select has_table('cohort_data','promotion_buy_pay_rules','buy-pay rules table exists');
 select has_function('public','save_promotion',array['uuid','integer','text','text','text','boolean','boolean','integer','boolean','timestamp with time zone','timestamp with time zone','bigint','integer','uuid[]','promotion_channel[]','jsonb','text','text','uuid'],'generic promotion command exists');

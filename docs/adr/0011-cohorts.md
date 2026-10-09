@@ -98,7 +98,7 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   - Toda escrita em tabela por turma exige uma turma concreta (`COHORT_REQUIRED`), inclusive para ADMIN_MASTER.
   - Operações sobre o catálogo global (criar ou arquivar turmas, conceder ADMIN_MASTER, identidade de terminal, flags
     globais) não pertencem a uma turma e são auditadas com turma `NULL`.
-- **Fallback.**
+- **Fallback (desligado no PR 5).**
   - Sem header, a requisição cai na Turma 2026. Isso é **só compatibilidade de rollout**
     (`private.cohort_fallback_enabled()`), restrita no PR 5.
   - O estado final já está implementado e testado atrás desse interruptor:
@@ -177,7 +177,7 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   - As rotas próprias do PDV (`/api/auth/login|handoff|cohort`) não são encaminhadas ao Portal pelo Worker.
   - A cópia offline do catálogo público só existe para a turma padrão, porque o catálogo anônimo é dela. Em outra
     turma, a cópia é apagada.
-- **Fallback temporário (remover no PR 5).** Sem seleção, o banco usa a Turma 2026 (`private.cohort_fallback_enabled()`).
+- **Fallback temporário (removido no PR 5, ver abaixo).** Sem seleção, o banco usa a Turma 2026 (`private.cohort_fallback_enabled()`).
   O Portal e o PDV não dependem mais dele para quem escolheu uma turma. Pontos que mudam no PR 5:
   - o interruptor no banco;
   - o comentário em `cohort-context.ts`;
@@ -229,8 +229,56 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   - `cohort_overview` mostra vínculos ativos e inativos, pessoas por papel e operações em aberto.
   - Arquivar é recusado (`COHORT_HAS_OPEN_OPERATIONS`) enquanto houver turno aberto, venda ou pagamento pendente, link de
     pagamento ativo, reserva, transferência, aprovação pendente ou rifa ativa.
-  - Definir outra turma padrão não foi implementado: as colunas `cohort_id` têm a Turma 2026 como default de catálogo,
-    e trocar a padrão exige decidir antes o que acontece com escritas de sistema sem contexto (PR 5).
+  - A troca de turma padrão ficou para o PR 5. Correção registrada no PR 5: as colunas `cohort_id` já não tinham
+    default desde o PR 2; a dependência implícita estava no guard de escrita e no fallback de escopo.
+
+## Contexto explícito e turma padrão (PR 5)
+
+- **Nenhum registro cai numa turma por ausência de contexto.**
+  - Desde o PR 2 nenhuma coluna `cohort_id` tem default. A dependência implícita estava em três lugares:
+    - o guard de escrita completava a turma ausente com a turma padrão quando quem escrevia era sistema ou service role;
+    - o fallback de escopo dava a turma padrão a quem chegava sem turma;
+    - o cadastro gravava o papel `CONSUMIDOR` sem turma.
+  - Os três foram removidos (`20261023090000`).
+  - Escrita em tabela por turma sem turma determinável falha com `COHORT_REQUIRED`.
+  - Auditoria e outbox: `NULL` só para tipo de entidade classificado como global; o resto sem turma falha.
+- **Classificação dos fluxos:**
+
+  | Categoria | Fluxos | Como a turma chega |
+  |---|---|---|
+  | Operação global | Turmas, turma padrão, ADMIN_MASTER, perfil, sessões, notificações, login e senha, evidência PicPay (extratos), identidade de maquininha, flags globais | Sem turma (auditoria `cohort_scope = GLOBAL` ou tipo global classificado) |
+  | Turma explícita obrigatória | Toda escrita em tabela por turma pelo Portal, PDV, workers e RPCs; provisionamento; handoff | Header ou cookie validados; vínculo único resolvido; linha-pai; `enter_cohort_context` do evento no worker; parâmetro explícito (`p_cohort_id`) |
+  | Pública com turma resolvida | Catálogo e cotação anônimos; links `/d/`; cadastro novo | Turma padrão ATIVA, ou slug resolvido no servidor (`resolve_public_cohort`), ou a turma da campanha do link (`record_share_visit`) |
+  | Migração / legado | Backfill do PR 1, verificação de integridade, seed local, fixtures de teste, ferramenta de upgrade | `private.bootstrap_cohort_id()` e contexto explícito do seed |
+
+- **Sem turma determinável:**
+  - quem tem exatamente um vínculo ativo tem a turma resolvida pelo vínculo (determinístico, não é default);
+  - ADMIN_MASTER e quem tem várias turmas ficam em `NONE`, e o Portal manda para `/selecionar-turma`;
+  - o PDV já exigia turma explícita.
+- **Turma padrão:**
+  - serve para a entrada pública (visitante e cadastro novo), nunca como destino de escrita;
+  - o ADMIN_MASTER define (`set_default_cohort`), com motivo e auditoria global;
+  - existe exatamente uma, sempre ATIVA: índice único mais trigger `cohorts_default_active`;
+  - não pode ser arquivada nem voltar a PREPARING sem antes escolher outra;
+  - trocas concorrentes são serializadas (lock nas linhas de `cohorts`).
+- **Visitantes:**
+  - sem referência, veem a turma padrão;
+  - com `?turma=<slug>`, o servidor resolve o slug para uma turma ATIVA; slug desconhecido, malformado, PREPARING ou ARCHIVED responde 404, sem cair na padrão;
+  - um `cohort_id` da URL nunca é aceito;
+  - o link `/d/<código>` resolve a campanha e a turma no servidor, registra a visita nela e abre o catálogo com o slug;
+  - logado, o `?turma=` só seleciona a turma se a pessoa tiver vínculo nela; senão, é descartado.
+- **Cadastro novo:** entra na turma padrão ATIVA. O vínculo e o papel `CONSUMIDOR` são gravados explicitamente nessa turma. Sem turma padrão ativa, o cadastro falha.
+- **Storage:** as políticas de imagens de produto, capas de evento e fotos de perda exigem que a entidade do caminho esteja na turma da requisição (`storage_entity_in_scope`).
+- **Revogação imediata:**
+  - "Conta ativa" continua revogando na hora, e o retorno lista as pendências (`pending_operations`), sem alterá-las;
+  - outro ADMIN ou o FINANCEIRO assume pelas ferramentas da turma: `close_seller_shift_on_behalf` (novo, justificativa obrigatória, auditoria com o vendedor), `transfer_stock`, `cancel_sale`, `resolve_seller_stock_transfer`, `resolve_stock_return`.
+- **Menu em "Todas":** itens só por turma aparecem marcados "por turma", com o motivo; nada é escondido.
+- **O que ainda menciona a Turma 2026, e por quê:**
+  - `private.bootstrap_cohort_id()`: id fixo do bootstrap, usado só nas migrations históricas do PR 1 e do PR 2 e na checagem "a turma de bootstrap existe" do relatório de integridade;
+  - seed local e fixtures de teste: nomeiam a Turma 2026 explicitamente;
+  - ferramenta de upgrade e spike: base histórica;
+  - a turma padrão atual é a Turma 2026, por escolha explícita, trocável pelo ADMIN_MASTER.
+  - Nenhum fluxo de produção atribui 2026 por ausência de contexto.
 
 ## Resultado do spike de isolamento (08/10/2026)
 
@@ -263,7 +311,8 @@ Não é necessária arquitetura híbrida para preservar Realtime.
 
 1. `20261019090000_cohort_foundation`: cria `cohorts`, a Turma 2026, `user_cohorts` com o backfill dos perfis, o
    vínculo automático de novas identidades na turma padrão e a classificação.
-2. `20261019090100_cohort_scope_columns`: adiciona `cohort_id` anulável com **default constante** da Turma 2026.
+2. `20261019090100_cohort_scope_columns`: adiciona `cohort_id` anulável com **default constante** da Turma 2026 (o PR 2
+   removeu esses defaults; nenhuma coluna `cohort_id` tem default hoje).
    - No PG ≥ 11, isso só altera o catálogo: nenhuma linha é reescrita e os ledgers imutáveis não recebem `UPDATE`.
    - A FK entra como `NOT VALID`.
    - `lock_timeout` de 5 s.
@@ -295,6 +344,15 @@ Não é necessária arquitetura híbrida para preservar Realtime.
      `picpay_evidence_overview` e `audit_log_cohorts`.
    - Substituídas, com a mesma assinatura: `set_cohort_membership` (trava de operações em aberto) e `update_cohort`
      (trava de arquivamento).
+
+7. PR 5: `20261023090000_cohort_explicit_context`.
+   - Só funções, um trigger em `cohorts` e políticas de Storage (`ALTER POLICY`); nenhuma linha muda.
+   - Pré-checagens:
+     - exatamente uma turma padrão, e ATIVA;
+     - nenhuma linha por turma sem turma;
+     - nenhum default em `cohort_id`;
+     - relatório de integridade limpo.
+   - Pós-checagens: fallback desligado; guard sem referência à turma padrão.
 
 Nenhuma migration é destrutiva. O teste de upgrade (`pnpm test:upgrade`, que roda na CI) prova a preservação sobre o
 schema anterior populado. O runbook é `docs/operations/cohort-cutover-runbook.md`.

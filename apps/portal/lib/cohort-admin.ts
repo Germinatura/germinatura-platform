@@ -68,6 +68,7 @@ const failures: [string, string, string, number][] = [
   ["IDEMPOTENCY_IN_PROGRESS", "IDEMPOTENCY_IN_PROGRESS", "A operação ainda está em andamento.", 409],
   ["COHORT_NOT_FOUND", "COHORT_NOT_FOUND", "Turma não encontrada.", 404],
   ["DEFAULT_COHORT_CANNOT_BE_ARCHIVED", "DEFAULT_COHORT_CANNOT_BE_ARCHIVED", "A turma padrão não pode ser arquivada.", 409],
+  ["DEFAULT_COHORT_MUST_BE_ACTIVE", "DEFAULT_COHORT_MUST_BE_ACTIVE", "A turma padrão precisa estar ativa: escolha outra turma padrão antes.", 409],
   ["LAST_ADMIN_MASTER_REQUIRED", "LAST_ADMIN_MASTER_REQUIRED", "É preciso manter ao menos um ADMIN_MASTER ativo.", 409],
   ["ADMIN_MASTER_REQUIRES_ACTIVE_IDENTITY", "ADMIN_MASTER_REQUIRES_ACTIVE_IDENTITY", "Só uma conta ativa e com cadastro completo pode ser ADMIN_MASTER.", 409],
   ["INVALID_COHORT", "INVALID_COHORT", "Revise os dados da turma.", 422],

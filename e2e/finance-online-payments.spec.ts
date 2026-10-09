@@ -41,8 +41,10 @@ test("o financeiro decide o que os pagamentos online deixaram pendente", async (
   test.slow();
   const tag = Date.now().toString(36);
   const admin = await session("admin.teste@institutojef.org.br", "Admin123!");
+  // ADR 0011: global flags belong to ADMIN_MASTER.
+  const master = await session("master.teste@institutojef.org.br", "Master123!");
   const seller = await session("vendedor.teste@institutojef.org.br", "Vendedor123!");
-  await admin("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E pagamentos online", p_correlation_id: crypto.randomUUID() });
+  await master("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E pagamentos online", p_correlation_id: crypto.randomUUID() });
   let linkId = "";
   try {
     await admin("adjust_stock", { p_location_id: sellerLocationId, p_product_id: productId, p_quantity_delta: 1,
@@ -62,7 +64,7 @@ test("o financeiro decide o que os pagamentos online deixaram pendente", async (
     await worker("worker_record_payment_link_event", { p_source: "WEBHOOK", p_event_type: "TransactionPaymentMessage", p_payload: payment(`e2e-tx-${tag}-2`) });
     await worker("worker_record_payment_link_event", { p_source: "WEBHOOK", p_event_type: null, p_payload: { unexpected: tag } });
   } finally {
-    await admin("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E pagamentos online", p_correlation_id: crypto.randomUUID() });
+    await master("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E pagamentos online", p_correlation_id: crypto.randomUUID() });
   }
 
   expect((await page.request.post(`${portalUrl}/api/auth/login`, { headers: { Origin: portalUrl }, data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);

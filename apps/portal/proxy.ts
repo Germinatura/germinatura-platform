@@ -3,8 +3,8 @@ import { createApiError } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
 import { apiAccessRule, isTrustedMutation, readAllowedInAll, rolesSatisfyAccess, writeNeedsCohort } from "@/lib/api-security";
 import { updateSession } from "@/lib/auth";
-import { COHORT_COOKIE, requestedCohort, selectionAccepted } from "@/lib/cohort-context";
-import { screenAllowedInAll } from "@/lib/consolidated-screens";
+import { COHORT_COOKIE, cohortCookieOptions, requestedCohort, selectionAccepted } from "@/lib/cohort-context";
+import { personalScreens, screenAllowedInAll } from "@/lib/consolidated-screens";
 
 const publicRoutes = new Set(["/login", "/cadastro", "/cadastro/perfil", "/esqueci-senha", "/recuperar-senha"]);
 const safeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -97,8 +97,28 @@ export default async function proxy(request: NextRequest) {
   if (session?.user.onboardingCompleted && isPublicRoute && path !== "/recuperar-senha") {
     return NextResponse.redirect(new URL("/", request.url));
   }
+  // ADR 0011 (PR 5): a share link or page may name a cohort by its public slug (?turma=). It selects that cohort only
+  // for a person who belongs to it (resolved against the session, never trusted from the URL); otherwise it is dropped.
+  const slug = request.nextUrl.searchParams.get("turma");
+  if (session?.user.onboardingCompleted && slug !== null) {
+    const target = session.user.cohorts.find((cohort) => cohort.slug === slug && cohort.status !== "ARCHIVED");
+    const clean = new URL(request.nextUrl);
+    clean.searchParams.delete("turma");
+    const redirect = NextResponse.redirect(clean);
+    if (target && !(session.user.cohortMode === "COHORT" && session.user.cohort?.id === target.id)) {
+      redirect.cookies.set(COHORT_COOKIE, target.id, cohortCookieOptions);
+    }
+    return redirect;
+  }
   // ADR 0011 (PR 4): in "Todas as turmas" only consolidated screens open; the others ask for a cohort first.
   if (session?.user.onboardingCompleted && session.user.cohortMode === "ALL" && !isPublicRoute && !screenAllowedInAll(path)) {
+    const choose = new URL("/selecionar-turma", request.url);
+    choose.searchParams.set("next", `${path}${request.nextUrl.search}`);
+    return NextResponse.redirect(choose);
+  }
+  // ADR 0011 (PR 5): without a determinable cohort (several cohorts, or ADMIN_MASTER without a selection) nothing comes
+  // from a default cohort: the person chooses one explicitly. Personal screens read nothing of a cohort.
+  if (session?.user.onboardingCompleted && session.user.cohortMode === "NONE" && !isPublicRoute && !personalScreens.has(path)) {
     const choose = new URL("/selecionar-turma", request.url);
     choose.searchParams.set("next", `${path}${request.nextUrl.search}`);
     return NextResponse.redirect(choose);

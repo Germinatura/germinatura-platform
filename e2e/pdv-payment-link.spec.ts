@@ -46,9 +46,10 @@ test("o vendedor gera um link de pagamento e a venda é confirmada quando o PicP
   await ensureSellerStock();
   const admin = await browser.newContext({ baseURL: portalUrl });
   const adminPage = await admin.newPage();
-  expect((await adminPage.request.post("/api/auth/login", { headers: { Origin: portalUrl }, data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
+  // ADR 0011: global flags belong to ADMIN_MASTER, who always names the cohort it works in.
+  expect((await adminPage.request.post("/api/auth/login", { headers: { Origin: portalUrl }, data: { identifier: "master.teste", password: "Master123!" } })).status()).toBe(200);
   const setFlag = (enabled: boolean) => adminPage.request.patch("/api/v1/admin/feature-flags/payment_link", {
-    headers: { Origin: portalUrl }, data: { enabled, reason: enabled ? "E2E do link de pagamento" : "Fim do E2E do link de pagamento" } });
+    headers: { Origin: portalUrl, "x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026" }, data: { enabled, reason: enabled ? "E2E do link de pagamento" : "Fim do E2E do link de pagamento" } });
   expect((await setFlag(true)).status()).toBe(200);
   try {
     expect((await page.request.post(`${pdvUrl}/api/auth/login`, { headers: pdvHeaders,

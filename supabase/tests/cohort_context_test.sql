@@ -60,12 +60,12 @@ from (values
 ) people(id, email, name, username);
 
 -- ADMIN_MASTER creates Turma B in "all" (global operation).
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 insert into ids select 'cohort_b', (public.create_cohort('Turma Contexto B', 2032, 'turma-contexto-b', 'ACTIVE', 'ctx-create-b', gen_random_uuid()) ->> 'id')::uuid;
 
 -- 1. Provisioning places the new account in the request cohort only.
 select pg_temp.service();
-select lives_ok($$select public.complete_admin_provisioned_profile('10000000-0000-4000-8000-000000000001', '3c000000-0000-4000-8000-0000000000b1',
+select lives_ok($$select public.complete_admin_provisioned_profile('10000000-0000-4000-8000-000000000005', '3c000000-0000-4000-8000-0000000000b1',
   'Admin Contexto B', 'ctx.admin.b', pg_temp.b(), 'c7000000-0000-4000-8000-0000000000b1')$$, 'ADMIN_MASTER provisions an account into B');
 select pg_temp.sys();
 select is((select array_agg(cohort_id::text) from public.user_cohorts where user_id = '3c000000-0000-4000-8000-0000000000b1'), array[pg_temp.b()::text],
@@ -74,7 +74,7 @@ select is((select count(*)::integer from cohort_data.user_roles where user_id = 
   'and holds no role in the default cohort');
 select is((select cohort_id from cohort_data.audit_logs where action = 'auth.profile.provisioned' and entity_id = '3c000000-0000-4000-8000-0000000000b1'),
   pg_temp.b(), 'the provisioning is audited in B');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.b()::text);
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.b()::text);
 select public.set_user_access('3c000000-0000-4000-8000-0000000000b1', array['ADMIN', 'CONSUMIDOR'], true, gen_random_uuid());
 select pg_temp.service();
 select lives_ok($$select public.complete_admin_provisioned_profile('3c000000-0000-4000-8000-0000000000b1', '3c000000-0000-4000-8000-0000000000c1',
@@ -86,7 +86,7 @@ select throws_ok($$select public.complete_admin_provisioned_profile('3c000000-00
   '42501', 'USERS_MANAGE_REQUIRED', 'the ADMIN of B cannot provision into A');
 select throws_ok($$select public.complete_admin_provisioned_profile('3c000000-0000-4000-8000-0000000000b1', '3c000000-0000-4000-8000-0000000000e1',
   'Zélia Contexto', 'ctx.zelia', gen_random_uuid(), gen_random_uuid())$$, '22023', 'COHORT_REQUIRED', 'nor into a cohort that does not exist');
-select throws_ok($$select public.complete_admin_provisioned_profile('10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003',
+select throws_ok($$select public.complete_admin_provisioned_profile('10000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000003',
   (select display_name from public.profiles where id = '10000000-0000-4000-8000-000000000003'),
   (select username from public.profiles where id = '10000000-0000-4000-8000-000000000003'), pg_temp.b(), gen_random_uuid())$$,
   'P0001', 'ONBOARDING_ALREADY_COMPLETED', 'an existing person (not stamped by this provisioning) is never re-provisioned');
@@ -99,10 +99,10 @@ select throws_ok($$select public.complete_admin_provisioned_profile('3c000000-00
   'Zélia Contexto', 'ctx.zelia', pg_temp.b(), gen_random_uuid())$$, '42501', null, 'provisioning is reserved to the service role');
 
 -- People of A and roles per cohort.
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.a()::text);
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.a()::text);
 select public.set_user_access('3c000000-0000-4000-8000-0000000000a1', array['ADMIN', 'CONSUMIDOR'], true, gen_random_uuid());
 select public.set_user_access('3c000000-0000-4000-8000-0000000000d1', array['VENDEDOR', 'CONSUMIDOR'], true, gen_random_uuid());
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.b()::text);
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.b()::text);
 select public.set_cohort_membership('3c000000-0000-4000-8000-0000000000d1', true, 'Vendedora também na turma B', gen_random_uuid());
 select public.set_user_access('3c000000-0000-4000-8000-0000000000d1', array['ADMIN', 'VENDEDOR', 'CONSUMIDOR'], true, gen_random_uuid());
 
@@ -172,14 +172,14 @@ select pg_temp.ctx('3c000000-0000-4000-8000-0000000000d1', pg_temp.a()::text);
 select throws_ok($$select public.list_cohort_users()$$, '42501', 'USERS_MANAGE_REQUIRED', 'ADMIN of B only, while in A, cannot list A');
 
 -- ADMIN_MASTER: every cohort in "all", one cohort by filter, the roles of each cohort apart.
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 select is((public.list_cohort_users() ->> 'total')::bigint, pg_temp.expected('people'), 'master in all: every person once');
 select is(pg_temp.listed(public.list_cohort_users(p_cohort_id => pg_temp.b())), array['3c000000-0000-4000-8000-0000000000b1',
   '3c000000-0000-4000-8000-0000000000c1', '3c000000-0000-4000-8000-0000000000d1']::uuid[], 'master in all filtered by B');
 select is((select jsonb_agg(cohort ->> 'name' order by cohort ->> 'name') from jsonb_array_elements(
     (public.list_cohort_users(p_query => 'ctx.vendedor.ab') -> 'items' -> 0 -> 'cohorts')) cohort), '["Turma 2026", "Turma Contexto B"]'::jsonb,
   'master sees each membership of a person');
-select is((public.list_cohort_users(p_query => 'admin.teste') -> 'items' -> 0 ->> 'admin_master')::boolean, true, 'and who is ADMIN_MASTER');
+select is((public.list_cohort_users(p_query => 'master.teste') -> 'items' -> 0 ->> 'admin_master')::boolean, true, 'and who is ADMIN_MASTER');
 select throws_ok(format($$select public.list_cohort_users(p_cohort_id => %L)$$, gen_random_uuid()), '22023', 'INVALID_USER_FILTER',
   'an unknown cohort filter is refused');
 
@@ -199,7 +199,7 @@ select pg_temp.sys();
 select is((select string_agg(role.key, ',' order by role.key) from cohort_data.user_roles user_role join public.roles role on role.id = user_role.role_id
   where user_role.user_id = '3c000000-0000-4000-8000-0000000000d1' and user_role.cohort_id = pg_temp.b()), 'ADMIN,CONSUMIDOR,VENDEDOR',
   'and the roles in B stay untouched');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', pg_temp.a()::text);
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.a()::text);
 select lives_ok($$select public.set_cohort_membership('3c000000-0000-4000-8000-0000000000c1', true, 'Entrada na turma A', gen_random_uuid())$$,
   'ADMIN_MASTER brings a person into another cohort');
 
@@ -210,14 +210,14 @@ select pg_temp.ctx('3c000000-0000-4000-8000-0000000000d1', pg_temp.b()::text);
 select is((public.create_pdv_handoff(repeat('b', 64)) ->> 'cohort_id')::uuid, pg_temp.b(), 'the same person from B gets B');
 select pg_temp.ctx('3c000000-0000-4000-8000-0000000000a1', pg_temp.b()::text);
 select throws_ok($$select public.create_pdv_handoff(repeat('c', 64))$$, '42501', 'PDV_ACCESS_REQUIRED', 'a seller of A forcing B gets no handoff');
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 select throws_ok($$select public.create_pdv_handoff(repeat('d', 64))$$, '22023', 'COHORT_REQUIRED', 'ADMIN_MASTER in "all" must pick a cohort for the PDV');
 select pg_temp.service();
 select is((public.consume_pdv_handoff(repeat('b', 64)) ->> 'cohort_id')::uuid, pg_temp.b(), 'the PDV reads the cohort from the redeemed code');
 select throws_ok($$select public.consume_pdv_handoff(repeat('b', 64))$$, 'P0001', 'PDV_HANDOFF_INVALID', 'once');
 
 -- 5. ADMIN_MASTER in "all": global operations only.
-select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');
 select throws_ok($$select public.save_catalog_category(null, null, 'Em todas', 'em-todas', true, 1, 'Escrita em todas as turmas', 'ctx-all-write', gen_random_uuid())$$,
   null, 'COHORT_REQUIRED', 'master writes cohort data in "all": refused');
 select lives_ok(format($$select public.update_cohort(%L, 'Turma Contexto B', 'ARCHIVED', 'Formatura concluída', gen_random_uuid())$$, pg_temp.b()),

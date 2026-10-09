@@ -1,7 +1,7 @@
 -- ADR 0011 (multi-turma) — fundação de dados: catálogo de turmas, Turma 2026 de bootstrap, vínculos usuário ↔ turma,
 -- classificação das tabelas, cohort_id e integridade (estado final, depois da autorização e do isolamento).
 begin;
-select plan(42);
+select plan(43);
 
 -- Catálogo e Turma 2026 de bootstrap.
 select has_table('public', 'cohorts', 'cohorts exists');
@@ -20,10 +20,12 @@ insert into public.cohorts (name, year, slug, status) values ('Turma 2027', 2027
 select lives_ok($$insert into public.cohorts (name, year, slug) values ('Turma 2028', 2028, 'turma-2028')$$, 'a second and third cohort can be created');
 select throws_ok($$insert into public.cohorts (name, year, slug) values ('Outra 2027', 2027, 'outra-2027')$$, '23505', null, 'the year is unique');
 select throws_ok($$insert into public.cohorts (name, year, slug) values ('Turma 2029', 2029, '2027')$$, '23505', null, 'the slug is unique');
-select throws_ok($$update public.cohorts set is_default = true where year = 2027$$, '23505', null, 'there is never a second default cohort');
+select throws_ok($$update public.cohorts set status = 'ACTIVE', is_default = true where year = 2027$$, '23505', null, 'there is never a second default cohort');
+select throws_ok($$update public.cohorts set is_default = true where year = 2028$$, 'P0001', 'DEFAULT_COHORT_MUST_BE_ACTIVE',
+  'only an ACTIVE cohort can be the default (PR 5)');
 select throws_ok($$insert into public.cohorts (name, year, slug) values ('Turma 2030', 2030, 'Turma 2030')$$, '23514', null, 'the slug is lowercase, digits and hyphens');
 select throws_ok($$insert into public.cohorts (name, year, slug) values ('Turma 1990', 1990, '1990')$$, '23514', null, 'the year is plausible');
-select throws_ok($$update public.cohorts set status = 'ARCHIVED' where id = private.bootstrap_cohort_id()$$, '23514', null,
+select throws_ok($$update public.cohorts set status = 'ARCHIVED' where id = private.bootstrap_cohort_id()$$, 'P0001', 'DEFAULT_COHORT_MUST_BE_ACTIVE',
   'the default cohort cannot be archived');
 rollback to savepoint rules;
 
