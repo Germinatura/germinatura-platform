@@ -62,3 +62,17 @@ describe("RBAC", () => {
     expect(hasPermission({ roles: "ADMIN" as unknown as string[] }, "admin.access")).toBe(false);
   });
 });
+
+describe("ADMIN_MASTER (ADR 0011)", () => {
+  it("holds every permission, including cohort administration, and wins the primary role", () => {
+    expect(primaryRole(["CONSUMIDOR", "ADMIN", "ADMIN_MASTER"])).toBe("ADMIN_MASTER");
+    expect(hasPermission({ roles: ["ADMIN_MASTER"] }, "cohorts.manage")).toBe(true);
+    expect(hasPermission({ roles: ["ADMIN_MASTER"] }, "finance.manage")).toBe(true);
+  });
+
+  it("is the only role with cohort administration", () => {
+    for (const role of ["ADMIN", "VENDEDOR", "ESTOQUE", "FINANCEIRO", "COMUNICACAO", "MODERADOR", "CONSUMIDOR"]) {
+      expect(hasPermission({ roles: [role] }, "cohorts.manage")).toBe(false);
+    }
+  });
+});

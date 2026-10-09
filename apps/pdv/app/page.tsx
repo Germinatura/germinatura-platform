@@ -3,14 +3,23 @@
 import { BrandMark } from "@germinatura/ui";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { refreshOfflineCatalog } from "@/components/OfflineRegistration";
 import { SaleWorkspace } from "@/components/operations/SaleWorkspace";
 import { apiFetch } from "@/lib/api";
+
+export interface PdvCohort {
+  id: string;
+  name: string;
+  isDefault?: boolean;
+}
 
 export interface PdvSessionUser {
   nome: string;
   email: string;
-  perfil: "ADMIN" | "FINANCEIRO" | "VENDEDOR" | "CONSUMIDOR";
+  perfil: "ADMIN_MASTER" | "ADMIN" | "FINANCEIRO" | "VENDEDOR" | "CONSUMIDOR";
   roles: string[];
+  cohort: PdvCohort | null;
+  cohorts: PdvCohort[];
 }
 
 export default function PdvHome() {
@@ -25,6 +34,16 @@ export default function PdvHome() {
       .then((data) => setUser(data.user))
       .catch(() => window.location.assign("/login"));
   }, []);
+
+  // The offline snapshot is the anonymous public catalog, which belongs to the default cohort only (ADR 0011).
+  const defaultCohort = user ? user.cohorts.some((cohort) => cohort.id === user.cohort?.id && cohort.isDefault === true) : null;
+  useEffect(() => {
+    if (defaultCohort === null) return;
+    const refresh = () => refreshOfflineCatalog(defaultCohort);
+    refresh();
+    window.addEventListener("online", refresh);
+    return () => window.removeEventListener("online", refresh);
+  }, [defaultCohort]);
 
   if (!user) {
     return (

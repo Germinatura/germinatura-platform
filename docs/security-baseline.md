@@ -73,6 +73,18 @@ Um único banco e domínio, com segregação lógica e de segurança por turma.
     evidência nunca é atribuída a duas turmas.
 - **Logs.** `audit_logs` e `outbox_events` levam a turma da operação. `NULL` marca uma operação realmente global, e
   essas linhas só são visíveis para ADMIN_MASTER e para o sistema.
+- **Portal e PDV (PR 3).**
+  - O proxy do Portal valida a seleção de turma (header `x-germinatura-cohort`, ou o cookie httpOnly
+    `germinatura_cohort`) com `get_my_session` antes de qualquer rota. Seleção malformada → 400; seleção não aceita pelo
+    banco → 403. Só a seleção validada chega à rota e ao banco, que valida de novo.
+  - Escrita fora de uma turma concreta → 409 `COHORT_REQUIRED`, exceto as rotas `cohort: "global"` (perfil, sessões e
+    notificações da própria pessoa, seleção de turma, bootstrap, turmas e ADMIN_MASTER).
+  - A gestão de usuários lista pela sessão da própria pessoa (`list_cohort_users`); o service role só cria a identidade.
+    Papéis, vínculo e desbloqueios de pessoa fora da turma da requisição → `USER_NOT_FOUND`.
+  - O provisionamento só remove da turma padrão a identidade marcada por aquele provisionamento
+    (`app_metadata.germinatura_provisioning`, que só o service role grava) e que nunca entrou.
+  - O PDV opera numa turma concreta, revalidada em toda página; `all` nunca é contexto do PDV. A turma do handoff vem
+    do código gravado no servidor, não da URL.
 - **Lacuna conhecida, para o PR 3:** a listagem de usuários do admin lê `profiles`/`user_roles` com o cliente de
   chave secreta, sem escopo de turma. Nenhuma segunda turma deve ser criada em produção antes de essa rota passar a
   usar um RPC escopado.

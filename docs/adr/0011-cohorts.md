@@ -135,6 +135,54 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
   evidência externa e códigos públicos (link de compartilhamento, número de pedido do Payment Link, código de
   terminal) continuam globais.
 
+## Contexto da turma no Portal e no PDV (PR 3)
+
+- **Um mecanismo só** (`apps/portal/lib/cohort-context.ts`):
+  1. A seleção viaja no header `x-germinatura-cohort` (uuid ou `all`) ou, no navegador do Portal, no cookie httpOnly
+     `germinatura_cohort`, gravado por `POST /api/v1/session/cohort` depois de o banco aceitar a turma. O header vence.
+  2. O proxy do Portal resolve a sessão com essa seleção (`get_my_session` valida vínculo ativo ou ADMIN_MASTER).
+     Seleção malformada → 400 `INVALID_COHORT_CONTEXT`; seleção que o banco não aceitou (turma inexistente, sem vínculo,
+     `all` sem ADMIN_MASTER) → 403 `COHORT_FORBIDDEN`. Nas páginas, o cookie é apagado e a página recarrega.
+  3. O proxy repassa à rota só a seleção validada, no mesmo header. Os clientes Supabase da rota o anexam a toda chamada,
+     e `private.cohort_scope()` valida de novo. Nenhum `cohort_id` vindo do cliente é usado como autoridade.
+- **Escrita exige turma concreta.** Fora de `COHORT`, o proxy recusa toda escrita com 409 `COHORT_REQUIRED`, exceto as
+  rotas marcadas `cohort: "global"` em `api-security.ts`: perfil, sessões e notificações da própria pessoa, a seleção
+  de turma, o bootstrap, a administração de turmas (`/api/v1/admin/cohorts`) e a concessão de ADMIN_MASTER. O banco
+  recusa de novo (`cohort_write_id()`).
+- **ADMIN_MASTER no Portal.**
+  - A sessão traz `adminMaster`, `cohortMode`, `cohort` e `cohorts`. ADMIN_MASTER aparece como papel de sessão
+    (`ADMIN_MASTER` em `roles`), nunca em `user_roles`.
+  - O seletor de turma (barra abaixo do topo) lista as turmas da pessoa. Para ADMIN_MASTER, lista também "Todas as
+    turmas", que é somente consulta.
+  - `/admin/turmas` cria, renomeia, arquiva e reativa turmas. A gestão de usuários concede e revoga ADMIN_MASTER, com
+    motivo auditado.
+- **Gestão de usuários** (`list_cohort_users`, com a sessão da própria pessoa; o service role não lista mais ninguém):
+  - ADMIN vê, conta e busca só pessoas da turma da requisição;
+  - ADMIN_MASTER vê uma turma, ou todas em `all`, com filtro por turma e os papéis de cada turma separados;
+  - filtros (busca, situação, cadastro, papéis com QUALQUER/TODOS) e paginação no servidor.
+  - Operações sobre uma pessoa (papéis, vínculo, desbloqueios) exigem que ela pertença à turma da requisição; senão,
+    `USER_NOT_FOUND`. Trazer alguém de outra turma é só do ADMIN_MASTER.
+  - O provisionamento coloca a conta só na turma da requisição. A identidade recém-criada é marcada pelo Portal
+    (`app_metadata.germinatura_provisioning`, gravável só pelo service role) e nunca entrou. Só ela sai da turma padrão,
+    onde o trigger de cadastro a colocou. Pessoa existente nunca é reprovisionada.
+- **PDV** (`apps/pdv/lib/pdv-cohort.ts`): opera sempre numa turma concreta, nunca em `all`.
+  - A turma fica no cookie `germinatura_pdv_cohort`, revalidado pelo proxy do PDV em cada página com `get_my_session`
+    na turma. A turma precisa estar aberta, e a pessoa precisa de ADMIN/VENDEDOR nela ou ser ADMIN_MASTER.
+  - O `apiFetch` envia a turma como header ao Portal, que valida de novo. O cookie é legível pela página e não tem
+    autoridade: qualquer valor alterado é recusado.
+  - Entrada:
+    - **handoff:** a turma vem do código de uso único gravado pelo Portal (`pdv_handoff_codes.cohort_id`), nunca da URL;
+    - **senha:** se houver uma única turma elegível, ela é usada;
+    - nos demais casos, a turma é escolhida em `/turma`, que lista só as turmas confirmadas pelo banco.
+  - As rotas próprias do PDV (`/api/auth/login|handoff|cohort`) não são encaminhadas ao Portal pelo Worker.
+  - A cópia offline do catálogo público só existe para a turma padrão, porque o catálogo anônimo é dela. Em outra
+    turma, a cópia é apagada.
+- **Fallback temporário (remover no PR 5).** Sem seleção, o banco usa a Turma 2026 (`private.cohort_fallback_enabled()`).
+  O Portal e o PDV não dependem mais dele para quem escolheu uma turma. Pontos que mudam no PR 5:
+  - o interruptor no banco;
+  - o comentário em `cohort-context.ts`;
+  - o PDV, que já exige seleção explícita para mais de uma turma.
+
 ## Resultado do spike de isolamento (08/10/2026)
 
 O spike (`tools/spikes/cohort-isolation`; evidências em `REPORT.md`) converteu um recorte real com ledgers, triggers,
@@ -183,6 +231,14 @@ Não é necessária arquitetura híbrida para preservar Realtime.
      - converte as 85 tabelas e aplica `NOT NULL`, unicidades e singletons por turma;
      - religa as views dependentes e recria as 15 funções de tipo-linha;
      - roda o relatório de integridade, que aborta a migration se houver violação.
+
+5. PR 3: `20261021090000_cohort_context_api`.
+   - Coluna anulável `pdv_handoff_codes.cohort_id`; os códigos antigos ficam `NULL` e valem só 60 s.
+   - `list_cohort_users`.
+   - Os quatro RPCs de pessoa passam a envoltórios que checam a turma; as versões originais vão para `private`, sem
+     mudança.
+   - Provisionamento com turma.
+   - A migration é aditiva e não altera nenhuma linha.
 
 Nenhuma migration é destrutiva. O teste de upgrade (`pnpm test:upgrade`, que roda na CI) prova a preservação sobre o
 schema anterior populado. O runbook é `docs/operations/cohort-cutover-runbook.md`.

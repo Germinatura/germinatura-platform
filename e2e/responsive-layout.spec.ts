@@ -47,10 +47,10 @@ test("as telas administrativas não transbordam nem sobrepõem controles em nenh
 
   const screens: Array<{ path: string; ready: RegExp; check?: (label: string) => Promise<void> }> = [
     { path: "/admin/usuarios", ready: /Usuários/, check: async (label) => {
-      const group = page.locator(".g-input-group").filter({ has: page.getByPlaceholder("Nome, e-mail, usuário ou papel") });
+      const group = page.locator(".g-input-group").filter({ has: page.getByPlaceholder("Nome, usuário ou e-mail") });
       await expectIconClearOfText(group, `busca de usuários ${label}`);
       await group.locator(".g-input-group__icon").click({ force: true });
-      await expect(page.getByPlaceholder("Nome, e-mail, usuário ou papel")).toBeFocused();
+      await expect(page.getByPlaceholder("Nome, usuário ou e-mail")).toBeFocused();
     } },
     { path: "/admin/estoque", ready: /Perdas de estoque/, check: async (label) => {
       const form = page.getByRole("form", { name: "Configurar aprovação de perdas" });

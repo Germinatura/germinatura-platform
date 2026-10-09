@@ -1022,6 +1022,52 @@ export const appRoleSchema = z.enum([
 ]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 
+// ADR 0011: ADMIN_MASTER is a global capability (admin_masters), never a role granted per cohort, so it is not an
+// AppRole (the roles that can be assigned). The session lists it next to the roles of the request cohort.
+export const sessionRoleSchema = z.enum([...appRoleSchema.options, "ADMIN_MASTER"]);
+export type SessionRole = z.infer<typeof sessionRoleSchema>;
+
+// Cohort context of a request: a concrete cohort, every cohort ("ALL", ADMIN_MASTER only, read/aggregate) or none.
+export const COHORT_HEADER = "x-germinatura-cohort";
+export const cohortSelectionSchema = z.union([z.uuid(), z.literal("all")]);
+export type CohortSelection = z.infer<typeof cohortSelectionSchema>;
+export const cohortModeSchema = z.enum(["COHORT", "ALL", "NONE"]);
+export type CohortMode = z.infer<typeof cohortModeSchema>;
+export const cohortStatusSchema = z.enum(["PREPARING", "ACTIVE", "ARCHIVED"]);
+export type CohortStatus = z.infer<typeof cohortStatusSchema>;
+export const cohortSummarySchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+  year: z.number().int(),
+  slug: z.string().min(1),
+  status: cohortStatusSchema,
+  isDefault: z.boolean().optional(),
+}).strict();
+export type CohortSummary = z.infer<typeof cohortSummarySchema>;
+export const cohortSelectionRequestSchema = z.object({ cohort: cohortSelectionSchema }).strict();
+
+// ADR 0011: cohort administration (ADMIN_MASTER only; global operations, allowed in "Todas as turmas").
+const cohortNameSchema = z.string().trim().min(3).max(80);
+export const cohortCreateRequestSchema = z.object({
+  name: cohortNameSchema,
+  year: z.number().int().min(2000).max(2100),
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
+  status: z.enum(["PREPARING", "ACTIVE"]),
+}).strict();
+export type CohortCreateRequest = z.infer<typeof cohortCreateRequestSchema>;
+export const cohortUpdateRequestSchema = z.object({
+  name: cohortNameSchema,
+  status: cohortStatusSchema,
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+export type CohortUpdateRequest = z.infer<typeof cohortUpdateRequestSchema>;
+export const cohortResponseSchema = z.object({ data: cohortSummarySchema, request_id: z.string() }).strict();
+export const cohortListResponseSchema = z.object({ data: z.array(cohortSummarySchema), request_id: z.string() }).strict();
+export const adminMasterUpdateRequestSchema = z.object({
+  granted: z.boolean(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+
 // Spec 5.15 (NOTIF-003): announcements to everyone, to roles or to specific users by e-mail.
 export const publishAnnouncementRequestSchema = z.object({
   title: z.string().trim().min(3).max(160),
@@ -1150,8 +1196,36 @@ export const adminUserSchema = z.object({
 }).strict();
 export type AdminUser = z.infer<typeof adminUserSchema>;
 
+// ADR 0011 (PR 3): people of the request cohort, filtered and paginated by the server (list_cohort_users).
+export const adminUsersQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  status: z.enum(["ALL", "ACTIVE", "INACTIVE"]).default("ALL"),
+  onboarding: z.enum(["ALL", "COMPLETE", "INCOMPLETE"]).default("ALL"),
+  roles: z.string().optional()
+    .transform((value) => (value ? value.split(",").filter(Boolean) : []))
+    .pipe(z.array(appRoleSchema).max(7)),
+  roleMatch: z.enum(["ANY", "ALL"]).default("ANY"),
+  cohort: z.uuid().optional(),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+}).strict();
+export type AdminUsersQuery = z.infer<typeof adminUsersQuerySchema>;
+
+export const adminUserCohortSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+  active: z.boolean(),
+  roles: z.array(appRoleSchema),
+}).strict();
+
 export const adminUsersResponseSchema = z.object({
-  data: z.array(adminUserSchema),
+  data: z.array(adminUserSchema.extend({ cohorts: z.array(adminUserCohortSchema).optional(), adminMaster: z.boolean().optional() })),
+  page: z.object({
+    total: z.number().int().nonnegative(),
+    matched: z.number().int().nonnegative(),
+    offset: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+  }).strict(),
   request_id: z.string().uuid(),
 }).strict();
 
@@ -1182,6 +1256,7 @@ export const permissionSchema = z.enum([
   "communications.manage",
   "community.moderate",
   "audit.read",
+  "cohorts.manage",
 ]);
 export type Permission = z.infer<typeof permissionSchema>;
 
@@ -1303,9 +1378,13 @@ export const sessionUserSchema = z.object({
   name: z.string().min(1),
   username: usernameSchema,
   avatarPath: z.string().nullable(),
-  role: appRoleSchema,
-  roles: z.array(appRoleSchema).min(1),
+  role: sessionRoleSchema,
+  roles: z.array(sessionRoleSchema).min(1),
   active: z.literal(true),
+  adminMaster: z.boolean(),
+  cohortMode: cohortModeSchema,
+  cohort: cohortSummarySchema.nullable(),
+  cohorts: z.array(cohortSummarySchema),
 });
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 
@@ -1328,16 +1407,20 @@ export function createApiError(
 
 export interface ApiClientOptions {
   getAccessToken: () => Promise<string | null>;
+  /** The cohort this client operates in (the PDV); the Portal validates it against the session on every request. */
+  getCohort?: () => string | null;
   fetchImpl?: typeof fetch;
 }
 
-export function createApiClient({ getAccessToken, fetchImpl = fetch }: ApiClientOptions) {
+export function createApiClient({ getAccessToken, getCohort, fetchImpl = fetch }: ApiClientOptions) {
   return async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
     if (!headers.has("Authorization")) {
       const accessToken = await getAccessToken();
       if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
     }
+    const cohort = getCohort?.();
+    if (cohort) headers.set(COHORT_HEADER, cohort);
     return fetchImpl(input, { ...init, headers, credentials: init.credentials ?? "include" });
   };
 }

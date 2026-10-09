@@ -504,6 +504,12 @@ COH-001 a COH-006, ADR 0011. Um único banco e domínio, com segregação lógic
   - runbook `docs/operations/cohort-cutover-runbook.md`.
 - **Spike (#177):** isolamento provado (49/49 em bancos limpo, populado e restaurado; Data API; Realtime).
 - **PR 2:** autorização por turma, ADMIN_MASTER (bootstrap fail-closed), isolamento de 85 tabelas, `NOT NULL`, unicidades e singletons por turma, maquininhas globais, flags globais × por turma, atribuição PicPay, testes A/B.
-- **PR 3:** contratos e APIs com o contexto da turma.
-- **PR 4:** seletor no Portal, visão "Todas" com quebra por turma e telas de turmas e vínculos.
+- **PR 3:** contexto da turma ponta a ponta.
+  - Portal: header/cookie validados pelo proxy e pelo banco; seletor com "Todas as turmas" para ADMIN_MASTER;
+    escrita em "Todas" recusada.
+  - ADMIN_MASTER: tela de turmas e concessão de ADMIN_MASTER.
+  - Gestão de usuários escopada, com filtros e paginação no servidor.
+  - PDV: sempre numa turma; o handoff carrega a turma.
+  - Testes A/B.
+- **PR 4:** visão "Todas" com quebra por turma nos módulos e tela de vínculos.
 - **PR 5:** restrição do fallback, performance, runbook final e validação em staging. Produção só com autorização.

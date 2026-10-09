@@ -1,5 +1,5 @@
--- ADR 0011 (multi-turma), PR 2 â€” autorizaÃ§Ã£o e isolamento por turma: contexto da requisiÃ§Ã£o, ADMIN_MASTER, RBAC por
--- turma, isolamento A/B por views/RLS/guards, maquininhas globais, flags por turma, atribuiÃ§Ã£o PicPay, fan-out,
+-- ADR 0011 (multi-turma), PR 2 — autorização e isolamento por turma: contexto da requisição, ADMIN_MASTER, RBAC por
+-- turma, isolamento A/B por views/RLS/guards, maquininhas globais, flags por turma, atribuição PicPay, fan-out,
 -- unicidades e singletons por turma, auditoria.
 begin;
 select plan(76);
@@ -121,12 +121,12 @@ select is(pg_temp.seen($$select 1 from public.categories$$), 0::bigint, 'a malfo
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000a1', pg_temp.b());
 select is(pg_temp.seen($$select 1 from public.categories$$), 0::bigint, 'F. a header naming a cohort the user does not belong to reads nothing');
 select ok(not public.has_permission('catalog.manage'), 'and grants no permission');
-select throws_ok($$select public.save_catalog_category(null, null, 'Furtiva', 'furtiva', true, 1, 'Escrita sem vÃ­nculo', 'cohort-test-sneak', gen_random_uuid())$$,
+select throws_ok($$select public.save_catalog_category(null, null, 'Furtiva', 'furtiva', true, 1, 'Escrita sem vínculo', 'cohort-test-sneak', gen_random_uuid())$$,
   '42501', null, 'nor writing');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000a1', 'all');
 select is(pg_temp.seen($$select 1 from public.categories$$), 0::bigint, 'F. "all" is refused to a normal admin');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000a1', pg_temp.a());
-select throws_ok($$select public.set_admin_master('1d000000-0000-4000-8000-0000000000a1', true, 'AutopromoÃ§Ã£o', gen_random_uuid())$$,
+select throws_ok($$select public.set_admin_master('1d000000-0000-4000-8000-0000000000a1', true, 'Autopromoção', gen_random_uuid())$$,
   '42501', 'ADMIN_MASTER_REQUIRED', 'a normal admin cannot promote itself to ADMIN_MASTER');
 select throws_ok($$select public.create_cohort('Turma Z', 2040, 'turma-z', 'PREPARING', 'cohort-test-z', gen_random_uuid())$$,
   '42501', 'COHORTS_MANAGE_REQUIRED', 'nor create cohorts');
@@ -165,7 +165,7 @@ select pg_temp.sys();
 create or replace function private.cohort_fallback_enabled() returns boolean language sql immutable set search_path = '' as $$ select false $$;
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000d1', null);
 select is((public.get_my_session() ->> 'cohort_mode'), 'NONE', 'in the final state a multi-cohort user needs an explicit cohort');
-select throws_ok($$select public.save_catalog_category(null, null, 'Sem contexto', 'sem-contexto', true, 1, 'Sem turma explÃ­cita', 'cohort-test-none', gen_random_uuid())$$,
+select throws_ok($$select public.save_catalog_category(null, null, 'Sem contexto', 'sem-contexto', true, 1, 'Sem turma explícita', 'cohort-test-none', gen_random_uuid())$$,
   '42501', null, 'and cannot write without it');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000c1', null);
 select is((public.get_my_session() -> 'cohort' ->> 'id'), pg_temp.b(), 'a single-cohort user is still inferred');
@@ -176,7 +176,7 @@ create or replace function private.cohort_fallback_enabled() returns boolean lan
 
 -- D. Payment terminals: global identity, authorized per cohort.
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000a1', null);
-insert into ids select 'terminal', (public.save_payment_terminal(null, 'MAQ-TURMAS', 'Maquininha compartilhÃ¡vel', true, 'cohort-test-terminal', gen_random_uuid()) ->> 'id')::uuid;
+insert into ids select 'terminal', (public.save_payment_terminal(null, 'MAQ-TURMAS', 'Maquininha compartilhável', true, 'cohort-test-terminal', gen_random_uuid()) ->> 'id')::uuid;
 select pg_temp.sys();
 select ok(exists (select 1 from private.payment_terminals where id = pg_temp.id('terminal')) and
   (select count(*) from cohort_data.cohort_payment_terminals where terminal_id = pg_temp.id('terminal')) = 1,
@@ -228,12 +228,12 @@ select throws_ok($$insert into public.picpay_source_imports (source_type, file_n
   new_count, known_count, updated_count, actor_id, correlation_id) values ('PICPAY_SALES', 'outra.csv', repeat('ab', 32), 10, 1, current_date, current_date,
   1, 0, 0, '10000000-0000-4000-8000-000000000001', gen_random_uuid())$$, '23505', null, 'the same file is unique across cohorts');
 insert into public.picpay_transaction_links (transaction_id, payment_attempt_id, action, automatic, evidence, reason, actor_id, correlation_id)
-values ('5c000000-0000-4000-8000-000000000001', '5f000000-0000-4000-8000-00000000000a', 'LINK', false, 'MANUAL', 'VÃ­nculo com a venda da turma A',
+values ('5c000000-0000-4000-8000-000000000001', '5f000000-0000-4000-8000-00000000000a', 'LINK', false, 'MANUAL', 'Vínculo com a venda da turma A',
   '10000000-0000-4000-8000-000000000001', gen_random_uuid());
 select is((select cohort_id::text from cohort_data.picpay_transaction_links where transaction_id = '5c000000-0000-4000-8000-000000000001'),
   'c0000000-0000-4000-8000-000000002026', 'linking the evidence to a sale of A attributes it to A');
 select throws_ok($$insert into public.picpay_transaction_links (transaction_id, payment_attempt_id, action, automatic, evidence, reason, actor_id, correlation_id)
-  values ('5c000000-0000-4000-8000-000000000001', '5f000000-0000-4000-8000-00000000000b', 'LINK', false, 'MANUAL', 'VÃ­nculo conflitante',
+  values ('5c000000-0000-4000-8000-000000000001', '5f000000-0000-4000-8000-00000000000b', 'LINK', false, 'MANUAL', 'Vínculo conflitante',
   '10000000-0000-4000-8000-000000000001', gen_random_uuid())$$,
   '42501', 'PICPAY_EVIDENCE_ATTRIBUTED_TO_ANOTHER_COHORT', 'the same evidence cannot be attributed to a sale of B');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000b1', null);
@@ -244,7 +244,7 @@ select is(pg_temp.seen($$select 1 from public.picpay_transaction_links where tra
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000a1', null);
 select lives_ok($$select public.update_feature_flag('raffles', false, 'Rifas pausadas na turma A', gen_random_uuid())$$, 'A pauses its raffles');
 select is(public.is_feature_enabled('raffles'), false, 'raffles are off in A');
-select throws_ok($$select public.update_feature_flag('payment_link', true, 'Tentativa de ligar a integraÃ§Ã£o', gen_random_uuid())$$,
+select throws_ok($$select public.update_feature_flag('payment_link', true, 'Tentativa de ligar a integração', gen_random_uuid())$$,
   '42501', 'FEATURE_FLAG_GLOBAL_REQUIRES_ADMIN_MASTER', 'a global integration flag is not changed by a cohort admin');
 select pg_temp.ctx('1d000000-0000-4000-8000-0000000000b1', null);
 select is(public.is_feature_enabled('raffles'), true, 'raffles stay on in B');
@@ -283,7 +283,7 @@ select results_eq($$select target_cents from cohort_data.fundraising_goal where 
 
 -- Archived cohort: readable, not writable.
 select pg_temp.ctx('10000000-0000-4000-8000-000000000001', 'all');
-select lives_ok(format($$select public.update_cohort(%L, 'Turma B', 'ARCHIVED', 'Formatura concluÃ­da', gen_random_uuid())$$, pg_temp.b()),
+select lives_ok(format($$select public.update_cohort(%L, 'Turma B', 'ARCHIVED', 'Formatura concluída', gen_random_uuid())$$, pg_temp.b()),
   'ADMIN_MASTER archives B');
 select throws_ok($$select public.update_cohort('c0000000-0000-4000-8000-000000002026', 'Turma 2026', 'ARCHIVED', 'Tentativa', gen_random_uuid())$$,
   'P0001', 'DEFAULT_COHORT_CANNOT_BE_ARCHIVED', 'the default cohort is never archived');

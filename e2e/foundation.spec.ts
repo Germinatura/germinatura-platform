@@ -765,7 +765,8 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();
   const sessionBody = await session.json();
-  expect(sessionBody).toMatchObject({ user: { perfil: "ADMIN", roles: ["ADMIN"] } });
+  // ADR 0011: admin.teste is also the local ADMIN_MASTER (seed); the session names it apart from the cohort roles.
+  expect(sessionBody).toMatchObject({ user: { perfil: "ADMIN_MASTER", roles: ["ADMIN_MASTER", "ADMIN"], adminMaster: true, cohortMode: "COHORT" } });
   const sessionText = JSON.stringify(sessionBody);
   expect(sessionText).not.toContain("access_token");
   expect(sessionText).not.toContain("refresh_token");

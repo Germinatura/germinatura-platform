@@ -49,6 +49,11 @@ self.addEventListener("fetch", (event) => {
 let refreshing;
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "REFRESH_PUBLIC_CATALOG" || !event.source?.url || new URL(event.source.url).origin !== self.location.origin) return;
+  // The anonymous public catalog belongs to the default cohort; any other cohort (or no answer) drops the snapshot.
+  if (event.data.defaultCohort !== true) {
+    event.waitUntil(caches.delete(CATALOG));
+    return;
+  }
   // Concurrent requests share one anonymous refresh; a failure never affects a sale.
   refreshing ??= refreshCatalog().finally(() => { refreshing = undefined; });
   event.waitUntil(refreshing);

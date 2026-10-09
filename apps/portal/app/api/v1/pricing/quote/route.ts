@@ -11,12 +11,12 @@ import {
   type CartPromotionRule,
 } from "@germinatura/domain";
 import { createRequestId } from "@germinatura/observability";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AuthorizationError, requirePermission } from "@/lib/auth";
+import { AuthorizationError, getSession, requirePermission } from "@/lib/auth";
+import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // get_pricing_inputs returns the canonical rule document; the shared contract validates it.
 const databaseRowSchema = z.object({
@@ -76,18 +76,6 @@ function errorResponse(code: string, message: string, requestId: string, status:
   });
 }
 
-async function authenticatedClient(request: Request): Promise<SupabaseClient> {
-  const authorization = request.headers.get("authorization");
-  if (!authorization?.startsWith("Bearer ")) return createSupabaseServerClient();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new Error("Supabase public environment is not configured");
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-    global: { headers: { Authorization: authorization } },
-  });
-}
-
 export async function POST(request: Request) {
   const requestId = createRequestId(request.headers);
   let body: unknown;
@@ -105,10 +93,11 @@ export async function POST(request: Request) {
   try {
     if (parsed.data.channel === "PDV") {
       await requirePermission("sales.create");
-      supabase = await authenticatedClient(request);
+      supabase = await createAuthenticatedSupabaseClient(request);
     } else {
-      // Public pricing deliberately ignores any privileged browser session.
-      supabase = createPublicSupabaseClient();
+      // ADR 0011: a signed-in person is quoted in the cohort in context (validated by the proxy), as the reservation
+      // will be; a visitor is quoted in the default cohort, whose catalog is the public one.
+      supabase = await getSession() ? await createAuthenticatedSupabaseClient(request) : createPublicSupabaseClient();
     }
   } catch (error) {
     if (error instanceof AuthorizationError) {

@@ -1,8 +1,9 @@
 import { primaryRole } from "@germinatura/auth";
-import { appRoleSchema, type AppRole } from "@germinatura/contracts";
+import { appRoleSchema, type CohortMode, type CohortSelection, type CohortSummary, type SessionRole } from "@germinatura/contracts";
 import { structuredLog } from "@germinatura/observability";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { cohortHeaders } from "./cohort-context";
 import { readSessionContext } from "./session-context";
 
 const sessionRpcSchema = z.object({
@@ -14,21 +15,34 @@ const sessionRpcSchema = z.object({
   active: z.boolean(),
   onboarding_completed: z.boolean(),
   roles: z.array(appRoleSchema),
+  // ADR 0011: the cohort the database resolved for this request, and the cohorts the person may select.
+  admin_master: z.boolean().default(false),
+  cohort_mode: z.enum(["COHORT", "ALL", "NONE"]).default("NONE"),
+  cohort: z.object({ id: z.uuid(), name: z.string(), year: z.number().int(), slug: z.string(),
+    status: z.enum(["PREPARING", "ACTIVE", "ARCHIVED"]) }).nullable().default(null),
+  cohorts: z.array(z.object({ id: z.uuid(), name: z.string(), year: z.number().int(), slug: z.string(),
+    status: z.enum(["PREPARING", "ACTIVE", "ARCHIVED"]), is_default: z.boolean() })).default([]),
 });
 
 export interface SupabaseSession {
+  /** The cohort selection this session was resolved for (null: none, the database fallback applied). */
+  selection?: CohortSelection | null;
   user: {
     id: string;
     authId: string;
     email: string;
-    perfil: AppRole;
+    perfil: SessionRole;
     nome: string;
     username: string | null;
     avatarPath: string | null;
-    roles: AppRole[];
+    roles: SessionRole[];
     active: true;
     onboardingCompleted: boolean;
     needsPasswordReset: false;
+    adminMaster: boolean;
+    cohortMode: CohortMode;
+    cohort: CohortSummary | null;
+    cohorts: CohortSummary[];
   };
 }
 
@@ -65,6 +79,7 @@ export async function resolveSession(
   accessToken: string | undefined,
   source: SessionResolutionSource,
   sessionContext?: string | null,
+  cohort?: CohortSelection | null,
 ): Promise<ResolvedSession> {
   const started = Date.now();
   let token: string | null = accessToken ?? null;
@@ -92,7 +107,8 @@ export async function resolveSession(
   }
 
   const reused = await readSessionContext(sessionContext, token);
-  if (reused && reused.user.id === subject) {
+  // The proxy's lookup is reused only for the same cohort selection (the session depends on it).
+  if (reused && reused.user.id === subject && (reused.selection ?? null) === (cohort ?? null)) {
     recordTiming(source, "reused", started, verified);
     return { session: reused, accessToken: token };
   }
@@ -102,7 +118,7 @@ export async function resolveSession(
   const rpcClient = accessToken && url && publishableKey
     ? createClient(url, publishableKey, {
         auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        global: { headers: { Authorization: `Bearer ${accessToken}`, ...cohortHeaders(cohort) } },
       })
     : client;
   const { data, error } = await rpcClient.rpc("get_my_session");
@@ -118,8 +134,14 @@ export async function resolveSession(
   }
   recordTiming(source, "resolved", started, verified);
 
-  const roles = parsed.data.roles.length > 0 ? parsed.data.roles : ["CONSUMIDOR" as const];
+  // Roles of the request cohort; ADMIN_MASTER is the global capability, listed next to them (never granted per cohort).
+  const cohortRoles: SessionRole[] = parsed.data.roles.length > 0 ? parsed.data.roles : ["CONSUMIDOR"];
+  const roles: SessionRole[] = parsed.data.admin_master ? ["ADMIN_MASTER", ...cohortRoles] : cohortRoles;
   const perfil = primaryRole(roles);
+  const toSummary = (cohort: { id: string; name: string; year: number; slug: string; status: CohortSummary["status"]; is_default?: boolean }): CohortSummary => ({
+    id: cohort.id, name: cohort.name, year: cohort.year, slug: cohort.slug, status: cohort.status,
+    ...(cohort.is_default === undefined ? {} : { isDefault: cohort.is_default }),
+  });
   const session: SupabaseSession = {
     user: {
       id: parsed.data.auth_id,
@@ -133,7 +155,12 @@ export async function resolveSession(
       active: true,
       onboardingCompleted: parsed.data.onboarding_completed,
       needsPasswordReset: false,
+      adminMaster: parsed.data.admin_master,
+      cohortMode: parsed.data.cohort_mode,
+      cohort: parsed.data.cohort ? toSummary(parsed.data.cohort) : null,
+      cohorts: parsed.data.cohorts.map(toSummary),
     },
+    selection: cohort ?? null,
   };
   return { session, accessToken: token };
 }
@@ -143,6 +170,7 @@ export async function resolveSupabaseSession(
   accessToken: string | undefined,
   source: SessionResolutionSource,
   sessionContext?: string | null,
+  cohort?: CohortSelection | null,
 ): Promise<SupabaseSession | null> {
-  return (await resolveSession(client, accessToken, source, sessionContext)).session;
+  return (await resolveSession(client, accessToken, source, sessionContext, cohort)).session;
 }

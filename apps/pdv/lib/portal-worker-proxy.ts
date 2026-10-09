@@ -4,8 +4,11 @@ export interface PortalWorkerBinding {
   fetch(request: Request): Promise<Response>;
 }
 
+// Routes of the PDV itself; everything else under /api/ belongs to the Portal.
+const pdvApiPaths = new Set(["/api/auth/login", "/api/auth/handoff", "/api/auth/cohort", "/api/v1/health"]);
+
 export function isPortalApiPath(path: string) {
-  return path.startsWith("/api/") && path !== "/api/auth/login" && path !== "/api/v1/health";
+  return path.startsWith("/api/") && !pdvApiPaths.has(path);
 }
 
 function unavailable(message: string) {

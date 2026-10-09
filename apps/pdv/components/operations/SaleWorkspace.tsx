@@ -13,7 +13,7 @@ import type {
   SalesCheckoutResponse,
 } from "@germinatura/contracts";
 import {
-  AlertTriangle, ArrowLeft, Banknote, Check, ChevronDown, CircleCheck, CreditCard, Link2,
+  AlertTriangle, ArrowLeft, Banknote, Check, ChevronDown, CircleCheck, CreditCard, GraduationCap, Link2,
   Loader2, LogOut, Minus, PackageSearch, Plus, RotateCcw, Search, ShoppingBag,
   Store, Undo2, Wallet, WifiOff, X,
 } from "lucide-react";
@@ -198,7 +198,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   });
   const logout = async () => {
     await getSupabaseBrowserClient().auth.signOut();
-    window.location.assign(user.perfil === "ADMIN" ? `${portalUrl}/login` : "/login");
+    window.location.assign(user.perfil === "ADMIN" || user.perfil === "ADMIN_MASTER" ? `${portalUrl}/login` : "/login");
   };
 
   if (loading) return <PdvLoading />;
@@ -208,7 +208,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
         <div className="mx-auto flex h-16 max-w-[var(--g-content-wide)] items-center justify-between gap-3 px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <BrandMark className="size-10 shrink-0 text-white" title="Germinatura" tone="inverse" />
-            <div className="min-w-0"><p className="truncate font-bold">Germinatura PDV</p><p className="truncate text-xs text-[var(--g-text-muted)]">{selectedLocation?.name ?? "Localização indisponível"}</p></div>
+            <div className="min-w-0"><p className="truncate font-bold">Germinatura PDV</p><p className="truncate text-xs text-[var(--g-text-muted)]">{user.cohort ? `${user.cohort.name} · ` : ""}{selectedLocation?.name ?? "Localização indisponível"}</p></div>
           </div>
           <a href={portalUrl} aria-label="Voltar ao Portal" className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /><span className="hidden sm:inline">Portal</span></a>
           <div className="relative">
@@ -219,6 +219,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
             {accountOpen && <Card className="absolute right-0 mt-2 w-64 p-2 shadow-[var(--g-shadow-raised)]">
               <div className="border-b border-[var(--g-border-subtle)] px-3 py-3"><p className="truncate text-sm font-semibold">{user.nome}</p><p className="truncate text-xs text-[var(--g-text-muted)]">{user.email}</p></div>
               {<button type="button" title="Voltar ao Painel" onClick={() => window.location.assign(portalUrl)} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /> Voltar ao Portal</button>}
+              {user.cohorts.length > 1 && <a href="/turma" className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--g-surface-hover)]"><GraduationCap className="size-4" /> Trocar turma</a>}
               <button type="button" onClick={logout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-[var(--g-status-danger)] hover:bg-[var(--g-surface-hover)]"><LogOut className="size-4" /> Sair do PDV</button>
             </Card>}
           </div>

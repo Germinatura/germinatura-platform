@@ -14,6 +14,12 @@ describe("portal navigation", () => {
     expect(ids(context)).not.toContain("catalog");
   });
 
+  it("gives ADMIN_MASTER the administrator areas plus cohort administration, never to a cohort ADMIN", () => {
+    const master = ids({ ...base, roles: ["ADMIN_MASTER", "CONSUMIDOR"] });
+    expect(master).toEqual(expect.arrayContaining(["cohorts", "users", "audit", "admin-catalog", "inventory", "procurement", "shifts", "pdv"]));
+    expect(ids({ ...base, roles: ["ADMIN"] })).not.toContain("cohorts");
+  });
+
   it("hides staff areas from an administrator browsing as a consumer", () => {
     const context: NavigationContext = { ...base, roles: ["ADMIN"], experience: "consumer" };
     expect(sectionIds(context)).toEqual(["principal", "conta", "pdv"]);

@@ -6,6 +6,7 @@ import { pdvUrl, Sidebar, type SidebarUser } from "./Sidebar";
 import { CommandPalette } from "./CommandPalette";
 import { navigationFor } from "@/lib/navigation";
 import { experienceForPath, type PortalExperience } from "@/lib/portal-experience";
+import { CohortBar } from "./CohortBar";
 import { Topbar } from "./Topbar";
 
 const publicPaths = ["/login", "/esqueci-senha", "/recuperar-senha"];
@@ -20,7 +21,7 @@ function savedExperience(): PortalExperience {
 const serverExperience = (): PortalExperience => "admin";
 
 function pageTitle(pathname: string, user: SidebarUser | null) {
-  if (pathname === "/") return user?.roles.includes("ADMIN") ? "Visão geral" : "Início";
+  if (pathname === "/") return user?.roles.includes("ADMIN") || user?.roles.includes("ADMIN_MASTER") ? "Visão geral" : "Início";
   if (pathname.startsWith("/admin/usuarios")) return "Usuários e vendedores";
   if (pathname.startsWith("/admin/catalogo")) return "Catálogo";
   if (pathname.startsWith("/admin/estoque")) return "Estoque";
@@ -130,6 +131,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar title={pageTitle(pathname, user)} user={user} loading={loading} onOpenMenu={() => setIsSidebarOpen(true)} onLogout={handleLogout} />
+        {user && <CohortBar user={user} onChanged={() => setProfileRevision((value) => value + 1)} />}
         {/* WCAG 2.1.1: the scrollable region must be reachable by keyboard even when a page has nothing focusable. */}
         <main data-testid="dashboard-scroll-container" tabIndex={0} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</main>
       </div>

@@ -23,6 +23,8 @@ let projectKey: CryptoKeyPair;
 let publicJwk: JsonWebKey;
 let calls: { authUser: number; sessionLookups: number; denials: number };
 let rows: Record<string, Record<string, unknown> | null>;
+// ADR 0011: what get_my_session answers for a subject inside the requested cohort (header), when set.
+let inCohort: ((subject: string, cohort: string | null) => Record<string, unknown> | null) | null;
 
 const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
 async function token(sub: string, sessionId = "5e55c000-0000-4000-8000-0000000000aa") {
@@ -49,8 +51,8 @@ function forwardedHeaders(response: Response) {
   return headers;
 }
 
-async function viaProxy(path: string, headers: Record<string, string>) {
-  const response = await proxy(new NextRequest(new URL(path, portalUrl), { headers }));
+async function viaProxy(path: string, headers: Record<string, string>, method = "GET") {
+  const response = await proxy(new NextRequest(new URL(path, portalUrl), { headers, method }));
   const forwarded = forwardedHeaders(response);
   if (forwarded) routeRequest.headers = forwarded;
   return { response, forwarded };
@@ -68,6 +70,7 @@ beforeEach(() => {
   routeRequest.headers = new Headers();
   routeRequest.cookies = [];
   calls = { authUser: 0, sessionLookups: 0, denials: 0 };
+  inCohort = null;
   rows = { [consumerId]: row(consumerId, ["CONSUMIDOR"]), [adminId]: row(adminId, ["ADMIN", "CONSUMIDOR"]) };
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);
@@ -79,7 +82,9 @@ beforeEach(() => {
     }
     if (path === "/rest/v1/rpc/get_my_session") {
       calls.sessionLookups += 1;
-      return new Response(JSON.stringify(rows[subjectOf(request.headers.get("authorization"))] ?? null), { headers: { "Content-Type": "application/json" } });
+      const subject = subjectOf(request.headers.get("authorization"));
+      const answer = inCohort ? inCohort(subject, request.headers.get("x-germinatura-cohort")) : rows[subject] ?? null;
+      return new Response(JSON.stringify(answer), { headers: { "Content-Type": "application/json" } });
     }
     if (path === "/rest/v1/rpc/record_authorization_denied") {
       calls.denials += 1;
@@ -159,7 +164,7 @@ describe("the session context cannot be forged", () => {
 
   it("an anonymous request with a context header gets nothing", async () => {
     const adminContext = await createSessionContext({ user: { id: adminId, authId: adminId, email: "a@institutojef.org.br", perfil: "ADMIN",
-      nome: "Admin", username: "admin", avatarPath: null, roles: ["ADMIN"], active: true, onboardingCompleted: true, needsPasswordReset: false } }, await token(adminId));
+      nome: "Admin", username: "admin", avatarPath: null, roles: ["ADMIN"], active: true, onboardingCompleted: true, needsPasswordReset: false, adminMaster: false, cohortMode: "COHORT", cohort: null, cohorts: [] } }, await token(adminId));
     const { response, forwarded } = await viaProxy("/api/v1/admin/users", { [SESSION_CONTEXT_HEADER]: adminContext });
     expect(response.status).toBe(401);
     expect(forwarded?.get(SESSION_CONTEXT_HEADER) ?? null).toBeNull();
@@ -168,7 +173,7 @@ describe("the session context cannot be forged", () => {
   it("a route reached without the proxy never trusts a context for another token, a forged one or an expired one", async () => {
     const consumerToken = await token(consumerId);
     const adminSession = { user: { id: adminId, authId: adminId, email: "a@institutojef.org.br", perfil: "ADMIN" as const, nome: "Admin",
-      username: "admin", avatarPath: null, roles: ["ADMIN" as const], active: true as const, onboardingCompleted: true, needsPasswordReset: false as const } };
+      username: "admin", avatarPath: null, roles: ["ADMIN" as const], active: true as const, onboardingCompleted: true, needsPasswordReset: false as const, adminMaster: false, cohortMode: "COHORT" as const, cohort: null, cohorts: [] } };
     const consumerAsAdmin = { user: { ...adminSession.user, id: consumerId, authId: consumerId } };
     const contexts = [
       await createSessionContext(adminSession, await token(adminId)), // a real context, for another person's token
@@ -185,5 +190,93 @@ describe("the session context cannot be forged", () => {
     }
     // Every forged attempt fell back to the database.
     expect(calls.sessionLookups).toBe(contexts.length * 2);
+  });
+});
+
+describe("cohort context (ADR 0011)", () => {
+  const cohortA = "c0000000-0000-4000-8000-000000002026";
+  const cohortB = "c0000000-0000-4000-8000-00000000b027";
+  const masterId = "10000000-0000-4000-8000-0000000000ff";
+  const summary = (id: string) => ({ id, name: id === cohortA ? "Turma 2026" : "Turma 2027", year: id === cohortA ? 2026 : 2027,
+    slug: id === cohortA ? "turma-2026" : "turma-2027", status: "ACTIVE", is_default: id === cohortA });
+  // The database: the admin belongs to A only; ADMIN_MASTER reads every cohort and "all"; nobody else gets "all".
+  function database(subject: string, cohort: string | null) {
+    const master = subject === masterId;
+    const member = master || cohort === null || cohort === cohortA;
+    const all = cohort === "all" && master;
+    const base = row(subject, subject === adminId ? ["ADMIN", "CONSUMIDOR"] : [], { admin_master: master,
+      cohorts: master ? [summary(cohortA), summary(cohortB)] : [summary(cohortA)] });
+    if (all) return { ...base, roles: [], cohort_mode: "ALL", cohort: null };
+    if (!member || cohort === "all") return { ...base, roles: [], cohort_mode: "NONE", cohort: null };
+    const resolved = cohort ?? cohortA;
+    return { ...base, cohort_mode: "COHORT", cohort: summary(resolved) };
+  }
+  const origin = { origin: portalUrl };
+
+  beforeEach(() => { inCohort = database; });
+
+  it("resolves the session inside the selected cohort and forwards only that selection", async () => {
+    const { response, forwarded } = await viaProxy("/api/v1/admin/users", { authorization: `Bearer ${await token(adminId)}`, "x-germinatura-cohort": cohortA });
+    expect(response.status).toBe(200);
+    expect(forwarded?.get("x-germinatura-cohort")).toBe(cohortA);
+    expect(await requireSession()).toMatchObject({ cohortMode: "COHORT", cohort: { id: cohortA }, roles: ["ADMIN", "CONSUMIDOR"] });
+  });
+
+  it("refuses a cohort without membership, and \"all\" from someone who is not ADMIN_MASTER", async () => {
+    for (const cohort of [cohortB, "all"]) {
+      const { response } = await viaProxy("/api/v1/admin/users", { authorization: `Bearer ${await token(adminId)}`, "x-germinatura-cohort": cohort });
+      expect(response.status).toBe(403);
+      expect((await response.json()).code).toBe("COHORT_FORBIDDEN");
+    }
+  });
+
+  it("refuses a malformed context before looking the session up", async () => {
+    for (const cohort of ["2026", "all;", `${cohortA},${cohortB}`]) {
+      const { response } = await viaProxy("/api/v1/admin/users", { authorization: `Bearer ${await token(adminId)}`, "x-germinatura-cohort": cohort });
+      expect(response.status).toBe(400);
+      expect((await response.json()).code).toBe("INVALID_COHORT_CONTEXT");
+    }
+    expect(calls.sessionLookups).toBe(0);
+  });
+
+  it("the header wins over the cookie, and a tampered cookie is refused and cleared", async () => {
+    const authorization = `Bearer ${await token(adminId)}`;
+    const viaHeader = await viaProxy("/api/v1/admin/users", { authorization, "x-germinatura-cohort": cohortA, cookie: `germinatura_cohort=${cohortB}` });
+    expect(viaHeader.response.status).toBe(200);
+    const viaCookie = await viaProxy("/api/v1/admin/users", { authorization, cookie: `germinatura_cohort=${cohortB}` });
+    expect(viaCookie.response.status).toBe(403);
+    expect(viaCookie.response.headers.get("set-cookie")).toMatch(/germinatura_cohort=;/);
+  });
+
+  it("ADMIN_MASTER reads in \"all\" but writes cohort data only inside a concrete cohort", async () => {
+    const authorization = `Bearer ${await token(masterId)}`;
+    const read = await viaProxy("/api/v1/admin/users", { authorization, "x-germinatura-cohort": "all" });
+    expect(read.response.status).toBe(200);
+    const user = await requireSession();
+    expect(user).toMatchObject({ adminMaster: true, cohortMode: "ALL", cohort: null });
+    expect(user.roles).toContain("ADMIN_MASTER");
+    for (const path of ["/api/v1/admin/catalog/categories", "/api/v1/admin/users", "/api/v1/pdv/handoff"]) {
+      const write = await viaProxy(path, { authorization, "x-germinatura-cohort": "all", ...origin }, "POST");
+      expect(write.response.status, path).toBe(409);
+      expect((await write.response.json()).code).toBe("COHORT_REQUIRED");
+    }
+    const inCohortWrite = await viaProxy("/api/v1/admin/catalog/categories", { authorization, "x-germinatura-cohort": cohortB, ...origin }, "POST");
+    expect(inCohortWrite.response.status).toBe(200);
+    expect(inCohortWrite.forwarded?.get("x-germinatura-cohort")).toBe(cohortB);
+  });
+
+  it("global operations (cohorts, ADMIN_MASTER, own profile) stay available in \"all\"", async () => {
+    const authorization = `Bearer ${await token(masterId)}`;
+    for (const [path, method] of [["/api/v1/admin/cohorts", "POST"], [`/api/v1/admin/cohorts/${cohortB}`, "PATCH"],
+      [`/api/v1/admin/users/${adminId}/admin-master`, "PUT"], ["/api/v1/profile", "PATCH"], ["/api/v1/session/cohort", "POST"]]) {
+      const { response, forwarded } = await viaProxy(path, { authorization, "x-germinatura-cohort": "all", ...origin }, method);
+      expect(response.status, path).toBe(200);
+      expect(forwarded?.get("x-germinatura-cohort"), path).toBe("all");
+    }
+  });
+
+  it("cohort administration is ADMIN_MASTER only, even for an ADMIN of the cohort", async () => {
+    const { response } = await viaProxy("/api/v1/admin/cohorts", { authorization: `Bearer ${await token(adminId)}`, "x-germinatura-cohort": cohortA });
+    expect(response.status).toBe(403);
   });
 });
