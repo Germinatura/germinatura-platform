@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, GraduationCap, Pencil, Plus, X } from "lucide-react";
-import { cohortOverviewResponseSchema, type CohortOverview, type CohortStatus, type CohortSummary } from "@germinatura/contracts";
+import { COHORT_SLUG_HTML_PATTERN, COHORT_SLUG_MAX_LENGTH, cohortOverviewResponseSchema, type CohortOverview, type CohortStatus, type CohortSummary } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
 
 const statusLabels: Record<CohortStatus, string> = { PREPARING: "Em preparação", ACTIVE: "Ativa", ARCHIVED: "Arquivada" };
@@ -94,7 +94,7 @@ function CreateCohortDialog({ onClose, onComplete }: { onClose: () => void; onCo
     <Field id="cohort-name" label="Nome"><Input id="cohort-name" required minLength={3} maxLength={80} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
     <div className="grid gap-4 sm:grid-cols-2">
       <Field id="cohort-year" label="Ano"><Input id="cohort-year" required type="number" min={2000} max={2100} value={form.year} onChange={(event) => setForm({ ...form, year: event.target.value })} /></Field>
-      <Field id="cohort-slug" label="Identificador" description="Letras minúsculas, números e hífen."><Input id="cohort-slug" required maxLength={60} pattern="[a-z0-9]+(-[a-z0-9]+)*" value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value.toLowerCase() })} /></Field>
+      <Field id="cohort-slug" label="Identificador" description={`Até ${COHORT_SLUG_MAX_LENGTH} caracteres: letras minúsculas, números e hífen, começando e terminando com letra ou número. Não pode ser alterado depois.`}><Input id="cohort-slug" required maxLength={COHORT_SLUG_MAX_LENGTH} pattern={COHORT_SLUG_HTML_PATTERN} value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value.toLowerCase() })} /></Field>
     </div>
     <label className="block text-sm font-semibold">Situação inicial<select className={selectClass} value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as "PREPARING" | "ACTIVE" })}><option value="PREPARING">Em preparação</option><option value="ACTIVE">Ativa</option></select></label>
     {error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}
