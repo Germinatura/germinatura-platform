@@ -75,7 +75,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const isPublic = publicPaths.includes(pathname) || pathname.startsWith("/cadastro") || pathname.startsWith("/pdv");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const navigation = useMemo(() => navigationFor({ roles: user?.roles ?? [], experience, features: enabledFeatures, pdvUrl }), [user, experience, enabledFeatures]);
+  const navigation = useMemo(() => navigationFor({ roles: user?.roles ?? [], experience, features: enabledFeatures, pdvUrl, cohortMode: user?.cohortMode }), [user, experience, enabledFeatures]);
 
   useEffect(() => {
     if (isPublic || !user) return;

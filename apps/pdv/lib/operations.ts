@@ -55,7 +55,6 @@ import {
   type InventoryCountMutationResponse,
 } from "@germinatura/contracts";
 import { apiFetch } from "@/lib/api";
-import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { cartPayload } from "./operations-pure";
 
 export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary } from "./operations-pure";
@@ -119,22 +118,12 @@ async function responseError(response: Response, fallback: string) {
 }
 
 export async function loadInventoryContext(): Promise<InventoryContext> {
-  const supabase = getSupabaseBrowserClient();
-  const [locationResult, balanceResult] = await Promise.all([
-    supabase
-      .from("stock_locations")
-      .select("id,name,location_type")
-      .eq("active", true)
-      .order("location_type", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase
-      .from("inventory_balances")
-      .select("location_id,product_id,on_hand_quantity,reserved_quantity"),
-  ]);
-
-  if (locationResult.error || balanceResult.error) {
-    throw new Error("Não foi possível carregar a localização e o estoque deste PDV.");
-  }
+  // ADR 0011 (PR 5): read through the Portal, inside the PDV's cohort (never straight from the database in the browser).
+  const response = await apiFetch("/api/v1/pdv/inventory");
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar a localização e o estoque deste PDV."));
+  const body = asRecord(asRecord(await response.json().catch(() => null))?.data);
+  const locationResult = { data: body?.locations };
+  const balanceResult = { data: body?.balances };
   const locationRows: unknown[] = Array.isArray(locationResult.data) ? locationResult.data : [];
   const balanceRows: unknown[] = Array.isArray(balanceResult.data) ? balanceResult.data : [];
   const locations = locationRows.map(parseLocation).filter((value): value is StockLocation => value !== null);

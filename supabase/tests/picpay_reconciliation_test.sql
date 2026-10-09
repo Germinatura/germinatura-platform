@@ -284,7 +284,7 @@ select is(pg_temp.exceptions('VALOR_DIVERGENTE'), 0::bigint, 'and leaves the ope
 select is(public.resolve_picpay_exception((select exception_key from divergence), 'RESOLVIDA',
   'Diferença explicada pelo desconto', 'rec-resolve', gen_random_uuid()) ->> 'action', 'RESOLVIDA', 'resolving is idempotent');
 reset role;
-select is((select count(*)::integer from public.audit_logs where action = 'finance.picpay.exception_resolved'), 1, 'the resolution is audited once');
+select is((select count(*)::integer from cohort_data.audit_logs where action = 'finance.picpay.exception_resolved'), 1, 'the resolution is audited once');
 
 -- Periods: evaluated, then sent back to review by new evidence.
 set local role authenticated;
@@ -297,7 +297,7 @@ select is(public.list_picpay_periods(5) -> 0 ->> 'status', 'REVISAR', 'the evalu
 select is(public.picpay_reconciliation_summary(pg_temp.h(1), pg_temp.h(6)) -> 'receivables' ->> 'snapshot_cents', '1920',
   'the summary shows the receivable snapshot');
 reset role;
-select is((select count(*)::integer from public.audit_logs where action = 'finance.picpay.file_imported'), 9, 'every import is audited');
+select is((select count(*)::integer from cohort_data.audit_logs where action = 'finance.picpay.file_imported'), 9, 'every import is audited');
 
 select * from finish();
 rollback;

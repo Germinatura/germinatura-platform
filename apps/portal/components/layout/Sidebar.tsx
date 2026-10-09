@@ -35,7 +35,8 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
   const hasAdminRole = roles.includes("ADMIN") || roles.includes("ADMIN_MASTER");
   const isAdmin = hasAdminRole && experience === "admin";
   const home = isAdmin ? "/" : "/inicio";
-  const sections = useMemo(() => navigationFor({ roles, experience, features: enabledFeatures, pdvUrl }), [roles, experience, enabledFeatures]);
+  const cohortMode = user?.cohortMode;
+  const sections = useMemo(() => navigationFor({ roles, experience, features: enabledFeatures, pdvUrl, cohortMode }), [roles, experience, enabledFeatures, cohortMode]);
   const currentSection = activeSection(sections, pathname);
   const { collapsed: collapsedSections, setCollapsed } = useCollapsedSections();
   const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
@@ -58,9 +59,12 @@ export function Sidebar({ user, experience = "admin", collapsed = false, onToggl
     const active = item.active(pathname);
     const Icon = item.icon;
     return (
-      <Link key={item.id} href={item.href} onClick={item.external ? undefined : onNavigate} className={itemClass(active)} title={collapsed ? item.label : undefined} aria-current={active ? "page" : undefined}>
+      <Link key={item.id} href={item.href} onClick={item.external ? undefined : onNavigate} className={itemClass(active)}
+        title={item.cohortOnly ? `${item.label}: abre dentro de uma turma. ${item.cohortOnly}` : collapsed ? item.label : undefined} aria-current={active ? "page" : undefined}
+        aria-description={item.cohortOnly ? "Exige escolher uma turma" : undefined}>
         {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-[var(--g-accent-aqua)]" />}
-        <Icon className="size-5 shrink-0" />{!collapsed && <span>{item.label}</span>}
+        <Icon className="size-5 shrink-0" />{!collapsed && <span className="min-w-0 flex-1">{item.label}</span>}
+        {!collapsed && item.cohortOnly && <span className="shrink-0 rounded-full border border-[var(--g-border-default)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">por turma</span>}
       </Link>
     );
   }

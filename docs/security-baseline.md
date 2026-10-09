@@ -44,8 +44,9 @@ Um único banco e domínio, com segregação lógica e de segurança por turma.
     nada é escrito.
   - `all` vale só para ADMIN_MASTER e só para leitura e agregação. Toda escrita em tabela por turma exige uma turma
     concreta (`COHORT_REQUIRED`).
-  - Sem header, a requisição cai na turma padrão. Esse fallback existe só para compatibilidade de rollout. No estado
-    final, só quem tem exatamente uma turma acessível tem a turma inferida; ADMIN_MASTER nunca.
+  - Sem header (PR 5), nada é defaultado: só quem tem exatamente uma turma ativa tem a turma resolvida pelo vínculo;
+    ADMIN_MASTER nunca. Escrita por turma sem turma determinável falha (`COHORT_REQUIRED`), inclusive de sistema e de
+    service role (worker sem contexto).
   - O jobs worker processa cada evento da outbox dentro da turma do evento (`private.enter_cohort_context`, exclusivo
     de sistema e service role).
 - **RBAC.**
@@ -95,6 +96,11 @@ Um único banco e domínio, com segregação lógica e de segurança por turma.
   - Inativar um vínculo ou arquivar uma turma com operações em aberto é recusado. A revogação imediata de acesso
     continua sempre possível.
   - Os rótulos de turma da auditoria respeitam o escopo da requisição (`audit_log_cohorts`).
+- **Contexto explícito (PR 5).**
+  - **Visitante:** turma padrão ATIVA, ou turma ATIVA resolvida no servidor a partir de slug público ou de link `/d/`. `cohort_id` da URL nunca é aceito; turma arquivada ou slug inválido → nada.
+  - **Turma padrão:** só ADMIN_MASTER muda; sempre exatamente uma ATIVA; trocas concorrentes são serializadas.
+  - **Storage:** imagens de produto, capas e fotos de perda exigem a entidade na turma da requisição.
+  - **Revogação imediata:** sempre possível, e informa as pendências. Outro ADMIN ou o FINANCEIRO as assume, com auditoria; nada é apagado.
 - **Lacuna conhecida, para o PR 3:** a listagem de usuários do admin lê `profiles`/`user_roles` com o cliente de
   chave secreta, sem escopo de turma. Nenhuma segunda turma deve ser criada em produção antes de essa rota passar a
   usar um RPC escopado.

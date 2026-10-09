@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Browser, type BrowserContext } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 
 // ADR 0011 (PR 3): cohort context end to end — two cohorts (A = Turma 2026, B created here), ADMIN of each, a seller of
@@ -24,6 +24,19 @@ async function signIn(browser: Browser, identifier: string, secret: string): Pro
 }
 const inCohort = (cohort: string, extra: Record<string, string> = {}) => ({ Origin: portalUrl, [COHORT]: cohort, ...extra });
 
+/** The PDV offline copies on this device, by cohort: product names, or null for a cache without a valid snapshot. */
+const offlineCopies = (page: Page) => page.evaluate(async () => {
+  const prefix = "germinatura-pdv-catalog-v2:";
+  const copies: Record<string, string[] | null> = {};
+  for (const name of await caches.keys()) {
+    if (!name.startsWith("germinatura-pdv-catalog-")) continue;
+    const response = await (await caches.open(name)).match("/offline/catalog-snapshot");
+    const data = response ? await response.json() as { cohortId?: string; products?: Array<{ name: string }> } : null;
+    copies[name.startsWith(prefix) ? name.slice(prefix.length) : name] = data?.cohortId === name.slice(prefix.length) ? (data.products ?? []).map((product) => product.name) : null;
+  }
+  return copies;
+});
+
 // ADMIN_MASTER through the Data API, only to give one person a second cohort (no Portal screen does that in PR 3).
 async function masterRpc(name: string, body: Record<string, unknown>, cohort: string) {
   const status = execFileSync(process.execPath, ["tools/run-supabase.mjs", "status", "-o", "env"], { encoding: "utf8" });
@@ -31,7 +44,7 @@ async function masterRpc(name: string, body: Record<string, unknown>, cohort: st
   const key = status.match(/^PUBLISHABLE_KEY="?([^"\r\n]+)"?$/m)?.[1];
   if (!url || !key) throw new Error("Supabase local indisponível");
   const login = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "admin.teste@institutojef.org.br", password: "Admin123!" }) });
+    body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
   const { access_token: token } = await login.json() as { access_token: string };
   const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST",
     headers: { apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json", [COHORT]: cohort }, body: JSON.stringify(body) });
@@ -53,7 +66,7 @@ async function provision(request: APIRequestContext, cohort: string, who: keyof 
 test.describe.serial("turmas A/B (ADR 0011)", () => {
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(180_000);
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     // Creating a cohort is global: allowed in "Todas as turmas".
     for (let attempt = 0; attempt < 5 && !cohortB; attempt += 1) {
       const year = 2040 + Math.floor(Math.random() * 60);
@@ -76,7 +89,7 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
 
   // The people stay (identities are never deleted); they leave A and B is archived, so later journeys see one cohort.
   test.afterAll(async ({ browser }) => {
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     for (const who of ["adminA", "sellerAB"] as const) {
       if (ids[who]) await master.request.patch(`/api/v1/admin/users/${ids[who]}/roles`, { headers: inCohort(cohortA), data: { roles: ["CONSUMIDOR"], active: false } });
     }
@@ -130,7 +143,7 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
     const sellerB = await signIn(browser, people.sellerB.username, password);
     expect(JSON.stringify(await (await sellerB.request.get("/api/v1/pdv/terminals")).json())).toContain(code);
 
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     expect((await master.request.patch("/api/v1/admin/feature-flags/raffles", { headers: inCohort(cohortB), data: { enabled: false, reason: "Rifas pausadas só na turma B" } })).status()).toBe(200);
     const flag = async (context: BrowserContext) => ((await (await context.request.get("/api/v1/feature-flags")).json()) as { data: { key: string; enabled: boolean }[] })
       .data.find((item) => item.key === "raffles")?.enabled;
@@ -140,7 +153,7 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
   });
 
   test("ADMIN_MASTER em Todas as turmas consulta e filtra, mas só escreve dado de turma dentro de uma turma", async ({ browser }) => {
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     expect((await master.request.post("/api/v1/session/cohort", { headers: { Origin: portalUrl }, data: { cohort: "all" } })).status()).toBe(200);
     const write = await master.request.post("/api/v1/admin/catalog/categories", { headers: { Origin: portalUrl },
       data: { name: "Categoria em todas", slug: `todas-${suffix}`, active: true, sortOrder: 1, description: "Não deve existir" } });
@@ -230,6 +243,61 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
     await page.waitForURL(`${pdvUrl}/`);
     await expect(page.getByText("Turma 2026 · ", { exact: false })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Item público A" })).toBeVisible();
+    await context.close();
+  });
+
+  test("o catálogo offline do PDV é de cada turma: handoff, troca, offline e saída", async ({ browser }) => {
+    test.slow();
+    const pickCohort = async (page: Page, name: string) => {
+      await page.goto(`${pdvUrl}/turma`);
+      await page.getByRole("list", { name: "Turmas disponíveis" }).getByRole("button").filter({ hasText: name }).click();
+      await page.waitForURL(`${pdvUrl}/`);
+      await expect(page.getByText(`${name} · `, { exact: false })).toBeVisible();
+    };
+    // The handoff opens the PDV in B: the previous copies are cleared and only B's (empty) catalog is saved.
+    const context = await signIn(browser, people.sellerAB.username, password);
+    const page = await context.newPage();
+    await page.goto("/inicio");
+    const selected = page.waitForResponse((response) => response.url().endsWith("/api/v1/session/cohort") && response.request().method() === "POST");
+    await page.getByRole("combobox", { name: "Turma" }).selectOption(cohortB);
+    expect((await selected).status()).toBe(200);
+    await page.getByRole("button", { name: "Abrir PDV" }).click();
+    await page.waitForURL(`${pdvUrl}/`, { timeout: 60_000 });
+    await expect(page.getByText(`${cohortBName} · `, { exact: false })).toBeVisible();
+    await expect.poll(() => offlineCopies(page), { timeout: 30_000 }).toEqual({ [cohortB]: [] });
+
+    // Switching to A saves A's copy apart; B's is not reused for A.
+    await pickCohort(page, "Turma 2026");
+    await expect.poll(async () => (await offlineCopies(page))[cohortA] ?? [], { timeout: 30_000 }).toContain("Item público A");
+    expect((await offlineCopies(page))[cohortB]).toEqual([]);
+
+    // Offline in A: A's copy only.
+    await context.setOffline(true);
+    await page.goto(`${pdvUrl}/`);
+    await expect(page.getByText("Turma: Turma 2026")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Item público A", exact: true })).toBeVisible();
+    await context.setOffline(false);
+
+    // Back to B, then offline: B's copy, never A's products.
+    await pickCohort(page, cohortBName);
+    await context.setOffline(true);
+    await page.goto(`${pdvUrl}/`);
+    await expect(page.getByText(`Turma: ${cohortBName}`)).toBeVisible();
+    await expect(page.getByText("Nenhum produto encontrado nesta cópia.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Item público A" })).toHaveCount(0);
+    await context.setOffline(false);
+
+    // Leaving the PDV clears every cohort's copy and the cohort selection: the next person finds nothing offline.
+    await page.goto(`${pdvUrl}/`);
+    await page.getByRole("button", { name: "Abrir menu da conta" }).click();
+    await page.getByRole("button", { name: "Sair do PDV" }).click();
+    await page.waitForURL(`${pdvUrl}/login`);
+    await expect.poll(() => offlineCopies(page)).toEqual({});
+    expect((await context.cookies(pdvUrl)).find((cookie) => cookie.name === "germinatura_pdv_cohort")?.value ?? "").toBe("");
+    await context.setOffline(true);
+    await page.goto(`${pdvUrl}/`);
+    await expect(page.getByText("Nenhuma turma selecionada neste dispositivo.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("article")).toHaveCount(0);
     await context.close();
   });
 

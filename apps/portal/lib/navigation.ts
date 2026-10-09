@@ -1,6 +1,7 @@
 // Single source of the Portal navigation: the Sidebar and the command palette render the same entries.
 // Visibility only shapes navigation; pages and APIs keep enforcing permissions on the server.
 import { Banknote, Bell, BookOpenText, Boxes, CalendarClock, CalendarDays, ChartNoAxesColumn, ClipboardCheck, CreditCard, FileSearch, FileUp, GraduationCap, HandCoins, LayoutDashboard, Link2, Megaphone, PackageSearch, PartyPopper, Percent, Receipt, Settings, Share2, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, Wallet, type LucideIcon } from "lucide-react";
+import { cohortOnlyReason, screenAllowedInAll } from "./consolidated-screens";
 import { experienceHome, type PortalExperience } from "./portal-experience";
 
 export interface NavigationContext {
@@ -8,6 +9,8 @@ export interface NavigationContext {
   experience: PortalExperience;
   features: string[];
   pdvUrl: string;
+  /** ADR 0011 (PR 5): in "ALL", screens that need a concrete cohort are marked (never hidden). */
+  cohortMode?: "COHORT" | "ALL" | "NONE";
 }
 
 export type NavigationSectionId = "principal" | "catalogo" | "financeiro" | "comunicacao" | "conta" | "pdv";
@@ -23,6 +26,8 @@ export interface NavigationItem {
   /** Entries reachable only from the search (the Sidebar shows them elsewhere or not at all). */
   searchOnly?: boolean;
   active: (pathname: string) => boolean;
+  /** Set in "Todas as turmas" for a screen that opens only inside one cohort, with the reason. */
+  cohortOnly?: string;
 }
 
 export interface NavigationSection {
@@ -122,7 +127,8 @@ function resolve(item: ItemDefinition, context: NavigationContext): NavigationIt
   const href = typeof item.href === "function" ? item.href(context) : item.href;
   const custom = item.active;
   const active = custom ? (pathname: string) => custom(pathname, context) : item.match === "exact" ? (pathname: string) => pathname === href : (pathname: string) => pathname.startsWith(href);
-  return { id: item.id, section: item.section, icon: item.icon, keywords: item.keywords, external: item.external, searchOnly: item.searchOnly, label: typeof item.label === "function" ? item.label(context) : item.label, href, active };
+  const cohortOnly = context.cohortMode === "ALL" && !item.external && !screenAllowedInAll(href) ? cohortOnlyReason(href) : undefined;
+  return { id: item.id, section: item.section, icon: item.icon, keywords: item.keywords, external: item.external, searchOnly: item.searchOnly, label: typeof item.label === "function" ? item.label(context) : item.label, href, active, ...(cohortOnly ? { cohortOnly } : {}) };
 }
 
 export function activeSection(sections: NavigationSection[], pathname: string): NavigationSectionId | null {

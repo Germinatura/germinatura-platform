@@ -1,5 +1,6 @@
 begin;
 select plan(10);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 select has_function(
   'public', 'get_pricing_inputs', array['promotion_channel', 'uuid[]', 'text'],

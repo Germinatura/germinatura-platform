@@ -6,7 +6,7 @@ import type { CohortSummary } from "@germinatura/contracts";
 import { Button, Card } from "@germinatura/ui";
 
 /** Explicit cohort choice before a cohort-only screen or action (the server validates it again). */
-export function CohortChooser({ cohorts, next }: { cohorts: CohortSummary[]; next: string }) {
+export function CohortChooser({ cohorts, next, allowAll = false }: { cohorts: CohortSummary[]; next: string; allowAll?: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +31,8 @@ export function CohortChooser({ cohorts, next }: { cohorts: CohortSummary[]; nex
       {cohorts.length === 0
         ? <p className="text-sm">Nenhuma turma aberta disponível.</p>
         : <ul aria-label="Turmas" className="grid gap-3 sm:grid-cols-2">
+            {allowAll && <li><Button type="button" variant="secondary" size="lg" className="w-full justify-start" loading={busy === "all"} disabled={busy !== null}
+              onClick={() => void choose("all")}><GraduationCap className="size-5" /> Todas as turmas (consulta)</Button></li>}
             {cohorts.map((cohort) => <li key={cohort.id}>
               <Button type="button" variant="secondary" size="lg" className="w-full justify-start" loading={busy === cohort.id} disabled={busy !== null}
                 onClick={() => void choose(cohort.id)}>

@@ -38,6 +38,8 @@ import {
   loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminals, quoteCart, type CartItem, type InventoryContext,
 } from "@/lib/operations";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { clearOfflineCatalogs } from "@/components/OfflineRegistration";
+import { PDV_COHORT_COOKIE } from "@/lib/pdv-cohort";
 
 type Step = "catalog" | "review" | "payment" | "success";
 type CheckoutData = SalesCheckoutResponse["data"];
@@ -197,6 +199,9 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     showToast("Venda pendente cancelada e itens liberados.", "info"); resetSale();
   });
   const logout = async () => {
+    // ADR 0011: leaving the PDV takes the cohort selection and every cohort's offline copy with it.
+    await clearOfflineCatalogs();
+    document.cookie = `${PDV_COHORT_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
     await getSupabaseBrowserClient().auth.signOut();
     window.location.assign(user.perfil === "ADMIN" || user.perfil === "ADMIN_MASTER" ? `${portalUrl}/login` : "/login");
   };

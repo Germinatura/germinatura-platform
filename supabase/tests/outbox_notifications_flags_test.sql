@@ -1,5 +1,6 @@
 begin;
 select plan(52);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 select has_table('public', 'notifications', 'notifications table exists');
 select has_table('private', 'feature_flags', 'feature flags table exists');
@@ -152,6 +153,8 @@ select throws_ok(
   'P0001', 'NOTIFICATION_NOT_FOUND', 'another user cannot mark the notification read'
 );
 reset role;
+set local "request.jwt.claim.sub" = ''; -- fixtures below are written by the system, in Turma 2026 (the worker
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- cleared it for a global event)
 
 insert into public.outbox_events (id, topic, aggregate_type, aggregate_id, payload)
 values ('94000000-0000-4000-8000-000000000002', 'test.delivery.failure', 'test_event', 'failure-1', '{}');

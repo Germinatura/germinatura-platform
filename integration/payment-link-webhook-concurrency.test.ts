@@ -27,10 +27,12 @@ it("simultaneous PicPay notices confirm a sale once and competing payments go to
   const worker = <T = Record<string, unknown>>(name: string, body: Record<string, unknown>) =>
     call<T>({ apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, name, body);
   const finance = await session("admin.teste@institutojef.org.br", "Admin123!");
+  // ADR 0011: global flags belong to ADMIN_MASTER.
+  const master = await session("master.teste@institutojef.org.br", "Master123!");
   const seller = await session("vendedor.teste@institutojef.org.br", "Vendedor123!");
   type Event = { outcome: string; duplicate: boolean; receipt_id: string };
 
-  await finance("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "Teste de concorrência do link", p_correlation_id: randomUUID() });
+  await master("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "Teste de concorrência do link", p_correlation_id: randomUUID() });
   try {
     await finance("adjust_stock", { p_location_id: SELLER_LOCATION_ID, p_product_id: PRODUCT_ID, p_quantity_delta: 3,
       p_reason: "Preparar link concorrente", p_idempotency_key: `link-race-stock:${randomUUID()}`, p_correlation_id: randomUUID() });
@@ -82,6 +84,6 @@ it("simultaneous PicPay notices confirm a sale once and competing payments go to
     expect(converging.filter((result) => !result.duplicate)).toHaveLength(1);
     expect(converging.every((result) => result.outcome === "APPLIED")).toBe(true);
   } finally {
-    await finance("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do teste de concorrência do link", p_correlation_id: randomUUID() });
+    await master("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do teste de concorrência do link", p_correlation_id: randomUUID() });
   }
 });

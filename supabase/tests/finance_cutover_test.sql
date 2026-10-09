@@ -158,7 +158,7 @@ select throws_ok($$select public.resolve_picpay_statement_lines_bulk((select (re
 reset role;
 select ok((select bool_and(cutover and category = 'RECEITA_HISTORICA' and not automatic) from public.picpay_statement_line_resolutions
   where bulk_id = (select (result ->> 'bulk_id')::uuid from bulk_done)), 'every line keeps its own cutover decision');
-select is((select count(*) from public.audit_logs where action = 'finance.statement.lines_bulk_resolved'
+select is((select count(*) from cohort_data.audit_logs where action = 'finance.statement.lines_bulk_resolved'
   and metadata ->> 'bulk_id' = (select result ->> 'bulk_id' from bulk_done)), 1::bigint, 'the bulk is audited once, with its totals');
 set local role authenticated;
 

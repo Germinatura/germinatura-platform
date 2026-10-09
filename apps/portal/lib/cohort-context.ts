@@ -10,8 +10,8 @@ import { COHORT_HEADER, cohortSelectionSchema, type CohortSelection } from "@ger
  * 3. The proxy forwards only the validated selection to the route, in the same header; the Supabase clients of the
  *    route attach it to every database call, where `private.cohort_scope()` validates it again.
  *
- * Without a selection the database falls back to the default cohort (Turma 2026). That fallback exists only for the
- * rollout and is removed in PR 5 (`private.cohort_fallback_enabled()`).
+ * Without a selection nothing is defaulted (PR 5): a person with exactly one active cohort has it resolved from that
+ * membership; anyone else (several cohorts, ADMIN_MASTER) has no cohort and is sent to choose one.
  */
 export const COHORT_COOKIE = "germinatura_cohort";
 export { COHORT_HEADER };
@@ -46,7 +46,7 @@ export function requestedCohort(request: CohortCarrier): RequestedCohort {
   return { kind: "none" };
 }
 
-/** Supabase global headers carrying the selection to the database (none: the database fallback applies). */
+/** Supabase global headers carrying the selection to the database (none: only a single membership resolves). */
 export function cohortHeaders(selection: CohortSelection | null | undefined): Record<string, string> {
   return selection ? { [COHORT_HEADER]: selection } : {};
 }

@@ -25,7 +25,9 @@ from unnest(array['a','b','c','d','e','f','g','h']) label;
 select throws_ok($$select public.request_payment_link((select sale_id from link_sales where label='a'),'link-req-off',gen_random_uuid())$$, 'P0001', 'FEATURE_DISABLED', 'links wait for the flag');
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000005'; -- ADR 0011: global flags belong to ADMIN_MASTER
 select lives_ok($$select public.update_feature_flag('payment_link', true, 'Teste do link de pagamento', gen_random_uuid())$$, 'admin turns the flag on');
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
 create temp table link_requests(label text primary key, result jsonb);
@@ -111,6 +113,7 @@ select is((select string_agg(kind::text, ',' order by kind::text) from public.pa
 
 -- Finance replays and resolves.
 set local role authenticated;
+set local "request.jwt.claim.role" = 'authenticated'; -- the worker steps above left the service claim
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
 select throws_ok($$select public.replay_payment_webhook_receipt((select (result->>'receipt_id')::uuid from pay_a),'link-replay-seller',gen_random_uuid())$$, '42501', 'FINANCE_REQUIRED', 'sellers cannot replay receipts');
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';

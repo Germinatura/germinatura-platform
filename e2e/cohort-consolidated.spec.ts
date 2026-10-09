@@ -26,7 +26,7 @@ async function masterRpc(name: string, body: Record<string, unknown>) {
   const key = status.match(/^PUBLISHABLE_KEY="?([^"\r\n]+)"?$/m)?.[1];
   if (!url || !key) throw new Error("Supabase local indisponível");
   const login = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
-    body: JSON.stringify({ email: "admin.teste@institutojef.org.br", password: "Admin123!" }) });
+    body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
   const { access_token: token } = await login.json() as { access_token: string };
   const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST",
     headers: { apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json", [COHORT]: cohortA }, body: JSON.stringify(body) });
@@ -45,7 +45,7 @@ const inCohort = (cohort: string, extra: Record<string, string> = {}) => ({ Orig
 test.describe.serial("visão consolidada e vínculos (ADR 0011, PR 4)", () => {
   test.beforeAll(async ({ browser }) => {
     test.setTimeout(180_000);
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     for (let attempt = 0; attempt < 5 && !cohortB; attempt += 1) {
       cohortBName = `Turma Consolidada ${suffix}${attempt || ""}`;
       const created = await master.request.post("/api/v1/admin/cohorts", { headers: inCohort("all", { "Idempotency-Key": `e2e-pr4-${suffix}-${attempt}` }),
@@ -73,7 +73,7 @@ test.describe.serial("visão consolidada e vínculos (ADR 0011, PR 4)", () => {
   });
 
   test.afterAll(async ({ browser }) => {
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     if (pendingSaleId) await master.request.post(`/api/v1/sales/${pendingSaleId}/cancel`, { headers: inCohort(cohortA, { "Idempotency-Key": `e2e-pr4-cancel-${suffix}` }) });
     if (stockMovementId) await masterRpc("reverse_stock_movement", { p_movement_id: stockMovementId, p_reason: "Limpar estoque do teste consolidado",
       p_idempotency_key: `e2e-pr4-unstock-${suffix}`, p_correlation_id: crypto.randomUUID() }).catch(() => undefined);
@@ -86,7 +86,7 @@ test.describe.serial("visão consolidada e vínculos (ADR 0011, PR 4)", () => {
 
   test("ADMIN_MASTER gerencia os vínculos de João: ADMIN em 2026 e VENDEDOR na outra turma, com histórico", async ({ browser }) => {
     test.slow();
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     expect((await master.request.post("/api/v1/session/cohort", { headers: { Origin: portalUrl }, data: { cohort: "all" } })).status()).toBe(200);
     const page = await master.newPage();
     await page.goto("/admin/usuarios");
@@ -150,7 +150,7 @@ test.describe.serial("visão consolidada e vínculos (ADR 0011, PR 4)", () => {
 
   test("Todas as turmas: visão geral comparada, indicadores lado a lado, vendas e auditoria com a turma, telas por turma pedem a turma", async ({ browser }) => {
     test.slow();
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     expect((await master.request.post("/api/v1/session/cohort", { headers: { Origin: portalUrl }, data: { cohort: "all" } })).status()).toBe(200);
     const page = await master.newPage();
 
@@ -191,7 +191,7 @@ test.describe.serial("visão consolidada e vínculos (ADR 0011, PR 4)", () => {
   });
 
   test("/admin/turmas mostra vínculos e papéis por turma", async ({ browser }) => {
-    const master = await signIn(browser, "admin.teste", "Admin123!");
+    const master = await signIn(browser, "master.teste", "Master123!");
     const page = await master.newPage();
     await page.goto("/admin/turmas");
     const list = page.getByRole("list", { name: "Turmas" });

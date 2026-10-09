@@ -110,7 +110,7 @@ Cada etapa comporta PRs pequenos e completos. O catálogo transacional e as oper
 
 Por mutação: permission + rota/allowlist + RLS + RPC + idempotência + interface + teste de abuso. Preço é do servidor, histórico é imutável e tarefas secundárias usam outbox. Se a cotação mudar antes de cobrar, confirmar novamente; a reserva comercial conserva o snapshot.
 
-O PWA já integrado permite somente shell/catálogo público datado, primeira página até 50 produtos, TTL 24h e indicação de parcialidade. Nunca cachear sessão, saldo, carrinho ou pagamentos; nenhuma fila offline. O service binding PDV→Portal foi integrado no PR #51, com smoke de catálogo/sessão; instalação real continua pendente.
+O PWA já integrado permite somente shell/catálogo público datado, primeira página até 50 produtos, TTL 24h e indicação de parcialidade. Desde o PR 5 do multi-turma (ADR 0011), a cópia é por turma concreta e é apagada ao sair ou ao entrar. Nunca cachear sessão, saldo, carrinho ou pagamentos; nenhuma fila offline. O service binding PDV→Portal foi integrado no PR #51, com smoke de catálogo/sessão; instalação real continua pendente.
 
 ## Fila contínua de implementação
 
@@ -517,4 +517,12 @@ COH-001 a COH-006, ADR 0011. Um único banco e domínio, com segregação lógic
   - Conta PicPay como evidência global.
   - Vínculos usuário ↔ turma com papéis por turma, travas de operações em aberto e histórico.
   - `/admin/turmas` com contagens e trava de arquivamento.
-- **PR 5:** restrição do fallback, performance, runbook final e validação em staging. Produção só com autorização.
+- **PR 5:** fechamento técnico.
+  - Nenhum registro cai numa turma por falta de contexto (fallback e guard).
+  - Turma padrão explícita, definida pelo ADMIN_MASTER.
+  - Visitante por slug e link resolvidos no servidor.
+  - Cadastro explícito na turma padrão.
+  - Storage por turma.
+  - Revogação com pendências e encerramento de turno pelo financeiro.
+  - Menu em "Todas" marcando as telas por turma.
+  - Produção só com autorização.

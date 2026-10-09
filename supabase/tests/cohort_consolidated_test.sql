@@ -29,7 +29,7 @@ create function pg_temp.id(p_name text) returns uuid language sql as $$ select i
 create function pg_temp.a() returns uuid language sql as $$ select 'c0000000-0000-4000-8000-000000002026'::uuid $$;
 create function pg_temp.b() returns uuid language sql as $$ select id from ids where name = 'cohort_b' $$;
 create function pg_temp.c() returns uuid language sql as $$ select id from ids where name = 'cohort_c' $$;
-create function pg_temp.master() returns uuid language sql as $$ select '10000000-0000-4000-8000-000000000001'::uuid $$;
+create function pg_temp.master() returns uuid language sql as $$ select '10000000-0000-4000-8000-000000000005'::uuid $$;
 create function pg_temp.membership(p_user uuid, p_cohort uuid) returns text language sql as $$
   select coalesce((select status::text from public.user_cohorts where user_id = p_user and cohort_id = p_cohort), 'NONE') $$;
 create function pg_temp.roles_in(p_user uuid, p_cohort uuid) returns text language sql as $$

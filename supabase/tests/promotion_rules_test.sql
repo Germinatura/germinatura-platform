@@ -1,5 +1,6 @@
 begin;
 select plan(51);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 select has_table('cohort_data', 'promotions', 'promotions table exists');
 select has_table('cohort_data', 'promotion_products', 'promotion product scopes table exists');

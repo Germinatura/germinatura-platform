@@ -1,4 +1,8 @@
 -- Identidades exclusivamente locais. Os endereços e senhas abaixo são fixtures, nunca dados de produção.
+-- ADR 0011 (PR 5): the local fixtures belong to Turma 2026, named explicitly for this seed session (no write ever falls
+-- into a cohort by default). Harmless on schemas from before the cohorts (the upgrade check seeds one).
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', false);
+
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   confirmation_token, recovery_token, email_change_token_new, email_change,
@@ -8,7 +12,8 @@ insert into auth.users (
   ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'admin.teste@institutojef.org.br', extensions.crypt('Admin123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Admin Local","username":"admin.teste"}', now(), now()),
   ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'vendedor.teste@institutojef.org.br', extensions.crypt('Vendedor123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Vendedor Local","username":"vendedor.teste"}', now(), now()),
   ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'vendedor.destino@institutojef.org.br', extensions.crypt('VendedorDestino123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Vendedor Destino","username":"vendedor.destino"}', now(), now()),
-  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'consumidor.teste@institutojef.org.br', extensions.crypt('Consumidor123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Consumidor Local","username":"consumidor.teste"}', now(), now())
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'consumidor.teste@institutojef.org.br', extensions.crypt('Consumidor123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Consumidor Local","username":"consumidor.teste"}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'master.teste@institutojef.org.br', extensions.crypt('Master123!', extensions.gen_salt('bf')), now(), '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{"name":"Master Local","username":"master.teste"}', now(), now())
 on conflict (id) do nothing;
 
 insert into auth.identities (
@@ -18,7 +23,8 @@ insert into auth.identities (
   (gen_random_uuid(), '10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '{"sub":"10000000-0000-4000-8000-000000000001","email":"admin.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now()),
   (gen_random_uuid(), '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '{"sub":"10000000-0000-4000-8000-000000000002","email":"vendedor.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now()),
   (gen_random_uuid(), '10000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000004', '{"sub":"10000000-0000-4000-8000-000000000004","email":"vendedor.destino@institutojef.org.br","email_verified":true}', 'email', now(), now(), now()),
-  (gen_random_uuid(), '10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', '{"sub":"10000000-0000-4000-8000-000000000003","email":"consumidor.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now())
+  (gen_random_uuid(), '10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', '{"sub":"10000000-0000-4000-8000-000000000003","email":"consumidor.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now()),
+  (gen_random_uuid(), '10000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000005', '{"sub":"10000000-0000-4000-8000-000000000005","email":"master.teste@institutojef.org.br","email_verified":true}', 'email', now(), now(), now())
 on conflict (provider_id, provider) do nothing;
 
 -- The schema creates the central location; the local fixtures pin its id (nothing references it yet).
@@ -48,13 +54,14 @@ insert into public.user_roles (user_id, role_id) values
   ('10000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000003'),
   ('10000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002');
 
--- The fixture administrator stands for the institutional bootstrap administrator, who holds ADMIN_MASTER (ADR 0011).
--- Conditional: the upgrade check also seeds a schema from before the cohorts.
+-- ADMIN_MASTER of the local fixtures (ADR 0011): a person of its own, so admin.teste stays the ADMIN of Turma 2026 and
+-- master.teste always names the cohort it works in. Conditional: the upgrade check also seeds a schema from before the
+-- cohorts.
 do $$
 begin
   if to_regclass('public.admin_masters') is not null then
     insert into public.admin_masters (user_id, reason, correlation_id) values
-      ('10000000-0000-4000-8000-000000000001', 'Fixture local do administrador do bootstrap (ADR 0011)', '00000000-0000-4000-8000-0000000000a1')
+      ('10000000-0000-4000-8000-000000000005', 'Fixture local de ADMIN_MASTER (ADR 0011)', '00000000-0000-4000-8000-0000000000a1')
     on conflict (user_id) do nothing;
   end if;
 end;
@@ -139,3 +146,6 @@ values (
   '33f00000-0000-4000-8000-000000000001'
 )
 on conflict (location_id, product_id) do nothing;
+
+-- End of the explicit seed context.
+select set_config('germinatura.system_cohort', '', false);

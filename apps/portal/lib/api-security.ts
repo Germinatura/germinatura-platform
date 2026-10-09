@@ -111,6 +111,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/pdv/sales/:id/origin", methods: ["POST"], access: "seller" },
   { path: "/api/v1/pdv/share-links", methods: ["GET", "POST"], access: "seller" },
   { path: "/api/v1/pdv/terminals", methods: ["GET"], access: "seller" },
+  { path: "/api/v1/pdv/inventory", methods: ["GET"], access: "seller" },
   { path: "/api/v1/pdv/shifts/:id/close", methods: ["POST"], access: "seller" },
   { path: "/api/v1/payments/:id/reconciliations", methods: ["POST"], access: "finance" },
   { path: "/api/v1/closeouts", methods: ["POST"], access: "seller" },
@@ -171,6 +172,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/session/cohort", methods: ["POST", "DELETE"], access: "authenticated", cohort: "global" },
   { path: "/api/v1/admin/cohorts", methods: ["GET", "POST"], access: "master", cohort: "global" },
   { path: "/api/v1/admin/cohorts/:id", methods: ["PATCH"], access: "master", cohort: "global" },
+  { path: "/api/v1/admin/cohorts/:id/default", methods: ["PUT"], access: "master", cohort: "global" },
+  { path: "/api/v1/admin/finance/shifts/:id/close", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/users/:id/admin-master", methods: ["PUT"], access: "master", cohort: "global" },
   { path: "/api/v1/admin/users/:id/cohorts", methods: ["GET"], access: "master", cohort: "global" },
   { path: "/api/v1/admin/users/:id/membership", methods: ["PUT"], access: "admin" },
@@ -194,6 +197,12 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/finance/payables/settlements/:id/reverse") {
       return /^\/api\/v1\/admin\/finance\/payables\/settlements\/[0-9a-f-]+\/reverse$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/cohorts/:id/default") {
+      return /^\/api\/v1\/admin\/cohorts\/[0-9a-f-]+\/default$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/shifts/:id/close") {
+      return /^\/api\/v1\/admin\/finance\/shifts\/[0-9a-f-]+\/close$/i.test(path);
     }
     if (rule.path === "/api/v1/admin/cohorts/:id") {
       return /^\/api\/v1\/admin\/cohorts\/[0-9a-f-]+$/i.test(path);

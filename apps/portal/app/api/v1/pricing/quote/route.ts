@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, getSession, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { resolvePublicCohort } from "@/lib/public-cohort";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
 
 // get_pricing_inputs returns the canonical rule document; the shared contract validates it.
@@ -96,8 +97,17 @@ export async function POST(request: Request) {
       supabase = await createAuthenticatedSupabaseClient(request);
     } else {
       // ADR 0011: a signed-in person is quoted in the cohort in context (validated by the proxy), as the reservation
-      // will be; a visitor is quoted in the default cohort, whose catalog is the public one.
-      supabase = await getSession() ? await createAuthenticatedSupabaseClient(request) : createPublicSupabaseClient();
+      // will be; a visitor in the public default cohort, or in the ACTIVE cohort named by its public slug (?turma=).
+      const slug = new URL(request.url).searchParams.get("turma");
+      if (await getSession()) {
+        supabase = await createAuthenticatedSupabaseClient(request);
+      } else if (slug !== null) {
+        const cohort = await resolvePublicCohort(slug);
+        if (!cohort) return errorResponse("COHORT_NOT_FOUND", "Turma não encontrada ou indisponível.", requestId, 404);
+        supabase = createPublicSupabaseClient(cohort.id);
+      } else {
+        supabase = createPublicSupabaseClient();
+      }
     }
   } catch (error) {
     if (error instanceof AuthorizationError) {
