@@ -1,7 +1,7 @@
 -- PR D: acréscimo por meio de pagamento. Configuração por turma (versões imutáveis), cálculo no servidor em centavos,
 -- snapshot na venda, remoção autorizada e auditada, estorno, fechamento, indicadores e tarifa PicPay independente.
 begin;
-select plan(61);
+select plan(65);
 
 create function pg_temp.ctx(p_user uuid, p_header text) returns void language plpgsql as $$
 begin
@@ -49,6 +49,17 @@ select ok(not has_table_privilege('authenticated', 'public.payment_surcharges', 
   and not has_table_privilege('authenticated', 'public.payment_surcharges', 'SELECT'), 'snapshots are reachable only through the commands');
 select ok(not has_function_privilege('anon', 'public.save_payment_surcharge_rule(public.payment_surcharge_method,public.payment_surcharge_mode,integer,bigint,text,text,uuid)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.list_payment_surcharge_rules()', 'EXECUTE'), 'anonymous has no access to the configuration');
+
+-- Catalogue: the waiver permission exists once and is granted to ADMIN only; ADMIN_MASTER holds it by its global semantics.
+select is((select count(*)::integer from public.permissions where key = 'sales.surcharge.waive'), 1, 'the waiver permission exists exactly once');
+select is((select string_agg(role.key, ',' order by role.key) from public.role_permissions grant_row join public.roles role on role.id = grant_row.role_id
+  join public.permissions permission on permission.id = grant_row.permission_id where permission.key = 'sales.surcharge.waive'), 'ADMIN',
+  'only ADMIN is granted the waiver (no VENDEDOR, FINANCEIRO or other role)');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000005', pg_temp.a());
+select ok(public.has_permission('sales.surcharge.waive'), 'ADMIN_MASTER holds the waiver through its global capability');
+select pg_temp.ctx('10000000-0000-4000-8000-000000000002', pg_temp.a());
+select ok(not public.has_permission('sales.surcharge.waive'), 'a seller does not hold the waiver');
+select pg_temp.sys();
 
 -- Pure calculation: floor of basis points, fixed once, zero base and NONE never charge.
 select results_eq($$values
