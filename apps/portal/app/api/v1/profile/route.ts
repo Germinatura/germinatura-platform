@@ -19,11 +19,13 @@ async function handle(request: Request, mutate: boolean) {
       const value = parsed.data;
       const { error } = await client.rpc("update_my_profile", {
         p_expected_revision: value.expectedRevision, p_display_name: value.displayName,
-        p_avatar_path: value.avatarPath, p_bio: value.bio, p_class_name: value.className,
+        p_username: value.username, p_avatar_path: value.avatarPath, p_bio: value.bio, p_class_name: value.className,
         p_sweet_preferences: value.sweetPreferences, p_idempotency_key: key.data, p_correlation_id: crypto.randomUUID(),
       });
       if (error) {
         if (error.code === "42501") return fail("FORBIDDEN", "Você não pode editar este perfil.", 403);
+        if (error.message === "USERNAME_ALREADY_USED") return fail("USERNAME_ALREADY_USED", "Este nome de usuário já está em uso. Escolha outro.", 409);
+        if (error.message === "INVALID_USERNAME") return fail("INVALID_USERNAME", "Use de 3 a 32 caracteres: comece com letra; depois letras minúsculas, números, ponto ou underscore.", 422);
         if (["PROFILE_REVISION_CONFLICT", "IDEMPOTENCY_CONFLICT", "IDEMPOTENCY_IN_PROGRESS"].includes(error.message))
           return fail(error.message, "O perfil foi alterado em outra sessão ou esta solicitação já está em processamento. Recarregue o perfil antes de editar novamente.", 409);
         if (error.code === "22023" || error.code === "23514") return fail("INVALID_PROFILE", "Confira os dados e a foto do perfil.", 422);
