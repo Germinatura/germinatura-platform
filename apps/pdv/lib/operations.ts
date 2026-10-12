@@ -16,6 +16,8 @@ import {
   deliverPaidPickupResponseSchema,
   pickupReservationsResponseSchema,
   paymentTerminalsResponseSchema,
+  paymentSurchargeRulesResponseSchema,
+  type PaymentSurchargeRuleView,
   sellerShiftResponseSchema,
   pricingQuoteResponseSchema,
   publicCatalogProductsResponseSchema,
@@ -57,7 +59,26 @@ import {
 import { apiFetch } from "@/lib/api";
 import { cartPayload } from "./operations-pure";
 
-export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary } from "./operations-pure";
+export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary, surchargeFor } from "./operations-pure";
+
+/** PR D: the acréscimo shown to the customer and, when authorized, its removal with a reason. */
+export interface SurchargeChoice { surchargeCents: number; waiverReason?: string | null }
+
+function surchargeBody(choice: SurchargeChoice | null | undefined) {
+  if (!choice) return {};
+  return choice.waiverReason
+    ? { surchargeCents: choice.surchargeCents, waiveSurcharge: true, surchargeWaiverReason: choice.waiverReason }
+    : { surchargeCents: choice.surchargeCents };
+}
+
+/** PR D: the acréscimo rules in force for this cohort; the server recomputes and refuses any other value. */
+export async function loadSurchargeRules(): Promise<PaymentSurchargeRuleView[]> {
+  const response = await apiFetch("/api/v1/pdv/surcharges");
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar os acréscimos dos meios de pagamento."));
+  const parsed = paymentSurchargeRulesResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("Os acréscimos retornaram dados inválidos.");
+  return parsed.data.data.rules;
+}
 
 export interface StockLocation {
   id: string;
@@ -200,11 +221,12 @@ export async function confirmManualPayment(
   proofReference: string,
   card: { cardMethod: CardPaymentMethod; terminalId: string | null } | null,
   idempotencyKey: string,
+  surcharge?: SurchargeChoice | null,
 ): Promise<ManualPaymentConfirmationResponse["data"]> {
   const response = await apiFetch(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ integrationChannel: channel, proofReference, ...(card ?? {}) }),
+    body: JSON.stringify({ integrationChannel: channel, proofReference, ...(card ?? {}), ...surchargeBody(surcharge) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível confirmar o recebimento."));
   const parsed = manualPaymentConfirmationResponseSchema.safeParse(await response.json());
@@ -233,11 +255,14 @@ export async function deliverPaidPickup(reservationId: string, idempotencyKey: s
 }
 
 /** Hands over a prepared reservation, charging the frozen price in one atomic step. */
-export async function completePickup(reservationId: string, payment: CompletePickupRequest, idempotencyKey: string): Promise<CompletePickupResponse["data"]> {
+export async function completePickup(
+  reservationId: string, payment: Omit<CompletePickupRequest, "surchargeCents" | "waiveSurcharge" | "surchargeWaiverReason">,
+  idempotencyKey: string, surcharge?: SurchargeChoice | null,
+): Promise<CompletePickupResponse["data"]> {
   const response = await apiFetch(`/api/v1/pdv/pickups/${reservationId}/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify(payment),
+    body: JSON.stringify({ ...payment, ...surchargeBody(surcharge) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível concluir a retirada."));
   const parsed = completePickupResponseSchema.safeParse(await response.json());
@@ -433,11 +458,13 @@ export async function closeShift(shiftId: string, countedCashCents: number, just
   return parsed.data.data;
 }
 
-export async function confirmCashPayment(saleId: string, tenderedCents: number, idempotencyKey: string): Promise<CashPaymentResponse["data"]> {
+export async function confirmCashPayment(
+  saleId: string, tenderedCents: number, idempotencyKey: string, surcharge?: SurchargeChoice | null,
+): Promise<CashPaymentResponse["data"]> {
   const response = await apiFetch(`/api/v1/sales/${saleId}/payments/cash`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ tenderedCents }),
+    body: JSON.stringify({ tenderedCents, ...surchargeBody(surcharge) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível registrar o recebimento em dinheiro."));
   const parsed = cashPaymentResponseSchema.safeParse(await response.json());

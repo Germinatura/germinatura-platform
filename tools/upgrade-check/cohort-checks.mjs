@@ -48,8 +48,8 @@ export function compareUpgrade(target, before, after) {
     expectedNewColumns: { ...Object.fromEntries(scoped.map((name) => [name, ["cohort_id"]])), feature_flags: ["scope"], pdv_handoff_codes: ["cohort_id"] },
     requireSameTuples: true,
     rewrittenTables: ["feature_flags"],
-    // The permission catalogue gains cohorts.manage.
-    expectedNewRows: { permissions: 1 },
+    // The permission catalogue gains cohorts.manage and sales.surcharge.waive (PR D), the latter granted to ADMIN.
+    expectedNewRows: { permissions: 2, role_permissions: 1 },
   });
   return { scoped, result };
 }

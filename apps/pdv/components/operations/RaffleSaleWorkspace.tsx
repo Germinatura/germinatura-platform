@@ -5,6 +5,7 @@ import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
 import { AlertTriangle, CircleCheck, Loader2, Ticket } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PaymentLinkPanel } from "@/components/operations/PaymentLinkPanel";
+import { SurchargePanel, useSurcharge } from "@/components/operations/SurchargePanel";
 import { useToast } from "@/components/ui/Toast";
 import {
   cancelRaffleSale, cashChange, confirmCashPayment, confirmManualPayment, findRaffleBuyer, formatMoney, loadDisabledFeatures, loadEnabledFeatures,
@@ -20,7 +21,7 @@ const messageFrom = (error: unknown) => error instanceof Error ? error.message :
  * Spec 6.15 (RAF-004): raffle numbers sold at the PDV with the same payment and finance flow as any other sale.
  * The buyer is a registered account (exact email or username) or a name and one contact, used only for the prize.
  */
-export function RaffleSaleWorkspace({ locationId, online }: { locationId: string; online: boolean }) {
+export function RaffleSaleWorkspace({ locationId, online, canWaiveSurcharge }: { locationId: string; online: boolean; canWaiveSurcharge: boolean }) {
   const { showToast } = useToast();
   const [raffles, setRaffles] = useState<PdvRaffle[] | null>(null);
   const [campaign, setCampaign] = useState<PdvRaffle | null>(null);
@@ -45,6 +46,7 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
   const [error, setError] = useState("");
   const reserveKey = useRef(operationKey("pdv-raffle-reserve"));
   const payKey = useRef(operationKey("pdv-raffle-pay"));
+  const surcharge = useSurcharge(channel, cardMethod, reservation?.totalCents ?? 0);
 
   const refresh = useCallback(async () => {
     try { setRaffles(await loadPdvRaffles()); } catch (cause) { setError(messageFrom(cause)); setRaffles([]); }
@@ -95,14 +97,20 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
 
   const pay = () => run(async () => {
     if (!reservation) return;
-    if (channel === "DINHEIRO") {
-      const tenderedCents = parseMoneyInput(tendered);
-      if (tenderedCents === null || cashChange(reservation.totalCents, tenderedCents) === null) throw new Error("O valor recebido precisa cobrir o total.");
-      await confirmCashPayment(reservation.saleId, tenderedCents, payKey.current);
-    } else if (channel !== "PAYMENT_LINK") {
-      if (proof.trim().length < 4) throw new Error("Informe a referência não sensível do comprovante.");
-      if (channel === "MAQUININHA" && (!cardMethod || (terminals.length > 0 && !terminalId))) throw new Error("Informe o método do cartão e a maquininha.");
-      await confirmManualPayment(reservation.saleId, channel, proof.trim(), channel === "MAQUININHA" && cardMethod ? { cardMethod, terminalId: terminalId || null } : null, payKey.current);
+    if (!surcharge.ready) throw new Error(surcharge.loadError ? "Recarregue o acréscimo antes de cobrar." : "Explique por que o acréscimo foi removido.");
+    try {
+      if (channel === "DINHEIRO") {
+        const tenderedCents = parseMoneyInput(tendered);
+        if (tenderedCents === null || cashChange(surcharge.chargeCents, tenderedCents) === null) throw new Error("O valor recebido precisa cobrir o total.");
+        await confirmCashPayment(reservation.saleId, tenderedCents, payKey.current, surcharge.choice);
+      } else if (channel !== "PAYMENT_LINK") {
+        if (proof.trim().length < 4) throw new Error("Informe a referência não sensível do comprovante.");
+        if (channel === "MAQUININHA" && (!cardMethod || (terminals.length > 0 && !terminalId))) throw new Error("Informe o método do cartão e a maquininha.");
+        await confirmManualPayment(reservation.saleId, channel, proof.trim(), channel === "MAQUININHA" && cardMethod ? { cardMethod, terminalId: terminalId || null } : null, payKey.current, surcharge.choice);
+      }
+    } catch (cause) {
+      void surcharge.reload(); payKey.current = operationKey("pdv-raffle-pay");
+      throw cause;
     }
     setDone(true); showToast("Venda de rifa confirmada.", "success");
   });
@@ -115,7 +123,7 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
 
   function reset() {
     setReservation(null); setDone(false); setSelected([]); setBuyer(null); setIdentifier(""); setBuyerName(""); setBuyerContact("");
-    setProof(""); setTendered(""); setCardMethod(null); setTerminalId(""); setError("");
+    setProof(""); setTendered(""); setCardMethod(null); setTerminalId(""); setError(""); surcharge.reset();
     reserveKey.current = operationKey("pdv-raffle-reserve");
     if (campaign) void choose(campaign);
     void refresh();
@@ -125,7 +133,7 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
   if (done && reservation) return <Card className="mx-auto max-w-xl p-6 text-center">
     <CircleCheck className="mx-auto size-12 text-[var(--g-status-success-foreground)]" />
     <h2 className="mt-3 text-2xl font-bold">Venda de rifa confirmada</h2>
-    <p className="mt-2 text-sm">Números <strong className="g-money">{reservation.numbers.join(", ")}</strong> · {formatMoney(reservation.totalCents)}</p>
+    <p className="mt-2 text-sm">Números <strong className="g-money">{reservation.numbers.join(", ")}</strong> · {formatMoney(channel === "PAYMENT_LINK" ? reservation.totalCents : surcharge.chargeCents)}</p>
     <Button variant="brand" size="lg" className="mt-5 w-full" onClick={reset}>Nova venda de rifa</Button>
   </Card>;
 
@@ -158,19 +166,20 @@ export function RaffleSaleWorkspace({ locationId, online }: { locationId: string
       </Card>}
     </>}
     {reservation && <Card className="grid gap-4 p-5">
-      <div className="flex items-center justify-between gap-3"><div><Badge tone="warning">Aguardando pagamento</Badge><h2 className="mt-2 text-xl font-semibold">Números {reservation.numbers.join(", ")}</h2></div><p className="g-money text-2xl font-bold">{formatMoney(reservation.totalCents)}</p></div>
+      <div className="flex items-center justify-between gap-3"><div><Badge tone="warning">Aguardando pagamento</Badge><h2 className="mt-2 text-xl font-semibold">Números {reservation.numbers.join(", ")}</h2></div><p className="g-money text-2xl font-bold">{formatMoney(channel === "PAYMENT_LINK" ? reservation.totalCents : surcharge.chargeCents)}</p></div>
       <p className="text-xs text-[var(--g-text-muted)]">Reserva válida até {new Date(reservation.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Meio de pagamento">
-        {(["MAQUININHA", "PIX_AREA", ...(cashOff ? [] : ["DINHEIRO" as const]), ...(paymentLink ? ["PAYMENT_LINK" as const] : [])] as Channel[]).map((item) => <Button key={item} type="button" variant={channel === item ? "brand" : "secondary"} aria-pressed={channel === item} onClick={() => { setChannel(item); payKey.current = operationKey("pdv-raffle-pay"); }}>{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro", PAYMENT_LINK: "Link de pagamento" }[item]}</Button>)}
+        {(["MAQUININHA", "PIX_AREA", ...(cashOff ? [] : ["DINHEIRO" as const]), ...(paymentLink ? ["PAYMENT_LINK" as const] : [])] as Channel[]).map((item) => <Button key={item} type="button" variant={channel === item ? "brand" : "secondary"} aria-pressed={channel === item} onClick={() => { setChannel(item); surcharge.reset(); payKey.current = operationKey("pdv-raffle-pay"); }}>{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro", PAYMENT_LINK: "Link de pagamento" }[item]}</Button>)}
       </div>
       {channel === "PAYMENT_LINK" ? <PaymentLinkPanel saleId={reservation.saleId} totalCents={reservation.totalCents} online={online} onPaid={() => { setDone(true); showToast("Pagamento confirmado pelo PicPay.", "success"); }} />
         : <>
           {channel === "DINHEIRO" ? <Field id="raffle-tendered" label="Valor recebido (R$)" description="É preciso ter um turno aberto."><Input id="raffle-tendered" inputMode="decimal" value={tendered} onChange={(event) => setTendered(event.target.value)} /></Field>
             : <>{channel === "MAQUININHA" && <div className="grid gap-2">
-              <div className="grid grid-cols-2 gap-2">{(["CREDITO", "DEBITO"] as const).map((method) => <Button key={method} type="button" variant={cardMethod === method ? "brand" : "secondary"} aria-pressed={cardMethod === method} onClick={() => setCardMethod(method)}>{method === "CREDITO" ? "Crédito" : "Débito"}</Button>)}</div>
+              <div className="grid grid-cols-2 gap-2">{(["CREDITO", "DEBITO"] as const).map((method) => <Button key={method} type="button" variant={cardMethod === method ? "brand" : "secondary"} aria-pressed={cardMethod === method} onClick={() => { setCardMethod(method); surcharge.reset(); payKey.current = operationKey("pdv-raffle-pay"); }}>{method === "CREDITO" ? "Crédito" : "Débito"}</Button>)}</div>
               {terminals.length > 0 && <Field id="raffle-terminal" label="Maquininha usada"><select id="raffle-terminal" className="g-input min-h-11 w-full" value={terminalId} onChange={(event) => setTerminalId(event.target.value)}><option value="">Selecione</option>{terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
             </div>}
             <Field id="raffle-proof" label="Referência não sensível do comprovante" description="Nunca informe número do cartão, CVV, senha ou token."><Input id="raffle-proof" value={proof} maxLength={128} onChange={(event) => setProof(event.target.value)} autoComplete="off" /></Field></>}
+          <SurchargePanel state={surcharge} baseCents={reservation.totalCents} canWaive={canWaiveSurcharge} />
           <Button variant="operation" size="lg" loading={busy} disabled={!online || busy} onClick={() => void pay()}>{channel === "DINHEIRO" ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>
         </>}
       <Button variant="ghost" className="text-[var(--g-status-danger)]" disabled={!online || busy} onClick={() => void cancel()}>Cancelar e liberar números</Button>

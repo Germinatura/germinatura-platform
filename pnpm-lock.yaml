@@ -67,6 +67,9 @@ importers:
       '@germinatura/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@germinatura/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@germinatura/ui':
         specifier: workspace:*
         version: link:../../packages/ui

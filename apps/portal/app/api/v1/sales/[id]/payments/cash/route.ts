@@ -1,9 +1,10 @@
-import { cashPaymentRequestSchema, cashPaymentResponseSchema, idempotencyKeySchema } from "@germinatura/contracts";
+import { cashPaymentRequestSchema, cashPaymentResponseSchema, databasePaymentSurchargeSchema, idempotencyKeySchema, toPaymentSurchargeSnapshot } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { surchargeDatabaseError, surchargeRpcArgs } from "@/lib/payment-surcharges";
 import { shiftDatabaseError, shiftErrorResponse } from "@/lib/seller-shift";
 
 interface RouteContext { params: Promise<{ id: string }>; }
@@ -16,6 +17,8 @@ const databaseResultSchema = z.object({
     integration_channel: z.literal("DINHEIRO"), confirmation_source: z.literal("MANUAL"), confirmed_at: z.string(),
   }),
   cash: z.object({ shift_id: z.uuid(), tendered_cents: z.number().int().nonnegative(), change_cents: z.number().int().nonnegative() }),
+  // Absent in replays stored before the acréscimo existed.
+  surcharge: databasePaymentSurchargeSchema.nullish(),
   financial_ledger_entry_id: z.uuid(),
   correlation_id: z.uuid(),
 });
@@ -34,9 +37,9 @@ export async function POST(request: Request, context: RouteContext) {
     const client = await createAuthenticatedSupabaseClient(request);
     const { data, error } = await client.rpc("confirm_cash_payment", {
       p_sale_id: id, p_tendered_cents: parsed.data.tenderedCents,
-      p_idempotency_key: key.data, p_correlation_id: crypto.randomUUID(),
+      p_idempotency_key: key.data, p_correlation_id: crypto.randomUUID(), ...surchargeRpcArgs(parsed.data),
     });
-    if (error) return shiftDatabaseError(error.message, requestId);
+    if (error) return surchargeDatabaseError(error.message, requestId, error.details) ?? shiftDatabaseError(error.message, requestId);
     const result = databaseResultSchema.safeParse(data);
     if (!result.success) return shiftErrorResponse("CASH_PAYMENT_INVALID_DATA", "Recebimento temporariamente indisponível.", requestId, 503);
     const value = result.data;
@@ -49,6 +52,7 @@ export async function POST(request: Request, context: RouteContext) {
           confirmationSource: value.payment_attempt.confirmation_source, confirmedAt: value.payment_attempt.confirmed_at,
         },
         cash: { shiftId: value.cash.shift_id, tenderedCents: value.cash.tendered_cents, changeCents: value.cash.change_cents },
+        surcharge: toPaymentSurchargeSnapshot(value.surcharge),
         financialLedgerEntryId: value.financial_ledger_entry_id, correlationId: value.correlation_id,
       },
       request_id: requestId,

@@ -73,7 +73,7 @@ export function MySalesWorkspace({ online }: { online: boolean }) {
             <Card className={`p-4 ${pending ? "border-[var(--g-status-warning)] bg-[var(--g-status-warning-soft)]" : ""}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="g-money text-lg font-bold">{formatMoney(sale.totalCents)}</p>
+                  <p className="g-money text-lg font-bold">{formatMoney(sale.payment?.amountCents ?? sale.totalCents)}</p>{sale.payment?.surchargeCents ? <p className="text-xs text-[var(--g-text-muted)]">inclui acréscimo de {formatMoney(sale.payment.surchargeCents)}</p> : sale.payment?.surchargeWaived ? <p className="text-xs text-[var(--g-text-muted)]">acréscimo removido</p> : null}
                   <p className="text-sm text-[var(--g-text-secondary)]">{dateTime.format(new Date(sale.createdAt))} · {sale.channel === "RESERVA" ? "Retirada de reserva · " : ""}{paymentSummary(sale.payment)}</p>
                 </div>
                 <Badge tone={status.tone}>{status.label}</Badge>

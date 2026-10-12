@@ -107,6 +107,7 @@ function financeItems(): ItemDefinition[] {
     ["payables", Banknote, "Contas a pagar", "/admin/financeiro/contas-a-pagar", ["boleto", "fornecedor", "vencimento", "pagar"]],
     ["shifts", HandCoins, "Turnos de caixa", "/admin/financeiro/turnos", ["turno", "caixa", "dinheiro", "troco", "conferencia"]],
     ["terminals", CreditCard, "Maquininhas", "/admin/financeiro/maquininhas", ["maquininha", "terminal", "cartao"]],
+    ["surcharges", Percent, "Acréscimos", "/admin/financeiro/acrescimos", ["acrescimo", "taxa do cliente", "meio de pagamento", "credito", "debito", "pix"]],
     ["online-payments", Link2, "Pagamentos online", "/admin/financeiro/pagamentos-online", ["link de pagamento", "picpay", "online"]],
   ];
   return entries.map(([id, icon, label, href, keywords]) => ({ id, section: "financeiro" as const, icon, label, href, keywords, visible }));

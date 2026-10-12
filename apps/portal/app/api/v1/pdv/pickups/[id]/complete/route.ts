@@ -1,10 +1,11 @@
-import { completePickupRequestSchema, completePickupResponseSchema, idempotencyKeySchema } from "@germinatura/contracts";
+import { completePickupRequestSchema, completePickupResponseSchema, databasePaymentSurchargeSchema, idempotencyKeySchema, toPaymentSurchargeSnapshot } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { reservationErrorResponse } from "@/lib/admin-reservations";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { surchargeDatabaseError, surchargeRpcArgs } from "@/lib/payment-surcharges";
 
 interface RouteContext { params: Promise<{ id: string }>; }
 
@@ -12,6 +13,8 @@ const databaseResultSchema = z.object({
   reservation_id: z.uuid(), status: z.literal("COMPLETED"), sale_id: z.uuid(), total_cents: z.number().int(),
   integration_channel: z.enum(["DINHEIRO", "MAQUININHA", "PIX_AREA"]), change_cents: z.number().int().nullable(),
   card_method: z.string().nullable(), correlation_id: z.uuid(),
+  // Absent in replays stored before the acréscimo existed (the charge was then the frozen total).
+  charged_cents: z.number().int().nullish(), surcharge: databasePaymentSurchargeSchema.nullish(),
 });
 
 const conflicts: Record<string, string> = {
@@ -43,9 +46,11 @@ export async function POST(request: Request, context: RouteContext) {
     const { data, error } = await client.rpc("complete_reservation_pickup", {
       p_reservation_id: id, p_integration_channel: parsed.data.integrationChannel, p_tendered_cents: parsed.data.tenderedCents,
       p_proof_reference: parsed.data.proofReference, p_card_method: parsed.data.cardMethod, p_terminal_id: parsed.data.terminalId,
-      p_idempotency_key: key.data, p_correlation_id: crypto.randomUUID(),
+      p_idempotency_key: key.data, p_correlation_id: crypto.randomUUID(), ...surchargeRpcArgs(parsed.data),
     });
     if (error) {
+      const surcharge = surchargeDatabaseError(error.message, requestId, error.details);
+      if (surcharge) return surcharge;
       const code = Object.keys(conflicts).find((candidate) => error.message.includes(candidate));
       if (code) return reservationErrorResponse(code, conflicts[code], requestId, 409);
       if (error.message.includes("NOT_FOUND")) return reservationErrorResponse("NOT_FOUND", "Reserva não encontrada.", requestId, 404);
@@ -58,7 +63,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json(completePickupResponseSchema.parse({
       data: {
         reservationId: result.data.reservation_id, status: result.data.status, saleId: result.data.sale_id,
-        totalCents: result.data.total_cents, integrationChannel: result.data.integration_channel,
+        totalCents: result.data.total_cents, chargedCents: result.data.charged_cents ?? result.data.total_cents,
+        surcharge: toPaymentSurchargeSnapshot(result.data.surcharge), integrationChannel: result.data.integration_channel,
         changeCents: result.data.change_cents, cardMethod: result.data.card_method, correlationId: result.data.correlation_id,
       },
       request_id: requestId,
