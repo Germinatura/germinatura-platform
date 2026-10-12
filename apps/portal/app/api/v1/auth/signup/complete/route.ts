@@ -14,7 +14,10 @@ export async function POST(request: Request) {
       return NextResponse.json(createApiError("EMAIL_NOT_VERIFIED", "Confirme o email antes de concluir", requestId), { status: 401 });
     }
     const { error: passwordError } = await client.auth.updateUser({ password: parsed.data.password });
-    if (passwordError) return NextResponse.json(createApiError("PASSWORD_REJECTED", "A senha não pôde ser definida", requestId), { status: 422 });
+    // A retry after a refused username sends the password already set: Auth answers same_password, which is no failure.
+    if (passwordError && passwordError.code !== "same_password") {
+      return NextResponse.json(createApiError("PASSWORD_REJECTED", "A senha não pôde ser definida", requestId), { status: 422 });
+    }
     const { data, error } = await client.rpc("complete_my_profile", {
       p_display_name: parsed.data.displayName,
       p_username: parsed.data.username,
