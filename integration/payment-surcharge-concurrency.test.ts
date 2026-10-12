@@ -31,6 +31,11 @@ it("acréscimo rules version once per change and a sale is charged once, with th
     p_method: "CREDITO", p_mode: mode, p_rate_bps: rateBps, p_fixed_cents: null, p_reason: reason,
     p_idempotency_key: `surcharge-race-rule:${randomUUID()}`, p_correlation_id: randomUUID() });
   const credit = async () => (await finance.rpc<Rules>("list_payment_surcharge_rules", {})).rules.find((rule) => rule.method === "CREDITO")!;
+  // Sales this test opened; any still pending at the end are cancelled so their stock reservation never leaks into the
+  // suites that run next on the same database (the E2E counts the seller's reserved stock).
+  const opened: string[] = [];
+  const cancelPending = (saleId: string) => seller.rpc("cancel_sale", { p_sale_id: saleId,
+    p_idempotency_key: `surcharge-race-cancel:${saleId}`, p_correlation_id: randomUUID() });
 
   try {
     // Six finance operators change the credit rule at once: six consecutive versions, the last one in force.
@@ -43,9 +48,13 @@ it("acréscimo rules version once per change and a sale is charged once, with th
     await save("PERCENTAGE", 500, "Regra da venda concorrente").catch(() => undefined);
     await finance.rpc("adjust_stock", { p_location_id: SELLER_LOCATION_ID, p_product_id: PRODUCT_ID, p_quantity_delta: 2,
       p_reason: "Preparar acréscimo concorrente", p_idempotency_key: `surcharge-race-stock:${randomUUID()}`, p_correlation_id: randomUUID() });
-    const checkout = () => seller.rpc<{ sale_id: string; quote: { total_cents: number } }>("checkout_sale", {
-      p_channel: "PDV", p_location_id: SELLER_LOCATION_ID, p_items: [{ product_id: PRODUCT_ID, quantity: 1 }],
-      p_idempotency_key: `surcharge-race-checkout:${randomUUID()}`, p_correlation_id: randomUUID() });
+    const checkout = async () => {
+      const opening = await seller.rpc<{ sale_id: string; quote: { total_cents: number } }>("checkout_sale", {
+        p_channel: "PDV", p_location_id: SELLER_LOCATION_ID, p_items: [{ product_id: PRODUCT_ID, quantity: 1 }],
+        p_idempotency_key: `surcharge-race-checkout:${randomUUID()}`, p_correlation_id: randomUUID() });
+      opened.push(opening.sale_id);
+      return opening;
+    };
     const confirm = (saleId: string, surchargeCents: number) => seller.rpc<{ payment_attempt: { amount_cents: number }; surcharge: { applied_cents: number } | null }>(
       "confirm_manual_payment", { p_sale_id: saleId, p_integration_channel: "MAQUININHA", p_proof_reference: `NSU-RACE-${randomUUID().slice(0, 8)}`,
         p_card_method: "CREDITO", p_terminal_id: null, p_idempotency_key: `surcharge-race-confirm:${randomUUID()}`, p_correlation_id: randomUUID(),
@@ -70,8 +79,12 @@ it("acréscimo rules version once per change and a sale is charged once, with th
       expect(confirmation.value.payment_attempt.amount_cents).toBe(racing.quote.total_cents + shown);
     } else {
       expect(String(confirmation.reason)).toContain("PAYMENT_SURCHARGE_CHANGED");
+      // The refused sale is still pending, as it should be; the operator would cancel it or charge again.
+      expect((await cancelPending(racing.sale_id) as { status: string }).status).toBe("CANCELLED");
     }
   } finally {
+    // Defensive cleanup if an assertion stopped the test midway: a confirmed or already cancelled sale refuses the cancel.
+    for (const saleId of opened) await cancelPending(saleId).catch(() => undefined);
     // Later suites charge without an acréscimo: leave the credit rule as NONE (a new version, history kept).
     if ((await credit()).mode !== "NONE") await save("NONE", null, "Fim do teste de concorrência");
   }
