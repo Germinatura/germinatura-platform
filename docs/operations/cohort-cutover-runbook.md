@@ -388,9 +388,98 @@ O Portal anterior com a migration nova:
 ### Rollback e forward-fix
 
 - A transação desfaz tudo em qualquer erro.
-- Depois de aplicada, o caminho é forward-fix. Reverter, só com autorização e sem perda de dados:
-  - recriar as funções pelas definições das migrations `20261020090100`, `20261021090000` e `20261022090000`;
-  - `cohort_fallback_enabled` voltando a `true`;
-  - remover o trigger `cohorts_default_active` e as funções novas;
-  - restaurar as 4 políticas de Storage pela migration que as criou.
+- Depois de aplicada, o caminho preferido é forward-fix. Se o app novo precisar sair do ar, use a reversão abaixo, só com autorização.
 - **Não trocar a turma padrão em produção nem criar a Turma 2027** sem autorização explícita da comissão.
+
+### Fase 5 — reversão (somente com autorização)
+
+**Artefato:** `supabase/rollback/20261023090000_cohort_explicit_context.rollback.sql`.
+- Não é migration: fica fora de `supabase/migrations`, então o `db push` nunca o aplica.
+- É aplicado à mão, numa transação.
+- Teste: `pnpm test:rollback` (`tools/upgrade-check/cohort-rollback-check.mjs`).
+
+**Quando usar.** Depois da promoção, se o app novo precisar voltar à versão anterior (Workers revertidos para o deploy anterior). Com o banco na Fase 5, o app anterior não funciona para o administrador do bootstrap, que é ADMIN_MASTER e fica sem turma:
+- 403 na administração;
+- falha ao lançar estoque.
+
+Vendedor, consumidor e visitante continuam funcionando.
+
+**O que faz:**
+- **Funções:** volta exatamente às definições do PR 4 (`pg_get_functiondef` de um banco em `20261022090000`), com as mesmas assinaturas e permissões:
+  - `private.cohort_fallback_enabled`, `private.cohort_scope`, `private.cohort_readable`;
+  - `private.guard_cohort_write`, `private.assign_log_cohort`, `private.join_default_cohort`;
+  - `public.handle_new_auth_user`, `public.record_share_visit`, `public.set_user_access`.
+- **Storage:** volta as expressões do PR 4 em `catalog_images_admin_insert`, `catalog_images_admin_delete`, `event_covers_communications_insert` e `stock_loss_photos_read`.
+- **Remove o que a Fase 5 criou:**
+  - o trigger `cohorts_default_active`;
+  - `private.guard_default_cohort`, `public.set_default_cohort`, `public.resolve_public_cohort`;
+  - `public.close_seller_shift_on_behalf`, `public.storage_entity_in_scope`.
+- Com isso, quem não tem turma (sistema, worker, ADMIN_MASTER sem header) volta a cair na turma padrão, como no PR 4.
+
+**O que não faz:**
+- Não altera nem apaga tabela, coluna, constraint, índice, linha, id, auditoria ou histórico de migrations.
+- Não reverte a estrutura multi-turma (PR 1 a 4).
+- `public.list_my_share_links` mantém a correção da Fase 5 (`mine` sempre booleano), porque não tem relação com turmas.
+- Não reverte os Workers: isso é feito no Cloudflare.
+
+**Pré-condições** (o arquivo aborta se faltar alguma):
+- a última migration aplicada é exatamente `20261023090000`. Com qualquer migration posterior, ele recusa, porque restauraria corpos antigos por cima dela; nesse caso, prepare uma reversão para aquele estado;
+- a estrutura dos PRs 2 a 4 existe;
+- existe exatamente uma turma padrão, e ela está ATIVA.
+
+O arquivo é idempotente: aplicar duas vezes deixa o mesmo estado.
+
+**Procedimento:**
+1. Autorização explícita do responsável.
+2. Workers de Portal, PDV e Jobs de volta ao deploy anterior (Cloudflare › Workers › Deployments › Rollback). O Jobs não mudou entre as versões.
+3. No SQL Editor de produção, colar o arquivo inteiro e executar. O editor roda tudo numa transação; pelo `psql`, use:
+   ```bash
+   psql -v ON_ERROR_STOP=1 -1 -f supabase/rollback/20261023090000_cohort_explicit_context.rollback.sql
+   ```
+4. Checagens só de leitura, todas sem linhas ou com o valor indicado:
+   ```sql
+   select private.cohort_fallback_enabled();  -- true
+   select to_regprocedure('public.set_default_cohort(uuid, text, uuid)');  -- vazio
+   select * from private.cohort_integrity_report() where violations <> 0;
+   select * from private.cohort_view_drift();
+   ```
+5. Smoke com o app anterior:
+   - administrador lista usuários e cria um rascunho de categoria;
+   - vendedor abre o PDV;
+   - visitante vê o catálogo.
+
+**Como reaplicar a Fase 5 depois:**
+1. Workers de volta à versão nova.
+2. Executar `supabase/migrations/20261023090000_cohort_explicit_context.sql` do mesmo jeito (SQL Editor ou `psql -1 -f`). As pré e pós-checagens da migration rodam de novo.
+
+O `schema_migrations` continua com `20261023090000` registrado o tempo todo, então o `db push` não reaplica e não acusa nada.
+
+**Limitações:**
+- Enquanto a reversão estiver ativa, valem as regras do PR 4:
+  - escrita sem turma cai na turma padrão;
+  - não existe troca de turma padrão nem encerramento de turno pelo financeiro;
+  - o visitante só vê a turma padrão;
+  - o Storage não confere a turma da entidade.
+- Linhas gravadas nessa janela ficam na turma padrão, a única de produção.
+- **App novo com o banco revertido:** não é uma combinação testada. As funções removidas fazem falhar a troca de turma padrão, o `?turma=` público e o encerramento de turno pelo financeiro. A reversão pressupõe os Workers anteriores.
+
+**Teste** (`pnpm test:rollback`; local e na Quality):
+1. Referência: as definições do PR 4.
+2. Base anterior às turmas, com o dataset rico e a fixture financeira/PicPay.
+3. Exatamente as 9 migrations; validação do estado final (sem perda, integridade, Fase 5 ativa).
+4. A reversão é recusada com uma migration posterior.
+5. Reversão:
+   - definições idênticas às do PR 4;
+   - sondas do app sem turma, em transações desfeitas: sistema, worker, outbox, ADMIN_MASTER (sessão e escrita), vendedor, visitante e cadastro;
+   - dados idênticos, linha a linha e tupla a tupla.
+6. Reversão aplicada de novo, sem nenhuma mudança.
+7. Fase 5 reaplicada pela própria migration: definições e comportamento iguais aos originais, dados intactos.
+
+**Demonstração com o app anterior** (`f5316d3`, 12/10/2026, local). Seis specs da própria versão e uma sonda HTTP, com `admin.teste` fazendo o papel do administrador do bootstrap (ADMIN da Turma 2026 e ADMIN_MASTER):
+
+| Banco | Resultado |
+|---|---|
+| PR 4 (`20261022090000`) | 26/26 |
+| Fase 5, sem reversão | 15/26: todas as falhas vêm do administrador sem turma (403, "local de estoque não encontrado") |
+| Fase 5 + reversão | 26/26 |
+
