@@ -58,6 +58,8 @@ from (values
   ('3c000000-0000-4000-8000-0000000000b1'::uuid, 'ctx.admin.b@institutojef.org.br', 'Admin Contexto B', 'ctx.admin.b'),
   ('3c000000-0000-4000-8000-0000000000c1'::uuid, 'ctx.consumidor.b@institutojef.org.br', 'Consumidor Contexto B', 'ctx.consumidor.b')
 ) people(id, email, name, username);
+-- A1: the person without a username validated the code but stopped at onboarding; the valid code created the domain user.
+do $$ begin perform private.materialize_identity('3c000000-0000-4000-8000-0000000000f1', gen_random_uuid()); end $$;
 
 -- ADMIN_MASTER creates Turma B in "all" (global operation).
 select pg_temp.ctx('10000000-0000-4000-8000-000000000005', 'all');

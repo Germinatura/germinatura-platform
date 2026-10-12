@@ -1,7 +1,7 @@
 -- ADR 0011 (multi-turma) — fundação de dados: catálogo de turmas, Turma 2026 de bootstrap, vínculos usuário ↔ turma,
 -- classificação das tabelas, cohort_id e integridade (estado final, depois da autorização e do isolamento).
 begin;
-select plan(43);
+select plan(44);
 
 -- Catálogo e Turma 2026 de bootstrap.
 select has_table('public', 'cohorts', 'cohorts exists');
@@ -67,6 +67,9 @@ select is((select count(*)::integer from public.profiles p where not exists (
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values ('00000000-0000-0000-0000-000000000000', '1c000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated',
   'turma.nova@institutojef.org.br', '', now(), '{}', '{"name":"Turma Nova"}', now(), now());
+-- A1: a code request is technical until the code is validated; the validated code materializes the domain user.
+select is(private.materialize_identity('1c000000-0000-4000-8000-000000000001', '1c000000-0000-4000-8000-0000000000ff') ->> 'created', 'true',
+  'the validated code materializes the domain user');
 select results_eq($$select cohort_id, status::text from public.user_cohorts where user_id = '1c000000-0000-4000-8000-000000000001'$$,
   $$values (private.bootstrap_cohort_id(), 'ACTIVE'::text)$$, 'a new identity joins the default cohort');
 insert into public.cohorts (id, name, year, slug, status) values ('c0000000-0000-4000-8000-000000002027', 'Turma 2027', 2027, '2027', 'PREPARING');

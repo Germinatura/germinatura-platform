@@ -1,5 +1,5 @@
 begin;
-select plan(46);
+select plan(49);
 
 select has_column('public', 'profiles', 'username', 'profiles have username');
 select has_column('public', 'profiles', 'onboarding_completed_at', 'profiles track completed onboarding');
@@ -44,6 +44,18 @@ insert into auth.users (
   'authenticated', 'authenticated', 'cadastro.teste@institutojef.org.br', '', now(),
   '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{}', now(), now()
 );
+-- A1: the code request leaves only a technical identity; the domain user appears once the code is validated.
+select ok(not exists (select 1 from public.profiles where id = '11000000-0000-4000-8000-000000000001')
+  and not exists (select 1 from public.user_cohorts where user_id = '11000000-0000-4000-8000-000000000001')
+  and not exists (select 1 from cohort_data.user_roles where user_id = '11000000-0000-4000-8000-000000000001'),
+  'a code request creates no profile, membership or role');
+set local role authenticated;
+set local "request.jwt.claim.sub" = '11000000-0000-4000-8000-000000000001';
+select is(public.materialize_my_signup_identity('91000000-0000-4000-8000-000000000010') ->> 'created', 'true',
+  'the session of a valid code materializes the domain user');
+select is(public.materialize_my_signup_identity('91000000-0000-4000-8000-000000000011') ->> 'created', 'false',
+  'materializing again changes nothing');
+reset role;
 select results_eq(
   $$select (onboarding_completed_at is null)::text, username from public.profiles where id = '11000000-0000-4000-8000-000000000001'$$,
   $$values ('true'::text, null::text)$$,
@@ -103,6 +115,9 @@ select throws_ok(
 );
 reset role;
 
+-- Administrative provisioning: the Portal stamps the identity (app metadata) and Auth inserts it with no request JWT;
+-- reset role keeps the previous subject, so clear it.
+set local "request.jwt.claim.sub" = '';
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   confirmation_token, recovery_token, email_change_token_new, email_change,
@@ -111,7 +126,7 @@ insert into auth.users (
 ) values (
   '00000000-0000-0000-0000-000000000000', '11000000-0000-4000-8000-000000000003',
   'authenticated', 'authenticated', 'provisionado.teste@institutojef.org.br', '', now(),
-  '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}',
+  '', '', '', '', '', '', '', '{"provider":"email","providers":["email"],"germinatura_provisioning":"91000000-0000-4000-8000-000000000008"}',
   '{"name":"Provisionado Teste","username":"provisionado.teste"}', now(), now()
 );
 update auth.users set encrypted_password = 'hash-presente' where id = '11000000-0000-4000-8000-000000000003';

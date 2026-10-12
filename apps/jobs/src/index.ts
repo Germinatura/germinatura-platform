@@ -39,6 +39,7 @@ export interface CycleMetrics {
   outbox: Record<string, number>;
   paymentLinks: PaymentLinkMetrics | { errors: number };
   paymentLinkMaintenance: PaymentLinkMaintenanceMetrics | { errors: number };
+  identities: Record<string, number>;
 }
 
 const paymentLinkWebhookPath = "/webhooks/picpay/payment-link";
@@ -99,7 +100,11 @@ export async function runCycle(env: Env, fetchImpl: typeof fetch = fetch): Promi
   try { paymentLinks = await createRequestedPaymentLinks(env, workerId, fetchImpl); } catch { paymentLinks = { errors: 1 }; }
   let paymentLinkMaintenance: CycleMetrics["paymentLinkMaintenance"];
   try { paymentLinkMaintenance = await maintainPaymentLinks(env, workerId, fetchImpl); } catch { paymentLinkMaintenance = { errors: 1 }; }
-  return { expired, claimed, published, retried, failed, outbox, paymentLinks, paymentLinkMaintenance };
+  // A1: sign-up attempts that never confirmed the e-mail, removed only when the database proves it safe (default
+  // 24-hour quiet window, no history of any kind). A failure here never holds the rest of the cycle.
+  let identities: Record<string, number>;
+  try { identities = await rpc(env, "worker_purge_unconfirmed_identities", { p_limit: 50 }, fetchImpl); } catch { identities = { errors: 1 }; }
+  return { expired, claimed, published, retried, failed, outbox, paymentLinks, paymentLinkMaintenance, identities };
 }
 
 const providerErrorCode = (error: unknown) => error instanceof PaymentLinkProviderError ? error.code : "UNEXPECTED_ERROR";
