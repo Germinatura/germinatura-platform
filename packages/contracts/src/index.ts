@@ -1,5 +1,6 @@
 import { moneyFromCents } from "@germinatura/domain";
 import { z } from "zod";
+import { paymentSurchargeConfirmationShape, paymentSurchargeSnapshotSchema, refineSurchargeWaiver } from "./payment-surcharges";
 import { usernameSchema } from "./profile";
 
 export * from "./catalog-categories";
@@ -25,6 +26,7 @@ export * from "./picpay-statement";
 export * from "./picpay-reconciliation";
 export * from "./portal-events";
 export * from "./portal-showcase";
+export * from "./payment-surcharges";
 
 export const moneyCentsSchema = z.number()
   .int()
@@ -398,6 +400,10 @@ export const mySaleSchema = z.object({
     confirmedAt: z.iso.datetime({ offset: true }).nullable(),
     cardMethod: cardPaymentMethodSchema.nullable(),
     terminalCode: z.string().nullable(),
+    // PR D: what the customer was charged (products + acréscimo) and the acréscimo inside it.
+    amountCents: moneyCentsSchema.optional(),
+    surchargeCents: moneyCentsSchema.optional(),
+    surchargeWaived: z.boolean().optional(),
   }).strict().nullable(),
   items: z.array(z.object({
     productName: z.string().min(1).max(160),
@@ -449,6 +455,9 @@ export const adminSaleSchema = z.object({
     proofReference: z.string().nullable(),
     cardMethod: cardPaymentMethodSchema.nullable(),
     terminalCode: z.string().nullable(),
+    // PR D: what the customer was charged and the acréscimo snapshot (null when there was none).
+    amountCents: moneyCentsSchema.optional(),
+    surcharge: paymentSurchargeSnapshotSchema.nullable().optional(),
   }).strict().nullable(),
   // ADR 0011 (PR 4): the cohort of the sale, so a consolidated list never mixes cohorts without saying so.
   cohortId: z.uuid().optional(),
@@ -650,7 +659,9 @@ export const completePickupRequestSchema = z.object({
     .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão").nullable(),
   cardMethod: cardPaymentMethodSchema.nullable(),
   terminalId: z.uuid().nullable(),
+  ...paymentSurchargeConfirmationShape,
 }).strict().superRefine((value, context) => {
+  refineSurchargeWaiver(value, context);
   if (value.integrationChannel === "DINHEIRO") {
     if (value.tenderedCents === null) context.addIssue({ code: "custom", path: ["tenderedCents"], message: "Informe o valor recebido" });
     if (value.proofReference || value.cardMethod || value.terminalId) context.addIssue({ code: "custom", path: ["integrationChannel"], message: "Dinheiro não tem comprovante nem cartão" });
@@ -669,6 +680,9 @@ export const completePickupResponseSchema = z.object({
     status: z.literal("COMPLETED"),
     saleId: z.uuid(),
     totalCents: moneyCentsSchema,
+    // Frozen reservation total + acréscimo of the method.
+    chargedCents: moneyCentsSchema,
+    surcharge: paymentSurchargeSnapshotSchema.nullable(),
     integrationChannel: z.enum(["DINHEIRO", "MAQUININHA", "PIX_AREA"]),
     changeCents: moneyCentsSchema.nullable(),
     cardMethod: cardPaymentMethodSchema.nullable(),
@@ -827,7 +841,9 @@ export const manualPaymentConfirmationRequestSchema = z.object({
     .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
   cardMethod: cardPaymentMethodSchema.nullable().optional(),
   terminalId: z.uuid().nullable().optional(),
+  ...paymentSurchargeConfirmationShape,
 }).strict().superRefine((value, context) => {
+  refineSurchargeWaiver(value, context);
   if (value.integrationChannel === "MAQUININHA" && !value.cardMethod) {
     context.addIssue({ code: "custom", path: ["cardMethod"], message: "Informe crédito, débito ou voucher" });
   }
@@ -852,6 +868,7 @@ export const manualPaymentConfirmationResponseSchema = z.object({
       cardMethod: cardPaymentMethodSchema.nullable(),
       terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).strict().nullable(),
     }).strict(),
+    surcharge: paymentSurchargeSnapshotSchema.nullable(),
     // Raffle tickets hold numbers, not stock, so their confirmation reports the numbers instead of a stock movement.
     stock: z.union([
       z.object({ reservationId: z.uuid(), status: z.literal("CONSUMED"), saleMovementId: z.uuid() }).strict(),
@@ -1302,6 +1319,7 @@ export const permissionSchema = z.enum([
   "community.moderate",
   "audit.read",
   "cohorts.manage",
+  "sales.surcharge.waive",
 ]);
 export type Permission = z.infer<typeof permissionSchema>;
 

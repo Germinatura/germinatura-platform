@@ -2,6 +2,7 @@
 // (integrity report clean, every scoped row in Turma 2026, every identity a member, Turma 2026 as bootstrapped).
 import { psql } from "./local.mjs";
 import { BOOTSTRAP_COHORT_ID, compareSnapshots } from "./snapshot.mjs";
+import { catalogueProblems, expectedCatalogue } from "./catalogue.mjs";
 
 // ----------------------------------------------------------------------------------------------------- reporting
 export function renderComparison(title, result) {
@@ -38,8 +39,16 @@ export function cohortAssertions(target) {
   return { ok: problems.length === 0, problems, integrity, attribution, membership, cohort };
 }
 
-/** Before the cohort migrations → after them: only the expected cohort columns, rows and rewrites may differ. */
-export function compareUpgrade(target, before, after) {
+/**
+ * Before the cohort migrations → after the migrations this check applied (versions after `base`): only the expected
+ * cohort columns, rewrites and catalogue rows may differ. The catalogue rows are those of the migrations actually
+ * applied (catalogue.mjs), checked by count and by content: each permission exactly once, granted to exactly the
+ * expected roles.
+ */
+export function compareUpgrade(target, before, after, base) {
+  if (!/^\d{14}$/.test(String(base))) throw new Error(`compareUpgrade: base inválida (${base})`);
+  const applied = psql(target, `select name from supabase_migrations.schema_migrations where version > '${base}' order by version;`).split("\n").filter(Boolean);
+  const catalogue = expectedCatalogue(applied);
   const scoped = psql(target, "select table_name from private.cohort_scoped_tables order by 1;").split("\n").filter(Boolean);
   // New columns allowed on pre-existing tables: cohort_id on every classified table, the scope of the flag catalogue and
   // the cohort of PDV handoff codes (PR 3).
@@ -48,8 +57,24 @@ export function compareUpgrade(target, before, after) {
     expectedNewColumns: { ...Object.fromEntries(scoped.map((name) => [name, ["cohort_id"]])), feature_flags: ["scope"], pdv_handoff_codes: ["cohort_id"] },
     requireSameTuples: true,
     rewrittenTables: ["feature_flags"],
-    // The permission catalogue gains cohorts.manage.
-    expectedNewRows: { permissions: 1 },
+    // Only the catalogue rows of the migrations applied here (cohorts.manage; sales.surcharge.waive → ADMIN with PR D).
+    expectedNewRows: catalogue.expectedNewRows,
   });
-  return { scoped, result };
+  const keys = Object.keys(catalogue.permissions);
+  const actual = Object.fromEntries(keys.map((key) => [key, { count: 0, roles: [] }]));
+  if (keys.length > 0) {
+    const list = keys.map((key) => `'${key.replaceAll("'", "''")}'`).join(", ");
+    for (const line of psql(target, `select permission.key || '|' || count(distinct permission.id) || '|' || coalesce(string_agg(distinct role.key, ',' order by role.key), '')
+        from public.permissions permission left join public.role_permissions grant_row on grant_row.permission_id = permission.id
+        left join public.roles role on role.id = grant_row.role_id where permission.key in (${list}) group by permission.key;`).split("\n").filter(Boolean)) {
+      const [key, count, roles] = line.split("|");
+      actual[key] = { count: Number(count), roles: roles ? roles.split(",") : [] };
+    }
+  }
+  const problems = catalogueProblems(catalogue, actual);
+  if (problems.length > 0) {
+    result.problems.push(...problems);
+    result.ok = false;
+  }
+  return { scoped, result, catalogue: { applied, ...catalogue, actual } };
 }

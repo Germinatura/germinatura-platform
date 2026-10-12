@@ -16,6 +16,10 @@ export const managementIndicatorsSchema = z.object({
     operatingExpensesCents: cents, supplierPaymentsCents: cents, grossMarginCents: cents, grossMarginBps: z.number().int().nullable(),
     operatingProfitCents: cents, cashBalanceCents: cents, salesCount: z.number().int(), refundedSales: z.number().int(),
     averageTicketCents: cents.nullable(), costComplete: z.boolean(),
+    // PR D: the acréscimo charged to customers is inside the sale receipts; product revenue = receipts − acréscimo.
+    // It is never a fee (feesCents holds only the reconciled PicPay fee).
+    productRevenueCents: cents, surchargeRevenueCents: cents, surchargeRefundsCents: cents, surchargeWaivedCents: cents,
+    surchargeWaivers: z.number().int().nonnegative(),
   }).strict(),
   byChannel: z.object({ PDV: cents, ONLINE: cents, RESERVA: cents, RIFA: cents, EVENTO: cents, MANUAL: cents, HISTORICO_PICPAY: cents }).strict(),
   byPaymentMethod: z.record(z.string(), cents),

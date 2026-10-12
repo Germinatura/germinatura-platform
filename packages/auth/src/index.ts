@@ -18,6 +18,7 @@ export const rolePermissions: Readonly<Record<SessionRole, readonly Permission[]
     "sales.create",
     "sales.read.own",
     "sales.read.all",
+    "sales.surcharge.waive",
     "reservations.manage.own",
     "reservations.manage.all",
     "raffles.buy",

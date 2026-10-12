@@ -51,6 +51,7 @@ describe("purchase payable API access", () => {
     expect(apiAccessRule("/api/v1/admin/finance/payables")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/shifts")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/terminals")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/surcharges")?.methods).toEqual(["GET", "POST"]);
     expect(apiAccessRule("/api/v1/admin/finance/sales")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/entries")?.methods).toEqual(["GET", "POST"]);
     expect(apiAccessRule("/api/v1/admin/finance/statement")?.access).toBe("finance");
@@ -99,6 +100,7 @@ describe("cash and shift API access", () => {
     expect(apiAccessRule("/api/v1/pdv/shifts")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/sales")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/terminals")?.access).toBe("seller");
+    expect(apiAccessRule("/api/v1/pdv/surcharges")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/pickups")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/pickups/74000000-0000-4000-8000-000000000001/complete")?.methods).toEqual(["POST"]);
     expect(apiAccessRule("/api/v1/pdv/shifts/67000000-0000-4000-8000-000000000001/close")?.access).toBe("seller");

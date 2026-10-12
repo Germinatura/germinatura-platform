@@ -1,4 +1,5 @@
-import type { PublicCatalogProduct } from "@germinatura/contracts";
+import type { PaymentSurchargeRuleView, PublicCatalogProduct } from "@germinatura/contracts";
+import { computePaymentSurchargeCents, paymentSurchargeMethodFor, type PaymentSurchargeMethod } from "@germinatura/domain";
 
 export interface CartPayloadItem {
   product: PublicCatalogProduct;
@@ -58,4 +59,30 @@ export function paymentSummary(payment: { integrationChannel: string | null; car
   const channel = paymentMethodLabel(payment?.integrationChannel);
   const card = payment?.cardMethod ? cardMethodLabels[payment.cardMethod] ?? payment.cardMethod : null;
   return [channel, card, payment?.terminalCode ?? null].filter(Boolean).join(" · ");
+}
+
+/**
+ * PR D: the acréscimo of the chosen channel over the sale total, as the server computes it. Null method = the channel is
+ * not eligible (vouchers, Payment Link) or the card method is not chosen yet.
+ */
+export function surchargeFor(
+  rules: readonly PaymentSurchargeRuleView[], channel: "DINHEIRO" | "PIX_AREA" | "MAQUININHA" | "PAYMENT_LINK",
+  cardMethod: string | null, baseCents: number,
+): { method: PaymentSurchargeMethod | null; cents: number; rule: PaymentSurchargeRuleView | null } {
+  const method = paymentSurchargeMethodFor(channel, cardMethod);
+  const rule = method ? rules.find((candidate) => candidate.method === method) ?? null : null;
+  if (!rule || rule.mode === "NONE") return { method, cents: 0, rule };
+  const cents = rule.mode === "PERCENTAGE"
+    ? computePaymentSurchargeCents({ mode: "PERCENTAGE", rateBps: rule.rateBps ?? 0 }, baseCents)
+    : computePaymentSurchargeCents({ mode: "FIXED", fixedCents: rule.fixedCents ?? 0 }, baseCents);
+  return { method, cents, rule };
+}
+
+/** "3,49%" or "R$ 1,50": how the rule reads to the customer. */
+export function surchargeRuleLabel(rule: PaymentSurchargeRuleView): string {
+  if (rule.mode === "PERCENTAGE" && rule.rateBps !== null) {
+    return `${(rule.rateBps / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
+  }
+  if (rule.mode === "FIXED" && rule.fixedCents !== null) return formatMoney(rule.fixedCents);
+  return "sem acréscimo";
 }

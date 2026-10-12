@@ -600,6 +600,7 @@ describe("shared contracts", () => {
           cardMethod: null,
           terminal: null,
         },
+        surcharge: null,
         stock: {
           reservationId: "74000000-0000-4000-8000-000000000001",
           status: "CONSUMED",
