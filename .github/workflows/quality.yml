@@ -50,6 +50,13 @@ jobs:
         if: always()
         shell: bash
         run: if [ -f upgrade-report.md ]; then cat upgrade-report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      # The Phase 5 rollback artifact (supabase/rollback, never applied by db push): 9 migrations → rollback → reapply.
+      - name: Rollback check (Phase 5 → PR 4 → Phase 5, no data change)
+        run: pnpm test:rollback --report=rollback-report.md
+      - name: Publish the rollback report
+        if: always()
+        shell: bash
+        run: if [ -f rollback-report.md ]; then cat rollback-report.md >> "$GITHUB_STEP_SUMMARY"; fi
       - run: pnpm build
       - name: Reject legacy runtime dependencies
         shell: bash
