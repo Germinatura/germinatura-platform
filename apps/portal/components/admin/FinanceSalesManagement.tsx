@@ -120,7 +120,7 @@ export function FinanceSalesManagement({ cohorts }: { cohorts?: CohortSummary[] 
           {sales.map((sale) => <li key={sale.saleId} aria-label={`Venda ${sale.saleId}`} className={sale.pendingReason ? "bg-[var(--g-status-warning-soft)]" : undefined}>
             <button type="button" aria-expanded={openSale === sale.saleId} onClick={() => setOpenSale(openSale === sale.saleId ? null : sale.saleId)} className="flex w-full flex-wrap items-center justify-between gap-3 p-5 text-left hover:bg-[var(--g-surface-hover)]">
               <span className="min-w-0">
-                <span className="g-money block text-lg font-bold">{formatMoney(sale.totalCents)}</span>
+                <span className="g-money block text-lg font-bold">{formatMoney(sale.payment?.amountCents ?? sale.totalCents)}</span>
                 <span className="block text-sm text-[var(--g-text-secondary)]">{consolidated && <><strong className="font-semibold text-[var(--g-text-primary)]">{cohortName(sale.cohortId)}</strong> · </>}{formatDate(sale.createdAt)} · {channelLabels[sale.channel] ?? sale.channel} · {sale.sellerName} · {paymentLine(sale.payment)}</span>
               </span>
               <span className="flex items-center gap-2">{statusBadge(sale)}{openSale === sale.saleId ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</span>
@@ -155,6 +155,12 @@ function SaleDetail({ saleId, readOnlyIn, onChanged }: { saleId: string; readOnl
       <p className="mt-2 text-xs text-[var(--g-text-muted)]">{detail.locationName} · venda {detail.saleId}</p></section>
     {detail.raffle && <section aria-label="Rifa" className="lg:col-span-2"><h3 className="text-sm font-semibold">Rifa</h3><p className="mt-2 text-sm">{detail.raffle.campaignName} · números <span className="g-money font-semibold">{detail.raffle.numbers.join(", ")}</span></p></section>}
     <section aria-label="Pagamento"><h3 className="text-sm font-semibold">Pagamento</h3><p className="mt-2 text-sm">{paymentLine(detail.payment)}{detail.payment?.proofReference ? ` · ref. ${detail.payment.proofReference}` : ""}</p>
+      {detail.payment?.surcharge && <dl aria-label="Acréscimo do meio de pagamento" className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm">
+        <dt>Produtos</dt><dd className="g-money text-right">{formatMoney(detail.totalCents)}</dd>
+        <dt>Acréscimo cobrado do cliente{detail.payment.surcharge.mode === "PERCENTAGE" && detail.payment.surcharge.rateBps !== null ? ` (${(detail.payment.surcharge.rateBps / 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)` : ""}</dt><dd className="g-money text-right">{formatMoney(detail.payment.surcharge.appliedCents)}</dd>
+        {detail.payment.surcharge.waived && <><dt className="text-[var(--g-text-muted)]">Removido no PDV: {detail.payment.surcharge.waiverReason}</dt><dd className="g-money text-right text-[var(--g-text-muted)] line-through">{formatMoney(detail.payment.surcharge.expectedCents)}</dd></>}
+        <dt className="font-semibold">Total cobrado</dt><dd className="g-money text-right font-semibold">{formatMoney(detail.payment.amountCents ?? detail.totalCents)}</dd>
+      </dl>}
       {detail.payment?.confirmedAt && <p className="text-xs text-[var(--g-text-muted)]">Confirmado em {formatDate(detail.payment.confirmedAt)}</p>}</section>
     <section aria-label="Lançamentos financeiros"><h3 className="text-sm font-semibold">Lançamentos</h3><ul className="mt-2 space-y-1 text-sm">{detail.ledger.length === 0 ? <li className="text-[var(--g-text-muted)]">Nenhum lançamento.</li> : detail.ledger.map((entry) => <li key={entry.id} className="flex justify-between gap-3"><span>{ledgerLabels[entry.entryType] ?? entry.entryType}{entry.refundMethod ? ` (${entry.refundMethod === "CASH_DRAWER" ? "dinheiro do caixa" : "outro meio"})` : ""}{entry.reference ? ` · ${entry.reference}` : ""}</span><span className="g-money">{formatMoney(entry.amountCents)}</span></li>)}</ul>
       {detail.cashMovements.length > 0 && <ul aria-label="Movimentos de caixa" className="mt-3 space-y-1 text-sm">{detail.cashMovements.map((movement) => <li key={movement.id} className="flex justify-between gap-3"><span>{movementLabels[movement.movementType]} · turno {movement.shiftId.slice(0, 8)}</span><span className="g-money">{formatMoney(movement.amountCents)}</span></li>)}</ul>}</section>
@@ -225,7 +231,7 @@ function ReversalForm({ detail, onDone }: { detail: AdminSaleDetail; onDone: () 
       : <Field id={`reversal-shift-${detail.saleId}`} label="Turno que entregou o dinheiro"><select id={`reversal-shift-${detail.saleId}`} className="g-input min-h-11 w-full" value={shiftId} onChange={(event) => { setShiftId(event.target.value); setConfirming(false); }}><option value="">Selecione o turno</option>{shifts.map((shift) => <option key={shift.shiftId} value={shift.shiftId}>{shift.sellerName} · {shift.locationName} · caixa {formatMoney(shift.expectedCashCents)}</option>)}</select></Field>)}
     {error && <p role="alert" className="text-sm text-[var(--g-status-danger)]">{error}</p>}
     <div className="flex flex-wrap gap-2">
-      <Button type="submit" variant={confirming ? "danger" : "secondary"} loading={busy} disabled={!valid || busy}><RotateCcw className="size-4" />{confirming ? `Confirmar estorno de ${formatMoney(detail.totalCents)}` : "Estornar venda"}</Button>
+      <Button type="submit" variant={confirming ? "danger" : "secondary"} loading={busy} disabled={!valid || busy}><RotateCcw className="size-4" />{confirming ? `Confirmar estorno de ${formatMoney(detail.payment?.amountCents ?? detail.totalCents)}` : "Estornar venda"}</Button>
       {confirming && <Button type="button" variant="ghost" disabled={busy} onClick={() => setConfirming(false)}>Voltar</Button>}
     </div>
   </form>;

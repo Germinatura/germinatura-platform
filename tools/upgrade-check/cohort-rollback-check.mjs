@@ -172,7 +172,7 @@ function main() {
 
   console.log("\n▶ Estado final das 9 migrations");
   const after = snapshot(target, { columns: columnsOf(before), perRow: true });
-  const { result: upgrade } = compareUpgrade(target, before, after);
+  const { result: upgrade } = compareUpgrade(target, before, after, BASE);
   const cohort9 = cohortAssertions(target);
   const phase5 = definitions(target);
   const reference = { pr4, phase5 };

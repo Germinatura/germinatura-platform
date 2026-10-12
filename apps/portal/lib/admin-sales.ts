@@ -1,4 +1,4 @@
-import { adminSaleDetailSchema, adminSaleSchema, createApiError } from "@germinatura/contracts";
+import { adminSaleDetailSchema, adminSaleSchema, createApiError, databasePaymentSurchargeSchema, toPaymentSurchargeSnapshot } from "@germinatura/contracts";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ export const databaseAdminSaleSchema = z.object({
     attempt_id: z.uuid(), status: z.string(), integration_channel: z.string().nullable(),
     confirmation_source: z.string().nullable(), confirmed_at: z.string().nullable(), proof_reference: z.string().nullable(),
     card_method: z.string().nullable(), terminal_code: z.string().nullable(),
+    amount_cents: z.number().int().optional(), surcharge: databasePaymentSurchargeSchema.nullish(),
   }).nullable(),
 });
 
@@ -44,6 +45,8 @@ function summary(value: z.infer<typeof databaseAdminSaleSchema>) {
       attemptId: value.payment.attempt_id, status: value.payment.status, integrationChannel: value.payment.integration_channel,
       confirmationSource: value.payment.confirmation_source, confirmedAt: value.payment.confirmed_at,
       proofReference: value.payment.proof_reference, cardMethod: value.payment.card_method, terminalCode: value.payment.terminal_code,
+      ...(value.payment.amount_cents === undefined ? {} : { amountCents: value.payment.amount_cents }),
+      ...(value.payment.surcharge === undefined ? {} : { surcharge: toPaymentSurchargeSnapshot(value.payment.surcharge) }),
     },
   };
 }

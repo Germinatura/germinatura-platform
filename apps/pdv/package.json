@@ -17,6 +17,7 @@
     "dependencies":  {
                          "@germinatura/auth":  "workspace:*",
                          "@germinatura/contracts":  "workspace:*",
+                         "@germinatura/domain":  "workspace:*",
                          "@germinatura/ui":  "workspace:*",
                          "@supabase/ssr":  "^0.7.0",
                          "@supabase/supabase-js":  "^2.56.1",

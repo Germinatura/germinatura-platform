@@ -34,6 +34,10 @@ describe("RBAC", () => {
     expect(hasPermission(seller, "closeouts.create")).toBe(true);
     expect(hasPermission(seller, "closeouts.manage")).toBe(false);
     expect(hasPermission(seller, "users.manage")).toBe(false);
+    // PR D: removing the acréscimo of a payment needs an explicit permission the seller does not have.
+    expect(hasPermission(seller, "sales.surcharge.waive")).toBe(false);
+    expect(hasPermission({ roles: ["ADMIN"] }, "sales.surcharge.waive")).toBe(true);
+    expect(hasPermission({ roles: ["FINANCEIRO"] }, "sales.surcharge.waive")).toBe(false);
   });
 
   it("fails closed for unknown roles without dropping known ones", () => {

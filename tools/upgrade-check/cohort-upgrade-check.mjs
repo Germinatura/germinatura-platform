@@ -80,7 +80,7 @@ function main() {
 
   console.log("\n▶ Snapshot depois");
   const after = snapshot(target, { columns: columnsOf(before), perRow: true });
-  const { scoped, result: upgrade } = compareUpgrade(target, before, after);
+  const { scoped, result: upgrade } = compareUpgrade(target, before, after, BASE);
   const cohort = cohortAssertions(target);
   // Full snapshot (cohort_id included) as the reference for the re-run.
   const upgraded = snapshot(target, { perRow: true });

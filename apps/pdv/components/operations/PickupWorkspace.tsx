@@ -4,6 +4,7 @@ import { completePickupRequestSchema, type CardPaymentMethod, type CompletePicku
 import { Badge, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
 import { AlertTriangle, Banknote, CircleCheck, Clock, CreditCard, Search, Wallet } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SurchargePanel, useSurcharge } from "@/components/operations/SurchargePanel";
 import { useToast } from "@/components/ui/Toast";
 import { cashChange, completePickup, deliverPaidPickup, formatMoney, loadDisabledFeatures, loadPaymentTerminals, loadPickups, parseMoneyInput } from "@/lib/operations";
 
@@ -14,7 +15,7 @@ type Channel = CompletePickupRequest["integrationChannel"];
 
 /** RES-003: hands over prepared reservations, charging the price frozen when the customer reserved.
  * RES-005: orders already paid online are delivered without any charge. */
-export function PickupWorkspace({ online }: { online: boolean }) {
+export function PickupWorkspace({ online, canWaiveSurcharge }: { online: boolean; canWaiveSurcharge: boolean }) {
   const { showToast } = useToast();
   const [query, setQuery] = useState("");
   const [pickups, setPickups] = useState<PickupReservation[]>([]);
@@ -31,6 +32,7 @@ export function PickupWorkspace({ online }: { online: boolean }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ customer: string; totalCents: number; changeCents: number | null; paidOnline: boolean } | null>(null);
   const keys = useRef(new Map<string, string>());
+  const surcharge = useSurcharge(channel, cardMethod, selected && !selected.paidOnline ? selected.totalCents : 0);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -44,9 +46,10 @@ export function PickupWorkspace({ online }: { online: boolean }) {
 
   function choose(pickup: PickupReservation) {
     setSelected(pickup); setDone(null); setChannel(cashOff ? "MAQUININHA" : "DINHEIRO"); setTendered(""); setProof(""); setCardMethod(null); setTerminalId(""); setError("");
+    surcharge.reset(); void surcharge.reload();
   }
 
-  const change = selected ? cashChange(selected.totalCents, parseMoneyInput(tendered)) : null;
+  const change = selected ? cashChange(surcharge.chargeCents, parseMoneyInput(tendered)) : null;
   const payment = completePickupRequestSchema.safeParse({
     integrationChannel: channel,
     tenderedCents: channel === "DINHEIRO" ? parseMoneyInput(tendered) : null,
@@ -54,21 +57,25 @@ export function PickupWorkspace({ online }: { online: boolean }) {
     cardMethod: channel === "MAQUININHA" ? cardMethod : null,
     terminalId: channel === "MAQUININHA" && terminalId ? terminalId : null,
   });
-  const ready = payment.success && (channel === "DINHEIRO" ? change !== null : channel !== "MAQUININHA" || terms(terminals, terminalId));
+  const ready = payment.success && surcharge.ready && (channel === "DINHEIRO" ? change !== null : channel !== "MAQUININHA" || terms(terminals, terminalId));
 
   async function submit() {
     if (!selected || !online || !ready || !payment.success) return;
-    const fingerprint = `${selected.reservationId}:${JSON.stringify(payment.data)}`;
+    const fingerprint = `${selected.reservationId}:${JSON.stringify(payment.data)}:${JSON.stringify(surcharge.choice)}`;
     const key = keys.current.get(fingerprint) ?? `pdv-pickup:${crypto.randomUUID()}`;
     keys.current.set(fingerprint, key);
     setBusy(true); setError("");
     try {
-      const result = await completePickup(selected.reservationId, payment.data, key);
-      setDone({ customer: selected.customerName, totalCents: result.totalCents, changeCents: result.changeCents, paidOnline: false });
+      const result = await completePickup(selected.reservationId, payment.data, key, surcharge.choice);
+      setDone({ customer: selected.customerName, totalCents: result.chargedCents, changeCents: result.changeCents, paidOnline: false });
       setSelected(null);
       showToast("Retirada concluída.", "success");
       await load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível concluir a retirada."); }
+    } catch (cause) {
+      // The acréscimo may have changed: show the current one; the next attempt carries a different fingerprint and key.
+      void surcharge.reload(); keys.current.delete(fingerprint);
+      setError(cause instanceof Error ? cause.message : "Não foi possível concluir a retirada.");
+    }
     finally { setBusy(false); }
   }
 
@@ -102,18 +109,19 @@ export function PickupWorkspace({ online }: { online: boolean }) {
       </div>
     </Card>
     : selected ? <Card className="p-5">
-      <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Entregar reserva de {selected.customerName}</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{selected.items.map((item) => `${item.quantity}× ${item.productName}`).join(", ")}</p></div><p className="g-money text-2xl font-bold">{formatMoney(selected.totalCents)}</p></div>
-      <p className="mt-2 text-xs text-[var(--g-text-muted)]">Preço congelado na reserva; não é recalculado na retirada.</p>
+      <div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Entregar reserva de {selected.customerName}</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">{selected.items.map((item) => `${item.quantity}× ${item.productName}`).join(", ")}</p></div><p className="g-money text-2xl font-bold">{formatMoney(surcharge.chargeCents)}</p></div>
+      <p className="mt-2 text-xs text-[var(--g-text-muted)]">Preço congelado na reserva; não é recalculado na retirada. O acréscimo depende do meio de pagamento.</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-3" role="group" aria-label="Forma de pagamento">
-        {([["DINHEIRO", "Dinheiro", Wallet], ["MAQUININHA", "Maquininha", CreditCard], ["PIX_AREA", "Área Pix", Banknote]] as const).filter(([value]) => !cashOff || value !== "DINHEIRO").map(([value, label, Icon]) => <button key={value} type="button" aria-pressed={channel === value} onClick={() => setChannel(value)} className={`flex min-h-12 items-center justify-center gap-2 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${channel === value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)]"}`}><Icon className="size-4" />{label}</button>)}
+        {([["DINHEIRO", "Dinheiro", Wallet], ["MAQUININHA", "Maquininha", CreditCard], ["PIX_AREA", "Área Pix", Banknote]] as const).filter(([value]) => !cashOff || value !== "DINHEIRO").map(([value, label, Icon]) => <button key={value} type="button" aria-pressed={channel === value} onClick={() => { setChannel(value); surcharge.reset(); }} className={`flex min-h-12 items-center justify-center gap-2 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${channel === value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)]"}`}><Icon className="size-4" />{label}</button>)}
       </div>
       {channel === "DINHEIRO" ? <><Field id="pickup-tendered" label="Valor recebido (R$)" className="mt-4"><Input id="pickup-tendered" inputMode="decimal" value={tendered} onChange={(event) => setTendered(event.target.value)} /></Field>
         <p role="status" className="mt-2 text-sm">{change === null ? "O valor recebido precisa cobrir o total." : <>Troco: <strong className="g-money">{formatMoney(change)}</strong></>}</p></>
         : <div className="mt-4 grid gap-4">
-          {channel === "MAQUININHA" && <fieldset><legend className="text-sm font-semibold">Método do cartão</legend><div className="mt-2 grid grid-cols-2 gap-2">{([["CREDITO", "Crédito"], ["DEBITO", "Débito"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={cardMethod === value} onClick={() => setCardMethod(value)} className={`min-h-12 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${cardMethod === value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)]"}`}>{label}</button>)}</div></fieldset>}
+          {channel === "MAQUININHA" && <fieldset><legend className="text-sm font-semibold">Método do cartão</legend><div className="mt-2 grid grid-cols-2 gap-2">{([["CREDITO", "Crédito"], ["DEBITO", "Débito"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={cardMethod === value} onClick={() => { setCardMethod(value); surcharge.reset(); }} className={`min-h-12 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${cardMethod === value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)]"}`}>{label}</button>)}</div></fieldset>}
           {channel === "MAQUININHA" && terminals.length > 0 && <Field id="pickup-terminal" label="Maquininha usada"><select id="pickup-terminal" className="g-input min-h-12 w-full" value={terminalId} onChange={(event) => setTerminalId(event.target.value)}><option value="">Selecione a maquininha</option>{terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
           <Field id="pickup-proof" label="Referência não sensível do comprovante"><Input id="pickup-proof" maxLength={128} value={proof} onChange={(event) => setProof(event.target.value)} autoComplete="off" /></Field>
         </div>}
+      <SurchargePanel state={surcharge} baseCents={selected.totalCents} canWaive={canWaiveSurcharge} />
       <div className="mt-5 grid gap-2 sm:grid-cols-2">
         <Button variant="operation" size="lg" loading={busy} disabled={!online || !ready || busy} onClick={() => void submit()}>Concluir retirada</Button>
         <Button variant="ghost" size="lg" disabled={busy} onClick={() => setSelected(null)}>Voltar</Button>
