@@ -93,16 +93,16 @@ export default function CadastroPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background-light p-4">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl">
-        <h1 className="text-3xl font-black text-slate-900">Criar conta</h1>
+    <main className="flex min-h-dvh items-start justify-center bg-background-light px-4 py-6 sm:items-center sm:p-6">
+      <section className="w-full min-w-0 max-w-md rounded-3xl bg-white p-5 shadow-xl sm:p-8">
+        <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">Criar conta</h1>
         <p className="mt-2 text-slate-500">Primeiro, confirme seu e-mail institucional.</p>
         <form onSubmit={submit} className="mt-6 space-y-5">
           {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</p>}
           {adminResetRequired && <p className="rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">Contate um administrador para liberar novos códigos.</p>}
           {existingAccount && <Link href="/login" className="block rounded-xl border border-primary px-4 py-3 text-center text-sm font-bold text-primary hover:bg-primary/5">Ir para o login</Link>}
-          <label className="block space-y-2 font-bold text-slate-700">E-mail institucional<input required disabled={codeSent} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 disabled:opacity-70" /></label>
-          {codeSent && <label className="block space-y-2 font-bold text-slate-700">Código de 6 a 10 dígitos<input required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={10} value={token} onChange={(event) => setToken(event.target.value.replace(/\D/g, ""))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-xl tracking-[.3em]" /></label>}
+          <label className="block space-y-2 font-bold text-slate-700">E-mail institucional<input required disabled={codeSent} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 font-normal disabled:opacity-70 sm:p-4" /></label>
+          {codeSent && <label className="block space-y-2 font-bold text-slate-700">Código de 6 a 10 dígitos<input required inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={10} value={token} onChange={(event) => setToken(event.target.value.replace(/\D/g, ""))} className="w-full min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-center text-xl tracking-[.3em] sm:p-4" /></label>}
           <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary p-4 font-bold text-white disabled:opacity-50">{loading ? <Loader2 className="size-5 animate-spin" /> : codeSent ? "Confirmar código" : "Enviar código"}</button>
           {codeSent && <div className="grid gap-3 sm:grid-cols-2">
             <button type="button" disabled={loading || resendSeconds > 0 || adminResetRequired} onClick={resendCode} className="rounded-2xl border border-primary px-4 py-3 text-sm font-bold text-primary disabled:cursor-not-allowed disabled:opacity-50">

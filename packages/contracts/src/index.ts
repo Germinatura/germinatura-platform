@@ -1,6 +1,7 @@
 import { moneyFromCents } from "@germinatura/domain";
 import { z } from "zod";
 import { paymentSurchargeConfirmationShape, paymentSurchargeSnapshotSchema, refineSurchargeWaiver } from "./payment-surcharges";
+import { usernameSchema } from "./profile";
 
 export * from "./catalog-categories";
 export * from "./catalog-products";
@@ -1188,13 +1189,6 @@ export const institutionalOtpVerifySchema = z.object({
   token: z.string().regex(/^\d{6,10}$/),
 }).strict();
 export type InstitutionalOtpVerify = z.infer<typeof institutionalOtpVerifySchema>;
-
-export const usernameSchema = z.string()
-  .trim()
-  .toLowerCase()
-  .min(3)
-  .max(32)
-  .regex(/^[a-z][a-z0-9._]{2,31}$/);
 
 export const accountPasswordSchema = z.string()
   .min(8)
