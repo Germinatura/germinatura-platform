@@ -110,7 +110,8 @@ it("two verifies of the same valid code and racing materializations create exact
 
 const asWorker = "set request.jwt.claim.role = 'service_role';";
 const technical = (id: string, email: string) => `insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, recovery_sent_at)
-  values ('00000000-0000-0000-0000-000000000000', '${id}', 'authenticated', 'authenticated', '${email}', '', null, '{}', '{}', now() - interval '2 days', now() - interval '2 days', now() - interval '2 days');`;
+  values ('00000000-0000-0000-0000-000000000000', '${id}', 'authenticated', 'authenticated', '${email}', '', null, '{}', '{}', now() - interval '2 days', now() - interval '2 days', now() - interval '2 days');
+  update private.signup_attempts set created_at = now() - interval '2 days' where user_id = '${id}';`;
 
 it("the purge skips an identity whose confirmation is in flight and never removes it once confirmed", async () => {
   const [inFlight, idle] = [randomUUID(), randomUUID()];
@@ -151,4 +152,49 @@ it("a materialization that loses the race to the purge creates nothing", async (
   } finally {
     sql(`delete from auth.users where id = '${stale}';`);
   }
+});
+
+it("after the code is spent, a lost materialization is finished by profile completion with the same session", async () => {
+  const email = `a1.retomada.${randomUUID().slice(0, 8)}@institutojef.org.br`;
+  const sent = new Date().toISOString();
+  expect((await auth("otp", { email, create_user: true })).status).toBe(200);
+  const verified = await auth("verify", { type: "email", email, token: await latestCode(email, sent) });
+  expect(verified.ok).toBe(true);
+  const { access_token: token } = await verified.json() as { access_token: string };
+  // The verify-time materialization never ran (a transient failure): the code is spent and nobody exists yet.
+  expect(domainRows(email)).toBe("0,0,0");
+  expect((await auth("verify", { type: "email", email, token: await latestCode(email, sent) })).ok).toBe(false);
+  const username = `retomada.${randomUUID().slice(0, 6)}`;
+  const completed = await rpc("complete_my_profile", { p_display_name: "Pessoa Retomada", p_username: username, p_avatar_path: null, p_correlation_id: randomUUID() }, token);
+  expect(completed.status).toBe(200);
+  expect(completed.body).toMatchObject({ username, onboarding_completed: true });
+  expect(domainRows(email)).toBe("1,1,1");
+  expect((await rpc("materialize_my_signup_identity", { p_correlation_id: randomUUID() }, token)).body.created).toBe(false);
+  expect(domainRows(email)).toBe("1,1,1");
+});
+
+it("concurrent provisionings of one administrative account create one domain user, in the target cohort only", async () => {
+  const { url, serviceKey } = local();
+  const cohort = randomUUID();
+  // Years are unique (2000-2100): take a free one.
+  const year = Number(sql("select year from generate_series(2000, 2100) year where not exists (select 1 from public.cohorts where cohorts.year = year.year) order by random() limit 1"));
+  sql(`insert into public.cohorts (id, name, year, slug, status) values ('${cohort}', 'Turma Concorrência A1 ${year}', ${year}, 'a1-${cohort.slice(0, 8)}', 'ACTIVE');
+    select private.provision_cohort('${cohort}', null);`);
+  const provisioning = randomUUID();
+  const email = `a1.provisionada.${randomUUID().slice(0, 8)}@institutojef.org.br`;
+  const username = `prov.${randomUUID().slice(0, 8)}`;
+  // What the Portal's administrative creation does: Auth inserts the identity, then writes the stamp.
+  const created = await fetch(`${url}/auth/v1/admin/users`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password: `Prov-${randomUUID()}`, email_confirm: true, user_metadata: { name: "Pessoa Provisionada", username }, app_metadata: { germinatura_provisioning: provisioning } }) });
+  expect(created.status).toBe(200);
+  const { id } = await created.json() as { id: string };
+  expect(domainRows(email)).toBe("0,0,0");
+  const results = await Promise.all([1, 2, 3].map(() => rpc("complete_admin_provisioned_profile", {
+    p_actor_id: "10000000-0000-4000-8000-000000000005", p_user_id: id, p_display_name: "Pessoa Provisionada", p_username: username,
+    p_cohort_id: cohort, p_correlation_id: provisioning }, serviceKey)));
+  expect(results.some((result) => result.status === 200)).toBe(true);
+  expect(domainRows(email)).toBe("1,1,1");
+  expect(sql(`select string_agg(cohort_id::text, ',') from public.user_cohorts where user_id = '${id}'`)).toBe(cohort);
+  expect(sql(`select string_agg(cohort_id::text, ',') from cohort_data.user_roles where user_id = '${id}'`)).toBe(cohort);
+  expect(sql(`select count(*) from cohort_data.audit_logs where entity_id = '${id}' and cohort_id is distinct from '${cohort}'`)).toBe("0");
 });

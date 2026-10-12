@@ -21,6 +21,9 @@ export async function POST(request: Request) {
     if (error?.message === "SIGNUP_UNLOCK_FORBIDDEN") {
       return NextResponse.json(createApiError("FORBIDDEN", "Somente a administração da turma padrão ou o ADMIN_MASTER libera códigos de cadastro", requestId), { status: 403, headers });
     }
+    if (error?.message === "SIGNUP_UNLOCK_RATE_LIMITED") {
+      return NextResponse.json(createApiError("RATE_LIMITED", "Limite de liberações atingido. Tente novamente em uma hora.", requestId), { status: 429, headers: { ...headers, "Retry-After": "3600" } });
+    }
     if (error) throw error;
     return NextResponse.json({ data, request_id: requestId }, { headers });
   } catch (error) {

@@ -36,12 +36,12 @@ describe("jobs worker", () => {
       const name = requestUrl(input).split("/").at(-1) ?? "";
       calls.push(name);
       if (name === "worker_purge_unconfirmed_identities") {
-        return Promise.resolve(failing ? new Response(null, { status: 503 }) : Response.json({ purged_technical: 2, purged_attempts: 1, kept: 0 }));
+        return Promise.resolve(failing ? new Response(null, { status: 503 }) : Response.json({ purged_attempts: 2, kept: 1 }));
       }
       if (name === "worker_process_outbox_batch") return Promise.resolve(Response.json({ claimed: 0, published: 0, retried: 0, failed: 0 }));
       return Promise.resolve(Response.json({ pending: 0 }));
     });
-    await expect(runCycle(env, answer(false))).resolves.toMatchObject({ identities: { purged_technical: 2, purged_attempts: 1 } });
+    await expect(runCycle(env, answer(false))).resolves.toMatchObject({ identities: { purged_attempts: 2, kept: 1 } });
     expect(calls.filter((name) => name === "worker_purge_unconfirmed_identities")).toHaveLength(1);
     await expect(runCycle(env, answer(true))).resolves.toMatchObject({ identities: { errors: 1 }, claimed: 0 });
   });

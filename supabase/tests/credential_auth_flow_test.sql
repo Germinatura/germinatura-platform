@@ -49,8 +49,11 @@ select ok(not exists (select 1 from public.profiles where id = '11000000-0000-40
   and not exists (select 1 from public.user_cohorts where user_id = '11000000-0000-4000-8000-000000000001')
   and not exists (select 1 from cohort_data.user_roles where user_id = '11000000-0000-4000-8000-000000000001'),
   'a code request creates no profile, membership or role');
+-- The session a valid code produced (verifyOtp) is the proof the materialization requires.
+insert into auth.sessions (id, user_id, created_at, updated_at) values ('51000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-000000000001', now(), now());
 set local role authenticated;
 set local "request.jwt.claim.sub" = '11000000-0000-4000-8000-000000000001';
+set local "request.jwt.claims" = '{"sub": "11000000-0000-4000-8000-000000000001", "role": "authenticated", "session_id": "51000000-0000-4000-8000-000000000001"}';
 select is(public.materialize_my_signup_identity('91000000-0000-4000-8000-000000000010') ->> 'created', 'true',
   'the session of a valid code materializes the domain user');
 select is(public.materialize_my_signup_identity('91000000-0000-4000-8000-000000000011') ->> 'created', 'false',
@@ -107,8 +110,10 @@ insert into auth.users (
   'authenticated', 'authenticated', 'duplicado.teste@institutojef.org.br', '', now(),
   '', '', '', '', '', '', '', '{"provider":"email","providers":["email"]}', '{}', now(), now()
 );
+insert into auth.sessions (id, user_id, created_at, updated_at) values ('51000000-0000-4000-8000-000000000002', '11000000-0000-4000-8000-000000000002', now(), now());
 set local role authenticated;
 set local "request.jwt.claim.sub" = '11000000-0000-4000-8000-000000000002';
+set local "request.jwt.claims" = '{"sub": "11000000-0000-4000-8000-000000000002", "role": "authenticated", "session_id": "51000000-0000-4000-8000-000000000002"}';
 select throws_ok(
   $$select public.complete_my_profile('Duplicado Teste', 'CADASTRO.TESTE', null, '91000000-0000-4000-8000-000000000003')$$,
   '23505', 'USERNAME_ALREADY_USED', 'username uniqueness is case-insensitive through normalization'
@@ -118,6 +123,7 @@ reset role;
 -- Administrative provisioning: the Portal stamps the identity (app metadata) and Auth inserts it with no request JWT;
 -- reset role keeps the previous subject, so clear it.
 set local "request.jwt.claim.sub" = '';
+set local "request.jwt.claims" = '';
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   confirmation_token, recovery_token, email_change_token_new, email_change,

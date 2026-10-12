@@ -3,14 +3,53 @@
 -- Supabase Auth's native one-time code needs an auth.users row, so a code request still creates a TECHNICAL identity
 -- (no new e-mail provider, user decision of 12/10/2026). The DOMAIN user (profile, explicit membership in the ACTIVE
 -- default cohort, CONSUMIDOR role) is created only after the code is validated:
---   e-mail -> technical identity -> code -> valid code -> materialize_my_signup_identity (idempotent) -> onboarding.
--- The proof of a valid code is the session itself: verifyOtp is the only way an unprovisioned technical identity
--- obtains one (Auth gives it a random password nobody knows). email_confirmed_at is not used as that proof: with Auth's autoconfirm (local stack) it is filled when the
--- identity is created, before any code.
+--   e-mail -> technical identity -> code -> verifyOtp session -> materialization (transactional, idempotent) -> onboarding.
+-- The proof of a valid code is the session verifyOtp issued: the request's JWT names a session that exists in
+-- auth.sessions for that user. Neither a password (Auth gives code requests a random one), email_verified nor
+-- email_confirmed_at (both filled at creation under autoconfirm) is used as proof.
 --
--- Unconfirmed technical identities, and the empty profiles the earlier flow created for attempts that never confirmed,
--- are removed by the jobs worker only when it is provably safe (see private.identity_kind and the purge below). An
--- account that confirmed, signed in, was provisioned or has any history is never removed.
+-- Every identity born as an attempt of this flow is marked, at creation, in private.signup_attempts (written only by the
+-- sign-up trigger). Only marked attempts can ever be removed automatically. Identities that existed before this
+-- migration (legacy) are classified and counted read-only; none is removed. A historical cleanup is a separate,
+-- explicitly authorized operation, preceded by a report.
+
+-- 0. The unequivocal mark of an attempt created by this flow. No grants: only the definer functions below write it.
+create table private.signup_attempts (
+  user_id uuid primary key,
+  created_at timestamptz not null default statement_timestamp(),
+  materialized_at timestamptz
+);
+revoke all on private.signup_attempts from public, anon, authenticated, service_role;
+
+-- The proof of a valid code: the session in the request's JWT was issued by Auth for this person and still exists.
+create function private.has_issued_session(p_user_id uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_user_id is not null and exists (
+    select 1 from auth.sessions session
+    where session.user_id = p_user_id
+      and session.id = nullif(auth.jwt() ->> 'session_id', '')::uuid
+      and (session.not_after is null or session.not_after > statement_timestamp()))
+$$;
+revoke all on function private.has_issued_session(uuid) from public, anon, authenticated, service_role;
+
+-- A profile created by a materialization joins only the cohort the materialization names (the default one for public
+-- entry, the target cohort for administrative provisioning); every other profile keeps joining the ACTIVE default.
+create or replace function private.join_default_cohort() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_cohort uuid := (select id from public.cohorts where is_default and status = 'ACTIVE');
+begin
+  if current_setting('germinatura.materializing_identity', true) = new.id::text then
+    return new;
+  end if;
+  if v_cohort is null then
+    raise exception using errcode = 'P0001', message = 'DEFAULT_COHORT_REQUIRED';
+  end if;
+  insert into public.user_cohorts (user_id, cohort_id) values (new.id, v_cohort)
+  on conflict (user_id, cohort_id) do nothing;
+  return new;
+end;
+$$;
 
 -- 1. Materialization: one transaction, serialized on the auth.users row, every insert idempotent.
 create function private.materialize_identity(p_user_id uuid, p_correlation_id uuid, p_cohort_id uuid default null) returns jsonb
@@ -37,7 +76,7 @@ begin
     raise exception using errcode = 'P0001', message = 'INSTITUTIONAL_EMAIL_REQUIRED';
   end if;
   -- Public entry joins the ACTIVE default cohort, named explicitly; there is no implicit fallback (ADR 0011, PR 5).
-  -- Administrative provisioning names its own (checked) target cohort.
+  -- Administrative provisioning names its own (checked) target cohort, and the person joins only that one.
   if p_cohort_id is null then
     select id into v_cohort from public.cohorts where is_default and status = 'ACTIVE' for share;
     if v_cohort is null then
@@ -56,15 +95,17 @@ begin
     or exists (select 1 from public.profiles where username = v_username)) then v_username := null; end if;
 
   perform private.cohort_write_override(v_cohort);
+  perform set_config('germinatura.materializing_identity', p_user_id::text, true);
   insert into public.profiles (id, email, display_name, username)
   values (p_user_id, lower(btrim(v_user.email)), coalesce(v_name, split_part(lower(btrim(v_user.email)), '@', 1)), v_username)
   on conflict (id) do nothing
   returning id into v_created;
-  -- The profile trigger (join_default_cohort) adds the membership; both stay idempotent.
+  perform set_config('germinatura.materializing_identity', '', true);
   insert into public.user_cohorts (user_id, cohort_id) values (p_user_id, v_cohort) on conflict (user_id, cohort_id) do nothing;
   insert into cohort_data.user_roles (user_id, role_id, cohort_id)
   select p_user_id, role.id, v_cohort from public.roles role where role.key = 'CONSUMIDOR'
   on conflict do nothing;
+  update private.signup_attempts set materialized_at = statement_timestamp() where user_id = p_user_id and materialized_at is null;
   if v_created is not null then
     insert into public.audit_logs (action, actor_id, entity_type, entity_id, correlation_id, metadata, cohort_id)
     values ('auth.identity.materialized', p_user_id, 'profile', p_user_id::text, p_correlation_id,
@@ -79,18 +120,15 @@ end;
 $$;
 revoke all on function private.materialize_identity(uuid, uuid, uuid) from public, anon, authenticated, service_role;
 
--- Called by the Portal right after a valid code, with the session that code produced.
+-- Called by the Portal right after a valid code, with the session that code produced. Calling it again (a retry after a
+-- transient failure, or from profile completion) finishes or repeats the same materialization.
 create function public.materialize_my_signup_identity(p_correlation_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
   v_actor uuid := auth.uid();
 begin
-  if v_actor is null then
-    raise exception using errcode = '42501', message = 'UNAUTHENTICATED';
-  end if;
-  -- A session exists only after a valid code: the technical identity's password is random and never revealed.
-  if not exists (select 1 from auth.users where id = v_actor and (email_confirmed_at is not null or last_sign_in_at is not null)) then
-    raise exception using errcode = '42501', message = 'EMAIL_NOT_VERIFIED';
+  if v_actor is null or not private.has_issued_session(v_actor) then
+    raise exception using errcode = '42501', message = 'CODE_SESSION_REQUIRED';
   end if;
   return private.materialize_identity(v_actor, p_correlation_id);
 end;
@@ -98,8 +136,8 @@ $$;
 revoke all on function public.materialize_my_signup_identity(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.materialize_my_signup_identity(uuid) to authenticated;
 
--- 2. New identities: a code request stays technical. Administrative provisioning and operator fixtures become domain
--- users at once, as before.
+-- 2. New identities: a code request stays technical and is marked as an attempt of this flow. Administrative
+-- provisioning and operator fixtures become domain users at once, as before.
 create or replace function public.handle_new_auth_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -124,9 +162,11 @@ begin
   -- Auth gives an identity created by a code request a random password and takes user metadata from the caller, so
   -- neither proves anything. A domain user is created here only for administrative provisioning (the stamp only the
   -- service role can write) or for an operator's direct SQL with name and username (local fixtures, seeds, load
-  -- fixtures). Anything else, Auth included, stays technical until a valid code (fail-closed).
+  -- fixtures). Anything else, Auth included, stays technical until a valid code (fail-closed). Auth writes the
+  -- provisioning stamp after the insert, so an administrative account is materialized by its provisioning instead.
   if not coalesce(new.raw_app_meta_data ? 'germinatura_provisioning', false)
     and not (session_user in ('postgres', 'supabase_admin') and v_name is not null and v_username is not null) then
+    insert into private.signup_attempts (user_id) values (new.id) on conflict (user_id) do nothing;
     return new;
   end if;
   if new.email_confirmed_at is not null
@@ -156,15 +196,16 @@ exception
 end;
 $$;
 
--- 3. What an identity is, decided under the caller's lock. Only TECHNICAL_PENDING and UNCONFIRMED_ATTEMPT may ever be
--- purged; every other kind is kept.
---   ADMIN_PROVISIONED               created by an administrator (provisioning stamp)
---   TECHNICAL_PENDING               auth row only, e-mail never confirmed, never signed in, no history
---   CONFIRMED_NOT_MATERIALIZED      code validated, domain user not created yet (finished by the next call)
---   ACTIVE_ACCOUNT                  confirmed and onboarded
---   CONFIRMED_ONBOARDING_INCOMPLETE confirmed, onboarding pending
---   UNCONFIRMED_ATTEMPT             earlier flow: empty profile + automatic membership/role of an attempt never confirmed
---   UNCONFIRMED_WITH_HISTORY        never confirmed, but something references it: kept and visible
+-- 3. What an identity is. Read-only; the purge re-reads it under its locks.
+--   ADMIN_PROVISIONED                created by an administrator (provisioning stamp)
+--   ACTIVE_ACCOUNT                   confirmed and onboarded
+--   CONFIRMED_ONBOARDING_INCOMPLETE  confirmed, onboarding pending
+--   CONFIRMED_NOT_MATERIALIZED       code validated, domain user still to be created (finished by the next call)
+--   SIGNUP_ATTEMPT                   attempt of THIS flow, never confirmed, no history: the only removable kind
+--   SIGNUP_ATTEMPT_WITH_HISTORY      attempt of this flow that something references: kept
+--   LEGACY_UNCONFIRMED_EMPTY         before A1: never confirmed, empty profile + automatic membership/role; kept, hidden
+--   LEGACY_UNCONFIRMED_NO_PROFILE    before A1: never confirmed, no profile; kept
+--   LEGACY_UNCONFIRMED_WITH_HISTORY  before A1: never confirmed, but referenced; kept and visible
 create function private.identity_has_history(p_user_id uuid) returns boolean
 language plpgsql stable security definer set search_path = '' as $$
 declare
@@ -221,6 +262,7 @@ declare
   v_user auth.users%rowtype;
   v_profile public.profiles%rowtype;
   v_has_profile boolean;
+  v_attempt boolean;
 begin
   select * into v_user from auth.users where id = p_user_id;
   if not found then
@@ -231,27 +273,34 @@ begin
   end if;
   select * into v_profile from public.profiles where id = p_user_id;
   v_has_profile := found;
-  if v_user.email_confirmed_at is not null or v_user.last_sign_in_at is not null then
+  if v_user.email_confirmed_at is not null or v_user.last_sign_in_at is not null
+    or exists (select 1 from auth.sessions where user_id = p_user_id) then
     return case when not v_has_profile then 'CONFIRMED_NOT_MATERIALIZED'
       when v_profile.onboarding_completed_at is null then 'CONFIRMED_ONBOARDING_INCOMPLETE' else 'ACTIVE_ACCOUNT' end;
   end if;
-  if private.identity_has_history(p_user_id) then
-    return 'UNCONFIRMED_WITH_HISTORY';
+  v_attempt := exists (select 1 from private.signup_attempts where user_id = p_user_id and materialized_at is null);
+  if v_attempt then
+    return case when v_has_profile or private.identity_has_history(p_user_id) then 'SIGNUP_ATTEMPT_WITH_HISTORY' else 'SIGNUP_ATTEMPT' end;
   end if;
-  return case when v_has_profile then 'UNCONFIRMED_ATTEMPT' else 'TECHNICAL_PENDING' end;
+  if private.identity_has_history(p_user_id) then
+    return 'LEGACY_UNCONFIRMED_WITH_HISTORY';
+  end if;
+  return case when v_has_profile then 'LEGACY_UNCONFIRMED_EMPTY' else 'LEGACY_UNCONFIRMED_NO_PROFILE' end;
 end;
 $$;
 revoke all on function private.identity_kind(uuid) from public, anon, authenticated, service_role;
 
--- Cheap test first (most profiles are confirmed), the full classification only for the unconfirmed ones.
+-- User management hides a legacy attempt that never confirmed (it is not removed). Cheap test first: most profiles are
+-- confirmed, and only the unconfirmed ones get the full classification.
 create function private.is_unconfirmed_attempt(p_user_id uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
   select exists (select 1 from auth.users where id = p_user_id and email_confirmed_at is null and last_sign_in_at is null)
-    and private.identity_kind(p_user_id) = 'UNCONFIRMED_ATTEMPT'
+    and private.identity_kind(p_user_id) = 'LEGACY_UNCONFIRMED_EMPTY'
 $$;
 revoke all on function private.is_unconfirmed_attempt(uuid) from public, anon, authenticated, service_role;
 
--- 4. Inventory for ADMIN_MASTER (read-only): how many identities of each kind exist, before any cleanup.
+-- 4. Inventory for ADMIN_MASTER (read-only): how many identities of each kind exist. The basis of any future,
+-- separately authorized historical cleanup.
 create function public.identity_inventory() returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 begin
@@ -268,27 +317,28 @@ grant execute on function public.identity_inventory() to authenticated;
 -- Record of every removal (the domain audit needs an actor profile, and the worker has none). No e-mail is kept.
 create table private.identity_purges (
   user_id uuid primary key,
-  kind text not null check (kind in ('TECHNICAL_PENDING', 'UNCONFIRMED_ATTEMPT')),
+  kind text not null check (kind = 'SIGNUP_ATTEMPT'),
   identity_created_at timestamptz not null,
+  attempt_created_at timestamptz not null,
   purged_at timestamptz not null default now()
 );
 revoke all on private.identity_purges from public, anon, authenticated, service_role;
 
--- 5. Purge, run by the jobs worker. A row is removed only when ALL of these hold, re-checked under its lock:
---   e-mail never confirmed, never signed in, not provisioned (Auth gives code requests a random password, so a
---   password proves nothing: a person's own password is only set after a valid code, which confirms the e-mail);
---   quiet for the whole window: no code sent, no change, no creation within it (codes last 10 minutes; the window is
---   at least one hour, 24 hours by default), so no valid confirmation can be in progress;
---   kind TECHNICAL_PENDING or UNCONFIRMED_ATTEMPT (no history of any kind, see identity_has_history).
--- Each removal is recorded in private.identity_purges.
--- A verify, a resend or a materialization of the same identity waits for, or skips, the purge's row lock.
+-- 5. Purge, run by the jobs worker. ONLY attempts marked by this flow (private.signup_attempts, not materialized). A row
+-- is removed only when ALL of these hold, re-checked under its lock:
+--   marked as an attempt of this flow at creation; not provisioned;
+--   e-mail never confirmed, never signed in, no session at all;
+--   expired: quiet for the whole window (no code sent, no change, no creation within it; codes last 10 minutes; the
+--   window is at least one hour, 24 hours by default), so no valid confirmation can be in progress;
+--   kind SIGNUP_ATTEMPT: no profile, membership, role, audit, outbox, Storage or foreign-key reference.
+-- Legacy identities are never candidates. A confirmation, a resend or a materialization of the same identity holds
+-- its row: the purge skips it (SKIP LOCKED) and re-reads everything under its own lock.
 create function public.worker_purge_unconfirmed_identities(p_limit integer default 50, p_quiet interval default interval '24 hours')
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   v_id uuid;
   v_kind text;
-  v_technical integer := 0;
-  v_attempts integer := 0;
+  v_purged integer := 0;
   v_kept integer := 0;
 begin
   perform private.assert_worker_role();
@@ -297,9 +347,10 @@ begin
   end if;
   for v_id in
     select auth_user.id from auth.users auth_user
+    join private.signup_attempts attempt on attempt.user_id = auth_user.id and attempt.materialized_at is null
     where auth_user.email_confirmed_at is null and auth_user.last_sign_in_at is null
       and not coalesce(auth_user.raw_app_meta_data ? 'germinatura_provisioning', false)
-      and greatest(auth_user.created_at, coalesce(auth_user.updated_at, auth_user.created_at),
+      and greatest(attempt.created_at, auth_user.created_at, coalesce(auth_user.updated_at, auth_user.created_at),
         coalesce(auth_user.confirmation_sent_at, auth_user.created_at), coalesce(auth_user.recovery_sent_at, auth_user.created_at),
         coalesce(auth_user.email_change_sent_at, auth_user.created_at)) < statement_timestamp() - p_quiet
     order by auth_user.created_at
@@ -308,21 +359,20 @@ begin
   loop
     perform 1 from public.profiles where id = v_id for update;
     v_kind := private.identity_kind(v_id);
-    if v_kind not in ('TECHNICAL_PENDING', 'UNCONFIRMED_ATTEMPT') then
+    if v_kind <> 'SIGNUP_ATTEMPT' or exists (select 1 from auth.sessions where user_id = v_id) then
       v_kept := v_kept + 1;
       continue;
     end if;
     -- The code-request limit is keyed by the e-mail hash and stays; it just stops pointing at the attempt.
     update public.signup_code_limits set user_id = null where user_id = v_id;
-    delete from cohort_data.user_roles where user_id = v_id;
-    delete from public.user_cohorts where user_id = v_id;
-    delete from public.profiles where id = v_id;
-    insert into private.identity_purges (user_id, kind, identity_created_at)
-    values (v_id, v_kind, (select created_at from auth.users where id = v_id));
+    insert into private.identity_purges (user_id, kind, identity_created_at, attempt_created_at)
+    select v_id, v_kind, auth_user.created_at, attempt.created_at
+    from auth.users auth_user join private.signup_attempts attempt on attempt.user_id = auth_user.id where auth_user.id = v_id;
+    delete from private.signup_attempts where user_id = v_id;
     delete from auth.users where id = v_id;
-    if v_kind = 'TECHNICAL_PENDING' then v_technical := v_technical + 1; else v_attempts := v_attempts + 1; end if;
+    v_purged := v_purged + 1;
   end loop;
-  return jsonb_build_object('purged_technical', v_technical, 'purged_attempts', v_attempts, 'kept', v_kept);
+  return jsonb_build_object('purged_attempts', v_purged, 'kept', v_kept);
 end;
 $$;
 revoke all on function public.worker_purge_unconfirmed_identities(integer, interval) from public, anon, authenticated;
@@ -331,8 +381,9 @@ grant execute on function public.worker_purge_unconfirmed_identities(integer, in
 -- 6. Signup code unlock by e-mail. The code-request limit (one send, one resend, then an audited administrative
 -- unlock) is keyed by the e-mail hash. Before A1 the attempt had a profile and was unlocked from its row in user
 -- management; an attempt is no longer a user, so the administrator names the e-mail. The answer is the same whether or
--- not the e-mail was blocked, so it reveals nothing about who tried to sign up; the audit keeps what happened.
--- Who may unlock: ADMIN_MASTER, or users.manage in the default cohort (the cohort the person would join).
+-- not the e-mail exists, was blocked or was ever tried, so it enumerates nothing; the audit keeps what happened.
+-- Who may unlock: ADMIN_MASTER, or users.manage in the default cohort (the cohort the person would join). At most 30
+-- unlocks per administrator per hour.
 create function public.unlock_signup_code_by_email(p_email text, p_reason text, p_correlation_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -350,6 +401,11 @@ begin
   if not private.is_institutional_email(v_email) or p_correlation_id is null or char_length(v_reason) not between 4 and 500 then
     raise exception using errcode = '22023', message = 'INVALID_SIGNUP_UNLOCK';
   end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('signup_unlock:' || v_actor::text, 0));
+  if (select count(*) from cohort_data.audit_logs where action = 'auth.signup_code.unlocked_by_email' and actor_id = v_actor
+    and created_at > statement_timestamp() - interval '1 hour') >= 30 then
+    raise exception using errcode = 'P0001', message = 'SIGNUP_UNLOCK_RATE_LIMITED';
+  end if;
   -- The Portal's subject for code requests: sha256('SIGNUP_CODE:' || normalized e-mail), hex.
   v_hash := encode(extensions.digest('SIGNUP_CODE:' || v_email, 'sha256'), 'hex');
   update public.signup_code_limits set cycle = cycle + 1, request_count = 0, last_requested_at = null, blocked_at = null,
@@ -365,7 +421,8 @@ $$;
 revoke all on function public.unlock_signup_code_by_email(text, text, uuid) from public, anon, authenticated, service_role;
 grant execute on function public.unlock_signup_code_by_email(text, text, uuid) to authenticated;
 
--- 7. Profile completion finishes a materialization that a verify left undone.
+-- 7. Profile completion finishes a materialization that a verify left undone (a transient failure after the code was
+-- spent), with the same session as proof: nobody has to validate a consumed code again.
 create or replace function public.complete_my_profile(
   p_display_name text,
   p_username text,
@@ -413,8 +470,13 @@ begin
   end if;
 
   -- A1: the domain user normally exists since the code was validated; a verify whose materialization did not finish
-  -- (network, retry) finishes it here, once.
-  perform private.materialize_identity(v_actor_id, p_correlation_id);
+  -- (network, retry) finishes it here, once, with the session the code produced as proof.
+  if not exists (select 1 from public.profiles where id = v_actor_id) then
+    if not private.has_issued_session(v_actor_id) then
+      raise exception using errcode = '42501', message = 'CODE_SESSION_REQUIRED';
+    end if;
+    perform private.materialize_identity(v_actor_id, p_correlation_id);
+  end if;
   select * into v_profile from public.profiles where id = v_actor_id for update;
   if not found then
     raise exception using errcode = 'P0002', message = 'PROFILE_NOT_FOUND';
