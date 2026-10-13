@@ -49,7 +49,7 @@ export default function CohortSelectionPage() {
   return (
     <main className="grid min-h-dvh place-items-center bg-[var(--g-surface-canvas)] p-4">
       <Card className="w-full max-w-md p-6 sm:p-8">
-        <BrandMark title="Germinatura" tone="inverse" className="mx-auto size-12 text-white" />
+        <BrandMark title="Germinatura" tone="inverse" className="mx-auto size-12 text-[var(--g-operation-primary)]" />
         <h1 className="mt-5 text-center text-2xl font-bold tracking-tight">Escolha a turma</h1>
         <p className="mt-2 text-center text-sm text-[var(--g-text-secondary)]">O PDV opera dentro de uma turma: estoque, catálogo, vendas e caixa são dela.</p>
         {error && <p role="alert" className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-danger)]/50 px-4 py-3 text-sm font-semibold text-[var(--g-status-danger)]">{error}</p>}

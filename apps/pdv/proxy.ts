@@ -88,5 +88,6 @@ function recordTiming(subject: unknown, session: unknown, started: number, verif
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  // App icons are public, session-free static assets (installation needs them before any sign-in).
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|icons/).*)"],
 };

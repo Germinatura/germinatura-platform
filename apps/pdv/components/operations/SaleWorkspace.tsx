@@ -223,7 +223,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
       <header className="sticky top-0 z-40 border-b border-[var(--g-border-subtle)] bg-[var(--g-surface-canvas)]/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[var(--g-content-wide)] items-center justify-between gap-3 px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <BrandMark className="size-10 shrink-0 text-white" title="Germinatura" tone="inverse" />
+            <BrandMark className="size-10 shrink-0 text-[var(--g-operation-primary)]" title="Germinatura" tone="inverse" />
             <div className="min-w-0"><p className="truncate font-bold">Germinatura PDV</p><p className="truncate text-xs text-[var(--g-text-muted)]">{user.cohort ? `${user.cohort.name} · ` : ""}{selectedLocation?.name ?? "Localização indisponível"}</p></div>
           </div>
           <a href={portalUrl} aria-label="Voltar ao Portal" className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /><span className="hidden sm:inline">Portal</span></a>

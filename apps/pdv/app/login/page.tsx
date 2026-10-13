@@ -45,9 +45,9 @@ export default function LoginPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-[var(--g-surface-canvas)] p-4 font-sans">
       <Card className="w-full max-w-md overflow-hidden shadow-[var(--g-shadow-raised)]">
-        <div className="h-1 bg-[var(--g-brand-primary)]" />
+        <div className="h-1 bg-[var(--g-operation-primary)]" />
         <header className="px-6 pb-5 pt-8 text-center sm:px-8">
-          <BrandMark title="Germinatura" tone="inverse" className="mx-auto mb-5 size-14 text-white" />
+          <BrandMark title="Germinatura" tone="inverse" className="mx-auto mb-5 size-14 text-[var(--g-operation-primary)]" />
           <h1 className="text-2xl font-bold tracking-tight">Acessar o PDV</h1>
           <p className="mt-2 text-sm leading-6 text-[var(--g-text-secondary)]">Entre com a conta operacional criada por um administrador.</p>
         </header>
