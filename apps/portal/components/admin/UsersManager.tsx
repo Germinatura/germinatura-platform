@@ -5,6 +5,7 @@ import { Check, Crown, GraduationCap, Pencil, Plus, Search, UserRoundCog, X } fr
 import { MembershipDialog } from "@/components/admin/MembershipDialog";
 import { adminUsersResponseSchema, type AdminProvisionUser, type AdminUser, type AppRole, type CohortMode, type CohortSummary } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
+import { FilterShell, type ActiveFilter } from "@germinatura/ui/filters";
 
 const roleLabels: Record<AppRole, string> = {
   ADMIN: "Administrador", VENDEDOR: "Vendedor", ESTOQUE: "Estoque", FINANCEIRO: "Financeiro",
@@ -84,12 +85,12 @@ export function UsersManager({ cohortMode, cohorts, canFilterCohort, isMaster = 
   function clearAll() { setSearch(""); setFilters(emptyFilters); setOffset(0); }
   function completed(message: string) { setNotice(message); setCreateOpen(false); setEditing(null); setMastering(null); setReload((value) => value + 1); }
 
-  const chips: { key: string; label: string; clear: () => void }[] = [];
-  if (filters.q) chips.push({ key: "q", label: `Busca: ${filters.q}`, clear: () => { setSearch(""); update({ q: "" }); } });
-  if (filters.status !== "ALL") chips.push({ key: "status", label: filters.status === "ACTIVE" ? "Ativos" : "Inativos", clear: () => update({ status: "ALL" }) });
-  if (filters.onboarding !== "ALL") chips.push({ key: "onboarding", label: filters.onboarding === "COMPLETE" ? "Cadastro completo" : "Cadastro incompleto", clear: () => update({ onboarding: "ALL" }) });
-  for (const role of filters.roles) chips.push({ key: `role-${role}`, label: `${filters.roleMatch === "ALL" ? "Todos" : "Qualquer"}: ${roleLabels[role]}`, clear: () => update({ roles: filters.roles.filter((value) => value !== role) }) });
-  if (filters.cohort) chips.push({ key: "cohort", label: `Turma: ${cohorts.find((cohort) => cohort.id === filters.cohort)?.name ?? "selecionada"}`, clear: () => update({ cohort: "" }) });
+  const chips: ActiveFilter[] = [];
+  if (filters.q) chips.push({ key: "q", label: `Busca: ${filters.q}`, onRemove: () => { setSearch(""); update({ q: "" }); } });
+  if (filters.status !== "ALL") chips.push({ key: "status", label: filters.status === "ACTIVE" ? "Ativos" : "Inativos", onRemove: () => update({ status: "ALL" }) });
+  if (filters.onboarding !== "ALL") chips.push({ key: "onboarding", label: filters.onboarding === "COMPLETE" ? "Cadastro completo" : "Cadastro incompleto", onRemove: () => update({ onboarding: "ALL" }) });
+  for (const role of filters.roles) chips.push({ key: `role-${role}`, label: `${filters.roleMatch === "ALL" ? "Todos" : "Qualquer"}: ${roleLabels[role]}`, onRemove: () => update({ roles: filters.roles.filter((value) => value !== role) }) });
+  if (filters.cohort) chips.push({ key: "cohort", label: `Turma: ${cohorts.find((cohort) => cohort.id === filters.cohort)?.name ?? "selecionada"}`, onRemove: () => update({ cohort: "" }) });
 
   const lastShown = Math.min(page.offset + users.length, page.matched);
   return (
@@ -109,14 +110,17 @@ export function UsersManager({ cohortMode, cohorts, canFilterCohort, isMaster = 
               <div><h2 className="text-lg font-bold">Contas cadastradas</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]" aria-live="polite">{loading ? "Consultando…" : `${page.matched} de ${page.total} usuários`}</p></div>
               <label className="block w-full min-w-0 sm:max-w-sm"><span className="sr-only">Buscar usuários</span><InputGroup icon={<Search />}><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, usuário ou e-mail" /></InputGroup></label>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-sm font-semibold">Situação<select className={selectClass} value={filters.status} onChange={(event) => update({ status: event.target.value as StatusFilter })}><option value="ALL">Todos</option><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select></label>
-              <label className="text-sm font-semibold">Cadastro<select className={selectClass} value={filters.onboarding} onChange={(event) => update({ onboarding: event.target.value as OnboardingFilter })}><option value="ALL">Todos</option><option value="COMPLETE">Completo</option><option value="INCOMPLETE">Incompleto</option></select></label>
-              <label className="text-sm font-semibold">Papéis combinados por<select className={selectClass} value={filters.roleMatch} onChange={(event) => update({ roleMatch: event.target.value as "ANY" | "ALL" })}><option value="ANY">Qualquer papel</option><option value="ALL">Todos os papéis</option></select></label>
-              {canFilterCohort && <label className="text-sm font-semibold">Turma<select aria-label="Turma" className={selectClass} value={filters.cohort} onChange={(event) => update({ cohort: event.target.value })}><option value="">Todas as turmas</option>{cohorts.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></label>}
-            </div>
-            <fieldset><legend className="text-sm font-semibold">Papéis</legend><div className="mt-2 flex flex-wrap gap-2">{editableRoles.map((role) => <label key={role} className="flex min-h-11 items-center gap-2 rounded-[var(--g-radius-control)] border border-[var(--g-border-subtle)] px-3 text-sm"><input type="checkbox" checked={filters.roles.includes(role)} onChange={(event) => update({ roles: event.target.checked ? [...filters.roles, role] : filters.roles.filter((value) => value !== role) })} className="size-4 accent-[var(--g-brand-primary)]" />{roleLabels[role]}</label>)}</div></fieldset>
-            {chips.length > 0 && <div className="flex flex-wrap items-center gap-2" aria-label="Filtros ativos">{chips.map((chip) => <button key={chip.key} type="button" onClick={chip.clear} className="flex min-h-9 items-center gap-1 rounded-full bg-[var(--g-surface-subtle)] px-3 text-sm" aria-label={`Remover filtro ${chip.label}`}>{chip.label}<X className="size-4" /></button>)}<Button type="button" variant="ghost" size="sm" onClick={clearAll}>Limpar filtros</Button></div>}
+            <FilterShell value={filters} emptyValue={{ ...emptyFilters, q: filters.q }} onChange={(next) => { setFilters(next); setOffset(0); }} activeFilters={chips} activeCount={chips.filter((chip) => chip.key !== "q").length} onClearAll={clearAll} title="Filtros de usuários">
+              {(values, set) => <div className="grid gap-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <label className="text-sm font-semibold">Situação<select className={selectClass} value={values.status} onChange={(event) => set({ status: event.target.value as StatusFilter })}><option value="ALL">Todos</option><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option></select></label>
+                  <label className="text-sm font-semibold">Cadastro<select className={selectClass} value={values.onboarding} onChange={(event) => set({ onboarding: event.target.value as OnboardingFilter })}><option value="ALL">Todos</option><option value="COMPLETE">Completo</option><option value="INCOMPLETE">Incompleto</option></select></label>
+                  <label className="text-sm font-semibold">Papéis combinados por<select className={selectClass} value={values.roleMatch} onChange={(event) => set({ roleMatch: event.target.value as "ANY" | "ALL" })}><option value="ANY">Qualquer papel</option><option value="ALL">Todos os papéis</option></select></label>
+                  {canFilterCohort && <label className="text-sm font-semibold">Turma<select aria-label="Turma" className={selectClass} value={values.cohort} onChange={(event) => set({ cohort: event.target.value })}><option value="">Todas as turmas</option>{cohorts.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></label>}
+                </div>
+                <fieldset><legend className="text-sm font-semibold">Papéis</legend><div className="mt-2 flex flex-wrap gap-2">{editableRoles.map((role) => <label key={role} className="flex min-h-11 items-center gap-2 rounded-[var(--g-radius-control)] border border-[var(--g-border-subtle)] px-3 text-sm"><input type="checkbox" checked={values.roles.includes(role)} onChange={(event) => set({ roles: event.target.checked ? [...values.roles, role] : values.roles.filter((value) => value !== role) })} className="size-4 accent-[var(--g-brand-primary)]" />{roleLabels[role]}</label>)}</div></fieldset>
+              </div>}
+            </FilterShell>
           </div>
           {loading ? <UsersSkeleton /> : !error && users.length === 0 ? <div className="p-10 text-center"><UserRoundCog className="mx-auto size-10 text-[var(--g-text-muted)]" /><p className="mt-4 font-semibold">Nenhum usuário encontrado</p><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Ajuste os filtros ou adicione uma nova conta operacional.</p></div> : !error && <UsersList users={users} onEdit={readOnly ? undefined : setEditing} onMaster={isMaster ? setMastering : undefined} onMemberships={isMaster ? setMemberships : undefined} />}
           {!loading && page.matched > PAGE_SIZE && <nav aria-label="Paginação de usuários" className="flex items-center justify-between gap-3 border-t border-[var(--g-border-subtle)] p-4 text-sm"><span>{page.offset + 1}–{lastShown} de {page.matched}</span><div className="flex gap-2"><Button type="button" variant="secondary" size="sm" disabled={page.offset === 0} onClick={() => setOffset(Math.max(0, page.offset - PAGE_SIZE))}>Anterior</Button><Button type="button" variant="secondary" size="sm" disabled={lastShown >= page.matched} onClick={() => setOffset(page.offset + PAGE_SIZE)}>Próxima</Button></div></nav>}

@@ -1,7 +1,8 @@
 "use client";
 
 import { hasPermission } from "@germinatura/auth";
-import { Badge, BrandMark, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
+import { Badge, BrandMark, Button, Card, Field, Input, InputGroup, fieldDescriptionIds } from "@germinatura/ui";
+import { FilterShell, type ActiveFilter } from "@germinatura/ui/filters";
 import type {
   CardPaymentMethod,
   CashPaymentResponse,
@@ -40,6 +41,7 @@ import {
   loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminals, quoteCart, type CartItem, type InventoryContext,
 } from "@/lib/operations";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { activeSaleFilterCount, availableBound, emptySaleCatalogFilters, filterSaleCatalog, salePriceBound, type SaleCatalogFilters } from "@/lib/catalog-filters";
 import { clearOfflineCatalogs } from "@/components/OfflineRegistration";
 import { PDV_COHORT_COOKIE } from "@/lib/pdv-cohort";
 
@@ -62,6 +64,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   const [locationId, setLocationId] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [query, setQuery] = useState("");
+  const [catalogFilters, setCatalogFilters] = useState<SaleCatalogFilters>(emptySaleCatalogFilters);
   const [step, setStep] = useState<Step>("catalog");
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [couponCode, setCouponCode] = useState("");
@@ -125,11 +128,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
 
   const selectedLocation = inventory?.locations.find((location) => location.id === locationId) ?? null;
   const canCloseout = user.roles.includes("VENDEDOR");
-  const filteredCatalog = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase("pt-BR");
-    return normalized ? catalog.filter((product) => [product.name, product.sku, product.category.name]
-      .some((value) => value.toLocaleLowerCase("pt-BR").includes(normalized))) : catalog;
-  }, [catalog, query]);
+  const filteredCatalog = useMemo(() => filterSaleCatalog(catalog, query, catalogFilters,
+    (productId) => inventory?.availableByLocationAndProduct[`${locationId}:${productId}`] ?? 0), [catalog, query, catalogFilters, inventory, locationId]);
   const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
   const previewTotal = cart.reduce((total, item) => total + item.product.price.amountCents * item.quantity, 0);
   const available = (productId: string) => inventory?.availableByLocationAndProduct[`${locationId}:${productId}`] ?? 0;
@@ -266,7 +266,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
           : view === "shift" ? <ShiftWorkspace locationId={locationId} online={online} />
           : view === "closeout" && inventory ? <CloseoutWorkspace catalog={catalog} inventory={inventory} online={online} />
           : inventory?.locations.length === 0 ? <EmptyState icon={Store} title="Nenhuma localização disponível" description="Peça a um administrador para ativar a localização deste PDV antes de iniciar vendas." onRetry={refreshData} />
-          : step === "catalog" ? <CatalogStep catalog={filteredCatalog} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
+          : step === "catalog" ? <CatalogStep catalog={filteredCatalog} totalProducts={catalog.length} categories={catalogCategories(catalog)} filters={catalogFilters} onFilters={setCatalogFilters} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
           : step === "review" && quote ? <ReviewStep quote={quote} online={online} loading={action === "checkout"} onCheckout={startCheckout}
             couponCode={couponCode} applying={action === "quote"} onCouponChange={(value) => { setCouponCode(value.toUpperCase()); checkoutKey.current = operationKey("pdv-checkout"); }} onApplyCoupon={reviewSale} />
           : step === "payment" && checkout && quote ? <PaymentStep surcharge={surcharge} canWaiveSurcharge={canWaiveSurcharge} cashEnabled={!cashOff} checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} tendered={tendered} cardMethod={cardMethod} terminals={terminals} terminalId={terminalId} onCardMethod={(value) => { setCardMethod(value); surcharge.reset(); confirmationKey.current = operationKey("pdv-confirm"); }} onTerminal={setTerminalId} online={online} action={action} paymentLinkEnabled={features.has("payment_link")} onLinkPaid={linkPaid} onChannel={(value) => { setChannel(value); surcharge.reset(); confirmationKey.current = operationKey("pdv-confirm"); }} onReference={setProofReference} onTendered={setTendered} onConfirm={confirmPayment} onCancel={cancelSale} />
@@ -282,21 +282,63 @@ function PdvLoading() {
 }
 
 interface CatalogProps {
-  catalog: PublicCatalogProduct[]; cart: CartItem[]; query: string; locationId: string;
+  catalog: PublicCatalogProduct[]; totalProducts: number; categories: { id: string; name: string }[];
+  filters: SaleCatalogFilters; onFilters: (filters: SaleCatalogFilters) => void;
+  cart: CartItem[]; query: string; locationId: string;
   locations: InventoryContext["locations"]; online: boolean; action: string | null;
   itemCount: number; previewTotal: number; available: (productId: string) => number;
   onQuery: (value: string) => void; onLocation: (value: string) => void;
   onQuantity: (product: PublicCatalogProduct, delta: number) => void; onReview: () => void;
 }
 
+function catalogCategories(catalog: PublicCatalogProduct[]) {
+  return [...new Map(catalog.map((product) => [product.category.id, product.category.name])).entries()]
+    .map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+}
+
+// A bound still being typed ("15,") is not an error yet.
+const salePriceError = (value: string) => value.trim() && !/[,.]$/.test(value.trim()) && salePriceBound(value) === null ? "Use um valor em reais, como 15 ou 15,50." : undefined;
+const availableError = (value: string) => value.trim() && availableBound(value) === null ? "Use um número inteiro a partir de 1." : undefined;
+
+/** The sale catalog filters: the same pattern as the Portal, collapsed by default so the products stay in view. */
+function SaleCatalogFilterShell({ filters, onFilters, categories }: Pick<CatalogProps, "filters" | "onFilters" | "categories">) {
+  const update = (patch: Partial<SaleCatalogFilters>) => onFilters({ ...filters, ...patch });
+  const min = salePriceBound(filters.min);
+  const max = salePriceBound(filters.max);
+  const minAvailable = availableBound(filters.minAvailable);
+  const chips: ActiveFilter[] = [];
+  if (filters.category) chips.push({ key: "category", label: `Categoria: ${categories.find((category) => category.id === filters.category)?.name ?? "selecionada"}`, onRemove: () => update({ category: "" }) });
+  if (min !== null) chips.push({ key: "min", label: `A partir de ${formatMoney(min)}`, onRemove: () => update({ min: "" }) });
+  if (max !== null) chips.push({ key: "max", label: `Até ${formatMoney(max)}`, onRemove: () => update({ max: "" }) });
+  if (filters.onlyAvailable) chips.push({ key: "only-available", label: "Somente disponíveis", onRemove: () => update({ onlyAvailable: false }) });
+  if (minAvailable !== null) chips.push({ key: "min-available", label: `Disponível: ${minAvailable} ou mais`, onRemove: () => update({ minAvailable: "" }) });
+  return <FilterShell value={filters} emptyValue={emptySaleCatalogFilters} onChange={onFilters} activeFilters={chips} activeCount={activeSaleFilterCount(filters)} onClearAll={() => onFilters(emptySaleCatalogFilters)} defaultExpanded={false} title="Filtros de produtos" className="mb-4">
+    {(values, set) => {
+      const minError = salePriceError(values.min);
+      const maxError = salePriceError(values.max);
+      const quantityError = availableError(values.minAvailable);
+      return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Field id="sale-filter-category" label="Categoria"><select id="sale-filter-category" className="g-input" value={values.category} onChange={(event) => set({ category: event.target.value })}><option value="">Todas</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
+        <Field id="sale-filter-min" label="Preço mínimo (R$)" error={minError}><Input id="sale-filter-min" inputMode="decimal" maxLength={20} value={values.min} aria-invalid={Boolean(minError) || undefined} aria-describedby={fieldDescriptionIds("sale-filter-min", { error: minError })} onChange={(event) => set({ min: event.target.value })} /></Field>
+        <Field id="sale-filter-max" label="Preço máximo (R$)" error={maxError}><Input id="sale-filter-max" inputMode="decimal" maxLength={20} value={values.max} aria-invalid={Boolean(maxError) || undefined} aria-describedby={fieldDescriptionIds("sale-filter-max", { error: maxError })} onChange={(event) => set({ max: event.target.value })} /></Field>
+        <Field id="sale-filter-min-available" label="Disponível no mínimo (un.)" error={quantityError}><Input id="sale-filter-min-available" inputMode="numeric" maxLength={6} value={values.minAvailable} aria-invalid={Boolean(quantityError) || undefined} aria-describedby={fieldDescriptionIds("sale-filter-min-available", { error: quantityError })} onChange={(event) => set({ minAvailable: event.target.value })} /></Field>
+        <label className="flex min-h-11 items-center gap-3 text-sm sm:col-span-2 xl:col-span-4"><input type="checkbox" checked={values.onlyAvailable} onChange={(event) => set({ onlyAvailable: event.target.checked })} className="size-5 accent-[var(--g-brand-primary)]" />Somente disponíveis neste local</label>
+      </div>;
+    }}
+  </FilterShell>;
+}
+
 function CatalogStep(props: CatalogProps) {
+  const filtered = props.catalog.length !== props.totalProducts;
   return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
     <section aria-label="Catálogo">
-      <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
+      <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
         <label className="block min-w-0"><span className="sr-only">Buscar produtos</span><InputGroup icon={<Search />}><Input value={props.query} onChange={(event) => props.onQuery(event.target.value)} placeholder="Buscar produto, categoria ou SKU" /></InputGroup></label>
         {props.locations.length > 1 && <label><span className="sr-only">Localização da venda</span><select value={props.locationId} onChange={(event) => props.onLocation(event.target.value)} className="min-h-11 w-full rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] bg-[var(--g-surface-default)] px-4 focus-visible:outline-3 focus-visible:outline-[var(--g-focus-ring)]">{props.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}
       </div>
-      {props.catalog.length === 0 ? <EmptyState icon={PackageSearch} title="Nenhum produto encontrado" description="Tente outro termo ou peça a um administrador para conferir o catálogo e o estoque deste local." />
+      <SaleCatalogFilterShell filters={props.filters} onFilters={props.onFilters} categories={props.categories} />
+      {filtered && <p className="mb-4 text-sm text-[var(--g-text-muted)]" aria-live="polite">{props.catalog.length} de {props.totalProducts} produtos</p>}
+      {props.catalog.length === 0 ? <EmptyState icon={PackageSearch} title="Nenhum produto encontrado" description={filtered ? "Ajuste a busca ou os filtros, ou peça a um administrador para conferir o catálogo e o estoque deste local." : "Tente outro termo ou peça a um administrador para conferir o catálogo e o estoque deste local."} />
         : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{props.catalog.map((product) => {
           const quantity = props.cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
           const stock = props.available(product.id);

@@ -178,12 +178,25 @@ export async function createSellerCloseout(
   return parsed.data.data;
 }
 
+// The catalog API pages by cursor (50 at most per page); the sale filters work on the whole catalog, so every page is
+// read. The cap only guards against a cursor that never ends.
+const CATALOG_PAGE_LIMIT = 50;
+const CATALOG_MAX_PAGES = 40;
+
 export async function loadCatalog(): Promise<PublicCatalogProduct[]> {
-  const response = await apiFetch("/api/v1/catalog/products?limit=50");
-  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar o catálogo."));
-  const parsed = publicCatalogProductsResponseSchema.safeParse(await response.json());
-  if (!parsed.success) throw new Error("O catálogo retornou dados inválidos.");
-  return parsed.data.data.filter((product) => product.sellablePdv);
+  const products: PublicCatalogProduct[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < CATALOG_MAX_PAGES; page += 1) {
+    const query = new URLSearchParams({ limit: String(CATALOG_PAGE_LIMIT), ...(cursor ? { cursor } : {}) });
+    const response = await apiFetch(`/api/v1/catalog/products?${query.toString()}`);
+    if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar o catálogo."));
+    const parsed = publicCatalogProductsResponseSchema.safeParse(await response.json());
+    if (!parsed.success) throw new Error("O catálogo retornou dados inválidos.");
+    products.push(...parsed.data.data);
+    cursor = parsed.data.nextCursor;
+    if (!cursor) break;
+  }
+  return products.filter((product) => product.sellablePdv);
 }
 
 export async function quoteCart(items: CartItem[], couponCode?: string): Promise<PricingQuoteResponse["data"]> {
