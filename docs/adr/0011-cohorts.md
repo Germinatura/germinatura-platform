@@ -90,6 +90,41 @@ A conta PicPay Empresas pode receber, no mesmo período e no mesmo arquivo expor
 - Para a Turma 2026, o comportamento de produção fica preservado integralmente: todos os livros e atribuições
   existentes são dela.
 
+### Atribuição explícita e isolamento da evidência PicPay (E0, 20261027090000)
+
+O vínculo estrutural é a turma da evidência (`picpay_evidence_attributions`, ou a turma da resolução/vínculo):
+
+- **Declaração do arquivo.**
+  - Só o ADMIN_MASTER importa, dentro de uma turma concreta, declarando o arquivo:
+    - "integralmente da Turma X" (a da requisição, nomeada): a evidência sem turma passa a ser de X;
+    - "misto/global": fica sem turma.
+  - Um arquivo "da Turma X" que traz evidência de outra turma é recusado.
+- **Decisão de uma pessoa.** Classificar, vincular ou reabrir uma linha acontece dentro de uma turma concreta ("Todas" é
+  recusado). Sobre uma linha sem turma, a decisão a atribui à turma da requisição.
+- **Herança.** Uma resolução ou vínculo ligado a um registro da turma (venda, tentativa, liquidação, lançamento) herda a
+  turma dele. Decisões automáticas nunca inventam turma: sem registro nem declaração, a evidência fica global.
+- **Atribuição pelo ADMIN_MASTER.**
+  - Por item ou em lote (arquivo inteiro), com prévia, motivo, idempotência e auditoria.
+  - Uma atribuição nunca muda de turma.
+- **Sem fallback.** Nada é atribuído pela turma padrão, pela descrição, pela referência ou pelo ator.
+- **Arquivo misto/global não herda a turma da tela.** Nenhuma linha recebe turma pela turma selecionada, pela turma padrão
+  ou pelo ator: na importação, as linhas não são casadas com vendas da turma da requisição. O motor nunca vincula uma
+  transação sem turma a um pagamento; a transação espera a atribuição explícita.
+- **Isolamento.** O ADMIN_MASTER ativa a semântica nova uma única vez (`activate_picpay_attribution_isolation`, com motivo,
+  auditada e idempotente).
+  - Não existe desativação pelo Portal nem por RPC: um trigger recusa voltar. Um rollback extremo pertence a uma migration
+    técnica.
+  - Ativo: evidência sem turma não entra no saldo, no resultado, na receita histórica nem nos indicadores de nenhuma turma.
+    Ela aparece só para o ADMIN_MASTER, e o ADMIN de uma turma nunca vê a evidência de outra.
+  - Antes da ativação: as leituras são as de antes.
+  - Cutover em cada ambiente:
+    1. aplicar o schema;
+    2. identificar a evidência sem turma (`picpay_attribution_status`);
+    3. fazer as atribuições aprovadas (por exemplo, o histórico de Minhas vendas da Turma 2026, em lote);
+    4. conferir saldo e resultado;
+    5. só então ativar o isolamento.
+  - Nenhum deploy faz números desaparecerem.
+
 ## Autorização (PR 2)
 
 - **Contexto da requisição.**

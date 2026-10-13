@@ -9,6 +9,7 @@ import {
 import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, CheckCircle2, FileUp, Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PicPayAttributionPanel } from "@/components/admin/PicPayAttributionPanel";
 import { PicPayStatementImport, type StatementLineFocus } from "@/components/admin/PicPayStatementImport";
 import { useToast } from "@/components/ui/Toast";
 
@@ -57,9 +58,11 @@ async function messageFrom(response: Response, fallback: string) {
 }
 
 interface PendingFile { file: File; preview: PicpayFilePreview | null; error: string; result: string }
+/** E0 (ADR 0011): who imports and attributes the shared account's evidence, and inside which cohort. */
+export interface PicpayViewer { adminMaster: boolean; cohort: { id: string; name: string } | null }
 
 /** Spec 5.8 (FIN-001, FIN-002, FIN-003, FIN-007): PicPay reconciliation across Minhas vendas, Recebíveis and Extrato. */
-export function PicPayReconciliation() {
+export function PicPayReconciliation({ viewer }: { viewer: PicpayViewer }) {
   const { showToast } = useToast();
   const [period, setPeriod] = useState({ from: shift(today(), -29), to: today() });
   const [refresh, setRefresh] = useState(0);
@@ -118,7 +121,15 @@ export function PicPayReconciliation() {
   }
 
   return <div className="grid gap-6">
-    <ImportFiles onImported={() => { setImported((value) => value + 1); reload(); }} />
+    {viewer.adminMaster
+      ? <>
+        <ImportFiles cohort={viewer.cohort} onImported={() => { setImported((value) => value + 1); reload(); }} />
+        <PicPayAttributionPanel key={imported} cohort={viewer.cohort} onChanged={() => { setImported((value) => value + 1); reload(); }} />
+      </>
+      : <Card className="p-5"><section aria-label="Importar arquivos">
+        <h2 className="font-semibold">Importar arquivos</h2>
+        <p className="mt-1 max-w-3xl text-sm text-[var(--g-text-secondary)]">A conta PicPay é compartilhada entre as turmas: os arquivos são importados pelo ADMIN_MASTER, que declara de qual turma é cada um. Aqui aparecem só as linhas e vendas atribuídas a esta turma.</p>
+      </section></Card>}
     <Card className="p-5">
       <section aria-label="Período da conciliação" className="grid gap-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -158,9 +169,11 @@ export function PicPayReconciliation() {
   </div>;
 }
 
-function ImportFiles({ onImported }: { onImported: () => void }) {
+function ImportFiles({ cohort, onImported }: { cohort: PicpayViewer["cohort"]; onImported: () => void }) {
   const { showToast } = useToast();
   const [files, setFiles] = useState<PendingFile[]>([]);
+  // The declaration is explicit: nothing is chosen by default.
+  const [scope, setScope] = useState<"COHORT" | "GLOBAL" | null>(null);
   const [busy, setBusy] = useState(false);
   const keys = useRef(new Map<string, string>());
 
@@ -187,15 +200,19 @@ function ImportFiles({ onImported }: { onImported: () => void }) {
       for (const [index, item] of next.entries()) {
         if (!item.preview?.sourceType || item.preview.errorCount > 0 || item.result) continue;
         if (item.preview.alreadyImported) { next[index] = { ...item, result: "Arquivo já importado." }; continue; }
-        const key = keys.current.get(item.preview.sha256) ?? `picpay-file:${crypto.randomUUID()}`;
-        keys.current.set(item.preview.sha256, key);
-        const response = await fetch(`/api/v1/admin/finance/picpay/files?${new URLSearchParams({ fileName: item.file.name })}`, {
+        if (!scope || !cohort) continue;
+        const declaration = scope === "COHORT" ? { scope, cohortId: cohort.id } : { scope, cohortId: "" };
+        const signature = `${item.preview.sha256}:${scope}`;
+        const key = keys.current.get(signature) ?? `picpay-file:${crypto.randomUUID()}`;
+        keys.current.set(signature, key);
+        const response = await fetch(`/api/v1/admin/finance/picpay/files?${new URLSearchParams({ fileName: item.file.name, ...declaration })}`, {
           method: "POST", headers: { "Content-Type": "text/csv", "Idempotency-Key": key }, body: item.file,
         });
         if (!response.ok) { next[index] = { ...item, result: await messageFrom(response, "Não foi possível importar.") }; continue; }
         const parsed = picpayImportResponseSchema.safeParse(await response.json());
         next[index] = { ...item, result: parsed.success
-          ? `Importado como arquivo nº ${parsed.data.data.number}: ${parsed.data.data.newCount} novas, ${parsed.data.data.knownCount} já conhecidas, ${parsed.data.data.updatedCount} atualizadas.`
+          ? `Importado como arquivo nº ${parsed.data.data.number}: ${parsed.data.data.newCount} novas, ${parsed.data.data.knownCount} já conhecidas, ${parsed.data.data.updatedCount} atualizadas. ${parsed.data.data.declaration.scope === "COHORT"
+            ? `${parsed.data.data.declaration.attributed} item(ns) atribuído(s) à ${cohort?.name ?? "turma"}.` : "Sem turma até ser atribuído."}`
           : "Importado." };
       }
       setFiles(next);
@@ -204,11 +221,19 @@ function ImportFiles({ onImported }: { onImported: () => void }) {
     } finally { setBusy(false); }
   }
 
-  const importable = files.some((item) => item.preview?.sourceType && item.preview.errorCount === 0 && !item.result);
+  const importable = Boolean(scope && cohort) && files.some((item) => item.preview?.sourceType && item.preview.errorCount === 0 && !item.result);
   return <Card className="p-5">
     <section aria-label="Importar arquivos">
       <h2 className="font-semibold">Importar arquivos</h2>
       <p className="mt-1 max-w-3xl text-sm text-[var(--g-text-secondary)]">Envie as exportações do PicPay Empresas: Minhas vendas, Recebíveis e Extrato, juntas ou separadas, em qualquer ordem e com períodos sobrepostos. O tipo vem do cabeçalho do arquivo. O que já é conhecido não é duplicado e nada é gravado antes da importação.</p>
+      {!cohort && <p role="status" className="mt-3 text-sm text-[var(--g-status-warning-foreground)]">Selecione uma turma para importar: a importação acontece dentro de uma turma.</p>}
+      <fieldset className="mt-4 grid gap-2 text-sm">
+        <legend className="font-semibold">De quem é o arquivo?</legend>
+        <label className="flex items-start gap-2"><input type="radio" name="picpay-scope" className="mt-1" checked={scope === "COHORT"} disabled={!cohort}
+          onChange={() => setScope("COHORT")} /><span>Integralmente da {cohort?.name ?? "turma selecionada"}: o que ainda não tem turma passa a contar nela.</span></label>
+        <label className="flex items-start gap-2"><input type="radio" name="picpay-scope" className="mt-1" checked={scope === "GLOBAL"} disabled={!cohort}
+          onChange={() => setScope("GLOBAL")} /><span>Misto ou de origem incerta: fica sem turma até ser atribuído abaixo, item a item ou em lote.</span></label>
+      </fieldset>
       <Field id="picpay-files" label="Arquivos CSV" className="mt-4 max-w-md">
         <input id="picpay-files" type="file" multiple accept=".csv,text/csv" className="g-input min-h-11 w-full" onChange={(event) => void choose(event.target.files)} />
       </Field>

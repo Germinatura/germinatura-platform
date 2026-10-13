@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 
+const TURMA_2026 = "c0000000-0000-4000-8000-000000002026";
+
 function local() {
   const output = execFileSync(process.execPath, ["tools/run-supabase.mjs", "status", "-o", "env"], { encoding: "utf8" });
   const url = output.match(/^API_URL="?([^"\r\n]+)"?$/m)?.[1];
@@ -23,6 +25,16 @@ it("serializa revisão em lote, revisão individual e vínculos concorrentes sem
     const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST", headers, body: JSON.stringify(input) });
     return { status: response.status, data: await response.json() as Record<string, unknown> };
   }
+  // E0: importing the shared account's files is ADMIN_MASTER's, inside a cohort, with a declaration (these are Turma 2026's).
+  const masterLogin = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" }, body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
+  const masterToken = (await masterLogin.json() as { access_token?: string }).access_token;
+  expect(masterLogin.ok && masterToken).toBeTruthy();
+  async function importFile(input: Record<string, unknown>) {
+    const response = await fetch(`${url}/rest/v1/rpc/import_picpay_file`, { method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${masterToken}`, "Content-Type": "application/json", "x-germinatura-cohort": TURMA_2026 },
+      body: JSON.stringify({ ...input, p_scope: "COHORT", p_declared_cohort_id: TURMA_2026 }) });
+    return { status: response.status, data: await response.json() as Record<string, unknown> };
+  }
 
   // Unique amounts keep the file and the link candidates of this run apart from earlier runs.
   const base = 100_000 + Math.floor(Math.random() * 800_000);
@@ -30,7 +42,7 @@ it("serializa revisão em lote, revisão individual e vínculos concorrentes sem
   const line = (description: string, cents: number) => `${today};Pix enviado;${description};Saída;${money(cents)};`;
   const content = ["data;movimento;descrição;tipo;valor",
     line("Corrida individual", base), line("Corrida lote", base + 1), line("Vínculo A", base + 2), line("Vínculo B", base + 2), line("Lote duplo", base + 3)].join("\r\n");
-  const imported = await rpc("import_picpay_file", { p_file_name: `corrida-${randomUUID()}.csv`, p_content: content,
+  const imported = await importFile({ p_file_name: `corrida-${randomUUID()}.csv`, p_content: content,
     p_idempotency_key: `race-import:${randomUUID()}`, p_correlation_id: randomUUID() });
   expect(imported.status).toBe(200);
   const importId = imported.data.id as string;
