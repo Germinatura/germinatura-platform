@@ -196,3 +196,94 @@ test("PDV: busca fora do painel e filtros de categoria, preço e disponibilidade
     await sheet.getByRole("button", { name: "Aplicar" }).click();
   }
 });
+
+test("auditoria e segurança: o rascunho só vale ao pesquisar, com chips do que está em vigor, no desktop e no celular", async ({ page }) => {
+  await signInPortal(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${portal}/admin/auditoria`);
+  const main = page.getByRole("main");
+  const audit = main.getByRole("form", { name: "Filtrar auditoria" });
+  await expect(audit.getByRole("button", { name: "Pesquisar" })).toBeEnabled();
+  // Typing does not search; "Pesquisar" does, and the chip shows what is in effect.
+  await audit.getByLabel("Severidade").selectOption("HIGH");
+  await expect(main.getByRole("button", { name: "Remover filtro Severidade: Alta" })).toHaveCount(0);
+  await audit.getByRole("button", { name: "Pesquisar" }).click();
+  await expect(main.getByRole("button", { name: "Remover filtro Severidade: Alta" })).toBeVisible();
+  await main.getByRole("button", { name: "Recolher filtros" }).click();
+  await expect(main.getByRole("button", { name: "Filtros (1)" })).toBeVisible();
+  await main.getByRole("button", { name: "Remover filtro Severidade: Alta" }).click();
+  await expect(main.getByRole("button", { name: "Filtros", exact: true })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Segurança" }).click();
+  const security = main.getByRole("form", { name: "Filtrar eventos de segurança" });
+  await security.getByLabel("Evento").selectOption({ label: "Login recusado" });
+  await security.getByRole("button", { name: "Pesquisar" }).click();
+  await expect(main.getByRole("button", { name: "Remover filtro Evento: Login recusado" })).toBeVisible();
+
+  for (const viewport of phones) {
+    const label = `auditoria ${viewport.width}×${viewport.height}`;
+    await page.setViewportSize(viewport);
+    await page.goto(`${portal}/admin/auditoria`);
+    await expect(main.getByRole("form", { name: "Filtrar auditoria" }), label).toHaveCount(0);
+    await main.getByRole("button", { name: "Filtros", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Filtrar auditoria" });
+    await sheet.getByLabel("Severidade").selectOption("MEDIUM");
+    await sheet.getByRole("button", { name: "Aplicar" }).click();
+    await expect(main.getByRole("button", { name: "Remover filtro Severidade: Média" }), label).toBeVisible();
+    await expectNoHorizontalOverflow(page, label);
+  }
+});
+
+test("reservas: busca de cliente fora do painel e situação/período no painel ou no sheet", async ({ page }) => {
+  await signInPortal(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${portal}/admin/reservas`);
+  const main = page.getByRole("main");
+  const panel = main.getByRole("group", { name: "Filtrar reservas" });
+  await expect(main.getByRole("list", { name: "Reservas" }).or(main.getByText("Nenhuma reserva com estes filtros."))).toBeVisible();
+  await panel.getByLabel("Situação").selectOption("ACTIVE");
+  await panel.getByLabel("Criadas de").fill("2026-01-01");
+  await expect(main.getByRole("button", { name: "Remover filtro Criadas: desde 01/01/2026" })).toBeVisible();
+  await main.getByPlaceholder("Buscar cliente").fill("consumidor");
+  await expect(main.getByRole("button", { name: "Remover filtro Cliente: consumidor" })).toBeVisible();
+  await main.getByRole("button", { name: "Recolher filtros" }).click();
+  // The search is not counted: it stays outside the panel.
+  await expect(main.getByRole("button", { name: "Filtros (2)" })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(main.getByPlaceholder("Buscar cliente")).toBeVisible();
+  await main.getByRole("button", { name: "Filtros (2)" }).click();
+  const sheet = page.getByRole("dialog", { name: "Filtrar reservas" });
+  await sheet.getByRole("button", { name: "Limpar" }).click();
+  await sheet.getByRole("button", { name: "Aplicar" }).click();
+  await expect(main.getByRole("button", { name: "Filtros", exact: true })).toBeVisible();
+  await expect(main.getByRole("button", { name: "Remover filtro Cliente: consumidor" })).toBeVisible();
+  await expectNoHorizontalOverflow(page, "reservas 390");
+});
+
+test("catálogo do consumidor: busca e categoria no servidor alcançam produtos além da primeira página", async ({ page }) => {
+  await signInPortal(page);
+  // One product per page: item B is not on the first page, yet the search finds it.
+  const firstPage = await page.request.get(`${portal}/api/v1/catalog/products?limit=1`);
+  const first = await firstPage.json() as { data: { sku: string }[]; nextCursor: string | null; categories?: { id: string }[] };
+  expect(first.data).toHaveLength(1);
+  expect(first.categories?.map((item) => item.id)).toContain(category);
+  const searched = await page.request.get(`${portal}/api/v1/catalog/products?limit=1&q=PUBLIC-ITEM-B`);
+  expect((await searched.json() as { data: { sku: string }[] }).data.map((item) => item.sku)).toEqual(["PUBLIC-ITEM-B"]);
+  // Filter syntax in the term is neutralized, never an error or a broader query.
+  const hostile = await page.request.get(`${portal}/api/v1/catalog/products?q=${encodeURIComponent("x),id.not.is.null,(name.ilike.*")}`);
+  expect(hostile.status()).toBe(200);
+  expect((await hostile.json() as { data: unknown[] }).data).toHaveLength(0);
+  const byCategory = await page.request.get(`${portal}/api/v1/catalog/products?category=${category}&q=${encodeURIComponent("Catálogo público")}`);
+  const inCategory = (await byCategory.json() as { data: { sku: string }[] }).data.map((item) => item.sku);
+  expect(inCategory).toEqual(expect.arrayContaining(["PUBLIC-ITEM-A", "PUBLIC-ITEM-B"]));
+  const paged = await page.request.get(`${portal}/api/v1/catalog/products?limit=1&cursor=${first.nextCursor}`);
+  expect((await paged.json() as { categories?: unknown }).categories).toBeUndefined();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${portal}/catalogo`);
+  const main = page.getByRole("main");
+  await main.getByPlaceholder("Buscar por produto, SKU ou categoria").fill("PUBLIC-ITEM-B");
+  await expect(main.getByRole("heading", { name: "Item público B", exact: true })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Item público A", exact: true })).toHaveCount(0);
+});

@@ -350,6 +350,11 @@ describe("shared contracts", () => {
     expect(publicCatalogProductsQuerySchema.parse({ limit: "50" })).toEqual({ limit: 50 });
     expect(publicCatalogProductsQuerySchema.safeParse({ limit: 51 }).success).toBe(false);
     expect(publicCatalogProductsQuerySchema.safeParse({ cursor: "not-a-uuid" }).success).toBe(false);
+    expect(publicCatalogProductsQuerySchema.safeParse({ category: "brownie" }).success).toBe(false);
+    // The search term can never carry filter syntax (commas, parentheses, quotes, wildcards) to the database.
+    expect(publicCatalogProductsQuerySchema.parse({ q: "  Brownie,name.eq.x)(\"*%_  Ninho " })).toMatchObject({ q: "Brownie name.eq.x Ninho" });
+    expect(publicCatalogProductsQuerySchema.parse({ q: "Pão de mel 2-B" })).toMatchObject({ q: "Pão de mel 2-B" });
+    expect(publicCatalogProductsQuerySchema.parse({ q: "***" })).toMatchObject({ q: "" });
 
     expect(publicCatalogProductsResponseSchema.parse({
       data: [{
