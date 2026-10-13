@@ -83,9 +83,9 @@ describe("PDV offline cache boundary", () => {
   it("prepares only the explicit public shell with credentials omitted", async () => {
     const w = worker();
     await w.lifecycle("install");
-    expect(w.stores.get("germinatura-pdv-shell-v2")?.size).toBe(5);
+    expect(w.stores.get("germinatura-pdv-shell-v3")?.size).toBe(5);
     expect(w.fetcher).toHaveBeenCalledWith("/offline", { credentials: "omit", cache: "reload", redirect: "error" });
-    expect(w.stores.get("germinatura-pdv-shell-v2")?.has("/")).toBe(false);
+    expect(w.stores.get("germinatura-pdv-shell-v3")?.has("/")).toBe(false);
   });
 
   it("does not intercept mutations, APIs, images or third-party assets", () => {
@@ -106,14 +106,14 @@ describe("PDV offline cache boundary", () => {
     let result: Promise<Response> | undefined;
     w.listeners.fetch({ request: { url: "https://pdv.test/", method: "GET", mode: "navigate" }, respondWith: (response: Promise<Response>) => { result = response; } });
     expect(await (await result)?.text()).toBe("shell");
-    expect(w.stores.get("germinatura-pdv-shell-v2")?.has("/")).toBe(false);
+    expect(w.stores.get("germinatura-pdv-shell-v3")?.has("/")).toBe(false);
   });
 
   it("drops the pre-cohort catalog and older shells on activation", async () => {
     const w = worker();
-    for (const name of ["germinatura-pdv-catalog-v1", "germinatura-pdv-shell-v1", catalogOf(cohortA), "germinatura-pdv-shell-v2", "other-app"]) await w.shared.caches.open(name);
+    for (const name of ["germinatura-pdv-catalog-v1", "germinatura-pdv-shell-v1", catalogOf(cohortA), "germinatura-pdv-shell-v3", "other-app"]) await w.shared.caches.open(name);
     await w.lifecycle("activate");
-    expect([...w.stores.keys()].sort()).toEqual([catalogOf(cohortA), "germinatura-pdv-shell-v2", "other-app"].sort());
+    expect([...w.stores.keys()].sort()).toEqual([catalogOf(cohortA), "germinatura-pdv-shell-v3", "other-app"].sort());
   });
 
   it("saves the cohort's public catalog under that cohort, projecting only public fields", async () => {
@@ -221,9 +221,9 @@ describe("PDV offline cache boundary", () => {
     w.fetcher.mockResolvedValueOnce(catalog(cohortA, ["Camiseta 2026"])).mockResolvedValueOnce(catalog(cohortB, ["Moletom 2027"]));
     await w.lifecycle("message", refresh(cohortA, "turma-2026"));
     await w.lifecycle("message", refresh(cohortB, "turma-2027"));
-    await w.shared.caches.open("germinatura-pdv-shell-v2");
+    await w.shared.caches.open("germinatura-pdv-shell-v3");
     await w.lifecycle("message", clear);
-    expect([...shared.stores.keys()]).toEqual(["germinatura-pdv-shell-v2"]);
+    expect([...shared.stores.keys()]).toEqual(["germinatura-pdv-shell-v3"]);
     // The next person, even with a leftover cookie of the previous one, finds no copy.
     expect((await openOfflineScreen(shared, `germinatura_pdv_cohort=${cohortA}`)).products).toEqual([]);
   });

@@ -1,5 +1,6 @@
 /* global self, caches, fetch, URL, Response */
-const SHELL = "germinatura-pdv-shell-v2";
+// v3: the manifest now lists the PNG app icons; a new shell makes installed PDVs fetch it again.
+const SHELL = "germinatura-pdv-shell-v3";
 // ADR 0011: one catalog cache per concrete cohort ("germinatura-pdv-catalog-v2:<cohort id>"); there is no shared or
 // default-cohort snapshot. The offline screen opens only the cache of the cohort the PDV operates in.
 const CATALOG_PREFIX = "germinatura-pdv-catalog-v2:";

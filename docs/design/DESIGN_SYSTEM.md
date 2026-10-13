@@ -34,6 +34,22 @@ O `BrandMark` é a implementação canônica da geometria vetorial fornecida no 
 
 O login do Portal, a sidebar e o PDV consomem esse mesmo componente. Imagens remotas não podem substituir a marca institucional.
 
+### Ícones e identidade dos apps
+
+Portal e PDV são a mesma marca em dois contextos. A mesma geometria muda só de superfície e cor:
+
+| | Portal | PDV |
+|---|---|---|
+| Ícone (PWA, Android, Apple, favicon) | marca `#0E208E` sobre branco | marca `operation.primary` `#00B982` sobre `#070B18` |
+| `theme_color` / `background_color` | `brand.primary` `#001EC5` / `#FFFFFF` | `#070B18` / `#070B18` |
+| `short_name` | Germinatura | PDV |
+| `BrandMark` em superfície escura | `tone="inverse"` em branco | `tone="inverse"` em `operation.primary` (7,72:1 sobre `#070B18`) |
+
+- A fonte única é `packages/ui/src/brand.ts`, com `appBrand` e `appIconSvg`. Os PNG, o SVG e o `favicon.ico` de cada app são gerados por `pnpm brand:icons` a partir da geometria vetorial, já no tamanho final. Nunca se amplia uma imagem pequena. `tools/brand/app-icons.test.ts` falha se um arquivo commitado divergir do que a geometria produz.
+- Formatos: `any`, com superfície de cantos arredondados; `maskable`, com a marca inteira dentro do círculo seguro de 80%; Apple touch e favicon em quadrado cheio, porque a plataforma arredonda.
+- Só o ícone de plataforma leva superfície própria; dentro dos apps, a regra do `BrandMark` acima continua valendo.
+- `operation.primary` tem o mesmo valor de `status.success`. O PDV o usa como identidade apenas no ícone, na marca e no detalhe do card de acesso; as cores de status não mudam e continuam reservadas aos estados.
+
 - `brand.primary`: `#001EC5`
 - `brand.primary-hover`: `#0018A8`
 - `brand.primary-active`: `#00158F`
@@ -213,7 +229,7 @@ Rifas seguem a mesma regra: campanhas, números próprios e prova do sorteio pod
 
 ## Shell de consulta offline do PDV
 
-O shell público é propositalmente independente do framework para não cachear HTML autenticado nem chunks operacionais. Usa a paleta escura, Segoe UI, espaçamentos, raios e alvos de 44px deste guia; `apps/pdv/public/offline.css` é sua representação mínima, que deve ser revisada junto dos tokens quando o padrão mudar. A geometria oficial da marca permanece única em `packages/ui/src/brand.ts`, consumida pelo `BrandMark` e pelo ícone SVG do PWA, azul sobre superfície branca.
+O shell público é propositalmente independente do framework para não cachear HTML autenticado nem chunks operacionais. Usa a paleta escura, Segoe UI, espaçamentos, raios e alvos de 44px deste guia; `apps/pdv/public/offline.css` é sua representação mínima, que deve ser revisada junto dos tokens quando o padrão mudar. A geometria oficial da marca permanece única em `packages/ui/src/brand.ts`, consumida pelo `BrandMark` e pelos ícones do PWA (ver "Ícones e identidade dos apps").
 
 Exibir “Consulta offline”, data da cópia, validade e aviso de preços sujeitos à atualização. Não exibir avatar, papel, saldo ou confirmação de acesso; a cópia pública não equivale a sessão autenticada. Não oferecer carrinho, reserva ou pagamento. Erro/expiração orientam a reconectar; o usuário pode apagar a cópia neste dispositivo.
 

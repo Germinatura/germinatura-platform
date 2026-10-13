@@ -27,7 +27,7 @@ export default function HandoffPage() {
 
   return <main className="flex min-h-dvh items-center justify-center bg-[var(--g-surface-canvas)] p-6">
     <Card className="w-full max-w-sm p-6 text-center">
-      <BrandMark title="Germinatura" className="mx-auto size-12" />
+      <BrandMark title="Germinatura" tone="inverse" className="mx-auto size-12 text-[var(--g-operation-primary)]" />
       <p role={failed ? "alert" : "status"} className="mt-5 text-sm">{message}</p>
       {failed && <a href="/login" className="mt-4 inline-flex min-h-11 items-center font-semibold text-[var(--g-brand-primary)]">Entrar com usuário e senha</a>}
     </Card>
