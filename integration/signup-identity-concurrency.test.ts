@@ -100,9 +100,7 @@ it("two verifies of the same valid code and racing materializations create exact
   expect(sessions.length).toBeGreaterThanOrEqual(1);
   expect(domainRows(email)).toBe("0,0,0");
   const results = await Promise.all(sessions.flatMap((token) => [1, 2, 3].map(() => rpc("materialize_my_signup_identity", { p_correlation_id: randomUUID() }, token))));
-  console.log("DIAG", verifies.map((r) => r.status).join(","), JSON.stringify(results.filter((r) => r.status !== 200)));
-  // Every racing materialization answers 200; any other answer is shown whole (status and body) to explain the failure.
-  expect(results.filter((result) => result.status !== 200)).toEqual([]);
+  expect(results.every((result) => result.status === 200)).toBe(true);
   expect(results.filter((result) => result.body.created === true)).toHaveLength(1);
   expect(domainRows(email)).toBe("1,1,1");
   expect(sql(`select m.cohort_id = c.id and c.is_default and c.status = 'ACTIVE' from public.user_cohorts m join auth.users u on u.id = m.user_id
