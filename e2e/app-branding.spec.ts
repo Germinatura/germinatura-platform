@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 const apps = [
   { name: "Portal", origin: process.env.PORTAL_URL ?? "http://127.0.0.1:3000", path: "/login", theme: "#001EC5", shortName: "Germinatura" },
@@ -34,3 +35,16 @@ for (const app of apps) {
     expect(installabilityErrors).toEqual([]);
   });
 }
+
+// The PDV's own surfaces keep WCAG contrast (a brand-blue link on the dark card read at 1.68:1) and its offline shell
+// shows the PDV variant of the mark.
+test("PDV: links das telas de acesso com contraste e marca offline na variante do PDV", async ({ page, request }) => {
+  const pdv = process.env.PDV_URL ?? "http://127.0.0.1:3001";
+  await page.goto(`${pdv}/acesso`);
+  await expect(page.getByRole("link", { name: "Entrar com usuário e senha" })).toBeVisible({ timeout: 15_000 });
+  const contrast = await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze();
+  expect(contrast.violations.map((violation) => violation.nodes.map((node) => node.target.join(" "))).flat()).toEqual([]);
+  const brand = await (await request.get(`${pdv}/offline/brand.svg`)).text();
+  expect(brand).toContain('fill="#070B18"');
+  expect(brand).toContain('fill="#00B982"');
+});
