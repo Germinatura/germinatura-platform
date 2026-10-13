@@ -1128,6 +1128,9 @@ export const picpayEvidenceOverviewSchema = z.object({
   lines: z.number().int().nonnegative(),
   linesPending: z.number().int().nonnegative(),
   linesGlobal: z.number().int().nonnegative(),
+  linesGlobalNetCents: z.number().int(),
+  transactionsGlobal: z.number().int().nonnegative(),
+  enforced: z.boolean(),
   linesByCohort: z.array(z.object({ cohortId: z.uuid(), lines: z.number().int().nonnegative() }).strict()),
 }).strict();
 export type PicpayEvidenceOverview = z.infer<typeof picpayEvidenceOverviewSchema>;

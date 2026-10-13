@@ -7,7 +7,8 @@ import { cohortAdminFailure, requireAdminMaster } from "@/lib/cohort-admin";
 
 const storedSchema = z.object({
   imports: z.number().int(), last_period_to: z.string().nullable(), inflow_cents: z.number().int(), outflow_cents: z.number().int(),
-  lines: z.number().int(), lines_pending: z.number().int(), lines_global: z.number().int(),
+  lines: z.number().int(), lines_pending: z.number().int(), lines_global: z.number().int(), lines_global_net_cents: z.number().int(),
+  transactions_global: z.number().int(), enforced: z.boolean(),
   lines_by_cohort: z.array(z.object({ cohort_id: z.uuid(), lines: z.number().int() })),
 });
 
@@ -27,6 +28,7 @@ export async function GET(request: Request) {
       data: picpayEvidenceOverviewSchema.parse({
         imports: stored.imports, lastPeriodTo: stored.last_period_to, inflowCents: stored.inflow_cents, outflowCents: stored.outflow_cents,
         lines: stored.lines, linesPending: stored.lines_pending, linesGlobal: stored.lines_global,
+        linesGlobalNetCents: stored.lines_global_net_cents, transactionsGlobal: stored.transactions_global, enforced: stored.enforced,
         linesByCohort: stored.lines_by_cohort.map((item) => ({ cohortId: item.cohort_id, lines: item.lines })),
       }),
       request_id: requestId,

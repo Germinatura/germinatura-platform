@@ -4,6 +4,40 @@
 begin;
 select plan(34);
 
+-- E0: importing (and previewing) PicPay files is ADMIN_MASTER's, with a declaration; these synthetic files are Turma 2026's.
+create function pg_temp.import_file(p_name text, p_content text, p_key text, p_correlation uuid) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.import_picpay_file(p_name, p_content, 'COHORT', 'c0000000-0000-4000-8000-000000002026', p_key, p_correlation);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+create function pg_temp.preview_file(p_content text) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.preview_picpay_file(p_content);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+
 create function pg_temp.today() returns date language sql as $$ select (now() at time zone 'America/Sao_Paulo')::date $$;
 create function pg_temp.day(p_offset integer) returns date language sql as $$ select pg_temp.today() + p_offset $$;
 create function pg_temp.csv(p_lines text[]) returns text language sql as $$
@@ -20,7 +54,7 @@ create function pg_temp.line_id(p_description text) returns uuid language sql se
 create function pg_temp.entry_id(p_description text) returns uuid language sql security definer as $$
   select id from public.finance_manual_entries where description = p_description $$;
 create function pg_temp.import(p_name text, p_lines text[]) returns jsonb language sql as $$
-  select public.import_picpay_file(p_name, pg_temp.csv(p_lines), 'treasury-' || p_name, gen_random_uuid()) $$;
+  select pg_temp.import_file(p_name, pg_temp.csv(p_lines), 'treasury-' || p_name, gen_random_uuid()) $$;
 create temp table snapshot(label text primary key, free bigint, vault bigint);
 create function pg_temp.snap(p_label text) returns void language sql security definer as $$
   insert into snapshot values (p_label, pg_temp.balance('PICPAY_EMPRESAS'), pg_temp.balance('COFRINHO_PICPAY')) $$;

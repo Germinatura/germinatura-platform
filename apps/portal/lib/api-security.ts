@@ -84,6 +84,10 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/picpay/settlements", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/picpay/reconcile", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/picpay/periods", methods: ["GET", "POST"], access: "finance" },
+  // E0 (ADR 0011): attribution of the shared PicPay evidence and the isolation switch are ADMIN_MASTER's.
+  { path: "/api/v1/admin/finance/picpay/attribution", methods: ["GET", "POST"], access: "master", all: "read" },
+  { path: "/api/v1/admin/finance/picpay/attribution/preview", methods: ["POST"], access: "master" },
+  { path: "/api/v1/admin/finance/picpay/attribution/isolation", methods: ["POST"], access: "master", cohort: "global" },
   { path: "/api/v1/admin/finance/indicators", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/settings/fundraising-goal", methods: ["GET", "PUT"], access: "finance" },
   { path: "/api/v1/admin/finance/payables/:id/settlements", methods: ["POST"], access: "finance" },

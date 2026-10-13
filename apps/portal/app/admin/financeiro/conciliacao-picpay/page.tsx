@@ -14,6 +14,6 @@ export default async function PicPayReconciliationPage() {
       <h1 className="mt-1 text-3xl font-bold tracking-tight">Conciliação PicPay</h1>
       <p className="mt-2 max-w-3xl text-base text-[var(--g-text-secondary)]">Cruza a venda do Germinatura com as três exportações do PicPay Empresas: Minhas vendas (a transação na adquirente, com a taxa real), Recebíveis (o que ainda será pago) e Extrato (o dinheiro que entrou e saiu da conta). O que nenhuma evidência explica vira pendência para revisar.</p>
     </header>
-    <PicPayReconciliation />
+    <PicPayReconciliation viewer={{ adminMaster: user.adminMaster, cohort: user.cohortMode === "COHORT" && user.cohort ? { id: user.cohort.id, name: user.cohort.name } : null }} />
   </div></div>;
 }

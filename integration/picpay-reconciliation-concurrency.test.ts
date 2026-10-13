@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 
+const TURMA_2026 = "c0000000-0000-4000-8000-000000002026";
+
 function local() {
   const output = execFileSync(process.execPath, ["tools/run-supabase.mjs", "status", "-o", "env"], { encoding: "utf8" });
   const url = output.match(/^API_URL="?([^"\r\n]+)"?$/m)?.[1];
@@ -28,6 +30,16 @@ it("serializa importações concorrentes: exportações sobrepostas não duplica
     const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: "POST", headers, body: JSON.stringify(input) });
     return { status: response.status, data: await response.json() as Record<string, unknown> };
   }
+  // E0: importing the shared account's files is ADMIN_MASTER's, inside a cohort, with a declaration (these are Turma 2026's).
+  const masterLogin = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" }, body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
+  const masterToken = (await masterLogin.json() as { access_token?: string }).access_token;
+  expect(masterLogin.ok && masterToken).toBeTruthy();
+  async function importFile(input: Record<string, unknown>) {
+    const response = await fetch(`${url}/rest/v1/rpc/import_picpay_file`, { method: "POST",
+      headers: { apikey: key, Authorization: `Bearer ${masterToken}`, "Content-Type": "application/json", "x-germinatura-cohort": TURMA_2026 },
+      body: JSON.stringify({ ...input, p_scope: "COHORT", p_declared_cohort_id: TURMA_2026 }) });
+    return { status: response.status, data: await response.json() as Record<string, unknown> };
+  }
   // The statement-only import is gone: a direct call finds no function, so files enter only through import_picpay_file.
   for (const [name, input] of [
     ["import_picpay_statement", { p_file_name: "x.csv", p_content: "x", p_accept_overlap: true, p_idempotency_key: `legacy:${randomUUID()}`, p_correlation_id: randomUUID() }],
@@ -44,8 +56,8 @@ it("serializa importações concorrentes: exportações sobrepostas não duplica
   const fileA = ["data;movimento;descrição;tipo;valor", ...shared, line("2025-03-11", "Pix enviado", "Fornecedor A", -(base + 1))].join("\r\n");
   const fileB = ["data;movimento;descrição;tipo;valor", ...shared, line("2025-03-09", "Pix enviado", "Fornecedor B", -(base + 2))].join("\r\n");
   const [a, b] = await Promise.all([
-    rpc("import_picpay_file", { p_file_name: "extrato-a.csv", p_content: fileA, p_idempotency_key: `picpay-race-a:${randomUUID()}`, p_correlation_id: randomUUID() }),
-    rpc("import_picpay_file", { p_file_name: "extrato-b.csv", p_content: fileB, p_idempotency_key: `picpay-race-b:${randomUUID()}`, p_correlation_id: randomUUID() }),
+    importFile({ p_file_name: "extrato-a.csv", p_content: fileA, p_idempotency_key: `picpay-race-a:${randomUUID()}`, p_correlation_id: randomUUID() }),
+    importFile({ p_file_name: "extrato-b.csv", p_content: fileB, p_idempotency_key: `picpay-race-b:${randomUUID()}`, p_correlation_id: randomUUID() }),
   ]);
   expect([a.status, b.status]).toEqual([200, 200]);
   // Whatever ran first, the two identical movements exist twice in total, never four times.
@@ -55,7 +67,7 @@ it("serializa importações concorrentes: exportações sobrepostas não duplica
   const sales = [salesHeader,
     `10/03/2025 10:00:00;10/03/2025;Pix;;Pix;QR Code PicPay;${brl(base + 3)};;R$ 0,00; R$ 0,00; R$ 0,00;;${brl(base + 3)};1;Aprovada;;;;;;`
       + `E${String(base).padStart(31, "0")};-;-;-;-;-;-;-;-;-;-;-;`].join("\n");
-  const [s1, s2] = await Promise.all([1, 2].map((n) => rpc("import_picpay_file", {
+  const [s1, s2] = await Promise.all([1, 2].map((n) => importFile({
     p_file_name: `vendas-${n}.csv`, p_content: sales, p_idempotency_key: `picpay-race-sales-${n}:${randomUUID()}`, p_correlation_id: randomUUID(),
   })));
   expect([s1.status, s2.status].sort()).toEqual([200, 400]);
