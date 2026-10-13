@@ -58,7 +58,7 @@ export default function CohortSelectionPage() {
           : cohorts.length === 0
             ? <div className="mt-6 text-center text-sm">
                 <p>Sua conta não tem acesso ao PDV em nenhuma turma ativa.</p>
-                <a href={portalUrl} className="mt-4 inline-flex min-h-11 items-center font-semibold text-[var(--g-brand-primary)]">Voltar ao Portal</a>
+                <a href={portalUrl} className="mt-4 inline-flex min-h-11 items-center font-semibold text-[var(--g-text-primary)] underline underline-offset-4">Voltar ao Portal</a>
               </div>
             : <ul aria-label="Turmas disponíveis" className="mt-6 grid gap-3">
                 {cohorts.map((cohort) => <li key={cohort.id}>
