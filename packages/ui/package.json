@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.tsx",
     "./brand": "./src/brand.ts",
+    "./filters": "./src/filters.tsx",
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
