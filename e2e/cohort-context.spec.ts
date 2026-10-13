@@ -215,6 +215,42 @@ test.describe.serial("turmas A/B (ADR 0011)", () => {
     await adminB.close();
   });
 
+  test("o comprador da rifa só é encontrado na turma da operação; outra turma e inexistente respondem igual", async ({ browser }) => {
+    const lookup = async (context: BrowserContext, cohort: string, identifier: string) => {
+      const response = await context.request.get(`/api/v1/pdv/raffles/buyer?identifier=${encodeURIComponent(identifier)}`, { headers: inCohort(cohort) });
+      const body = await response.json() as Record<string, unknown>;
+      return { status: response.status(), body: { ...body, request_id: undefined } };
+    };
+    const nobody = `ninguem.${suffix}@institutojef.org.br`;
+    const sellerB = await signIn(browser, people.sellerB.username, password);
+    const inB = await lookup(sellerB, cohortB, people.adminB.email);
+    expect(inB.status).toBe(200);
+    expect(inB.body.data).toMatchObject({ profileId: ids.adminB });
+    // A person of A, by e-mail and by username, and an unknown identifier: the same status and the same body.
+    const unknownFromB = await lookup(sellerB, cohortB, nobody);
+    expect(unknownFromB).toEqual({ status: 200, body: { data: null, request_id: undefined } });
+    expect(await lookup(sellerB, cohortB, "consumidor.teste@institutojef.org.br")).toEqual(unknownFromB);
+    expect(await lookup(sellerB, cohortB, "consumidor.teste")).toEqual(unknownFromB);
+    await sellerB.close();
+
+    const sellerA = await signIn(browser, "vendedor.teste", "Vendedor123!");
+    expect((await lookup(sellerA, cohortA, "consumidor.teste")).body.data).toMatchObject({ profileId: "10000000-0000-4000-8000-000000000003" });
+    const unknownFromA = await lookup(sellerA, cohortA, nobody);
+    expect(await lookup(sellerA, cohortA, people.sellerB.email)).toEqual(unknownFromA);
+    expect(await lookup(sellerA, cohortA, people.sellerB.username)).toEqual(unknownFromA);
+    expect(JSON.stringify(await lookup(sellerA, cohortA, people.adminB.username))).not.toContain(people.adminB.displayName);
+    await sellerA.close();
+
+    // ADMIN_MASTER: only the cohort selected for the operation; "Todas as turmas" is not a sale context.
+    const master = await signIn(browser, "master.teste", "Master123!");
+    expect((await lookup(master, cohortB, people.adminB.username)).body.data).toMatchObject({ profileId: ids.adminB });
+    expect((await lookup(master, cohortA, people.adminB.username)).body.data).toBeNull();
+    const all = await lookup(master, "all", "consumidor.teste");
+    expect(all.status).toBe(409);
+    expect(all.body).toMatchObject({ code: "COHORT_REQUIRED" });
+    await master.close();
+  });
+
   test("o handoff Portal → PDV preserva a turma escolhida no Portal", async ({ browser }) => {
     test.slow();
     const context = await signIn(browser, people.sellerAB.username, password);
