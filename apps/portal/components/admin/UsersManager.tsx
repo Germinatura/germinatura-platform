@@ -121,6 +121,7 @@ export function UsersManager({ cohortMode, cohorts, canFilterCohort, isMaster = 
           {loading ? <UsersSkeleton /> : !error && users.length === 0 ? <div className="p-10 text-center"><UserRoundCog className="mx-auto size-10 text-[var(--g-text-muted)]" /><p className="mt-4 font-semibold">Nenhum usuário encontrado</p><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Ajuste os filtros ou adicione uma nova conta operacional.</p></div> : !error && <UsersList users={users} onEdit={readOnly ? undefined : setEditing} onMaster={isMaster ? setMastering : undefined} onMemberships={isMaster ? setMemberships : undefined} />}
           {!loading && page.matched > PAGE_SIZE && <nav aria-label="Paginação de usuários" className="flex items-center justify-between gap-3 border-t border-[var(--g-border-subtle)] p-4 text-sm"><span>{page.offset + 1}–{lastShown} de {page.matched}</span><div className="flex gap-2"><Button type="button" variant="secondary" size="sm" disabled={page.offset === 0} onClick={() => setOffset(Math.max(0, page.offset - PAGE_SIZE))}>Anterior</Button><Button type="button" variant="secondary" size="sm" disabled={lastShown >= page.matched} onClick={() => setOffset(page.offset + PAGE_SIZE)}>Próxima</Button></div></nav>}
         </Card>
+        <SignupCodeUnlockCard />
       </div>
       {createOpen && <CreateUserDialog onClose={() => setCreateOpen(false)} onComplete={() => completed("Conta criada e acesso configurado.")} />}
       {editing && <EditAccessDialog user={editing} onClose={() => setEditing(null)} onComplete={(message) => completed(message ?? "Papéis e estado de acesso atualizados.")} />}
@@ -223,6 +224,35 @@ function UnlockSection({ user, onComplete }: { user: AdminUser; onComplete: () =
       {user.locks?.signupCode && <Button type="button" variant="secondary" loading={busy === "signup-code"} disabled={!valid || busy !== null} onClick={() => void unlock("signup-code")}>Desbloquear código de cadastro</Button>}
     </div>
   </section>;
+}
+
+/**
+ * A1: a sign-up attempt is not a user and is not listed, so a person blocked before confirming the e-mail (one send,
+ * one resend) is released by naming the e-mail. The answer is the same whether or not it was blocked.
+ */
+function SignupCodeUnlockCard() {
+  const [email, setEmail] = useState(""); const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null); const [done, setDone] = useState<string | null>(null);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setBusy(true); setError(null); setDone(null);
+    try {
+      const response = await fetch("/api/v1/admin/signup-codes/unlock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim(), reason: reason.trim() }) });
+      if (!response.ok) throw new Error(await readError(response));
+      setDone(`Se ${email.trim().toLowerCase()} estava bloqueado, novos códigos de cadastro já podem ser solicitados.`); setEmail(""); setReason("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível liberar novos códigos."); } finally { setBusy(false); }
+  }
+  return <Card className="p-5">
+    <form onSubmit={submit} className="space-y-4" aria-labelledby="signup-unlock-title">
+      <div><h2 id="signup-unlock-title" className="text-lg font-bold">Código de cadastro bloqueado</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">Quem ainda não confirmou o e-mail não é um usuário e não aparece na lista. Depois de um envio e um reenvio, novos códigos dependem desta liberação. Confirme a identidade da pessoa; o motivo fica na auditoria.</p></div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field id="signup-unlock-email" label="E-mail institucional"><Input id="signup-unlock-email" type="email" autoComplete="off" required value={email} onChange={(event) => { setEmail(event.target.value); setDone(null); }} /></Field>
+        <Field id="signup-unlock-reason" label="Motivo"><Input id="signup-unlock-reason" required minLength={4} maxLength={500} value={reason} onChange={(event) => { setReason(event.target.value); setDone(null); }} /></Field>
+      </div>
+      {error && <p role="alert" className="text-sm text-[var(--g-status-danger-foreground)]">{error}</p>}
+      {done && <p role="status" className="text-sm text-[var(--g-status-success-foreground)] [overflow-wrap:anywhere]">{done}</p>}
+      <Button type="submit" variant="secondary" loading={busy} disabled={busy || reason.trim().length < 4 || !email.includes("@")}>Liberar novos códigos</Button>
+    </form>
+  </Card>;
 }
 
 function UsersSkeleton() { return <div role="status" className="space-y-3 p-5" aria-label="Carregando usuários">{[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)]" />)}</div>; }

@@ -166,6 +166,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/users/:id/roles", methods: ["PATCH"], access: "admin" },
   { path: "/api/v1/admin/users/:id/password-recovery", methods: ["POST"], access: "admin" },
   { path: "/api/v1/admin/users/:id/signup-code", methods: ["POST"], access: "admin" },
+  // A1: the code-request limit is keyed by the e-mail, not by a cohort; the database allows ADMIN_MASTER or the ADMIN of the default cohort.
+  { path: "/api/v1/admin/signup-codes/unlock", methods: ["POST"], access: "admin", cohort: "global" },
   { path: "/api/auth/login", methods: ["POST"], access: "public" },
   { path: "/api/auth/logout", methods: ["POST"], access: "authenticated", cohort: "global" },
   { path: "/api/auth/me", methods: ["GET"], access: "authenticated", all: "read" },

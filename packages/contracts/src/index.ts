@@ -1228,6 +1228,8 @@ export const passwordRecoveryVerifySchema = z.object({
 export const passwordRecoveryCompleteSchema = z.object({ password: accountPasswordSchema }).strict();
 export const passwordRecoveryUnlockSchema = z.object({ reason: z.string().trim().min(4).max(500) }).strict();
 export const signupCodeUnlockSchema = passwordRecoveryUnlockSchema;
+/** A1: an attempt is not a user, so a blocked sign-up code is released by naming the e-mail. */
+export const signupCodeEmailUnlockSchema = z.object({ email: institutionalEmailSchema, reason: z.string().trim().min(4).max(500) }).strict();
 
 export const adminProvisionUserSchema = z.object({
   email: institutionalEmailSchema,
