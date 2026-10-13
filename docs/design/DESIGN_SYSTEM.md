@@ -176,12 +176,12 @@ Componentes compartilhados devem residir em `packages/ui` quando não dependem d
   - O texto ocupa o espaço livre e quebra palavras longas; as ações nunca o cobrem.
 - **`.g-field-action`:** botão numa linha de campos. Em telas largas reserva a linha do rótulo e alinha com os inputs, qualquer que seja o texto de ajuda abaixo deles; empilhado, ocupa a largura toda.
 - **`FilterShell`** (`@germinatura/ui/filters`, `.g-filter-*`): o único padrão para telas com vários filtros.
-  - A partir de 768px: painel inline, aberto por padrão (o PDV começa recolhido para manter os produtos à vista). O botão diz "Recolher filtros" quando aberto e "Filtros (n)" quando fechado. Recolher nunca limpa valores, e cada mudança é aplicada na hora.
+  - A partir de 768px: painel inline, aberto por padrão (o PDV começa recolhido para manter os produtos à vista). O botão diz "Recolher filtros" quando aberto e "Filtros (n)" quando fechado. Recolher nunca limpa valores, e cada mudança é aplicada na hora. Telas com consulta cara ou campos digitados (Auditoria, Segurança) usam `applyMode="explicit"`: o painel vira um formulário com rascunho próprio e botão "Pesquisar"; os chips mostram só o que está em vigor.
   - Abaixo de 768px: só o botão "Filtros (n)". Ele abre um bottom sheet (`<dialog>` modal nativo, com foco preso, Esc e retorno do foco ao botão). O sheet tem rascunho próprio e as ações "Limpar" (volta o rascunho ao vazio) e "Aplicar". Fechar por X, Esc ou fundo descarta só o rascunho, e os filtros em vigor continuam. Respeita safe-area e trava a rolagem da página.
   - Chips dos filtros em vigor ("Remover filtro …") e "Limpar filtros" ficam sempre visíveis. Chips têm 44px em telas de toque.
   - A busca textual principal fica fora do painel. Contexto operacional que muda a tela (local de venda, turma em contexto) também fica fora.
   - Não usar para tela com só uma busca ou um único select.
-  - O filtro respeita onde os dados vivem: consulta paginada no servidor filtra no servidor (Usuários pela API, Catálogo admin pela URL); conjunto completo já carregado pode filtrar em memória (PDV, que lê todas as páginas do catálogo).
+  - O filtro respeita onde os dados vivem: consulta paginada no servidor filtra no servidor (Usuários pela API, Catálogo admin pela URL, Catálogo do consumidor com `q`/`category` na API paginada); conjunto completo já carregado pode filtrar em memória (PDV, que lê todas as páginas do catálogo).
 - **Bordas:** sempre com cor de token (`border-[var(--g-border-subtle)]` ou `-default`). `border` sem cor usa `currentColor` no Tailwind 4 e vira uma linha escura.
 - **Texto longo:** cards e dialogs quebram palavras longas (`overflow-wrap: anywhere`), e tabelas mantêm suas regras e rolam na própria região. Badges e valores (`g-money`) nunca encolhem nem quebram.
 

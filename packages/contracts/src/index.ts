@@ -58,9 +58,20 @@ export const catalogProductFlagsSchema = z.object({
 });
 export type CatalogProductFlags = z.infer<typeof catalogProductFlagsSchema>;
 
+/**
+ * A catalog search term as the server applies it: only letters, digits, spaces, dots and hyphens survive (anything else
+ * becomes a space), so the term can never change the shape of the database filter. Empty means "no search".
+ */
+export function catalogSearchTerm(value: string) {
+  return value.normalize("NFC").replace(/[^\p{L}\p{N} .-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
 export const publicCatalogProductsQuerySchema = z.object({
   cursor: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  // Search (name, SKU or category name) and category, applied by the server to every page.
+  q: z.string().max(200).transform(catalogSearchTerm).optional(),
+  category: z.uuid().optional(),
 });
 export type PublicCatalogProductsQuery = z.infer<typeof publicCatalogProductsQuerySchema>;
 
@@ -95,6 +106,8 @@ export type PublicCatalogProduct = z.infer<typeof publicCatalogProductSchema>;
 export const publicCatalogProductsResponseSchema = z.object({
   data: z.array(publicCatalogProductSchema),
   nextCursor: z.uuid().nullable(),
+  // First page only: every category with published products, whatever the search, so a filter can offer them all.
+  categories: z.array(z.object({ id: z.uuid(), slug: catalogSlugSchema, name: z.string().min(1).max(120) })).optional(),
   request_id: z.string().min(1),
 });
 export type PublicCatalogProductsResponse = z.infer<typeof publicCatalogProductsResponseSchema>;

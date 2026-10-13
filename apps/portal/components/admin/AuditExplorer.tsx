@@ -2,8 +2,10 @@
 
 import { COHORT_HEADER, auditCorrelationResponseSchema, auditSearchResponseSchema, type AuditCorrelation, type AuditEntry, type AuditSeverity, type CohortSummary } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
-import { AlertTriangle, Search } from "lucide-react";
+import { FilterShell, type ActiveFilter } from "@germinatura/ui/filters";
+import { AlertTriangle } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { periodLabel } from "@/lib/filter-chips";
 
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium", timeZone: "America/Sao_Paulo" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -28,8 +30,9 @@ async function readError(response: Response, fallback: string) {
 export function AuditExplorer({ cohorts }: { cohorts?: CohortSummary[] } = {}) {
   const consolidated = Boolean(cohorts);
   const cohortLabel = (row: AuditEntry) => (row.cohortId === null ? "Global" : cohorts?.find((cohort) => cohort.id === row.cohortId)?.name ?? "—");
-  const [filters, setFilters] = useState<Filters>(() => ({ from: shift(today(), -6), to: today(), actor: "", action: "", entityType: "", entityId: "", correlationId: "", severity: "", cohort: "" }));
-  const [applied, setApplied] = useState(filters);
+  // The last seven days, with no other filter: where a search starts and what "Limpar" goes back to.
+  const [initial] = useState<Filters>(() => ({ from: shift(today(), -6), to: today(), actor: "", action: "", entityType: "", entityId: "", correlationId: "", severity: "", cohort: "" }));
+  const [applied, setApplied] = useState(initial);
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [cursor, setCursor] = useState<{ createdAt: string; id: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,21 +67,37 @@ export function AuditExplorer({ cohorts }: { cohorts?: CohortSummary[] } = {}) {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível abrir a correlação."); }
   }
 
-  const set = (key: keyof Filters) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setFilters({ ...filters, [key]: event.target.value });
+  function apply(next: Filters) { setCorrelation(null); setApplied(next); }
+  const chips: ActiveFilter[] = [];
+  const remove = (patch: Partial<Filters>) => () => apply({ ...applied, ...patch });
+  if (applied.cohort) chips.push({ key: "cohort", label: `Turma: ${cohorts?.find((cohort) => cohort.id === applied.cohort)?.name ?? "selecionada"}`, onRemove: remove({ cohort: "" }) });
+  if (applied.from !== initial.from || applied.to !== initial.to) chips.push({ key: "period", label: periodLabel(applied.from, applied.to), onRemove: remove({ from: initial.from, to: initial.to }) });
+  if (applied.actor.trim()) chips.push({ key: "actor", label: `Usuário: ${applied.actor.trim()}`, onRemove: remove({ actor: "" }) });
+  if (applied.severity) chips.push({ key: "severity", label: `Severidade: ${severityLabels[applied.severity as AuditSeverity]?.label ?? applied.severity}`, onRemove: remove({ severity: "" }) });
+  if (applied.action.trim()) chips.push({ key: "action", label: `Ação: ${applied.action.trim()}`, onRemove: remove({ action: "" }) });
+  if (applied.entityType.trim()) chips.push({ key: "entity-type", label: `Tipo: ${applied.entityType.trim()}`, onRemove: remove({ entityType: "" }) });
+  if (applied.entityId.trim()) chips.push({ key: "entity-id", label: `Entidade: ${applied.entityId.trim()}`, onRemove: remove({ entityId: "" }) });
+  if (applied.correlationId.trim()) chips.push({ key: "correlation", label: `Correlação: ${applied.correlationId.trim()}`, onRemove: remove({ correlationId: "" }) });
+
   return <div className="grid gap-6">
     <Card className="p-5">
-      <form aria-label="Filtrar auditoria" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" onSubmit={(event) => { event.preventDefault(); setCorrelation(null); setApplied(filters); }}>
-        {consolidated && <Field id="audit-cohort" label="Turma"><select id="audit-cohort" className="g-input min-h-11 w-full" value={filters.cohort} onChange={set("cohort")}><option value="">Todas (inclui operações globais)</option>{cohorts?.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></Field>}
-        <Field id="audit-from" label="De"><Input id="audit-from" type="date" value={filters.from} onChange={set("from")} /></Field>
-        <Field id="audit-to" label="Até"><Input id="audit-to" type="date" value={filters.to} onChange={set("to")} /></Field>
-        <Field id="audit-actor" label="Usuário"><Input id="audit-actor" value={filters.actor} maxLength={80} onChange={set("actor")} placeholder="nome, e-mail ou usuário" /></Field>
-        <Field id="audit-severity" label="Severidade"><select id="audit-severity" className="g-input min-h-11 w-full" value={filters.severity} onChange={set("severity")}><option value="">Todas</option><option value="HIGH">Alta</option><option value="MEDIUM">Média</option><option value="LOW">Baixa</option></select></Field>
-        <Field id="audit-action" label="Ação (começa com)"><Input id="audit-action" value={filters.action} maxLength={100} onChange={set("action")} placeholder="ex.: sales." /></Field>
-        <Field id="audit-entity-type" label="Tipo de entidade"><Input id="audit-entity-type" value={filters.entityType} maxLength={64} onChange={set("entityType")} placeholder="ex.: sale" /></Field>
-        <Field id="audit-entity-id" label="Identificador da entidade"><Input id="audit-entity-id" value={filters.entityId} maxLength={128} onChange={set("entityId")} /></Field>
-        <Field id="audit-correlation" label="Correlação"><Input id="audit-correlation" value={filters.correlationId} maxLength={36} onChange={set("correlationId")} /></Field>
-        <div className="sm:col-span-2 lg:col-span-4"><Button type="submit" variant="brand" disabled={loading}><Search className="size-4" />Pesquisar</Button></div>
-      </form>
+      <FilterShell value={applied} emptyValue={initial} onChange={apply} activeFilters={chips} onClearAll={() => apply(initial)}
+        applyMode="explicit" applyLabel="Pesquisar" applying={loading} title="Filtrar auditoria">
+        {(values, update) => {
+          const set = (key: keyof Filters) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => update({ [key]: event.target.value });
+          return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {consolidated && <Field id="audit-cohort" label="Turma"><select id="audit-cohort" className="g-input min-h-11 w-full" value={values.cohort} onChange={set("cohort")}><option value="">Todas (inclui operações globais)</option>{cohorts?.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></Field>}
+            <Field id="audit-from" label="De"><Input id="audit-from" type="date" value={values.from} onChange={set("from")} /></Field>
+            <Field id="audit-to" label="Até"><Input id="audit-to" type="date" value={values.to} onChange={set("to")} /></Field>
+            <Field id="audit-actor" label="Usuário"><Input id="audit-actor" value={values.actor} maxLength={80} onChange={set("actor")} placeholder="nome, e-mail ou usuário" /></Field>
+            <Field id="audit-severity" label="Severidade"><select id="audit-severity" className="g-input min-h-11 w-full" value={values.severity} onChange={set("severity")}><option value="">Todas</option><option value="HIGH">Alta</option><option value="MEDIUM">Média</option><option value="LOW">Baixa</option></select></Field>
+            <Field id="audit-action" label="Ação (começa com)"><Input id="audit-action" value={values.action} maxLength={100} onChange={set("action")} placeholder="ex.: sales." /></Field>
+            <Field id="audit-entity-type" label="Tipo de entidade"><Input id="audit-entity-type" value={values.entityType} maxLength={64} onChange={set("entityType")} placeholder="ex.: sale" /></Field>
+            <Field id="audit-entity-id" label="Identificador da entidade"><Input id="audit-entity-id" value={values.entityId} maxLength={128} onChange={set("entityId")} /></Field>
+            <Field id="audit-correlation" label="Correlação"><Input id="audit-correlation" value={values.correlationId} maxLength={36} onChange={set("correlationId")} /></Field>
+          </div>;
+        }}
+      </FilterShell>
       <p className="mt-3 text-xs text-[var(--g-text-muted)]">Somente leitura. Horários de Brasília; período de até um ano.</p>
     </Card>
 
