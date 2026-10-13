@@ -4,10 +4,12 @@ import {
   adminReservationsResponseSchema, markReservationReadyRequestSchema, reservationSettingsResponseSchema, reservationSettingsSchema,
   type AdminReservation, type CommercialReservationStatus,
 } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
-import { AlertTriangle, Loader2, PackageCheck, XCircle } from "lucide-react";
+import { Badge, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
+import { FilterShell, type ActiveFilter } from "@germinatura/ui/filters";
+import { AlertTriangle, Loader2, PackageCheck, Search, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { periodLabel } from "@/lib/filter-chips";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
@@ -24,10 +26,13 @@ async function messageFrom(response: Response, fallback: string) {
   return body?.message ?? fallback;
 }
 
+type ReservationFilters = { status: CommercialReservationStatus | ""; query: string; from: string; to: string };
+const emptyReservationFilters: ReservationFilters = { status: "", query: "", from: "", to: "" };
+
 /** Spec 5.10: the commission filters reservations, prepares them for pickup, cancels them and sets deadlines. */
 export function ReservationsManagement() {
   const { showToast } = useToast();
-  const [filters, setFilters] = useState({ status: "" as CommercialReservationStatus | "", query: "", from: "", to: "" });
+  const [filters, setFilters] = useState<ReservationFilters>(emptyReservationFilters);
   const [reservations, setReservations] = useState<AdminReservation[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +103,11 @@ export function ReservationsManagement() {
     if (await run(`cancel-${id}`, `/api/v1/reservations/${id}/cancel`, "POST", {}, "Reserva cancelada e estoque liberado.")) { setCancelling(null); await load(); }
   }
 
+  const chips: ActiveFilter[] = [];
+  if (filters.query.trim()) chips.push({ key: "query", label: `Cliente: ${filters.query.trim()}`, onRemove: () => setFilters({ ...filters, query: "" }) });
+  if (filters.status) chips.push({ key: "status", label: `Situação: ${statusPresentation[filters.status].label}`, onRemove: () => setFilters({ ...filters, status: "" }) });
+  if (filters.from || filters.to) chips.push({ key: "period", label: periodLabel(filters.from, filters.to, "Criadas"), onRemove: () => setFilters({ ...filters, from: "", to: "" }) });
+
   return <div className="grid gap-6">
     <Card className="p-5">
       <h2 className="font-semibold">Prazos</h2>
@@ -107,13 +117,16 @@ export function ReservationsManagement() {
         <Button type="submit" variant="secondary" loading={busy === "settings"} disabled={busy !== null}>Salvar prazos</Button>
       </form>
     </Card>
-    <Card className="p-5">
-      <form aria-label="Filtrar reservas" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" onSubmit={(event) => { event.preventDefault(); void load(); }}>
-        <Field id="reservations-status" label="Situação"><select id="reservations-status" className="g-input min-h-11 w-full" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value as CommercialReservationStatus | "" })}><option value="">Todas</option>{(Object.keys(statusPresentation) as CommercialReservationStatus[]).map((status) => <option key={status} value={status}>{statusPresentation[status].label}</option>)}</select></Field>
-        <Field id="reservations-query" label="Cliente (nome ou e-mail)"><Input id="reservations-query" maxLength={80} value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} /></Field>
-        <Field id="reservations-from" label="Criadas de"><Input id="reservations-from" type="date" value={filters.from} onChange={(event) => setFilters({ ...filters, from: event.target.value })} /></Field>
-        <Field id="reservations-to" label="Até"><Input id="reservations-to" type="date" value={filters.to} onChange={(event) => setFilters({ ...filters, to: event.target.value })} /></Field>
-      </form>
+    <Card className="grid gap-4 p-5">
+      <label className="block w-full min-w-0 sm:max-w-md"><span className="g-label">Cliente (nome ou e-mail)</span><InputGroup icon={<Search />} className="mt-2"><Input id="reservations-query" maxLength={80} value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} placeholder="Buscar cliente" /></InputGroup></label>
+      <FilterShell value={filters} emptyValue={{ ...emptyReservationFilters, query: filters.query }} onChange={setFilters} activeFilters={chips}
+        activeCount={chips.filter((chip) => chip.key !== "query").length} onClearAll={() => setFilters(emptyReservationFilters)} title="Filtrar reservas">
+        {(values, update) => <div className="grid gap-4 sm:grid-cols-3">
+          <Field id="reservations-status" label="Situação"><select id="reservations-status" className="g-input min-h-11 w-full" value={values.status} onChange={(event) => update({ status: event.target.value as CommercialReservationStatus | "" })}><option value="">Todas</option>{(Object.keys(statusPresentation) as CommercialReservationStatus[]).map((status) => <option key={status} value={status}>{statusPresentation[status].label}</option>)}</select></Field>
+          <Field id="reservations-from" label="Criadas de"><Input id="reservations-from" type="date" value={values.from} onChange={(event) => update({ from: event.target.value })} /></Field>
+          <Field id="reservations-to" label="Até"><Input id="reservations-to" type="date" value={values.to} onChange={(event) => update({ to: event.target.value })} /></Field>
+        </div>}
+      </FilterShell>
     </Card>
     {error && <div role="alert" className="flex items-start gap-3 rounded-[var(--g-radius-card)] border border-[var(--g-status-danger)]/50 p-4 text-sm"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-[var(--g-status-danger)]" /><p>{error}</p></div>}
     <Card className="overflow-hidden">

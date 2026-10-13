@@ -256,6 +256,8 @@ textarea.g-input { min-height: calc(var(--g-control-min-height) * 2); resize: ve
 .g-filter-shell__chips { display: flex; flex-wrap: wrap; gap: var(--g-space-2); min-width: 0; margin: 0; padding: 0; list-style: none; }
 .g-filter-shell__chips > li { min-width: 0; max-width: 100%; }
 .g-filter-shell__panel { min-width: 0; }
+.g-filter-shell__form { display: grid; gap: var(--g-space-4); }
+.g-filter-shell__actions { display: flex; flex-wrap: wrap; gap: var(--g-space-2); }
 .g-filter-shell__panel[hidden] { display: none; }
 @media (max-width: 47.99rem) {
   .g-filter-shell__panel { display: none; }

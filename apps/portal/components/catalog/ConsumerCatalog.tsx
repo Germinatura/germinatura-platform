@@ -6,7 +6,7 @@ import {
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Input, InputGroup } from "@germinatura/ui";
 import { Bell, BellRing, PackageSearch, Plus, RefreshCw, Search, ShoppingBag } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ReservationCart } from "@/components/catalog/ReservationCart";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -30,9 +30,14 @@ function writeStoredCart(cohortId: string | null, cart: StoredCart) {
   try { window.sessionStorage.setItem(cartStorageKey(cohortId), JSON.stringify(cart)); } catch { /* storage unavailable: the cart stays in memory */ }
 }
 
-async function fetchProducts(cursor?: string) {
+interface CatalogSearch { query: string; category: string | null }
+
+// Search and category are applied by the server to every page, so "Carregar mais" continues the same filtered list.
+async function fetchProducts(search: CatalogSearch, cursor?: string) {
   const params = new URLSearchParams({ limit: "50" });
   if (cursor) params.set("cursor", cursor);
+  if (search.query.trim()) params.set("q", search.query.trim());
+  if (search.category) params.set("category", search.category);
   const response = await fetch(`/api/v1/catalog/products?${params.toString()}`, { cache: "no-store" });
   const body: unknown = await response.json();
   if (!response.ok) throw new Error("Não foi possível carregar o catálogo. Tente novamente em alguns instantes.");
@@ -43,8 +48,12 @@ async function fetchProducts(cursor?: string) {
 
 export function ConsumerCatalog({ canReserve = false, cohortId = null }: { canReserve?: boolean; cohortId?: string | null }) {
   const [products, setProducts] = useState<PublicCatalogProduct[]>([]);
+  // Every product seen in this visit: the reservation cart keeps showing its items whatever the current search.
+  const [known, setKnown] = useState<Map<string, PublicCatalogProduct>>(new Map());
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
+  const [search, setSearch] = useState<CatalogSearch>({ query: "", category: null });
+  const category = search.category;
   const [cart, setCart] = useState<StoredCart>({});
   const [alerts, setAlerts] = useState<Set<string>>(new Set());
   const [alertBusy, setAlertBusy] = useState<string | null>(null);
@@ -52,24 +61,45 @@ export function ConsumerCatalog({ canReserve = false, cohortId = null }: { canRe
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const latestRequest = useRef(0);
+
+  const remember = useCallback((list: PublicCatalogProduct[]) => {
+    setKnown((current) => { const next = new Map(current); for (const product of list) next.set(product.id, product); return next; });
+  }, []);
 
   const loadInitial = useCallback(async () => {
+    const request = latestRequest.current + 1;
+    latestRequest.current = request;
     setLoading(true);
     setError("");
     try {
-      const result = await fetchProducts();
+      const result = await fetchProducts(search);
+      // A slower answer to an older search never replaces the newer one.
+      if (request !== latestRequest.current) return;
       setProducts(result.data);
+      remember(result.data);
+      if (result.categories) setCategories(result.categories.map(({ id, name }) => ({ id, name })));
       setNextCursor(result.nextCursor);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Não foi possível carregar o catálogo.");
+      if (request === latestRequest.current) setError(caught instanceof Error ? caught.message : "Não foi possível carregar o catálogo.");
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
-  }, []);
+  }, [search, remember]);
+
+  // The search box applies after a short pause; the category applies at once.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch((current) => (current.query === query ? current : { ...current, query })), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadInitial(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadInitial]);
 
   useEffect(() => {
     const initialLoad = window.setTimeout(() => {
-      void loadInitial();
       if (canReserve) setCart(readStoredCart(cohortId));
       void fetch("/api/v1/catalog/stock-alerts", { cache: "no-store" }).then(async (response) => {
         const body = await response.json().catch(() => null) as { data?: unknown } | null;
@@ -77,7 +107,9 @@ export function ConsumerCatalog({ canReserve = false, cohortId = null }: { canRe
       }, () => undefined);
     }, 0);
     return () => window.clearTimeout(initialLoad);
-  }, [loadInitial, canReserve, cohortId]);
+  }, [canReserve, cohortId]);
+
+  function setCategory(id: string | null) { setSearch((current) => ({ ...current, category: id })); }
 
   async function toggleAlert(productId: string) {
     const enabled = !alerts.has(productId);
@@ -103,24 +135,20 @@ export function ConsumerCatalog({ canReserve = false, cohortId = null }: { canRe
       return next;
     });
   }
-  const cartLines = products.filter((product) => product.reservable && cart[product.id]).map((product) => ({ product, quantity: cart[product.id] }));
-  const categories = useMemo(() => [...new Map(products.map((product) => [product.category.id, product.category.name])).entries()], [products]);
-
-  const filteredProducts = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase("pt-BR");
-    const inCategory = category ? products.filter((product) => product.category.id === category) : products;
-    if (!normalized) return inCategory;
-    return inCategory.filter((product) => [product.name, product.sku, product.category.name]
-      .some((value) => value.toLocaleLowerCase("pt-BR").includes(normalized)));
-  }, [products, query, category]);
+  const cartLines = Object.entries(cart).flatMap(([id, quantity]) => {
+    const product = known.get(id);
+    return product?.reservable ? [{ product, quantity }] : [];
+  });
+  const filtering = search.query.trim() !== "" || search.category !== null;
 
   async function loadMore() {
     if (!nextCursor) return;
     setLoadingMore(true);
     setError("");
     try {
-      const result = await fetchProducts(nextCursor);
+      const result = await fetchProducts(search, nextCursor);
       setProducts((current) => [...current, ...result.data.filter((product) => !current.some((existing) => existing.id === product.id))]);
+      remember(result.data);
       setNextCursor(result.nextCursor);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Não foi possível carregar mais produtos.");
@@ -144,19 +172,19 @@ export function ConsumerCatalog({ canReserve = false, cohortId = null }: { canRe
         </label>
         {categories.length > 1 && <div role="group" aria-label="Categorias" className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant={category === null ? "brand" : "secondary"} aria-pressed={category === null} onClick={() => setCategory(null)}>Todas</Button>
-          {categories.map(([id, name]) => <Button key={id} type="button" size="sm" variant={category === id ? "brand" : "secondary"} aria-pressed={category === id} onClick={() => setCategory(id)}>{name}</Button>)}
+          {categories.map(({ id, name }) => <Button key={id} type="button" size="sm" variant={category === id ? "brand" : "secondary"} aria-pressed={category === id} onClick={() => setCategory(id)}>{name}</Button>)}
         </div>}
 
         {error && <div role="alert" className="flex flex-col gap-3 rounded-[var(--g-radius-control)] bg-[var(--g-status-danger-soft)] p-4 text-sm text-[var(--g-status-danger-foreground)] sm:flex-row sm:items-center sm:justify-between"><span>{error}</span><button type="button" onClick={() => void loadInitial()} className="inline-flex min-h-11 items-center gap-2 font-semibold"><RefreshCw className="size-4" /> Tentar novamente</button></div>}
 
         {loading ? (
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Carregando catálogo">{Array.from({ length: 6 }, (_, index) => <Card key={index} className="animate-pulse p-5"><div className="h-40 rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)]" /><div className="mt-5 h-4 w-24 rounded bg-[var(--g-surface-subtle)]" /><div className="mt-3 h-6 w-3/4 rounded bg-[var(--g-surface-subtle)]" /><div className="mt-5 h-8 w-28 rounded bg-[var(--g-surface-subtle)]" /></Card>)}</section>
-        ) : filteredProducts.length === 0 ? (
-          <Card className="p-10 text-center"><PackageSearch className="mx-auto size-11 text-[var(--g-text-muted)]" /><h2 className="mt-4 text-lg font-semibold">{products.length === 0 ? "Catálogo em preparação" : "Nenhum produto encontrado"}</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--g-text-secondary)]">{products.length === 0 ? "Ainda não há produtos publicados. Volte mais tarde para conferir as novidades." : "Revise a busca ou tente pelo nome da categoria."}</p></Card>
+        ) : products.length === 0 ? (
+          <Card className="p-10 text-center"><PackageSearch className="mx-auto size-11 text-[var(--g-text-muted)]" /><h2 className="mt-4 text-lg font-semibold">{!filtering ? "Catálogo em preparação" : "Nenhum produto encontrado"}</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--g-text-secondary)]">{!filtering ? "Ainda não há produtos publicados. Volte mais tarde para conferir as novidades." : "Revise a busca ou tente pelo nome da categoria."}</p></Card>
         ) : (
           <div className={canReserve ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start" : undefined}><div className="space-y-6">
             <section className={`grid gap-4 sm:grid-cols-2 ${canReserve ? "xl:grid-cols-2" : "xl:grid-cols-3"}`} aria-label="Produtos do catálogo">
-              {filteredProducts.map((product) => <Card key={product.id} className="group overflow-hidden">{product.images[0] ? <div role="img" aria-label={product.images[0].altText} className="h-40 bg-cover bg-center transition-transform group-hover:scale-[1.02]" style={{ backgroundImage: `url(${JSON.stringify(product.images[0].publicUrl)})` }} /> : <div className="flex h-40 items-center justify-center bg-[var(--g-surface-subtle)]"><ShoppingBag className="size-12 text-[var(--g-brand-primary)] transition-transform group-hover:scale-105" /></div>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">{product.category.name}</p><h2 className="mt-1 text-lg font-semibold">{product.name}</h2></div><div className="flex flex-col items-end gap-1">{product.reservable && <Badge tone="info">Reservável</Badge>}{product.portalAvailable !== undefined && <Badge tone={product.portalAvailable ? "success" : "neutral"}>{product.portalAvailable ? "Disponível" : "Indisponível"}</Badge>}</div></div><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-[var(--g-text-secondary)]">{product.description ?? "Produto disponível no catálogo Germinatura."}</p><div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-xs text-[var(--g-text-muted)]">Preço atual</p><p className="g-money mt-1 text-2xl font-bold">{money.format(product.price.amountCents / 100)}</p></div><p className="text-xs text-[var(--g-text-muted)]">{product.sku}</p></div>{product.portalAvailable === false && <Button type="button" variant="secondary" className="mt-4 w-full" loading={alertBusy === product.id} disabled={alertBusy !== null} aria-pressed={alerts.has(product.id)} onClick={() => void toggleAlert(product.id)}>{alerts.has(product.id) ? <><BellRing className="size-4" />Aviso ativado</> : <><Bell className="size-4" />Avise-me quando voltar</>}</Button>}{canReserve && product.reservable && product.portalAvailable !== false && <Button type="button" variant={cart[product.id] ? "secondary" : "brand"} className="mt-4 w-full" aria-label={`Adicionar ${product.name} à reserva`} onClick={() => setQuantity(product.id, (cart[product.id] ?? 0) + 1)}><Plus className="size-4" />{cart[product.id] ? `Na reserva (${cart[product.id]})` : "Adicionar à reserva"}</Button>}</div></Card>)}
+              {products.map((product) => <Card key={product.id} className="group overflow-hidden">{product.images[0] ? <div role="img" aria-label={product.images[0].altText} className="h-40 bg-cover bg-center transition-transform group-hover:scale-[1.02]" style={{ backgroundImage: `url(${JSON.stringify(product.images[0].publicUrl)})` }} /> : <div className="flex h-40 items-center justify-center bg-[var(--g-surface-subtle)]"><ShoppingBag className="size-12 text-[var(--g-brand-primary)] transition-transform group-hover:scale-105" /></div>}<div className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-[var(--g-text-muted)]">{product.category.name}</p><h2 className="mt-1 text-lg font-semibold">{product.name}</h2></div><div className="flex flex-col items-end gap-1">{product.reservable && <Badge tone="info">Reservável</Badge>}{product.portalAvailable !== undefined && <Badge tone={product.portalAvailable ? "success" : "neutral"}>{product.portalAvailable ? "Disponível" : "Indisponível"}</Badge>}</div></div><p className="mt-3 line-clamp-2 min-h-10 text-sm leading-5 text-[var(--g-text-secondary)]">{product.description ?? "Produto disponível no catálogo Germinatura."}</p><div className="mt-5 flex items-end justify-between gap-3"><div><p className="text-xs text-[var(--g-text-muted)]">Preço atual</p><p className="g-money mt-1 text-2xl font-bold">{money.format(product.price.amountCents / 100)}</p></div><p className="text-xs text-[var(--g-text-muted)]">{product.sku}</p></div>{product.portalAvailable === false && <Button type="button" variant="secondary" className="mt-4 w-full" loading={alertBusy === product.id} disabled={alertBusy !== null} aria-pressed={alerts.has(product.id)} onClick={() => void toggleAlert(product.id)}>{alerts.has(product.id) ? <><BellRing className="size-4" />Aviso ativado</> : <><Bell className="size-4" />Avise-me quando voltar</>}</Button>}{canReserve && product.reservable && product.portalAvailable !== false && <Button type="button" variant={cart[product.id] ? "secondary" : "brand"} className="mt-4 w-full" aria-label={`Adicionar ${product.name} à reserva`} onClick={() => setQuantity(product.id, (cart[product.id] ?? 0) + 1)}><Plus className="size-4" />{cart[product.id] ? `Na reserva (${cart[product.id]})` : "Adicionar à reserva"}</Button>}</div></Card>)}
             </section>
             {nextCursor && <div className="flex justify-center"><Button variant="secondary" loading={loadingMore} onClick={() => void loadMore()}>Carregar mais produtos</Button></div>}
           </div>{canReserve && <aside className="lg:sticky lg:top-6"><ReservationCart lines={cartLines} onQuantity={setQuantity} onClear={() => { setCart({}); writeStoredCart(cohortId, {}); }} /></aside>}</div>

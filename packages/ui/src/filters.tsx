@@ -49,6 +49,16 @@ interface FilterShellProps<T> {
   children: (value: T, update: (patch: Partial<T>) => void) => ReactNode;
   /** Whether the inline panel starts open. Collapsing never clears values. */
   defaultExpanded?: boolean;
+  /**
+   * "live" (default): each inline change is in effect at once. "explicit": the inline panel is a form with its own draft
+   * and an apply button (screens whose query is costly or typed, such as audit searches). The sheet always applies on
+   * "Aplicar".
+   */
+  applyMode?: "live" | "explicit";
+  /** Label of the inline apply button in "explicit" mode. */
+  applyLabel?: string;
+  /** In "explicit" mode, the apply button shows progress and waits (a query in flight). */
+  applying?: boolean;
   /** Accessible name of the panel and title of the sheet. */
   title?: string;
   className?: string;
@@ -62,7 +72,7 @@ interface FilterShellProps<T> {
  */
 export function FilterShell<T>({
   value, onChange, emptyValue, activeFilters, activeCount = activeFilters.length, onClearAll, children,
-  defaultExpanded = true, title = "Filtros", className,
+  defaultExpanded = true, title = "Filtros", className, applyMode = "live", applyLabel = "Aplicar filtros", applying = false,
 }: FilterShellProps<T>) {
   const id = useId();
   const panelId = `${id}-panel`;
@@ -80,6 +90,14 @@ export function FilterShell<T>({
     const next = { ...latest.current, ...patch };
     latest.current = next;
     onChange(next);
+  }
+
+  // "explicit" mode: the inline panel edits a draft of the filters in effect. When the filters in effect change from
+  // outside (a chip, "Limpar filtros", an apply), the draft starts again from them.
+  const [inlineDraft, setInlineDraft] = useState({ base: value, draft: value });
+  const inlineValue = inlineDraft.base === value ? inlineDraft.draft : value;
+  function updateInlineDraft(patch: Partial<T>) {
+    setInlineDraft((current) => ({ base: value, draft: { ...(current.base === value ? current.draft : value), ...patch } }));
   }
 
   useEffect(() => {
@@ -132,10 +150,23 @@ export function FilterShell<T>({
         {activeFilters.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={onClearAll}>Limpar filtros</Button>}
       </div>
 
-      {inline !== false && (
+      {inline !== false && applyMode === "live" && (
         <div id={panelId} role="group" aria-label={title} className="g-filter-shell__panel" hidden={!expanded}>
           {children(value, updateInline)}
         </div>
+      )}
+      {inline !== false && applyMode === "explicit" && (
+        <form
+          id={panelId}
+          aria-label={title}
+          className="g-filter-shell__panel g-filter-shell__form"
+          hidden={!expanded}
+          // A new object even when nothing changed: applying again repeats the query (fresh results).
+          onSubmit={(event) => { event.preventDefault(); onChange({ ...inlineValue }); }}
+        >
+          {children(inlineValue, updateInlineDraft)}
+          <div className="g-filter-shell__actions"><Button type="submit" loading={applying}>{applyLabel}</Button></div>
+        </form>
       )}
 
       {draft !== null && (
