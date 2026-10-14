@@ -22,7 +22,14 @@ test("H2a: barra de revisão fixa em 320, 360 e 390 px e resumo lateral no deskt
         const box = await bar.boundingBox();
         expect(Math.round((box?.y ?? 0) + (box?.height ?? 0)), `${label} ${position}`).toBe(viewport.height);
       }
-      expect(await page.evaluate(() => document.documentElement.scrollWidth), `${label}: sem rolagem horizontal`).toBeLessThanOrEqual(viewport.width);
+      // On failure, name what goes past the screen (regions made to scroll, like the tab bar, are left out).
+      const overflow = await page.evaluate(() => ({
+        width: document.documentElement.scrollWidth,
+        offenders: [...document.querySelectorAll("body *")].filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1
+          && !element.closest("nav, [class*=overflow-x]")).slice(0, 6)
+          .map((element) => `${element.tagName.toLowerCase()}.${String(element.className).slice(0, 80)} right=${Math.round(element.getBoundingClientRect().right)}`),
+      }));
+      expect(overflow.width, `${label}: sem rolagem horizontal ${JSON.stringify(overflow.offenders)}`).toBeLessThanOrEqual(viewport.width);
       await page.getByRole("button", { name: `Remover uma unidade de ${kinder.name}` }).click();
       await expect(bar, label).toHaveCount(0);
     }
