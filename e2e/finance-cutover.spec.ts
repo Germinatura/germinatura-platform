@@ -30,8 +30,9 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
   ]) expect((await request).status()).toBeLessThan(500);
 
   // Opening position, through the screen on a fresh database; a database that already has one keeps it.
+  type OpeningAccounts = { PICPAY_EMPRESAS: number; COFRINHO_PICPAY: number; RECEBIVEIS_PICPAY: number; DINHEIRO_FISICO: number };
   const existing = await (await page.request.get(`${portalUrl}/api/v1/admin/finance/opening-position`)).json() as {
-    data: { current: { asOf: string; operatingSince: string } | null };
+    data: { current: { version: number; asOf: string; operatingSince: string; accounts: OpeningAccounts } | null };
   };
   await page.goto(`${portalUrl}/admin/financeiro/saldo`);
   const opening = page.getByRole("region", { name: "Posição de abertura" });
@@ -46,10 +47,17 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
     await opening.getByRole("button", { name: "Registrar abertura" }).click();
     await expect(page.getByText("Posição de abertura registrada (versão 1).")).toBeVisible();
   }
-  await expect(opening.getByText(brl(11_178)).first()).toBeVisible();
   const position = (await (await page.request.get(`${portalUrl}/api/v1/admin/finance/opening-position`)).json() as {
-    data: { current: { asOf: string; operatingSince: string } };
+    data: { current: { version: number; asOf: string; operatingSince: string; accounts: OpeningAccounts } };
   }).data.current;
+  // Values this test typed when it recorded the opening; otherwise the opening another suite recorded stays untouched.
+  if (existing.data.current) expect(position).toEqual(existing.data.current);
+  else expect(position).toMatchObject({ version: 1, accounts: { PICPAY_EMPRESAS: 5_000_000, COFRINHO_PICPAY: 11_178, RECEBIVEIS_PICPAY: 0, DINHEIRO_FISICO: 0 } });
+  // The screen shows the current version with exactly the recorded amounts.
+  const shown = (term: string) => opening.locator("dt", { hasText: new RegExp(`^${term}$`) }).locator("xpath=following-sibling::dd[1]");
+  await expect(shown("Abertura")).toContainText(`(versão ${position.version})`);
+  await expect(shown("Saldo livre")).toHaveText(brl(position.accounts.PICPAY_EMPRESAS));
+  await expect(shown("Cofrinho")).toHaveText(brl(position.accounts.COFRINHO_PICPAY));
   const historyDay = position.asOf;
   expect(historyDay < position.operatingSince).toBe(true);
   // A second opening is never recorded by accident.
@@ -145,8 +153,11 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
   await page.goto(`${portalUrl}/admin/financeiro/saldo`);
   const summary = page.getByRole("region", { name: "Saldo financeiro" });
   await expect(summary.getByText("Saldo livre", { exact: true })).toBeVisible({ timeout: 90_000 });
-  await expect(summary.getByText("Cofrinho", { exact: true })).toBeVisible();
-  await expect(summary.getByText(brl(balances.availableBalanceCents))).toBeVisible();
+  // Each figure next to its own label: free and total can coincide when the Cofrinho is zero.
+  const figure = (term: string) => summary.locator("dt", { hasText: new RegExp(`^${term}$`) }).locator("xpath=following-sibling::dd[1]");
+  await expect(figure("Saldo livre")).toHaveText(brl(balances.freeBalanceCents));
+  await expect(figure("Cofrinho")).toHaveText(brl(balances.vaultBalanceCents));
+  await expect(figure("Saldo financeiro total")).toHaveText(brl(balances.availableBalanceCents));
   await expect(page.getByRole("region", { name: "A receber" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Dinheiro físico" })).toBeVisible();
   const check = page.getByRole("region", { name: "Conferência de saldo" });

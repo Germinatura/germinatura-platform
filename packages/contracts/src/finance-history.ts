@@ -129,7 +129,8 @@ export const financeOverviewSchema = z.object({
     historicalAdjustmentsCents: cents,
     historicalCents: cents.nullable(),
     nativeCents: cents.nullable(),
-    historicalAdjustments: z.record(financeResultComponentSchema, z.object({ resultEffectCents: cents, componentEffectCents: cents }).strict()),
+    // Only the components with adjustments in the window appear (a period without any is an empty map).
+    historicalAdjustments: z.partialRecord(financeResultComponentSchema, z.object({ resultEffectCents: cents, componentEffectCents: cents }).strict()),
     presentation: z.object({
       operatingRevenuePresentedCents: cents,
       technicalCutoverCounterpartsCents: cents,

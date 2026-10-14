@@ -4,7 +4,7 @@
 -- Reference case (Mariana): Pix of R$ 680,00 classified as supplier, technical counterpart of R$ 570,50, historical CMV of
 -- R$ 570,50 (2 units bought for R$ 285,25 each and written off by a negative count adjustment).
 begin;
-select plan(82);
+select plan(83);
 
 create function pg_temp.ctx(p_user uuid, p_header text) returns void language plpgsql as $$
 begin
@@ -60,6 +60,8 @@ create function pg_temp.designate(p_counterpart text, p_line text, p_expense tex
 
 -- Setup: native operation starts in two days, so everything below is history (as in the real cutover).
 select pg_temp.ctx(pg_temp.admin(), pg_temp.a()::text);
+select throws_ok($$select public.finance_overview(pg_temp.today() - 1, pg_temp.today())$$, 'P0001', 'OPENING_POSITION_REQUIRED',
+  'the overview needs the opening position: it never answers with invented zeros');
 select public.record_finance_opening_position(pg_temp.today() - 40, pg_temp.today() + 2, 0, 0, 0, 0, 'Abertura do teste E', null, null, 'e-open', gen_random_uuid());
 create temp table supplier as select public.save_supplier(null, null, 'Fornecedor E', 'Equipe', null, null, null, null, true, 'Fornecedor do teste E', 'e-supplier', gen_random_uuid()) result;
 create temp table purchase as select public.create_purchase_order((select (result ->> 'id')::uuid from supplier), pg_temp.today(), null, 0, 0, 'PIX', null, null,

@@ -1170,6 +1170,11 @@ begin
   end if;
   v_as_of := least(p_to, v_today);
   v_since := (select operating_since from private.current_finance_opening_position());
+  -- The position, the goal and the result → cash bridge all start at the opening position: without one there is no
+  -- overview to show (a known state of the domain, not an unavailable service).
+  if v_since is null then
+    raise exception using errcode = 'P0001', message = 'OPENING_POSITION_REQUIRED';
+  end if;
   v_indicators := private.compute_management_indicators(p_from, p_to);
   -- Result by origin: before native operation (reconstructed history) and from it on.
   if v_since is not null and v_since > p_from and v_since <= p_to then
