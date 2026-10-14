@@ -38,7 +38,7 @@ import { PaymentLinkPanel, PaymentLinkSuccess } from "@/components/operations/Pa
 import { SurchargePanel, useSurcharge, type SurchargeState } from "@/components/operations/SurchargePanel";
 import {
   cancelPendingSale, cashChange, checkoutCart, confirmCashPayment, confirmManualPayment, formatMoney, loadCatalog, parseMoneyInput,
-  loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminals, quoteCart, type CartItem, type InventoryContext,
+  loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminalChoice, quoteCart, terminalOptionLabel, type CartItem, type InventoryContext,
 } from "@/lib/operations";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { activeSaleFilterCount, availableBound, emptySaleCatalogFilters, filterSaleCatalog, salePriceBound, type SaleCatalogFilters } from "@/lib/catalog-filters";
@@ -175,7 +175,11 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     const result = await checkoutCart(locationId, cart, checkoutKey.current, couponCode.trim() || undefined);
     setCheckout(result); setQuote(result.quote); setStep("payment"); window.scrollTo({ top: 0, behavior: "smooth" });
     // The server still enforces the terminal rule; a failed load only hides the picker.
-    void loadPaymentTerminals().then(setTerminals, () => setTerminals([]));
+    void loadPaymentTerminalChoice().then(({ terminals: active, preferredId }) => {
+      setTerminals(active);
+      // H2b: preselect only when the seller has not picked one; it stays editable.
+      setTerminalId((current) => current || preferredId || "");
+    }, () => setTerminals([]));
     void surcharge.reload();
   });
   const confirmPayment = () => perform("confirm", async () => {
@@ -389,7 +393,7 @@ function PaymentStep(props: PaymentProps) {
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">É preciso ter um turno aberto.</strong> O dinheiro fica registrado no seu caixa e será conferido no fechamento do turno.</div></>
       : <>{card && <div className="mt-5 grid gap-4">
         <fieldset><legend className="text-sm font-semibold">Método do cartão</legend><div className="mt-2 grid grid-cols-2 gap-2">{cardMethods.map((method) => <button key={method.value} type="button" aria-pressed={props.cardMethod === method.value} onClick={() => props.onCardMethod(method.value)} className={`min-h-12 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${props.cardMethod === method.value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)] hover:bg-[var(--g-surface-hover)]"}`}>{method.label}</button>)}</div></fieldset>
-        {props.terminals.length > 0 && <Field id="payment-terminal" label="Maquininha usada"><select id="payment-terminal" value={props.terminalId} onChange={(event) => props.onTerminal(event.target.value)} className="g-input min-h-12 w-full"><option value="">Selecione a maquininha</option>{props.terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
+        {props.terminals.length > 0 && <Field id="payment-terminal" label="Maquininha usada"><select id="payment-terminal" value={props.terminalId} onChange={(event) => props.onTerminal(event.target.value)} className="g-input min-h-12 w-full"><option value="">Selecione a maquininha</option>{props.terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminalOptionLabel(terminal)}</option>)}</select></Field>}
       </div>}<SurchargePanel state={props.surcharge} baseCents={props.quote.totalCents} canWaive={props.canWaiveSurcharge} /><Field id="proof-reference" label="Referência não sensível do comprovante" description="Use o identificador da operação. Nunca informe número do cartão, CVV, senha ou token." className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} minLength={4} maxLength={128} autoComplete="off" placeholder="Ex.: COMPROVANTE-9F2A" /></Field>
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">Confirme fora do sistema antes de continuar.</strong> Esta tela não consulta automaticamente a Maquininha nem a Área Pix.</div></>}
     {!link && <Button variant="operation" size="lg" className="mt-5 w-full" onClick={props.onConfirm} loading={props.action === "confirm"} disabled={!props.online || !ready || props.action !== null}>{cash ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>}

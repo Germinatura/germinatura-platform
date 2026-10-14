@@ -827,11 +827,32 @@ export const paymentTerminalSchema = z.object({
   label: z.string().min(2).max(80),
   active: z.boolean(),
   updatedAt: z.iso.datetime({ offset: true }),
+  // H2b: with whom the terminal is in the request cohort (an operational preference, never exclusivity).
+  assignedTo: z.object({ id: z.uuid(), name: z.string() }).strict().nullable().optional(),
 }).strict();
 export type PaymentTerminal = z.infer<typeof paymentTerminalSchema>;
 
+/** H2b: the terminal the PDV preselects for the seller: assigned > last used > only active > none. */
+export const pdvTerminalPreferenceSchema = z.object({
+  terminalId: z.uuid().nullable(),
+  source: z.enum(["ASSIGNED", "LAST_USED", "ONLY_ACTIVE"]).nullable(),
+}).strict();
+export type PdvTerminalPreference = z.infer<typeof pdvTerminalPreferenceSchema>;
+
 export const paymentTerminalsResponseSchema = z.object({
   data: z.array(paymentTerminalSchema),
+  preference: pdvTerminalPreferenceSchema.optional(),
+  request_id: z.string().min(1),
+}).strict();
+
+export const assignPaymentTerminalRequestSchema = z.object({
+  assigneeId: z.uuid().nullable(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+export type AssignPaymentTerminalRequest = z.infer<typeof assignPaymentTerminalRequestSchema>;
+
+export const paymentTerminalAssigneesResponseSchema = z.object({
+  data: z.array(z.object({ id: z.uuid(), name: z.string(), username: z.string().nullable() }).strict()),
   request_id: z.string().min(1),
 }).strict();
 

@@ -285,11 +285,25 @@ export async function completePickup(
 
 /** Spec 6.7: active Maquininhas; when any exists the seller must name the one used. */
 export async function loadPaymentTerminals(): Promise<PaymentTerminal[]> {
+  return (await loadPaymentTerminalChoice()).terminals;
+}
+
+/**
+ * H2b: the active terminals with whom each one is, and the one to preselect for this seller, decided by the server
+ * (assigned > last used > only active > none). The seller can always pick another one.
+ */
+export async function loadPaymentTerminalChoice(): Promise<{ terminals: PaymentTerminal[]; preferredId: string | null }> {
   const response = await apiFetch("/api/v1/pdv/terminals");
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as maquininhas."));
   const parsed = paymentTerminalsResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("As maquininhas retornaram dados inválidos.");
-  return parsed.data.data;
+  const preferred = parsed.data.preference?.terminalId ?? null;
+  return { terminals: parsed.data.data, preferredId: preferred && parsed.data.data.some((terminal) => terminal.id === preferred) ? preferred : null };
+}
+
+/** The option text of a terminal: code, name and with whom it is (never a restriction). */
+export function terminalOptionLabel(terminal: PaymentTerminal) {
+  return `${terminal.code} · ${terminal.label}${terminal.assignedTo ? ` (com ${terminal.assignedTo.name})` : ""}`;
 }
 
 /** Spec 6.10: the seller's own sales, newest first, with the pending count for the tab badge. */
