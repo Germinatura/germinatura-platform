@@ -101,6 +101,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/sales/checkout", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/sales/:id/payments/pix-charge", methods: ["GET"], access: "seller" },
   { path: "/api/v1/sales/:id/payments/cash", methods: ["POST"], access: "seller" },
   { path: "/api/v1/pdv/raffles", methods: ["GET"], access: "seller" },
   { path: "/api/v1/pdv/raffles/buyer", methods: ["GET"], access: "seller" },
@@ -283,6 +284,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/sales/:id/payments/manual-confirmation") {
       return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/manual-confirmation$/i.test(path);
+    }
+    if (rule.path === "/api/v1/sales/:id/payments/pix-charge") {
+      return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/pix-charge$/i.test(path);
     }
     if (rule.path === "/api/v1/sales/:id/payments/cash") {
       return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/cash$/i.test(path);
