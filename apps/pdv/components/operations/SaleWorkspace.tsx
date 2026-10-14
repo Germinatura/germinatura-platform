@@ -351,9 +351,10 @@ function ReviewBar(props: Pick<CatalogProps, "itemCount" | "previewTotal" | "onl
 function CatalogStep(props: CatalogProps) {
   const filtered = props.catalog.length !== props.totalProducts;
   // The fixed bar never covers the last products or the summary: the page reserves its height below them.
-  return <div className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] ${props.itemCount > 0 ? "max-lg:pb-28" : ""}`}>
+  // One explicit minmax(0,1fr) column on phones: a long product name in the summary never widens the page.
+  return <div className={`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] ${props.itemCount > 0 ? "max-lg:pb-28" : ""}`}>
     {props.itemCount > 0 && <ReviewBar itemCount={props.itemCount} previewTotal={props.previewTotal} online={props.online} action={props.action} onReview={props.onReview} />}
-    <section aria-label="Catálogo">
+    <section aria-label="Catálogo" className="min-w-0">
       <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
         <label className="block min-w-0"><span className="sr-only">Buscar produtos</span><InputGroup icon={<Search />}><Input value={props.query} onChange={(event) => props.onQuery(event.target.value)} placeholder="Buscar produto, categoria ou SKU" /></InputGroup></label>
         {props.locations.length > 1 && <label><span className="sr-only">Localização da venda</span><select value={props.locationId} onChange={(event) => props.onLocation(event.target.value)} className="min-h-11 w-full rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] bg-[var(--g-surface-default)] px-4 focus-visible:outline-3 focus-visible:outline-[var(--g-focus-ring)]">{props.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}
@@ -372,7 +373,7 @@ function CatalogStep(props: CatalogProps) {
           </Card>;
         })}</div>}
     </section>
-    <aside className="lg:sticky lg:top-24 lg:self-start"><Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5"><h2 className="font-semibold">Resumo</h2><p className="mt-1 text-sm text-[var(--g-text-muted)]">{props.itemCount === 0 ? "Carrinho vazio" : `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`}</p></div><div className="space-y-3 p-5">
+    <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start"><Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5"><h2 className="font-semibold">Resumo</h2><p className="mt-1 text-sm text-[var(--g-text-muted)]">{props.itemCount === 0 ? "Carrinho vazio" : `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`}</p></div><div className="space-y-3 p-5">
       {props.cart.length === 0 ? <p className="py-4 text-center text-sm text-[var(--g-text-muted)]">Adicione um produto para iniciar.</p> : props.cart.map((item) => <div key={item.product.id} className="flex justify-between gap-3 text-sm"><span className="min-w-0 truncate text-[var(--g-text-secondary)]">{item.quantity}× {item.product.name}</span><span className="g-money shrink-0 font-semibold">{formatMoney(item.product.price.amountCents * item.quantity)}</span></div>)}
       <div className="flex items-baseline justify-between border-t border-[var(--g-border-subtle)] pt-4"><span className="text-sm text-[var(--g-text-secondary)]">Prévia</span><span className="g-money text-xl font-bold">{formatMoney(props.previewTotal)}</span></div><p className="text-xs leading-5 text-[var(--g-text-muted)]">O servidor recalcula preços e promoções na próxima etapa.</p><Button variant="brand" size="lg" className="w-full" onClick={props.onReview} loading={props.action === "quote"} disabled={!props.online || props.cart.length === 0}>Revisar venda</Button>
     </div></Card></aside>
