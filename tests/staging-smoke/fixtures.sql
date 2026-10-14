@@ -104,7 +104,8 @@ begin
   v_result := public.save_catalog_category(null, null, 'Smoke ' || p_run, 'smoke-' || p_run, true, 990, 'Smoke automatizado do PDV', 'smoke:' || p_run || ':category', gen_random_uuid());
   v_category := (v_result ->> 'id')::uuid;
   foreach v_result in array array[
-    jsonb_build_object('key', 'kinder', 'name', 'Brownie Kinder ' || p_run, 'price', 2590),
+    -- A long name on purpose: the phone layout must hold it (it once widened the PDV catalog at 320 px).
+    jsonb_build_object('key', 'kinder', 'name', 'Brownie Kinder Recheado com Creme de Avelã ' || p_run, 'price', 2590),
     jsonb_build_object('key', 'ninho', 'name', 'Bolo Ninho ' || p_run, 'price', 1990)] loop
     v_order := public.save_catalog_product(null, null, v_category, 'smoke-' || p_run || '-' || (v_result ->> 'key'), v_result ->> 'name',
       null, true, false, false, false, false, 'Smoke automatizado do PDV', 'smoke:' || p_run || ':product:' || (v_result ->> 'key'), gen_random_uuid());
