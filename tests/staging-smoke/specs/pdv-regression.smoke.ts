@@ -43,6 +43,8 @@ test("PDV: dinheiro, crédito e débito com acréscimo D, remoção autorizada, 
     const denied = await confirmManual(sellerB_.request, deniedSale, { integrationChannel: "MAQUININHA", cardMethod: "DEBITO", terminalId: fixture.terminals.a.id, proofReference: reference("W0"),
       surchargeCents: 150, waiveSurcharge: true, surchargeWaiverReason: "Cliente reclamou do valor" }, "waive-denied");
     expect(denied.status(), await denied.text()).toBe(403);
+    // The refused sale is cancelled: no reservation stays open.
+    expect((await sellerB_.request.post(`/api/v1/sales/${deniedSale}/cancel`, { headers: { "Idempotency-Key": key("waive-denied-cancel") } })).status()).toBe(200);
     await sellerB_.context.close();
     const adminSale = await checkout(adminPdv.request, fixture.central, kinder.id, "waive");
     const waived = await confirmManual(adminPdv.request, adminSale, { integrationChannel: "MAQUININHA", cardMethod: "DEBITO", terminalId: fixture.terminals.a.id, proofReference: reference("W1"),
