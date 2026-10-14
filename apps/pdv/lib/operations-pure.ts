@@ -26,6 +26,18 @@ export function parseMoneyInput(value: string): number | null {
   return Number.isSafeInteger(cents) ? cents : null;
 }
 
+/**
+ * H2c: what is wrong with a typed external reference, or null when it can be sent. Empty is fine (the reference is
+ * optional and never invented); a typed one follows the server's non-sensitive format, never card data.
+ */
+export function proofReferenceProblem(value: string): string | null {
+  const typed = value.trim();
+  if (!typed) return null;
+  if (/[0-9]{12,}/.test(typed)) return "Não informe número do cartão: use só um identificador do comprovante.";
+  if (typed.length < 4 || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/.test(typed)) return "Use de 4 a 128 letras, números, ponto, hífen, dois-pontos ou barra.";
+  return null;
+}
+
 /** Change for a cash payment, or null while the tendered amount does not cover the total. */
 export function cashChange(totalCents: number, tenderedCents: number | null): number | null {
   return tenderedCents === null || tenderedCents < totalCents ? null : tenderedCents - totalCents;

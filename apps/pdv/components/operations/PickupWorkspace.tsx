@@ -6,7 +6,7 @@ import { AlertTriangle, Banknote, CircleCheck, Clock, CreditCard, Search, Wallet
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SurchargePanel, useSurcharge } from "@/components/operations/SurchargePanel";
 import { useToast } from "@/components/ui/Toast";
-import { cashChange, completePickup, deliverPaidPickup, formatMoney, loadDisabledFeatures, loadPaymentTerminals, loadPickups, parseMoneyInput } from "@/lib/operations";
+import { cashChange, completePickup, deliverPaidPickup, formatMoney, loadDisabledFeatures, loadPaymentTerminals, loadPickups, parseMoneyInput, proofReferenceProblem } from "@/lib/operations";
 
 /** With registered Maquininhas, the operator must name the one used. */
 const terms = (terminals: PaymentTerminal[], terminalId: string) => terminals.length === 0 || terminalId !== "";
@@ -57,7 +57,7 @@ export function PickupWorkspace({ online, canWaiveSurcharge }: { online: boolean
     cardMethod: channel === "MAQUININHA" ? cardMethod : null,
     terminalId: channel === "MAQUININHA" && terminalId ? terminalId : null,
   });
-  const ready = payment.success && surcharge.ready && (channel === "DINHEIRO" ? change !== null : channel !== "MAQUININHA" || terms(terminals, terminalId));
+  const ready = payment.success && surcharge.ready && (channel === "DINHEIRO" ? change !== null : proofReferenceProblem(proof) === null && (channel !== "MAQUININHA" || terms(terminals, terminalId)));
 
   async function submit() {
     if (!selected || !online || !ready || !payment.success) return;
@@ -119,7 +119,7 @@ export function PickupWorkspace({ online, canWaiveSurcharge }: { online: boolean
         : <div className="mt-4 grid gap-4">
           {channel === "MAQUININHA" && <fieldset><legend className="text-sm font-semibold">Método do cartão</legend><div className="mt-2 grid grid-cols-2 gap-2">{([["CREDITO", "Crédito"], ["DEBITO", "Débito"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={cardMethod === value} onClick={() => { setCardMethod(value); surcharge.reset(); }} className={`min-h-12 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${cardMethod === value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)]"}`}>{label}</button>)}</div></fieldset>}
           {channel === "MAQUININHA" && terminals.length > 0 && <Field id="pickup-terminal" label="Maquininha usada"><select id="pickup-terminal" className="g-input min-h-12 w-full" value={terminalId} onChange={(event) => setTerminalId(event.target.value)}><option value="">Selecione a maquininha</option>{terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
-          <Field id="pickup-proof" label="Referência não sensível do comprovante"><Input id="pickup-proof" maxLength={128} value={proof} onChange={(event) => setProof(event.target.value)} autoComplete="off" /></Field>
+          <Field id="pickup-proof" label="Referência externa (opcional)" description="Preencha apenas se houver um identificador útil no comprovante. Nunca informe número do cartão, CVV, senha ou token." error={proofReferenceProblem(proof) ?? undefined}><Input id="pickup-proof" maxLength={128} value={proof} onChange={(event) => setProof(event.target.value)} autoComplete="off" aria-invalid={proofReferenceProblem(proof) ? true : undefined} /></Field>
         </div>}
       <SurchargePanel state={surcharge} baseCents={selected.totalCents} canWaive={canWaiveSurcharge} />
       <div className="mt-5 grid gap-2 sm:grid-cols-2">
