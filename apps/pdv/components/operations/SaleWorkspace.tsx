@@ -329,9 +329,26 @@ function SaleCatalogFilterShell({ filters, onFilters, categories }: Pick<Catalog
   </FilterShell>;
 }
 
+/**
+ * Phones and tablets: with items in the cart, a bar fixed to the bottom keeps the count, the preview and "Revisar venda"
+ * in reach while scrolling a long catalog. Desktops keep the sticky summary beside the products instead.
+ */
+function ReviewBar(props: Pick<CatalogProps, "itemCount" | "previewTotal" | "online" | "action" | "onReview">) {
+  const label = `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`;
+  return <div role="region" aria-label="Venda em andamento" data-testid="review-bar"
+    className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--g-border-subtle)] bg-[var(--g-surface-default)] px-[max(1rem,env(safe-area-inset-left))] pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[var(--g-shadow-raised)] lg:hidden">
+    <div className="mx-auto flex max-w-[var(--g-content-wide)] items-center justify-between gap-3">
+      <p className="min-w-0 text-sm" aria-live="polite"><span className="font-semibold">{label}</span><span className="text-[var(--g-text-muted)]"> · </span><span className="g-money font-bold">{formatMoney(props.previewTotal)}</span>{!props.online && <span className="block text-xs text-[var(--g-status-warning-foreground)]">Sem conexão: revise quando voltar.</span>}</p>
+      <Button variant="brand" onClick={props.onReview} loading={props.action === "quote"} disabled={!props.online}>Revisar venda</Button>
+    </div>
+  </div>;
+}
+
 function CatalogStep(props: CatalogProps) {
   const filtered = props.catalog.length !== props.totalProducts;
-  return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+  // The fixed bar never covers the last products or the summary: the page reserves its height below them.
+  return <div className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] ${props.itemCount > 0 ? "max-lg:pb-28" : ""}`}>
+    {props.itemCount > 0 && <ReviewBar itemCount={props.itemCount} previewTotal={props.previewTotal} online={props.online} action={props.action} onReview={props.onReview} />}
     <section aria-label="Catálogo">
       <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
         <label className="block min-w-0"><span className="sr-only">Buscar produtos</span><InputGroup icon={<Search />}><Input value={props.query} onChange={(event) => props.onQuery(event.target.value)} placeholder="Buscar produto, categoria ou SKU" /></InputGroup></label>

@@ -63,6 +63,7 @@ next-env.d.ts
 
 playwright-report/
 test-results/
+smoke-results.json
 supabase/.branches/
 supabase/.temp/
 supabase/.env

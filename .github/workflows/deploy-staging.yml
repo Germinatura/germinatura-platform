@@ -21,6 +21,10 @@ on:
         description: Fixed total rate for D in requests per second, same mix (empty keeps the unthrottled soak)
         type: string
         default: ""
+      e0_attribution_smoke:
+        description: Run the E0 PicPay attribution smoke instead of a deploy (activates PicPay isolation in staging for good; tools/smoke/e0-picpay-staging.mjs)
+        type: boolean
+        default: false
 
 concurrency:
   group: germinatura-staging
@@ -32,7 +36,7 @@ permissions:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'push' || inputs.load_scenarios == '' }}
+    if: ${{ github.event_name == 'push' || (inputs.load_scenarios == '' && !inputs.e0_attribution_smoke) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment:
@@ -129,6 +133,53 @@ jobs:
           test "$status" = "200"
           jq -e '.ok == true' result.json > /dev/null
 
+  # Automated PDV smokes (H1/H2/D) right after every staging deploy (tests/staging-smoke). Synthetic people and data in
+  # the "smoke-pdv" cohort, real sessions against the staging Workers, manual confirmations only (nothing is charged);
+  # the run's data is retired at the end and the job fails if anything is left active. No personal credential is used:
+  # the people are created by the job with a password generated here and never printed.
+  smoke:
+    needs: deploy
+    if: ${{ github.event_name == 'push' || inputs.load_scenarios == '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+    permissions:
+      contents: read
+    env:
+      SMOKE_TARGET: staging
+      LOAD_PORTAL_URL: ${{ vars.NEXT_PUBLIC_PORTAL_URL }}
+      LOAD_PDV_URL: ${{ vars.NEXT_PUBLIC_PDV_URL }}
+      LOAD_SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+      LOAD_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      LOAD_SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      LOAD_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm i -g pnpm@11.19.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run the PDV smokes against staging
+        env:
+          SMOKE_STATE_FILE: ${{ runner.temp }}/smoke-state.json
+        run: pnpm exec playwright test -c playwright.smoke.config.ts
+      - name: Smoke summary
+        if: always()
+        run: |
+          if [ -f smoke-results.json ]; then
+            jq -r '"PASS \(.stats.expected) · FAIL \(.stats.unexpected) · SKIP \(.stats.skipped)"' smoke-results.json >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.. | objects | select(has("title") and has("tests")) | .title as $title | .tests[] | "- \($title): \(.results[-1].status)"' smoke-results.json >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: staging-smoke-results
+          path: smoke-results.json
+          if-no-files-found: ignore
+
   # Stability, load and soak homologation (docs/operations/stability-report.md), only when dispatched with
   # load_scenarios. The harness refuses any host but the staging Workers and prepares its own isolated data.
   load:
@@ -190,3 +241,32 @@ jobs:
             # Also in the job log, which can be read without signing in to GitHub.
             { echo "### $(dirname "$file" | xargs basename)"; echo '```json'; cat "$file"; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
           done
+
+  # E0 operational smoke (docs in tools/smoke/e0-picpay-staging.mjs), only when dispatched with e0_attribution_smoke on
+  # develop. Synthetic accounts and files, real Portal sessions; the script refuses any project but staging
+  # (ttupvkygtkfspkgfihbl) and any host but the staging Workers, and activates isolation only after steps 1–6 pass with no
+  # unassigned PicPay evidence of unproven ownership. Nothing to install: Node 22 only.
+  e0-smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.e0_attribution_smoke && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+    permissions:
+      contents: read
+    env:
+      LOAD_TARGET: staging
+      LOAD_PORTAL_URL: ${{ vars.NEXT_PUBLIC_PORTAL_URL }}
+      LOAD_PDV_URL: ${{ vars.NEXT_PUBLIC_PDV_URL }}
+      LOAD_SUPABASE_PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+      LOAD_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      LOAD_SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      LOAD_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      LOAD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Run the E0 smoke
+        run: node tools/smoke/e0-picpay-staging.mjs
