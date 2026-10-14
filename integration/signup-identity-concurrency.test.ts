@@ -100,6 +100,10 @@ it("two verifies of the same valid code and racing materializations create exact
   expect(sessions.length).toBeGreaterThanOrEqual(1);
   expect(domainRows(email)).toBe("0,0,0");
   const results = await Promise.all(sessions.flatMap((token) => [1, 2, 3].map(() => rpc("materialize_my_signup_identity", { p_correlation_id: randomUUID() }, token))));
+  // DIAGNOSTIC (never merged): safe facts of every call that is not 200 (status and error code/message only).
+  const notOk = results.filter((result) => result.status !== 200).map((result) => ({ status: result.status,
+    code: String(result.body.code ?? ""), message: String(result.body.message ?? "").replace(/[\w.+-]+@[\w.-]+/g, "<email>").slice(0, 160) }));
+  console.log(`A1 ORIGINAL ${JSON.stringify({ sessions: sessions.length, verifies: verifies.map((v) => v.status), notOk })}`);
   expect(results.every((result) => result.status === 200)).toBe(true);
   expect(results.filter((result) => result.body.created === true)).toHaveLength(1);
   expect(domainRows(email)).toBe("1,1,1");
