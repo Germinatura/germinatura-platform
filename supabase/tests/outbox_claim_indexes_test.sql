@@ -2,6 +2,7 @@
 -- every minute reach their rows through partial indexes instead of reading every published event.
 begin;
 select plan(5);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 insert into public.outbox_events (topic, aggregate_type, aggregate_id, payload, status, attempts, published_at, created_at, available_at)
 select 'sales.created', 'sale', gen_random_uuid()::text, '{}'::jsonb, 'PUBLISHED', 1, now() - g * interval '1 second',
@@ -17,8 +18,8 @@ begin
 end;
 $$;
 
-select has_index('public', 'outbox_events', 'outbox_events_processing_lease_idx', 'expired leases are found by index');
-select has_index('public', 'outbox_events', 'outbox_events_failed_idx', 'failed events are counted by index');
+select has_index('cohort_data', 'outbox_events', 'outbox_events_processing_lease_idx', 'expired leases are found by index');
+select has_index('cohort_data', 'outbox_events', 'outbox_events_failed_idx', 'failed events are counted by index');
 select ok(pg_temp.plan_of($$select id from public.outbox_events
   where ((status = 'PENDING' and available_at <= now()) or (status = 'PROCESSING' and locked_at < now() - interval '300 seconds'))
   order by available_at, created_at for update skip locked limit 100$$) !~ 'Seq Scan',

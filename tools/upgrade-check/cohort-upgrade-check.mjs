@@ -1,0 +1,132 @@
+#!/usr/bin/env node
+// Cohort upgrade check (ADR 0011, docs/operations/cohort-cutover-runbook.md). LOCAL/CI ONLY.
+//
+// Proves what production will go through: the schema before the cohort migrations, populated through the real RPCs,
+// is upgraded by the new migrations, and every pre-existing row survives unchanged and attributed to Turma 2026.
+//
+//   1. reset the local database to the last migration before the cohorts (--base);
+//   2. populate it: rich synthetic dataset (sales, payments, cash, stock, procurement, reservations, raffles...) plus
+//      the finance/PicPay fixture (opening position, three PicPay sources, reconciliation, manual entries, balance check);
+//   3. snapshot (read-only): per table, rows, hash over the pre-existing columns, per-row hashes, tuple versions,
+//      plus business totals;
+//   4. apply the pending migrations (supabase migration up) and time them;
+//   5. snapshot again over the same columns and compare: no table, column, row or value lost or changed, no tuple
+//      rewritten, only cohort_id added and only to the cohort-scoped tables;
+//   6. cohort assertions: integrity report clean, every scoped row in Turma 2026, every identity a member;
+//   7. re-run the re-runnable migrations and compare again (idempotency).
+//
+// Other modes, for the production runbook (no database access by this tool):
+//   --emit-sql [--columns=<before.json>] [--per-row]  prints the read-only snapshot SQL
+//   --compare=<before.json>,<after.json> [--live]     compares two snapshots; --live accepts rows added by traffic
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { fail as refuse, localTarget, psql, run as runStep } from "./local.mjs";
+import { cohortAssertions, compareUpgrade, renderComparison } from "./cohort-checks.mjs";
+import { BOOTSTRAP_COHORT_ID, columnsOf, compareSnapshots, snapshotSql } from "./snapshot.mjs";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, "..", "..");
+const option = (name, fallback = null) => {
+  const found = process.argv.find((arg) => arg === `--${name}` || arg.startsWith(`--${name}=`));
+  if (!found) return fallback;
+  return found.includes("=") ? found.slice(found.indexOf("=") + 1) : true;
+};
+const BASE = String(option("base", "20261018090000"));
+const DAYS = Number(option("days", "8"));
+const COHORT_MIGRATIONS_FROM = "20261019090000";
+
+const fail = (message) => refuse("upgrade-check", message);
+
+// ------------------------------------------------------------------------------------------------ offline modes
+const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
+if (option("emit-sql")) {
+  const columnsFile = option("columns");
+  process.stdout.write(`${snapshotSql({ columns: columnsFile ? columnsOf(readJson(columnsFile)) : null, perRow: Boolean(option("per-row")) })}\n`);
+  process.exit(0);
+}
+if (option("compare")) {
+  const [beforePath, afterPath] = String(option("compare")).split(",");
+  const before = readJson(beforePath);
+  const after = readJson(afterPath);
+  const expected = Object.fromEntries(Object.keys(after.tables).filter((name) => after.tables[name].current_columns.includes("cohort_id")
+    && !(before.tables[name]?.current_columns ?? []).includes("cohort_id")).map((name) => [name, ["cohort_id"]]));
+  const result = compareSnapshots(before, after, { expectedNewColumns: expected, allowNewRows: Boolean(option("live")) });
+  console.log(renderComparison("Comparação", result));
+  process.exit(result.ok ? 0 : 2);
+}
+
+const run = (label, command, args, env = {}) => runStep(root, label, command, args, { env }).ms;
+const snapshot = (target, options) => JSON.parse(psql(target, snapshotSql(options)));
+
+// ---------------------------------------------------------------------------------------------------------- main
+function main() {
+  const target = localTarget(root, "upgrade-check");
+  const migrations = readdirSync(join(root, "supabase", "migrations")).filter((name) => name.endsWith(".sql")).sort();
+  const pending = migrations.filter((name) => name.slice(0, 14) > BASE);
+  if (!pending.some((name) => name.startsWith(COHORT_MIGRATIONS_FROM))) fail(`nenhuma migration de turmas depois de ${BASE}.`);
+
+  run(`Banco local até ${BASE} (supabase db reset --version)`, process.execPath, [join(root, "tools", "run-supabase.mjs"), "db", "reset", "--version", BASE]);
+  const applied = psql(target, "select max(version) from supabase_migrations.schema_migrations;");
+  if (applied !== BASE) fail(`o reset parou em ${applied}, não em ${BASE}.`);
+  run(`Dataset sintético rico (${DAYS} dias)`, process.execPath, [join(root, "tools", "dev-seed", "rich-seed.mjs"), `--days=${DAYS}`], { DEVSEED_UPGRADE_CHECK: "1" });
+  console.log("\n▶ Financeiro e evidência PicPay");
+  psql(target, readFileSync(join(here, "fixtures", "finance-picpay.sql"), "utf8"));
+
+  console.log("\n▶ Snapshot antes");
+  const before = snapshot(target, { perRow: true });
+
+  const migrationMs = run(`Migrations pendentes (${pending.length})`, process.execPath, [join(root, "tools", "run-supabase.mjs"), "migration", "up", "--local"]);
+
+  console.log("\n▶ Snapshot depois");
+  const after = snapshot(target, { columns: columnsOf(before), perRow: true });
+  const { scoped, result: upgrade } = compareUpgrade(target, before, after, BASE);
+  const cohort = cohortAssertions(target);
+  // Full snapshot (cohort_id included) as the reference for the re-run.
+  const upgraded = snapshot(target, { perRow: true });
+
+  // Migrations run once (schema_migrations); once the tables sit behind their views the expansion DDL is no longer
+  // re-runnable by design. What must stay idempotent is the bootstrap data, re-applied here.
+  console.log("\n▶ Reexecução dos dados de bootstrap (idempotência)");
+  psql(target, `insert into public.cohorts (id, name, year, slug, status, is_default)
+      values ('${BOOTSTRAP_COHORT_ID}', 'Turma 2026', 2026, '2026', 'ACTIVE', true) on conflict (id) do nothing;
+    insert into public.user_cohorts (user_id, cohort_id, status, joined_at)
+      select profile.id, '${BOOTSTRAP_COHORT_ID}', 'ACTIVE', profile.created_at from public.profiles profile
+      on conflict (user_id, cohort_id) do nothing;`, ["-1"]);
+  const again = snapshot(target, { columns: columnsOf(upgraded), perRow: true });
+  const rerun = compareSnapshots(upgraded, again, { requireSameTuples: true });
+  const cohortAgain = cohortAssertions(target);
+
+  const ok = upgrade.ok && cohort.ok && rerun.ok && cohortAgain.ok;
+  const lines = [
+    `# Teste de upgrade das turmas — ${ok ? "APROVADO" : "REPROVADO"}`, "",
+    `- Base: ${BASE} (${before.migrations.length} migrations), dataset: ${DAYS} dias + fixture financeira/PicPay.`,
+    `- Migrations aplicadas: ${pending.join(", ")}.`,
+    `- Duração de \`supabase migration up\`: ${(migrationMs / 1000).toFixed(1)} s.`,
+    `- Tamanho do banco: ${before.database_bytes} → ${after.database_bytes} bytes.`,
+    `- Linhas no schema public antes: ${Object.values(before.tables).reduce((sum, table) => sum + table.rows, 0)}.`,
+    `- Tabelas classificadas: ${scoped.length}; linhas fora da Turma 2026 (nulos permitidos só em atribuição/log): ${cohort.attribution.reduce((sum, row) => sum + row.outside, 0)}.`,
+    `- Perfis/vínculos ativos na Turma 2026: ${cohort.membership.join("/")}.`,
+    `- Relatório de integridade: ${cohort.integrity.length} verificações, ${cohort.integrity.filter((row) => row.violations !== 0).length} com violação.`, "",
+    ...cohort.problems.map((problem) => `- ❌ ${problem}`),
+    renderComparison("Upgrade (antes → depois)", upgrade), "",
+    `### Reexecução dos inserts do bootstrap (Turma 2026 e vínculos): ${rerun.ok && cohortAgain.ok ? "OK, nada mudou" : "FALHOU"}`,
+    ...rerun.problems.map((problem) => `- ❌ ${problem}`), ...cohortAgain.problems.map((problem) => `- ❌ ${problem}`), "",
+  ];
+  const report = lines.join("\n");
+  const reportPath = option("report");
+  if (reportPath) writeFileSync(String(reportPath), report);
+  if (option("snapshots")) {
+    writeFileSync(join(String(option("snapshots")), "before.json"), JSON.stringify(before));
+    writeFileSync(join(String(option("snapshots")), "after.json"), JSON.stringify(after));
+  }
+  console.log(`\n${report}`);
+  if (!ok) process.exit(2);
+}
+
+try {
+  main();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}

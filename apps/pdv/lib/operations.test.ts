@@ -1,6 +1,6 @@
 import { publicCatalogProductSchema } from "@germinatura/contracts";
 import { describe, expect, it } from "vitest";
-import { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary } from "./operations-pure";
+import { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary, proofReferenceProblem } from "./operations-pure";
 
 const product = publicCatalogProductSchema.parse({
   id: "33f00000-0000-4000-8000-000000000001",
@@ -20,6 +20,15 @@ const product = publicCatalogProductSchema.parse({
 });
 
 describe("PDV operation helpers", () => {
+  it("takes the external reference as optional and keeps the safe format when typed", () => {
+    expect(proofReferenceProblem("")).toBeNull();
+    expect(proofReferenceProblem("   ")).toBeNull();
+    expect(proofReferenceProblem("NSU-2026-0001")).toBeNull();
+    expect(proofReferenceProblem("ab")).toMatch(/4 a 128/);
+    expect(proofReferenceProblem("senha=1234")).toMatch(/4 a 128/);
+    expect(proofReferenceProblem("4111111111111111")).toMatch(/cartão/);
+  });
+
   it("formats integer cents as Brazilian reais", () => {
     expect(formatMoney(2590).replace(/\u00a0/g, " ")).toBe("R$ 25,90");
   });

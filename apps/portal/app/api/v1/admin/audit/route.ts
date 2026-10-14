@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { toAuditSearch } from "@/lib/audit";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { auditCohorts } from "@/lib/cohort-labels";
 
 /** AUD-001 (spec 5.16): searches the audit trail; nothing here edits history. */
 export async function GET(request: Request) {
@@ -25,7 +26,10 @@ export async function GET(request: Request) {
     if (error?.message.includes("AUDIT_READ_REQUIRED")) return fail("FORBIDDEN", "Somente administradores consultam a auditoria.", 403);
     const page = error ? null : toAuditSearch(data);
     if (!page) return fail("AUDIT_UNAVAILABLE", "Auditoria temporariamente indisponível.", 503);
-    return NextResponse.json(auditSearchResponseSchema.parse({ data: page.rows, nextCursor: page.nextCursor, request_id: requestId }), { headers });
+    // ADR 0011 (PR 4): each record says which cohort it belongs to (null: a global operation).
+    const cohorts = await auditCohorts(client, page.rows.map((row) => row.id));
+    const rows = page.rows.map((row) => (cohorts.has(row.id) ? { ...row, cohortId: cohorts.get(row.id) ?? null } : row));
+    return NextResponse.json(auditSearchResponseSchema.parse({ data: rows, nextCursor: page.nextCursor, request_id: requestId }), { headers });
   } catch (error) {
     if (error instanceof AuthorizationError) return fail(error.status === 401 ? "UNAUTHENTICATED" : "FORBIDDEN", error.message, error.status);
     return fail("AUDIT_UNAVAILABLE", "Auditoria temporariamente indisponível.", 503);

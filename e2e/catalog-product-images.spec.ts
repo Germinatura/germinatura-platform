@@ -37,7 +37,7 @@ test("Admin manages the image of a published offer without exposing mutation to 
   await page.getByRole("button", { name: "Editar imagens de Item público A" }).click();
   await page.getByLabel("Motivo da alteração").fill("Remover foto de teste");
   const removalPromise = page.waitForResponse((response) => response.url().includes(`/api/v1/admin/catalog/product-images/${uploaded.data.id}`));
-  await page.getByRole("button", { name: "Remover" }).click();
+  await page.getByRole("button", { name: "Remover capa" }).click();
   const removal = await removalPromise;
   expect(removal.status()).toBe(200);
   await expect(page.getByText("Este produto ainda não tem imagem.")).toBeVisible();

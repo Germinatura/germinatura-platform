@@ -1,6 +1,8 @@
 "use client";
 
-import { Badge, BrandMark, Button, Card, Field, Input, InputGroup } from "@germinatura/ui";
+import { hasPermission } from "@germinatura/auth";
+import { Badge, BrandMark, Button, Card, Field, Input, InputGroup, fieldDescriptionIds } from "@germinatura/ui";
+import { FilterShell, type ActiveFilter } from "@germinatura/ui/filters";
 import type {
   CardPaymentMethod,
   CashPaymentResponse,
@@ -13,7 +15,7 @@ import type {
   SalesCheckoutResponse,
 } from "@germinatura/contracts";
 import {
-  AlertTriangle, ArrowLeft, Banknote, Check, ChevronDown, CircleCheck, CreditCard, Link2,
+  AlertTriangle, ArrowLeft, Banknote, Check, ChevronDown, CircleCheck, CreditCard, GraduationCap, Link2,
   Loader2, LogOut, Minus, PackageSearch, Plus, RotateCcw, Search, ShoppingBag,
   Store, Undo2, Wallet, WifiOff, X,
 } from "lucide-react";
@@ -33,11 +35,16 @@ const MySalesWorkspace = dynamic(() => import("@/components/operations/MySalesWo
 const MyStockWorkspace = dynamic(() => import("@/components/operations/MyStockWorkspace").then((module) => module.MyStockWorkspace), { loading: () => <p role="status" className="p-6">Carregando estoque…</p> });
 import { useToast } from "@/components/ui/Toast";
 import { PaymentLinkPanel, PaymentLinkSuccess } from "@/components/operations/PaymentLinkPanel";
+import { PixQrPanel } from "@/components/operations/PixQrPanel";
+import { SurchargePanel, useSurcharge, type SurchargeState } from "@/components/operations/SurchargePanel";
 import {
-  cancelPendingSale, cashChange, checkoutCart, confirmCashPayment, confirmManualPayment, formatMoney, loadCatalog, parseMoneyInput,
-  loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminals, quoteCart, type CartItem, type InventoryContext,
+  cancelPendingSale, cashChange, checkoutCart, proofReferenceProblem, confirmCashPayment, confirmManualPayment, formatMoney, loadCatalog, parseMoneyInput,
+  loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminalChoice, quoteCart, terminalOptionLabel, type CartItem, type InventoryContext,
 } from "@/lib/operations";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
+import { activeSaleFilterCount, availableBound, emptySaleCatalogFilters, filterSaleCatalog, salePriceBound, type SaleCatalogFilters } from "@/lib/catalog-filters";
+import { clearOfflineCatalogs } from "@/components/OfflineRegistration";
+import { PDV_COHORT_COOKIE } from "@/lib/pdv-cohort";
 
 type Step = "catalog" | "review" | "payment" | "success";
 type CheckoutData = SalesCheckoutResponse["data"];
@@ -58,6 +65,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   const [locationId, setLocationId] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [query, setQuery] = useState("");
+  const [catalogFilters, setCatalogFilters] = useState<SaleCatalogFilters>(emptySaleCatalogFilters);
   const [step, setStep] = useState<Step>("catalog");
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [couponCode, setCouponCode] = useState("");
@@ -82,6 +90,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
   const confirmationKey = useRef(operationKey("pdv-confirm"));
   const cancellationKey = useRef(operationKey("pdv-cancel"));
   const { showToast } = useToast();
+  const surcharge = useSurcharge(channel, cardMethod, checkout?.quote.totalCents ?? 0);
+  const canWaiveSurcharge = hasPermission(user, "sales.surcharge.waive");
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -119,11 +129,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
 
   const selectedLocation = inventory?.locations.find((location) => location.id === locationId) ?? null;
   const canCloseout = user.roles.includes("VENDEDOR");
-  const filteredCatalog = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase("pt-BR");
-    return normalized ? catalog.filter((product) => [product.name, product.sku, product.category.name]
-      .some((value) => value.toLocaleLowerCase("pt-BR").includes(normalized))) : catalog;
-  }, [catalog, query]);
+  const filteredCatalog = useMemo(() => filterSaleCatalog(catalog, query, catalogFilters,
+    (productId) => inventory?.availableByLocationAndProduct[`${locationId}:${productId}`] ?? 0), [catalog, query, catalogFilters, inventory, locationId]);
   const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
   const previewTotal = cart.reduce((total, item) => total + item.product.price.amountCents * item.quantity, 0);
   const available = (productId: string) => inventory?.availableByLocationAndProduct[`${locationId}:${productId}`] ?? 0;
@@ -143,7 +150,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
 
   function resetSale() {
     setCart([]); setQuote(null); setCheckout(null); setConfirmation(null); setPaidLink(null); setProofReference(""); setCouponCode(""); setTendered("");
-    setCardMethod(null); setTerminalId("");
+    setCardMethod(null); setTerminalId(""); surcharge.reset();
     setChannel("MAQUININHA"); setError(""); setStep("catalog");
     checkoutKey.current = operationKey("pdv-checkout");
     confirmationKey.current = operationKey("pdv-confirm");
@@ -169,20 +176,31 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     const result = await checkoutCart(locationId, cart, checkoutKey.current, couponCode.trim() || undefined);
     setCheckout(result); setQuote(result.quote); setStep("payment"); window.scrollTo({ top: 0, behavior: "smooth" });
     // The server still enforces the terminal rule; a failed load only hides the picker.
-    void loadPaymentTerminals().then(setTerminals, () => setTerminals([]));
+    void loadPaymentTerminalChoice().then(({ terminals: active, preferredId }) => {
+      setTerminals(active);
+      // H2b: preselect only when the seller has not picked one; it stays editable.
+      setTerminalId((current) => current || preferredId || "");
+    }, () => setTerminals([]));
+    void surcharge.reload();
   });
   const confirmPayment = () => perform("confirm", async () => {
-    if (!online || !checkout || channel === "PAYMENT_LINK") return;
+    if (!online || !checkout || channel === "PAYMENT_LINK" || !surcharge.ready) return;
     let result: ConfirmationData;
-    if (channel === "DINHEIRO") {
-      const tenderedCents = parseMoneyInput(tendered);
-      if (tenderedCents === null || cashChange(checkout.quote.totalCents, tenderedCents) === null) return;
-      result = await confirmCashPayment(checkout.saleId, tenderedCents, confirmationKey.current);
-    } else {
-      if (proofReference.trim().length < 4) return;
-      if (channel === "MAQUININHA" && (!cardMethod || (terminals.length > 0 && !terminalId))) return;
-      const card = channel === "MAQUININHA" && cardMethod ? { cardMethod, terminalId: terminalId || null } : null;
-      result = await confirmManualPayment(checkout.saleId, channel, proofReference.trim(), card, confirmationKey.current);
+    try {
+      if (channel === "DINHEIRO") {
+        const tenderedCents = parseMoneyInput(tendered);
+        if (tenderedCents === null || cashChange(surcharge.chargeCents, tenderedCents) === null) return;
+        result = await confirmCashPayment(checkout.saleId, tenderedCents, confirmationKey.current, surcharge.choice);
+      } else {
+        if (proofReferenceProblem(proofReference)) return;
+        if (channel === "MAQUININHA" && (!cardMethod || (terminals.length > 0 && !terminalId))) return;
+        const card = channel === "MAQUININHA" && cardMethod ? { cardMethod, terminalId: terminalId || null } : null;
+        result = await confirmManualPayment(checkout.saleId, channel, proofReference.trim() || null, card, confirmationKey.current, surcharge.choice);
+      }
+    } catch (confirmationError) {
+      // The rule may have changed: show the current acréscimo and let the operator confirm again with a new key.
+      void surcharge.reload(); confirmationKey.current = operationKey("pdv-confirm");
+      throw confirmationError;
     }
     setConfirmation(result); setStep("success"); showToast("Venda confirmada e estoque atualizado.", "success");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -197,8 +215,11 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     showToast("Venda pendente cancelada e itens liberados.", "info"); resetSale();
   });
   const logout = async () => {
+    // ADR 0011: leaving the PDV takes the cohort selection and every cohort's offline copy with it.
+    await clearOfflineCatalogs();
+    document.cookie = `${PDV_COHORT_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
     await getSupabaseBrowserClient().auth.signOut();
-    window.location.assign(user.perfil === "ADMIN" ? `${portalUrl}/login` : "/login");
+    window.location.assign(user.perfil === "ADMIN" || user.perfil === "ADMIN_MASTER" ? `${portalUrl}/login` : "/login");
   };
 
   if (loading) return <PdvLoading />;
@@ -207,8 +228,8 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
       <header className="sticky top-0 z-40 border-b border-[var(--g-border-subtle)] bg-[var(--g-surface-canvas)]/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[var(--g-content-wide)] items-center justify-between gap-3 px-4 md:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <BrandMark className="size-10 shrink-0 text-white" title="Germinatura" tone="inverse" />
-            <div className="min-w-0"><p className="truncate font-bold">Germinatura PDV</p><p className="truncate text-xs text-[var(--g-text-muted)]">{selectedLocation?.name ?? "Localização indisponível"}</p></div>
+            <BrandMark className="size-10 shrink-0 text-[var(--g-operation-primary)]" title="Germinatura" tone="inverse" />
+            <div className="min-w-0"><p className="truncate font-bold">Germinatura PDV</p><p className="truncate text-xs text-[var(--g-text-muted)]">{user.cohort ? `${user.cohort.name} · ` : ""}{selectedLocation?.name ?? "Localização indisponível"}</p></div>
           </div>
           <a href={portalUrl} aria-label="Voltar ao Portal" className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /><span className="hidden sm:inline">Portal</span></a>
           <div className="relative">
@@ -219,6 +240,7 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
             {accountOpen && <Card className="absolute right-0 mt-2 w-64 p-2 shadow-[var(--g-shadow-raised)]">
               <div className="border-b border-[var(--g-border-subtle)] px-3 py-3"><p className="truncate text-sm font-semibold">{user.nome}</p><p className="truncate text-xs text-[var(--g-text-muted)]">{user.email}</p></div>
               {<button type="button" title="Voltar ao Painel" onClick={() => window.location.assign(portalUrl)} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--g-surface-hover)]"><Undo2 className="size-4" /> Voltar ao Portal</button>}
+              {user.cohorts.length > 1 && <a href="/turma" className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--g-surface-hover)]"><GraduationCap className="size-4" /> Trocar turma</a>}
               <button type="button" onClick={logout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-[var(--g-status-danger)] hover:bg-[var(--g-surface-hover)]"><LogOut className="size-4" /> Sair do PDV</button>
             </Card>}
           </div>
@@ -243,16 +265,16 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
           : view === "returns" ? <StockReturnWorkspace online={online} />
           : view === "losses" ? <StockLossWorkspace online={online} />
           : view === "sales" ? <MySalesWorkspace online={online} />
-          : view === "pickups" ? <PickupWorkspace online={online} />
-          : view === "raffles" ? <RaffleSaleWorkspace locationId={locationId} online={online} />
+          : view === "pickups" ? <PickupWorkspace online={online} canWaiveSurcharge={canWaiveSurcharge} />
+          : view === "raffles" ? <RaffleSaleWorkspace locationId={locationId} online={online} canWaiveSurcharge={canWaiveSurcharge} />
           : view === "links" ? <ShareLinksWorkspace online={online} />
           : view === "shift" ? <ShiftWorkspace locationId={locationId} online={online} />
           : view === "closeout" && inventory ? <CloseoutWorkspace catalog={catalog} inventory={inventory} online={online} />
           : inventory?.locations.length === 0 ? <EmptyState icon={Store} title="Nenhuma localização disponível" description="Peça a um administrador para ativar a localização deste PDV antes de iniciar vendas." onRetry={refreshData} />
-          : step === "catalog" ? <CatalogStep catalog={filteredCatalog} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
+          : step === "catalog" ? <CatalogStep catalog={filteredCatalog} totalProducts={catalog.length} categories={catalogCategories(catalog)} filters={catalogFilters} onFilters={setCatalogFilters} cart={cart} query={query} locationId={locationId} locations={inventory?.locations ?? []} online={online} action={action} itemCount={itemCount} previewTotal={previewTotal} available={available} onQuery={setQuery} onLocation={(value) => { setLocationId(value); setCart([]); setQuote(null); }} onQuantity={changeQuantity} onReview={reviewSale} />
           : step === "review" && quote ? <ReviewStep quote={quote} online={online} loading={action === "checkout"} onCheckout={startCheckout}
             couponCode={couponCode} applying={action === "quote"} onCouponChange={(value) => { setCouponCode(value.toUpperCase()); checkoutKey.current = operationKey("pdv-checkout"); }} onApplyCoupon={reviewSale} />
-          : step === "payment" && checkout && quote ? <PaymentStep cashEnabled={!cashOff} checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} tendered={tendered} cardMethod={cardMethod} terminals={terminals} terminalId={terminalId} onCardMethod={setCardMethod} onTerminal={setTerminalId} online={online} action={action} paymentLinkEnabled={features.has("payment_link")} onLinkPaid={linkPaid} onChannel={(value) => { setChannel(value); confirmationKey.current = operationKey("pdv-confirm"); }} onReference={setProofReference} onTendered={setTendered} onConfirm={confirmPayment} onCancel={cancelSale} />
+          : step === "payment" && checkout && quote ? <PaymentStep surcharge={surcharge} canWaiveSurcharge={canWaiveSurcharge} cashEnabled={!cashOff} checkout={checkout} quote={quote} channel={channel} proofReference={proofReference} tendered={tendered} cardMethod={cardMethod} terminals={terminals} terminalId={terminalId} onCardMethod={(value) => { setCardMethod(value); surcharge.reset(); confirmationKey.current = operationKey("pdv-confirm"); }} onTerminal={setTerminalId} online={online} action={action} paymentLinkEnabled={features.has("payment_link")} onLinkPaid={linkPaid} onChannel={(value) => { setChannel(value); surcharge.reset(); confirmationKey.current = operationKey("pdv-confirm"); }} onReference={setProofReference} onTendered={setTendered} onConfirm={confirmPayment} onCancel={cancelSale} />
           : step === "success" && paidLink ? <PaymentLinkSuccess charge={paidLink} onNewSale={resetSale} />
           : step === "success" && confirmation && quote ? <SuccessStep confirmation={confirmation} quote={quote} onNewSale={resetSale} /> : null}
       </div>
@@ -265,21 +287,81 @@ function PdvLoading() {
 }
 
 interface CatalogProps {
-  catalog: PublicCatalogProduct[]; cart: CartItem[]; query: string; locationId: string;
+  catalog: PublicCatalogProduct[]; totalProducts: number; categories: { id: string; name: string }[];
+  filters: SaleCatalogFilters; onFilters: (filters: SaleCatalogFilters) => void;
+  cart: CartItem[]; query: string; locationId: string;
   locations: InventoryContext["locations"]; online: boolean; action: string | null;
   itemCount: number; previewTotal: number; available: (productId: string) => number;
   onQuery: (value: string) => void; onLocation: (value: string) => void;
   onQuantity: (product: PublicCatalogProduct, delta: number) => void; onReview: () => void;
 }
 
+function catalogCategories(catalog: PublicCatalogProduct[]) {
+  return [...new Map(catalog.map((product) => [product.category.id, product.category.name])).entries()]
+    .map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+}
+
+// A bound still being typed ("15,") is not an error yet.
+const salePriceError = (value: string) => value.trim() && !/[,.]$/.test(value.trim()) && salePriceBound(value) === null ? "Use um valor em reais, como 15 ou 15,50." : undefined;
+const availableError = (value: string) => value.trim() && availableBound(value) === null ? "Use um número inteiro a partir de 1." : undefined;
+
+/** The sale catalog filters: the same pattern as the Portal, collapsed by default so the products stay in view. */
+function SaleCatalogFilterShell({ filters, onFilters, categories }: Pick<CatalogProps, "filters" | "onFilters" | "categories">) {
+  const update = (patch: Partial<SaleCatalogFilters>) => onFilters({ ...filters, ...patch });
+  const min = salePriceBound(filters.min);
+  const max = salePriceBound(filters.max);
+  const minAvailable = availableBound(filters.minAvailable);
+  const chips: ActiveFilter[] = [];
+  if (filters.category) chips.push({ key: "category", label: `Categoria: ${categories.find((category) => category.id === filters.category)?.name ?? "selecionada"}`, onRemove: () => update({ category: "" }) });
+  if (min !== null) chips.push({ key: "min", label: `A partir de ${formatMoney(min)}`, onRemove: () => update({ min: "" }) });
+  if (max !== null) chips.push({ key: "max", label: `Até ${formatMoney(max)}`, onRemove: () => update({ max: "" }) });
+  if (filters.onlyAvailable) chips.push({ key: "only-available", label: "Somente disponíveis", onRemove: () => update({ onlyAvailable: false }) });
+  if (minAvailable !== null) chips.push({ key: "min-available", label: `Disponível: ${minAvailable} ou mais`, onRemove: () => update({ minAvailable: "" }) });
+  return <FilterShell value={filters} emptyValue={emptySaleCatalogFilters} onChange={onFilters} activeFilters={chips} activeCount={activeSaleFilterCount(filters)} onClearAll={() => onFilters(emptySaleCatalogFilters)} defaultExpanded={false} title="Filtros de produtos" className="mb-4">
+    {(values, set) => {
+      const minError = salePriceError(values.min);
+      const maxError = salePriceError(values.max);
+      const quantityError = availableError(values.minAvailable);
+      return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Field id="sale-filter-category" label="Categoria"><select id="sale-filter-category" className="g-input" value={values.category} onChange={(event) => set({ category: event.target.value })}><option value="">Todas</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></Field>
+        <Field id="sale-filter-min" label="Preço mínimo (R$)" error={minError}><Input id="sale-filter-min" inputMode="decimal" maxLength={20} value={values.min} aria-invalid={Boolean(minError) || undefined} aria-describedby={fieldDescriptionIds("sale-filter-min", { error: minError })} onChange={(event) => set({ min: event.target.value })} /></Field>
+        <Field id="sale-filter-max" label="Preço máximo (R$)" error={maxError}><Input id="sale-filter-max" inputMode="decimal" maxLength={20} value={values.max} aria-invalid={Boolean(maxError) || undefined} aria-describedby={fieldDescriptionIds("sale-filter-max", { error: maxError })} onChange={(event) => set({ max: event.target.value })} /></Field>
+        <Field id="sale-filter-min-available" label="Disponível no mínimo (un.)" error={quantityError}><Input id="sale-filter-min-available" inputMode="numeric" maxLength={6} value={values.minAvailable} aria-invalid={Boolean(quantityError) || undefined} aria-describedby={fieldDescriptionIds("sale-filter-min-available", { error: quantityError })} onChange={(event) => set({ minAvailable: event.target.value })} /></Field>
+        <label className="flex min-h-11 items-center gap-3 text-sm sm:col-span-2 xl:col-span-4"><input type="checkbox" checked={values.onlyAvailable} onChange={(event) => set({ onlyAvailable: event.target.checked })} className="size-5 accent-[var(--g-brand-primary)]" />Somente disponíveis neste local</label>
+      </div>;
+    }}
+  </FilterShell>;
+}
+
+/**
+ * Phones and tablets: with items in the cart, a bar fixed to the bottom keeps the count, the preview and "Revisar venda"
+ * in reach while scrolling a long catalog. Desktops keep the sticky summary beside the products instead.
+ */
+function ReviewBar(props: Pick<CatalogProps, "itemCount" | "previewTotal" | "online" | "action" | "onReview">) {
+  const label = `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`;
+  return <div role="region" aria-label="Venda em andamento" data-testid="review-bar"
+    className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--g-border-subtle)] bg-[var(--g-surface-default)] px-[max(1rem,env(safe-area-inset-left))] pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[var(--g-shadow-raised)] lg:hidden">
+    <div className="mx-auto flex max-w-[var(--g-content-wide)] items-center justify-between gap-3">
+      <p className="min-w-0 text-sm" aria-live="polite"><span className="font-semibold">{label}</span><span className="text-[var(--g-text-muted)]"> · </span><span className="g-money font-bold">{formatMoney(props.previewTotal)}</span>{!props.online && <span className="block text-xs text-[var(--g-status-warning-foreground)]">Sem conexão: revise quando voltar.</span>}</p>
+      <Button variant="brand" onClick={props.onReview} loading={props.action === "quote"} disabled={!props.online}>Revisar venda</Button>
+    </div>
+  </div>;
+}
+
 function CatalogStep(props: CatalogProps) {
-  return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-    <section aria-label="Catálogo">
-      <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
+  const filtered = props.catalog.length !== props.totalProducts;
+  // The fixed bar never covers the last products or the summary: the page reserves its height below them.
+  // One explicit minmax(0,1fr) column on phones: a long product name in the summary never widens the page.
+  return <div className={`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] ${props.itemCount > 0 ? "max-lg:pb-28" : ""}`}>
+    {props.itemCount > 0 && <ReviewBar itemCount={props.itemCount} previewTotal={props.previewTotal} online={props.online} action={props.action} onReview={props.onReview} />}
+    <section aria-label="Catálogo" className="min-w-0">
+      <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
         <label className="block min-w-0"><span className="sr-only">Buscar produtos</span><InputGroup icon={<Search />}><Input value={props.query} onChange={(event) => props.onQuery(event.target.value)} placeholder="Buscar produto, categoria ou SKU" /></InputGroup></label>
         {props.locations.length > 1 && <label><span className="sr-only">Localização da venda</span><select value={props.locationId} onChange={(event) => props.onLocation(event.target.value)} className="min-h-11 w-full rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] bg-[var(--g-surface-default)] px-4 focus-visible:outline-3 focus-visible:outline-[var(--g-focus-ring)]">{props.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}
       </div>
-      {props.catalog.length === 0 ? <EmptyState icon={PackageSearch} title="Nenhum produto encontrado" description="Tente outro termo ou peça a um administrador para conferir o catálogo e o estoque deste local." />
+      <SaleCatalogFilterShell filters={props.filters} onFilters={props.onFilters} categories={props.categories} />
+      {filtered && <p className="mb-4 text-sm text-[var(--g-text-muted)]" aria-live="polite">{props.catalog.length} de {props.totalProducts} produtos</p>}
+      {props.catalog.length === 0 ? <EmptyState icon={PackageSearch} title="Nenhum produto encontrado" description={filtered ? "Ajuste a busca ou os filtros, ou peça a um administrador para conferir o catálogo e o estoque deste local." : "Tente outro termo ou peça a um administrador para conferir o catálogo e o estoque deste local."} />
         : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{props.catalog.map((product) => {
           const quantity = props.cart.find((item) => item.product.id === product.id)?.quantity ?? 0;
           const stock = props.available(product.id);
@@ -291,7 +373,7 @@ function CatalogStep(props: CatalogProps) {
           </Card>;
         })}</div>}
     </section>
-    <aside className="lg:sticky lg:top-24 lg:self-start"><Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5"><h2 className="font-semibold">Resumo</h2><p className="mt-1 text-sm text-[var(--g-text-muted)]">{props.itemCount === 0 ? "Carrinho vazio" : `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`}</p></div><div className="space-y-3 p-5">
+    <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start"><Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5"><h2 className="font-semibold">Resumo</h2><p className="mt-1 text-sm text-[var(--g-text-muted)]">{props.itemCount === 0 ? "Carrinho vazio" : `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`}</p></div><div className="space-y-3 p-5">
       {props.cart.length === 0 ? <p className="py-4 text-center text-sm text-[var(--g-text-muted)]">Adicione um produto para iniciar.</p> : props.cart.map((item) => <div key={item.product.id} className="flex justify-between gap-3 text-sm"><span className="min-w-0 truncate text-[var(--g-text-secondary)]">{item.quantity}× {item.product.name}</span><span className="g-money shrink-0 font-semibold">{formatMoney(item.product.price.amountCents * item.quantity)}</span></div>)}
       <div className="flex items-baseline justify-between border-t border-[var(--g-border-subtle)] pt-4"><span className="text-sm text-[var(--g-text-secondary)]">Prévia</span><span className="g-money text-xl font-bold">{formatMoney(props.previewTotal)}</span></div><p className="text-xs leading-5 text-[var(--g-text-muted)]">O servidor recalcula preços e promoções na próxima etapa.</p><Button variant="brand" size="lg" className="w-full" onClick={props.onReview} loading={props.action === "quote"} disabled={!props.online || props.cart.length === 0}>Revisar venda</Button>
     </div></Card></aside>
@@ -309,27 +391,33 @@ function ReviewStep({ quote, online, loading, onCheckout, couponCode, applying, 
 const cardMethods: Array<{ value: CardPaymentMethod; label: string }> = [{ value: "CREDITO", label: "Crédito" }, { value: "DEBITO", label: "Débito" }];
 const cardMethodLabels: Record<CardPaymentMethod, string> = { CREDITO: "Crédito", DEBITO: "Débito", VOUCHER_ALIMENTACAO: "Vale-alimentação", VOUCHER_REFEICAO: "Vale-refeição" };
 
-interface PaymentProps { cashEnabled: boolean; checkout: CheckoutData; quote: QuoteData; channel: PaymentChannel; proofReference: string; tendered: string; cardMethod: CardPaymentMethod | null; terminals: PaymentTerminal[]; terminalId: string; onCardMethod: (value: CardPaymentMethod) => void; onTerminal: (value: string) => void; online: boolean; action: string | null; onChannel: (channel: PaymentChannel) => void; onReference: (value: string) => void; onTendered: (value: string) => void; onConfirm: () => void; onCancel: () => void; paymentLinkEnabled: boolean; onLinkPaid: (charge: PaymentLinkCharge) => void }
+interface PaymentProps { surcharge: SurchargeState; canWaiveSurcharge: boolean; cashEnabled: boolean; checkout: CheckoutData; quote: QuoteData; channel: PaymentChannel; proofReference: string; tendered: string; cardMethod: CardPaymentMethod | null; terminals: PaymentTerminal[]; terminalId: string; onCardMethod: (value: CardPaymentMethod) => void; onTerminal: (value: string) => void; online: boolean; action: string | null; onChannel: (channel: PaymentChannel) => void; onReference: (value: string) => void; onTendered: (value: string) => void; onConfirm: () => void; onCancel: () => void; paymentLinkEnabled: boolean; onLinkPaid: (charge: PaymentLinkCharge) => void }
 function PaymentStep(props: PaymentProps) {
   const cash = props.channel === "DINHEIRO";
   const link = props.channel === "PAYMENT_LINK";
-  const change = cashChange(props.quote.totalCents, parseMoneyInput(props.tendered));
+  const charge = link ? props.quote.totalCents : props.surcharge.chargeCents;
+  const change = cashChange(charge, parseMoneyInput(props.tendered));
   const card = props.channel === "MAQUININHA";
   const cardReady = !card || (props.cardMethod !== null && (props.terminals.length === 0 || props.terminalId !== ""));
-  const ready = cash ? change !== null : props.proofReference.trim().length >= 4 && cardReady;
-  return <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"><div className="space-y-5"><Card className="p-5">
-    <div className="flex items-center justify-between gap-4"><div><Badge tone={link ? "info" : "warning"}>{link ? "Confirmação pelo PicPay" : "Confirmação manual"}</Badge><h2 className="mt-3 text-xl font-semibold">Como o cliente pagou?</h2></div><p className="g-money text-2xl font-bold">{formatMoney(props.quote.totalCents)}</p></div>
-    <div className="mt-5 grid gap-3 sm:grid-cols-3"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Área Pix" description="Conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} />{props.cashEnabled && <ChannelButton icon={Wallet} selected={cash} title="Dinheiro" description="Entra no caixa do turno" onClick={() => props.onChannel("DINHEIRO")} />}{props.paymentLinkEnabled && <ChannelButton icon={Link2} selected={link} title="Link de pagamento" description="Cliente paga pelo celular" onClick={() => props.onChannel("PAYMENT_LINK")} />}</div>
+  const proofProblem = proofReferenceProblem(props.proofReference);
+  // H2d: Área Pix shows a QR for the server's amount; without a valid QR (or with a different amount) it cannot confirm.
+  const [pixReady, setPixReady] = useState(false);
+  const pix = props.channel === "PIX_AREA";
+  const ready = props.surcharge.ready && (cash ? change !== null : proofProblem === null && cardReady && (!pix || pixReady));
+  return <div className="mx-auto grid max-w-4xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"><div className="min-w-0 space-y-5"><Card className="p-5">
+    <div className="flex items-center justify-between gap-4"><div><Badge tone={link ? "info" : "warning"}>{link ? "Confirmação pelo PicPay" : "Confirmação manual"}</Badge><h2 className="mt-3 text-xl font-semibold">Como o cliente pagou?</h2></div><p className="g-money text-2xl font-bold">{formatMoney(charge)}</p></div>
+    <div className="mt-5 grid gap-3 sm:grid-cols-3"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Pix" description="QR Code e conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} />{props.cashEnabled && <ChannelButton icon={Wallet} selected={cash} title="Dinheiro" description="Entra no caixa do turno" onClick={() => props.onChannel("DINHEIRO")} />}{props.paymentLinkEnabled && <ChannelButton icon={Link2} selected={link} title="Link de pagamento" description="Cliente paga pelo celular" onClick={() => props.onChannel("PAYMENT_LINK")} />}</div>
     {link
       ? <PaymentLinkPanel saleId={props.checkout.saleId} totalCents={props.quote.totalCents} online={props.online} onPaid={props.onLinkPaid} />
       : cash
       ? <><Field id="cash-tendered" label="Valor recebido (R$)" description="Informe quanto o cliente entregou. O troco é calculado em centavos." className="mt-5"><Input id="cash-tendered" inputMode="decimal" value={props.tendered} onChange={(event) => props.onTendered(event.target.value)} autoComplete="off" placeholder="Ex.: 50,00" /></Field>
         <p role="status" className="mt-3 text-sm">{change === null ? "O valor recebido precisa cobrir o total." : <>Troco: <strong className="g-money">{formatMoney(change)}</strong></>}</p>
+        <SurchargePanel state={props.surcharge} baseCents={props.quote.totalCents} canWaive={props.canWaiveSurcharge} />
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">É preciso ter um turno aberto.</strong> O dinheiro fica registrado no seu caixa e será conferido no fechamento do turno.</div></>
       : <>{card && <div className="mt-5 grid gap-4">
         <fieldset><legend className="text-sm font-semibold">Método do cartão</legend><div className="mt-2 grid grid-cols-2 gap-2">{cardMethods.map((method) => <button key={method.value} type="button" aria-pressed={props.cardMethod === method.value} onClick={() => props.onCardMethod(method.value)} className={`min-h-12 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${props.cardMethod === method.value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)] hover:bg-[var(--g-surface-hover)]"}`}>{method.label}</button>)}</div></fieldset>
-        {props.terminals.length > 0 && <Field id="payment-terminal" label="Maquininha usada"><select id="payment-terminal" value={props.terminalId} onChange={(event) => props.onTerminal(event.target.value)} className="g-input min-h-12 w-full"><option value="">Selecione a maquininha</option>{props.terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
-      </div>}<Field id="proof-reference" label="Referência não sensível do comprovante" description="Use o identificador da operação. Nunca informe número do cartão, CVV, senha ou token." className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} minLength={4} maxLength={128} autoComplete="off" placeholder="Ex.: COMPROVANTE-9F2A" /></Field>
+        {props.terminals.length > 0 && <Field id="payment-terminal" label="Maquininha usada"><select id="payment-terminal" value={props.terminalId} onChange={(event) => props.onTerminal(event.target.value)} className="g-input min-h-12 w-full"><option value="">Selecione a maquininha</option>{props.terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminalOptionLabel(terminal)}</option>)}</select></Field>}
+      </div>}<SurchargePanel state={props.surcharge} baseCents={props.quote.totalCents} canWaive={props.canWaiveSurcharge} />{pix && <PixQrPanel saleId={props.checkout.saleId} waived={props.surcharge.waived} expectedCents={props.surcharge.chargeCents} onReady={setPixReady} />}<Field id="proof-reference" label="Referência externa (opcional)" description="Preencha apenas se houver um identificador útil no comprovante. Nunca informe número do cartão, CVV, senha ou token." error={proofProblem ?? undefined} className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} maxLength={128} autoComplete="off" aria-invalid={proofProblem ? true : undefined} aria-describedby={fieldDescriptionIds("proof-reference", { description: "x", error: proofProblem ?? undefined })} /></Field>
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">Confirme fora do sistema antes de continuar.</strong> Esta tela não consulta automaticamente a Maquininha nem a Área Pix.</div></>}
     {!link && <Button variant="operation" size="lg" className="mt-5 w-full" onClick={props.onConfirm} loading={props.action === "confirm"} disabled={!props.online || !ready || props.action !== null}>{cash ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>}
   </Card><Button variant="ghost" className="w-full text-[var(--g-status-danger)]" onClick={props.onCancel} loading={props.action === "cancel"} disabled={!props.online || props.action !== null}><X className="size-4" /> Cancelar venda pendente</Button></div><div><QuoteSummary quote={props.quote} /><p className="mt-3 text-xs text-[var(--g-text-muted)]">Reserva válida até {new Date(props.checkout.reservation.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p></div></div>;
@@ -340,9 +428,9 @@ function ChannelButton({ icon: Icon, selected, title, description, onClick }: { 
 }
 
 function SuccessStep({ confirmation, quote, onNewSale }: { confirmation: ConfirmationData; quote: QuoteData; onNewSale: () => void }) {
-  return <div className="mx-auto max-w-2xl"><Card className="overflow-hidden text-center"><div className="bg-[var(--g-status-success-soft)] p-8 text-[var(--g-status-success-foreground)]"><div className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--g-operation-primary)] text-[var(--g-operation-on-primary)]"><CircleCheck className="size-9" /></div><h2 className="mt-4 text-2xl font-bold">Pagamento confirmado</h2><p className="mt-2 text-sm">Registro manual concluído com segurança.</p></div><div className="p-6 text-left"><div className="flex items-baseline justify-between border-b border-[var(--g-border-subtle)] pb-5"><span className="text-sm text-[var(--g-text-secondary)]">Total recebido</span><strong className="g-money text-2xl">{formatMoney(quote.totalCents)}</strong></div><dl className="grid gap-4 py-5 text-sm sm:grid-cols-2"><div><dt className="text-[var(--g-text-muted)]">Canal</dt><dd className="mt-1 font-semibold">{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro" }[confirmation.paymentAttempt.integrationChannel]}</dd></div><div><dt className="text-[var(--g-text-muted)]">Confirmação</dt><dd className="mt-1 font-semibold">Manual</dd></div>{"cash" in confirmation
+  return <div className="mx-auto max-w-2xl"><Card className="overflow-hidden text-center"><div className="bg-[var(--g-status-success-soft)] p-8 text-[var(--g-status-success-foreground)]"><div className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--g-operation-primary)] text-[var(--g-operation-on-primary)]"><CircleCheck className="size-9" /></div><h2 className="mt-4 text-2xl font-bold">Pagamento confirmado</h2><p className="mt-2 text-sm">Registro manual concluído com segurança.</p></div><div className="p-6 text-left"><div className="flex items-baseline justify-between border-b border-[var(--g-border-subtle)] pb-5"><span className="text-sm text-[var(--g-text-secondary)]">Total recebido</span><strong className="g-money text-2xl">{formatMoney(confirmation.paymentAttempt.amountCents)}</strong></div>{confirmation.surcharge && <p className="pt-3 text-sm text-[var(--g-text-secondary)]">{confirmation.surcharge.waived ? <>Acréscimo de <span className="g-money">{formatMoney(confirmation.surcharge.expectedCents)}</span> removido.</> : <>Inclui acréscimo de <span className="g-money">{formatMoney(confirmation.surcharge.appliedCents)}</span> sobre <span className="g-money">{formatMoney(quote.totalCents)}</span> em produtos.</>}</p>}<dl className="grid gap-4 py-5 text-sm sm:grid-cols-2"><div><dt className="text-[var(--g-text-muted)]">Canal</dt><dd className="mt-1 font-semibold">{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro" }[confirmation.paymentAttempt.integrationChannel]}</dd></div><div><dt className="text-[var(--g-text-muted)]">Confirmação</dt><dd className="mt-1 font-semibold">Manual</dd></div>{"cash" in confirmation
     ? <div><dt className="text-[var(--g-text-muted)]">Recebido / troco</dt><dd className="mt-1 font-semibold"><span className="g-money">{formatMoney(confirmation.cash.tenderedCents)}</span> / <span className="g-money">{formatMoney(confirmation.cash.changeCents)}</span></dd></div>
-    : <><div><dt className="text-[var(--g-text-muted)]">Referência</dt><dd className="mt-1 break-all font-semibold">{confirmation.paymentAttempt.proofReference}</dd></div>
+    : <><div><dt className="text-[var(--g-text-muted)]">Referência externa</dt><dd className="mt-1 break-all font-semibold">{confirmation.paymentAttempt.proofReference ?? "Sem referência externa"}</dd></div>
       {confirmation.paymentAttempt.cardMethod && <div><dt className="text-[var(--g-text-muted)]">Método</dt><dd className="mt-1 font-semibold">{cardMethodLabels[confirmation.paymentAttempt.cardMethod]}{confirmation.paymentAttempt.terminal ? ` · ${confirmation.paymentAttempt.terminal.code}` : ""}</dd></div>}</>}<div><dt className="text-[var(--g-text-muted)]">Venda</dt><dd className="mt-1 font-mono text-xs">{confirmation.saleId}</dd></div></dl><SaleOriginPicker saleId={confirmation.saleId} /><Button variant="brand" size="lg" className="w-full" onClick={onNewSale}><RotateCcw className="size-4" /> Iniciar nova venda</Button></div></Card></div>;
 }
 

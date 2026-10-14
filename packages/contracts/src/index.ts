@@ -1,5 +1,7 @@
 import { moneyFromCents } from "@germinatura/domain";
 import { z } from "zod";
+import { paymentSurchargeConfirmationShape, paymentSurchargeSnapshotSchema, refineSurchargeWaiver } from "./payment-surcharges";
+import { usernameSchema } from "./profile";
 
 export * from "./catalog-categories";
 export * from "./catalog-products";
@@ -24,6 +26,7 @@ export * from "./picpay-statement";
 export * from "./picpay-reconciliation";
 export * from "./portal-events";
 export * from "./portal-showcase";
+export * from "./payment-surcharges";
 
 export const moneyCentsSchema = z.number()
   .int()
@@ -55,9 +58,20 @@ export const catalogProductFlagsSchema = z.object({
 });
 export type CatalogProductFlags = z.infer<typeof catalogProductFlagsSchema>;
 
+/**
+ * A catalog search term as the server applies it: only letters, digits, spaces, dots and hyphens survive (anything else
+ * becomes a space), so the term can never change the shape of the database filter. Empty means "no search".
+ */
+export function catalogSearchTerm(value: string) {
+  return value.normalize("NFC").replace(/[^\p{L}\p{N} .-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+}
+
 export const publicCatalogProductsQuerySchema = z.object({
   cursor: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  // Search (name, SKU or category name) and category, applied by the server to every page.
+  q: z.string().max(200).transform(catalogSearchTerm).optional(),
+  category: z.uuid().optional(),
 });
 export type PublicCatalogProductsQuery = z.infer<typeof publicCatalogProductsQuerySchema>;
 
@@ -92,6 +106,8 @@ export type PublicCatalogProduct = z.infer<typeof publicCatalogProductSchema>;
 export const publicCatalogProductsResponseSchema = z.object({
   data: z.array(publicCatalogProductSchema),
   nextCursor: z.uuid().nullable(),
+  // First page only: every category with published products, whatever the search, so a filter can offer them all.
+  categories: z.array(z.object({ id: z.uuid(), slug: catalogSlugSchema, name: z.string().min(1).max(120) })).optional(),
   request_id: z.string().min(1),
 });
 export type PublicCatalogProductsResponse = z.infer<typeof publicCatalogProductsResponseSchema>;
@@ -397,6 +413,10 @@ export const mySaleSchema = z.object({
     confirmedAt: z.iso.datetime({ offset: true }).nullable(),
     cardMethod: cardPaymentMethodSchema.nullable(),
     terminalCode: z.string().nullable(),
+    // PR D: what the customer was charged (products + acréscimo) and the acréscimo inside it.
+    amountCents: moneyCentsSchema.optional(),
+    surchargeCents: moneyCentsSchema.optional(),
+    surchargeWaived: z.boolean().optional(),
   }).strict().nullable(),
   items: z.array(z.object({
     productName: z.string().min(1).max(160),
@@ -448,7 +468,12 @@ export const adminSaleSchema = z.object({
     proofReference: z.string().nullable(),
     cardMethod: cardPaymentMethodSchema.nullable(),
     terminalCode: z.string().nullable(),
+    // PR D: what the customer was charged and the acréscimo snapshot (null when there was none).
+    amountCents: moneyCentsSchema.optional(),
+    surcharge: paymentSurchargeSnapshotSchema.nullable().optional(),
   }).strict().nullable(),
+  // ADR 0011 (PR 4): the cohort of the sale, so a consolidated list never mixes cohorts without saying so.
+  cohortId: z.uuid().optional(),
 }).strict();
 export type AdminSale = z.infer<typeof adminSaleSchema>;
 
@@ -640,20 +665,30 @@ export const pickupReservationsResponseSchema = z.object({
   request_id: z.string().min(1),
 }).strict();
 
+/**
+ * H2c: the external reference on a Maquininha / Área Pix receipt. Optional: empty means none (null), never a made-up
+ * value. When typed it keeps the non-sensitive format (no card number, password or token) the server also enforces.
+ */
+export const optionalProofReferenceSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z.string().min(4).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
+    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão").nullable(),
+);
+
 export const completePickupRequestSchema = z.object({
   integrationChannel: z.enum(["DINHEIRO", "MAQUININHA", "PIX_AREA"]),
   tenderedCents: moneyCentsSchema.nullable(),
-  proofReference: z.string().min(4).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
-    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão").nullable(),
+  proofReference: optionalProofReferenceSchema,
   cardMethod: cardPaymentMethodSchema.nullable(),
   terminalId: z.uuid().nullable(),
+  ...paymentSurchargeConfirmationShape,
 }).strict().superRefine((value, context) => {
+  refineSurchargeWaiver(value, context);
   if (value.integrationChannel === "DINHEIRO") {
     if (value.tenderedCents === null) context.addIssue({ code: "custom", path: ["tenderedCents"], message: "Informe o valor recebido" });
     if (value.proofReference || value.cardMethod || value.terminalId) context.addIssue({ code: "custom", path: ["integrationChannel"], message: "Dinheiro não tem comprovante nem cartão" });
   } else {
     if (value.tenderedCents !== null) context.addIssue({ code: "custom", path: ["tenderedCents"], message: "Só dinheiro tem valor recebido" });
-    if (!value.proofReference) context.addIssue({ code: "custom", path: ["proofReference"], message: "Informe a referência não sensível" });
     if (value.integrationChannel === "MAQUININHA" && !value.cardMethod) context.addIssue({ code: "custom", path: ["cardMethod"], message: "Informe crédito ou débito" });
     if (value.integrationChannel === "PIX_AREA" && (value.cardMethod || value.terminalId)) context.addIssue({ code: "custom", path: ["cardMethod"], message: "Área Pix não tem cartão" });
   }
@@ -666,6 +701,9 @@ export const completePickupResponseSchema = z.object({
     status: z.literal("COMPLETED"),
     saleId: z.uuid(),
     totalCents: moneyCentsSchema,
+    // Frozen reservation total + acréscimo of the method.
+    chargedCents: moneyCentsSchema,
+    surcharge: paymentSurchargeSnapshotSchema.nullable(),
     integrationChannel: z.enum(["DINHEIRO", "MAQUININHA", "PIX_AREA"]),
     changeCents: moneyCentsSchema.nullable(),
     cardMethod: cardPaymentMethodSchema.nullable(),
@@ -797,11 +835,32 @@ export const paymentTerminalSchema = z.object({
   label: z.string().min(2).max(80),
   active: z.boolean(),
   updatedAt: z.iso.datetime({ offset: true }),
+  // H2b: with whom the terminal is in the request cohort (an operational preference, never exclusivity).
+  assignedTo: z.object({ id: z.uuid(), name: z.string() }).strict().nullable().optional(),
 }).strict();
 export type PaymentTerminal = z.infer<typeof paymentTerminalSchema>;
 
+/** H2b: the terminal the PDV preselects for the seller: assigned > last used > only active > none. */
+export const pdvTerminalPreferenceSchema = z.object({
+  terminalId: z.uuid().nullable(),
+  source: z.enum(["ASSIGNED", "LAST_USED", "ONLY_ACTIVE"]).nullable(),
+}).strict();
+export type PdvTerminalPreference = z.infer<typeof pdvTerminalPreferenceSchema>;
+
 export const paymentTerminalsResponseSchema = z.object({
   data: z.array(paymentTerminalSchema),
+  preference: pdvTerminalPreferenceSchema.optional(),
+  request_id: z.string().min(1),
+}).strict();
+
+export const assignPaymentTerminalRequestSchema = z.object({
+  assigneeId: z.uuid().nullable(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+export type AssignPaymentTerminalRequest = z.infer<typeof assignPaymentTerminalRequestSchema>;
+
+export const paymentTerminalAssigneesResponseSchema = z.object({
+  data: z.array(z.object({ id: z.uuid(), name: z.string(), username: z.string().nullable() }).strict()),
   request_id: z.string().min(1),
 }).strict();
 
@@ -819,12 +878,12 @@ export const paymentTerminalResponseSchema = z.object({
 
 export const manualPaymentConfirmationRequestSchema = z.object({
   integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
-  proofReference: z.string().min(4).max(128)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
-    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
+  proofReference: optionalProofReferenceSchema.optional().transform((value) => value ?? null),
   cardMethod: cardPaymentMethodSchema.nullable().optional(),
   terminalId: z.uuid().nullable().optional(),
+  ...paymentSurchargeConfirmationShape,
 }).strict().superRefine((value, context) => {
+  refineSurchargeWaiver(value, context);
   if (value.integrationChannel === "MAQUININHA" && !value.cardMethod) {
     context.addIssue({ code: "custom", path: ["cardMethod"], message: "Informe crédito, débito ou voucher" });
   }
@@ -845,10 +904,11 @@ export const manualPaymentConfirmationResponseSchema = z.object({
       integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
       confirmationSource: z.literal("MANUAL"),
       confirmedAt: z.iso.datetime({ offset: true }),
-      proofReference: z.string().min(4).max(128),
+      proofReference: z.string().min(4).max(128).nullable(),
       cardMethod: cardPaymentMethodSchema.nullable(),
       terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).strict().nullable(),
     }).strict(),
+    surcharge: paymentSurchargeSnapshotSchema.nullable(),
     // Raffle tickets hold numbers, not stock, so their confirmation reports the numbers instead of a stock movement.
     stock: z.union([
       z.object({ reservationId: z.uuid(), status: z.literal("CONSUMED"), saleMovementId: z.uuid() }).strict(),
@@ -860,6 +920,24 @@ export const manualPaymentConfirmationResponseSchema = z.object({
   request_id: z.string().min(1),
 }).strict();
 export type ManualPaymentConfirmationResponse = z.infer<typeof manualPaymentConfirmationResponseSchema>;
+
+/**
+ * H2d: the static Pix QR of a PDV sale. The amount is decided by the server (sale total + Pix acréscimo in force, or
+ * without it when waived by an authorized operator); `payload` is the "Pix copia e cola" (BR Code). It confirms nothing.
+ */
+export const pixChargeResponseSchema = z.object({
+  data: z.object({
+    saleId: z.uuid(),
+    productCents: moneyCentsSchema,
+    surchargeCents: moneyCentsSchema,
+    amountCents: moneyCentsSchema,
+    waived: z.boolean(),
+    txid: z.string().regex(/^[A-Za-z0-9]{1,25}$/),
+    payload: z.string().min(20).max(512),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type PixChargeResponse = z.infer<typeof pixChargeResponseSchema>;
 
 export const paymentReconciliationRequestSchema = z.object({
   observedAmountCents: moneyCentsSchema.refine((value) => value > 0, "Observed amount must be positive"),
@@ -1022,6 +1100,104 @@ export const appRoleSchema = z.enum([
 ]);
 export type AppRole = z.infer<typeof appRoleSchema>;
 
+// ADR 0011: ADMIN_MASTER is a global capability (admin_masters), never a role granted per cohort, so it is not an
+// AppRole (the roles that can be assigned). The session lists it next to the roles of the request cohort.
+export const sessionRoleSchema = z.enum([...appRoleSchema.options, "ADMIN_MASTER"]);
+export type SessionRole = z.infer<typeof sessionRoleSchema>;
+
+// Cohort context of a request: a concrete cohort, every cohort ("ALL", ADMIN_MASTER only, read/aggregate) or none.
+export const COHORT_HEADER = "x-germinatura-cohort";
+export const cohortSelectionSchema = z.union([z.uuid(), z.literal("all")]);
+export type CohortSelection = z.infer<typeof cohortSelectionSchema>;
+export const cohortModeSchema = z.enum(["COHORT", "ALL", "NONE"]);
+export type CohortMode = z.infer<typeof cohortModeSchema>;
+export const cohortStatusSchema = z.enum(["PREPARING", "ACTIVE", "ARCHIVED"]);
+export type CohortStatus = z.infer<typeof cohortStatusSchema>;
+export const cohortSummarySchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+  year: z.number().int(),
+  slug: z.string().min(1),
+  status: cohortStatusSchema,
+  isDefault: z.boolean().optional(),
+}).strict();
+export type CohortSummary = z.infer<typeof cohortSummarySchema>;
+export const cohortSelectionRequestSchema = z.object({ cohort: cohortSelectionSchema }).strict();
+
+// ADR 0011: a cohort's public slug has one rule everywhere: the database check `cohorts_slug_check`, the API, the
+// admin form, the public `?turma=` parameter and the PDV service worker. 1 to 32 characters: lowercase letters, digits
+// and hyphens, starting and ending with a letter or digit. The slug is set at creation and never edited.
+export const COHORT_SLUG_MAX_LENGTH = 32;
+export const COHORT_SLUG_PATTERN = "^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$";
+export const cohortSlugSchema = z.string().max(COHORT_SLUG_MAX_LENGTH).regex(new RegExp(COHORT_SLUG_PATTERN));
+/** The same rule for an HTML `pattern` attribute, which browsers compile with the `v` flag (a bare "-" in a class is invalid there). */
+export const COHORT_SLUG_HTML_PATTERN = String.raw`[a-z0-9]([a-z0-9\-]{0,30}[a-z0-9])?`;
+
+// ADR 0011: cohort administration (ADMIN_MASTER only; global operations, allowed in "Todas as turmas").
+const cohortNameSchema = z.string().trim().min(3).max(80);
+export const cohortCreateRequestSchema = z.object({
+  name: cohortNameSchema,
+  year: z.number().int().min(2000).max(2100),
+  slug: z.string().trim().toLowerCase().pipe(cohortSlugSchema),
+  status: z.enum(["PREPARING", "ACTIVE"]),
+}).strict();
+export type CohortCreateRequest = z.infer<typeof cohortCreateRequestSchema>;
+export const cohortUpdateRequestSchema = z.object({
+  name: cohortNameSchema,
+  status: cohortStatusSchema,
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+export type CohortUpdateRequest = z.infer<typeof cohortUpdateRequestSchema>;
+export const cohortResponseSchema = z.object({ data: cohortSummarySchema, request_id: z.string() }).strict();
+export const cohortListResponseSchema = z.object({ data: z.array(cohortSummarySchema), request_id: z.string() }).strict();
+// ADR 0011 (PR 4): cohort overview, user ↔ cohort membership and the consolidated view of ADMIN_MASTER.
+export const cohortOverviewSchema = cohortSummarySchema.extend({
+  membersActive: z.number().int().nonnegative(),
+  membersInactive: z.number().int().nonnegative(),
+  roles: z.record(z.string(), z.number().int().nonnegative()),
+  openOperations: z.array(z.string()),
+}).strict();
+export type CohortOverview = z.infer<typeof cohortOverviewSchema>;
+export const cohortOverviewResponseSchema = z.object({ data: z.array(cohortOverviewSchema), request_id: z.string() }).strict();
+
+export const membershipStatusSchema = z.enum(["ACTIVE", "INACTIVE", "NONE"]);
+export const userCohortMembershipSchema = z.object({
+  cohortId: z.uuid(),
+  name: z.string(),
+  year: z.number().int(),
+  status: cohortStatusSchema,
+  isDefault: z.boolean(),
+  membership: membershipStatusSchema,
+  roles: z.array(appRoleSchema),
+  blockers: z.array(z.string()),
+}).strict();
+export type UserCohortMembership = z.infer<typeof userCohortMembershipSchema>;
+export const userCohortMembershipsResponseSchema = z.object({ data: z.array(userCohortMembershipSchema), request_id: z.string() }).strict();
+export const membershipUpdateRequestSchema = z.object({
+  active: z.boolean(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+
+export const picpayEvidenceOverviewSchema = z.object({
+  imports: z.number().int().nonnegative(),
+  lastPeriodTo: z.string().nullable(),
+  inflowCents: z.number().int(),
+  outflowCents: z.number().int(),
+  lines: z.number().int().nonnegative(),
+  linesPending: z.number().int().nonnegative(),
+  linesGlobal: z.number().int().nonnegative(),
+  linesGlobalNetCents: z.number().int(),
+  transactionsGlobal: z.number().int().nonnegative(),
+  enforced: z.boolean(),
+  linesByCohort: z.array(z.object({ cohortId: z.uuid(), lines: z.number().int().nonnegative() }).strict()),
+}).strict();
+export type PicpayEvidenceOverview = z.infer<typeof picpayEvidenceOverviewSchema>;
+
+export const adminMasterUpdateRequestSchema = z.object({
+  granted: z.boolean(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+
 // Spec 5.15 (NOTIF-003): announcements to everyone, to roles or to specific users by e-mail.
 export const publishAnnouncementRequestSchema = z.object({
   title: z.string().trim().min(3).max(160),
@@ -1075,13 +1251,6 @@ export const institutionalOtpVerifySchema = z.object({
 }).strict();
 export type InstitutionalOtpVerify = z.infer<typeof institutionalOtpVerifySchema>;
 
-export const usernameSchema = z.string()
-  .trim()
-  .toLowerCase()
-  .min(3)
-  .max(32)
-  .regex(/^[a-z][a-z0-9._]{2,31}$/);
-
 export const accountPasswordSchema = z.string()
   .min(8)
   .max(128)
@@ -1120,6 +1289,8 @@ export const passwordRecoveryVerifySchema = z.object({
 export const passwordRecoveryCompleteSchema = z.object({ password: accountPasswordSchema }).strict();
 export const passwordRecoveryUnlockSchema = z.object({ reason: z.string().trim().min(4).max(500) }).strict();
 export const signupCodeUnlockSchema = passwordRecoveryUnlockSchema;
+/** A1: an attempt is not a user, so a blocked sign-up code is released by naming the e-mail. */
+export const signupCodeEmailUnlockSchema = z.object({ email: institutionalEmailSchema, reason: z.string().trim().min(4).max(500) }).strict();
 
 export const adminProvisionUserSchema = z.object({
   email: institutionalEmailSchema,
@@ -1150,8 +1321,36 @@ export const adminUserSchema = z.object({
 }).strict();
 export type AdminUser = z.infer<typeof adminUserSchema>;
 
+// ADR 0011 (PR 3): people of the request cohort, filtered and paginated by the server (list_cohort_users).
+export const adminUsersQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  status: z.enum(["ALL", "ACTIVE", "INACTIVE"]).default("ALL"),
+  onboarding: z.enum(["ALL", "COMPLETE", "INCOMPLETE"]).default("ALL"),
+  roles: z.string().optional()
+    .transform((value) => (value ? value.split(",").filter(Boolean) : []))
+    .pipe(z.array(appRoleSchema).max(7)),
+  roleMatch: z.enum(["ANY", "ALL"]).default("ANY"),
+  cohort: z.uuid().optional(),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+}).strict();
+export type AdminUsersQuery = z.infer<typeof adminUsersQuerySchema>;
+
+export const adminUserCohortSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+  active: z.boolean(),
+  roles: z.array(appRoleSchema),
+}).strict();
+
 export const adminUsersResponseSchema = z.object({
-  data: z.array(adminUserSchema),
+  data: z.array(adminUserSchema.extend({ cohorts: z.array(adminUserCohortSchema).optional(), adminMaster: z.boolean().optional() })),
+  page: z.object({
+    total: z.number().int().nonnegative(),
+    matched: z.number().int().nonnegative(),
+    offset: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+  }).strict(),
   request_id: z.string().uuid(),
 }).strict();
 
@@ -1182,6 +1381,8 @@ export const permissionSchema = z.enum([
   "communications.manage",
   "community.moderate",
   "audit.read",
+  "cohorts.manage",
+  "sales.surcharge.waive",
 ]);
 export type Permission = z.infer<typeof permissionSchema>;
 
@@ -1303,9 +1504,13 @@ export const sessionUserSchema = z.object({
   name: z.string().min(1),
   username: usernameSchema,
   avatarPath: z.string().nullable(),
-  role: appRoleSchema,
-  roles: z.array(appRoleSchema).min(1),
+  role: sessionRoleSchema,
+  roles: z.array(sessionRoleSchema).min(1),
   active: z.literal(true),
+  adminMaster: z.boolean(),
+  cohortMode: cohortModeSchema,
+  cohort: cohortSummarySchema.nullable(),
+  cohorts: z.array(cohortSummarySchema),
 });
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 
@@ -1328,16 +1533,20 @@ export function createApiError(
 
 export interface ApiClientOptions {
   getAccessToken: () => Promise<string | null>;
+  /** The cohort this client operates in (the PDV); the Portal validates it against the session on every request. */
+  getCohort?: () => string | null;
   fetchImpl?: typeof fetch;
 }
 
-export function createApiClient({ getAccessToken, fetchImpl = fetch }: ApiClientOptions) {
+export function createApiClient({ getAccessToken, getCohort, fetchImpl = fetch }: ApiClientOptions) {
   return async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
     if (!headers.has("Authorization")) {
       const accessToken = await getAccessToken();
       if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
     }
+    const cohort = getCohort?.();
+    if (cohort) headers.set(COHORT_HEADER, cohort);
     return fetchImpl(input, { ...init, headers, credentials: init.credentials ?? "include" });
   };
 }

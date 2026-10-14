@@ -16,6 +16,10 @@ export const managementIndicatorsSchema = z.object({
     operatingExpensesCents: cents, supplierPaymentsCents: cents, grossMarginCents: cents, grossMarginBps: z.number().int().nullable(),
     operatingProfitCents: cents, cashBalanceCents: cents, salesCount: z.number().int(), refundedSales: z.number().int(),
     averageTicketCents: cents.nullable(), costComplete: z.boolean(),
+    // PR D: the acréscimo charged to customers is inside the sale receipts; product revenue = receipts − acréscimo.
+    // It is never a fee (feesCents holds only the reconciled PicPay fee).
+    productRevenueCents: cents, surchargeRevenueCents: cents, surchargeRefundsCents: cents, surchargeWaivedCents: cents,
+    surchargeWaivers: z.number().int().nonnegative(),
   }).strict(),
   byChannel: z.object({ PDV: cents, ONLINE: cents, RESERVA: cents, RIFA: cents, EVENTO: cents, MANUAL: cents, HISTORICO_PICPAY: cents }).strict(),
   byPaymentMethod: z.record(z.string(), cents),
@@ -42,3 +46,19 @@ export const managementIndicatorsSchema = z.object({
 export type ManagementIndicators = z.infer<typeof managementIndicatorsSchema>;
 
 export const managementIndicatorsResponseSchema = z.object({ data: managementIndicatorsSchema, request_id: z.string().min(1) }).strict();
+
+// ADR 0011 (PR 4): the same indicators computed inside each cohort, side by side. Never one figure mixing cohorts.
+export const consolidatedIndicatorsResponseSchema = z.object({
+  data: z.object({
+    from: isoDate,
+    to: isoDate,
+    cohorts: z.array(z.object({
+      cohortId: z.uuid(),
+      name: z.string(),
+      status: z.enum(["PREPARING", "ACTIVE", "ARCHIVED"]),
+      indicators: managementIndicatorsSchema.nullable(),
+    }).strict()),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type ConsolidatedIndicators = z.infer<typeof consolidatedIndicatorsResponseSchema>["data"];

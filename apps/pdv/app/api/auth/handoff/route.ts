@@ -1,5 +1,6 @@
 import { pdvHandoffRedeemRequestSchema } from "@germinatura/contracts";
 import { NextResponse } from "next/server";
+import { accountUsable, eligiblePdvCohorts, operatesPdvIn, parsePdvCohort, sessionIn, withPdvCohort } from "@/lib/pdv-cohort";
 import { createPdvSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createPdvSupabaseServerClient } from "@/lib/supabase-server";
 
@@ -46,16 +47,30 @@ export async function POST(request: Request) {
     const { error: verifyError } = await client.auth.verifyOtp({ type: "magiclink", token_hash: tokenHash });
     if (verifyError) throw new Error("PDV_HANDOFF_UNAVAILABLE");
 
-    const { data: sessionData, error: sessionError } = await client.rpc("get_my_session");
-    const record = sessionData && typeof sessionData === "object" ? sessionData as Record<string, unknown> : null;
-    const roles = Array.isArray(record?.roles) ? record.roles : [];
-    if (sessionError || record?.active !== true || record?.onboarding_completed !== true || (!roles.includes("ADMIN") && !roles.includes("VENDEDOR"))) {
-      await client.auth.signOut();
-      return response("FORBIDDEN", "Sua conta não tem acesso ao PDV.", 403);
+    // ADR 0011: the cohort comes from the code stored by the Portal, never from the URL, and the database confirms the
+    // PDV role inside it. A code issued before cohorts (none stored) follows the same rule as the password login.
+    const handoffCohort = parsePdvCohort(typeof (redeemed as { cohort_id?: unknown }).cohort_id === "string"
+      ? (redeemed as { cohort_id: string }).cohort_id : null);
+    let cohort: string | null = null;
+    if (handoffCohort) {
+      const { session } = await sessionIn(client, handoffCohort);
+      cohort = operatesPdvIn(session, handoffCohort) ? handoffCohort : null;
+      if (!cohort) {
+        await client.auth.signOut();
+        return response("FORBIDDEN", "Sua conta não tem acesso ao PDV nesta turma.", 403);
+      }
+    } else {
+      const { session } = await sessionIn(client, null);
+      const eligible = accountUsable(session) ? await eligiblePdvCohorts(client, session) : [];
+      if (eligible.length === 0) {
+        await client.auth.signOut();
+        return response("FORBIDDEN", "Sua conta não tem acesso ao PDV.", 403);
+      }
+      cohort = eligible.length === 1 ? eligible[0]!.id : null;
     }
     // AUD-001: best effort; recording a login never changes its outcome.
     await client.rpc("record_login_success", { p_app: "PDV", p_request_id: null }).then(() => undefined, () => undefined);
-    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+    return withPdvCohort(NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } }), cohort);
   } catch {
     return response("AUTH_UNAVAILABLE", "Autenticação temporariamente indisponível", 503);
   }

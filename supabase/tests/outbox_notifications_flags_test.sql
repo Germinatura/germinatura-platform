@@ -1,15 +1,16 @@
 begin;
 select plan(52);
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- ADR 0011 (PR 5): fixtures name their cohort
 
 select has_table('public', 'notifications', 'notifications table exists');
-select has_table('public', 'feature_flags', 'feature flags table exists');
+select has_table('private', 'feature_flags', 'feature flags table exists');
 select has_function('public', 'worker_claim_outbox_events', array['text','integer','integer'], 'worker claim RPC exists');
 select has_function('public', 'worker_expire_due_reservations', array['integer'], 'worker expiration RPC exists');
 select has_function('public', 'worker_process_outbox_event', array['uuid','text'], 'worker process RPC exists');
 select has_function('public', 'worker_retry_outbox_event', array['uuid','text','text','integer','integer'], 'worker retry RPC exists');
 select has_function('public', 'worker_outbox_metrics', array[]::text[], 'worker metrics RPC exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.notifications'::regclass), 'notifications have RLS');
-select ok((select relrowsecurity from pg_class where oid = 'public.feature_flags'::regclass), 'feature flags have RLS');
+select ok((select relrowsecurity from pg_class where oid = 'private.feature_flags'::regclass), 'feature flags have RLS');
 select results_eq($$select count(*)::bigint from public.feature_flags$$, array[15::bigint], 'all launch flags are seeded, including cash_payment, payment_link and the module flags');
 select results_eq($$select count(*)::bigint from public.feature_flags where enabled$$, array[8::bigint], 'eight launch capabilities start enabled');
 select results_eq($$select count(*)::bigint from public.feature_flags where not enabled$$, array[7::bigint], 'seven remote or post-MVP capabilities start disabled');
@@ -81,11 +82,11 @@ select public.create_commercial_reservation(
   'worker-commercial-expire', '93000000-0000-4000-8000-000000000005'
 ) as result;
 reset role;
-alter table public.commercial_reservations disable trigger commercial_reservations_guard;
+alter table cohort_data.commercial_reservations disable trigger commercial_reservations_guard;
 update public.commercial_reservations
 set created_at = now() - interval '20 minutes', expires_at = now() - interval '1 second'
 where id = (select (result ->> 'reservation_id')::uuid from expiring_commercial);
-alter table public.commercial_reservations enable trigger commercial_reservations_guard;
+alter table cohort_data.commercial_reservations enable trigger commercial_reservations_guard;
 update public.stock_reservations
 set created_at = now() - interval '20 minutes', expires_at = now() - interval '1 second'
 where id = (select (result #>> '{stock_reservation,reservation_id}')::uuid from expiring_commercial);
@@ -152,6 +153,8 @@ select throws_ok(
   'P0001', 'NOTIFICATION_NOT_FOUND', 'another user cannot mark the notification read'
 );
 reset role;
+set local "request.jwt.claim.sub" = ''; -- fixtures below are written by the system, in Turma 2026 (the worker
+select set_config('germinatura.system_cohort', 'c0000000-0000-4000-8000-000000002026', true); -- cleared it for a global event)
 
 insert into public.outbox_events (id, topic, aggregate_type, aggregate_id, payload)
 values ('94000000-0000-4000-8000-000000000002', 'test.delivery.failure', 'test_event', 'failure-1', '{}');

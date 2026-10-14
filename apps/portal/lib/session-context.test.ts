@@ -3,7 +3,7 @@ import { createSessionContext, forwardSessionContext, readSessionContext, SESSIO
 
 const session = { user: { id: "10000000-0000-4000-8000-000000000003", authId: "10000000-0000-4000-8000-000000000003", email: "c@institutojef.org.br",
   perfil: "CONSUMIDOR" as const, nome: "Consumidor", username: "consumidor", avatarPath: null, roles: ["CONSUMIDOR" as const], active: true as const,
-  onboardingCompleted: true, needsPasswordReset: false as const } };
+  onboardingCompleted: true, needsPasswordReset: false as const, adminMaster: false, cohortMode: "COHORT" as const, cohort: null, cohorts: [] } };
 
 describe("session context", () => {
   it("round-trips for the same token within its lifetime", async () => {

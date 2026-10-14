@@ -7,8 +7,8 @@ create temp table stock_loss_test_baseline as select
   (select count(*)::bigint from public.outbox_events where aggregate_type='stock_loss_report') events,
   (select count(*)::bigint from public.audit_logs where entity_type='stock_loss_settings') setting_audits;
 grant select on stock_loss_test_baseline to authenticated;
-select has_table('public','stock_loss_reports','loss reports are persisted');
-select has_table('public','stock_loss_settings','loss approval settings are persisted');
+select has_table('cohort_data','stock_loss_reports','loss reports are persisted');
+select has_table('cohort_data','stock_loss_settings','loss approval settings are persisted');
 select has_function('public','report_stock_loss',array['uuid','bigint','text','text','text','text','uuid'],'report RPC exists');
 select has_function('public','resolve_stock_loss',array['uuid','text','text','text','uuid'],'resolution RPC exists');
 select has_function('public','configure_stock_loss_threshold',array['bigint','text','text','uuid'],'settings RPC exists');

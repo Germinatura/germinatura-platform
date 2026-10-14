@@ -18,13 +18,16 @@ import {
 } from "@germinatura/contracts";
 import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 
-type ManagedCatalogProduct = CatalogProduct & { images: CatalogProductImage[] };
+// The price in effect is shown in the list (the admin catalog filters by it); null when the product has none now.
+type ManagedCatalogProduct = CatalogProduct & { images: CatalogProductImage[]; currentPriceCents?: number | null };
 
 interface CatalogCategoryOption {
   id: string;
   name: string;
   active: boolean;
 }
+
+const currentPrice = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export function ProductsManager({ products, categories }: { products: ManagedCatalogProduct[]; categories: CatalogCategoryOption[] }) {
   const router = useRouter();
@@ -38,13 +41,13 @@ export function ProductsManager({ products, categories }: { products: ManagedCat
   return <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.8fr)]">
     <Card className="p-5">
       <h2 className="text-xl font-semibold">Produtos cadastrados</h2>
-      <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{products.length} produto{products.length === 1 ? "" : "s"} nesta busca</p>
+      <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{products.length} produto{products.length === 1 ? "" : "s"} nesta consulta</p>
       {notice && <p role="status" className="mt-4 text-[var(--g-status-success-foreground)]">{notice}</p>}
-      {products.length === 0 ? <p className="mt-6 text-[var(--g-text-secondary)]">Nenhum produto corresponde à busca. Cadastre um produto pelo formulário.</p> :
+      {products.length === 0 ? <p className="mt-6 text-[var(--g-text-secondary)]">Nenhum produto corresponde à busca e aos filtros. Ajuste os filtros ou cadastre um produto pelo formulário.</p> :
         <ul className="mt-4 divide-y divide-[var(--g-border-subtle)]">{products.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
           <div className="min-w-0 flex-1 break-words">
             <h3 className="font-semibold">{item.name}</h3>
-            <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{item.sku} · {categoryById.get(item.categoryId) ?? "Categoria indisponível"}</p>
+            <p className="mt-1 text-sm text-[var(--g-text-secondary)]">{item.sku} · {categoryById.get(item.categoryId) ?? "Categoria indisponível"}{item.currentPriceCents !== undefined && <> · <span className="g-money">{item.currentPriceCents === null ? "Sem preço vigente" : currentPrice.format(item.currentPriceCents / 100)}</span></>}</p>
             <div className="mt-2 flex flex-wrap gap-1">
               <Badge tone={item.active ? "success" : "warning"}>{item.active ? "Ativo" : "Inativo"}</Badge>
               {item.published && <Badge tone="info">Portal</Badge>}

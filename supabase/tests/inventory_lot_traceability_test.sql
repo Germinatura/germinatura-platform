@@ -1,8 +1,8 @@
 begin;
 select plan(33);
 
-select has_table('public','inventory_lot_balances','lot balances exist');
-select has_table('public','stock_movement_lot_allocations','movement allocations exist');
+select has_table('cohort_data','inventory_lot_balances','lot balances exist');
+select has_table('cohort_data','stock_movement_lot_allocations','movement allocations exist');
 select ok(not has_table_privilege('authenticated','public.inventory_lot_balances','INSERT'),'lot balances deny direct writes');
 select ok(not has_table_privilege('authenticated','public.stock_movement_lot_allocations','INSERT'),'allocations deny direct writes');
 select ok(not has_function_privilege('anon','public.search_inventory_lot_positions(text,uuid,uuid,integer)','EXECUTE'),'anonymous lot search denied');
@@ -64,7 +64,7 @@ select is((select count(*)::integer from public.search_inventory_lot_positions('
 set local "request.jwt.claim.sub"='10000000-0000-4000-8000-000000000003';
 select is((select count(*)::integer from public.inventory_lot_positions),0,'consumer cannot inspect lot positions');
 select is((select count(*)::integer from public.inventory_lot_history),0,'consumer cannot inspect lot history');
-select throws_ok($$insert into public.stock_movement_lot_allocations(movement_item_id,lot_id,quantity) values(gen_random_uuid(),gen_random_uuid(),1)$$,'42501','permission denied for table stock_movement_lot_allocations','consumer cannot write allocations');
+select throws_ok($$insert into public.stock_movement_lot_allocations(movement_item_id,lot_id,quantity) values(gen_random_uuid(),gen_random_uuid(),1)$$,'42501','permission denied for view stock_movement_lot_allocations','consumer cannot write allocations');
 
 reset role;
 select is((select count(*)::integer from public.inventory_lot_positions where lot_id=(select id from trace_lot)),2,'manager view exposes current lot across both locations');

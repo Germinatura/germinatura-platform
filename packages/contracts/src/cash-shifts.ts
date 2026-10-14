@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { paymentSurchargeConfirmationShape, paymentSurchargeSnapshotSchema, refineSurchargeWaiver } from "./payment-surcharges";
 
 // PAY-009: seller cash shift and physical cash payments, all values in integer cents.
 const cents = z.number().int().nonnegative().refine(Number.isSafeInteger, "Money must be a safe integer");
@@ -55,7 +56,8 @@ export const sellerShiftResponseSchema = z.object({
 
 export const cashPaymentRequestSchema = z.object({
   tenderedCents: cents,
-}).strict();
+  ...paymentSurchargeConfirmationShape,
+}).strict().superRefine(refineSurchargeWaiver);
 
 export const cashPaymentResponseSchema = z.object({
   data: z.object({
@@ -70,6 +72,7 @@ export const cashPaymentResponseSchema = z.object({
       confirmedAt: z.iso.datetime({ offset: true }),
     }).strict(),
     cash: z.object({ shiftId: z.uuid(), tenderedCents: cents, changeCents: cents }).strict(),
+    surcharge: paymentSurchargeSnapshotSchema.nullable(),
     financialLedgerEntryId: z.uuid(),
     correlationId: z.uuid(),
   }).strict(),

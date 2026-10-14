@@ -53,11 +53,13 @@ test("financeiro cadastra a maquininha e o vendedor registra método e terminal 
     await page.getByRole("button", { name: "Revisar venda" }).click();
     await page.getByRole("button", { name: /^Cobrar/ }).click();
     await expect(page.getByRole("heading", { name: "Confirmar pagamento" })).toBeVisible();
-    await page.getByLabel("Referência não sensível do comprovante").fill(`NSU-${code}`);
+    await page.getByLabel("Referência externa (opcional)").fill(`NSU-${code}`);
     const confirm = page.getByRole("button", { name: "Confirmar recebimento manualmente" });
     await expect(confirm).toBeDisabled();
     await page.getByRole("button", { name: "Débito" }).click();
-    await expect(confirm).toBeDisabled();
+    // H2b: with a single active terminal it comes preselected (the seller can still change it).
+    await expect(page.getByLabel("Maquininha usada").locator("option:checked")).toHaveText(`${code} · Maquininha do teste`);
+    await expect(confirm).toBeEnabled();
     await page.getByLabel("Maquininha usada").selectOption({ label: `${code} · Maquininha do teste` });
     const confirmation = page.waitForResponse((response) => response.url().endsWith("/payments/manual-confirmation"));
     await confirm.click();

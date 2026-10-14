@@ -15,7 +15,7 @@ select is((select revision from public.profile_preferences),1,'rejected writes p
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select is((select count(*)::integer from public.profile_preferences),0,'administrator cannot read another person private interests');
 reset role;
-select is((select count(*)::integer from public.audit_logs where action='profile.updated'),1,'replays create no duplicate audit');
+select is((select count(*)::integer from cohort_data.audit_logs where action='profile.updated'),1,'replays create no duplicate audit');
 select ok(not exists(select 1 from public.audit_logs where action='profile.updated' and (metadata ? 'bio' or metadata ? 'preferences')),'audit omits personal interests');
 update public.profiles set active=false where id='10000000-0000-4000-8000-000000000003';
 set local role authenticated;

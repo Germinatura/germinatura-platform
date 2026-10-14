@@ -1,7 +1,7 @@
 begin;
 select plan(35);
 
-select has_table('public', 'financial_ledger_entries', 'financial ledger table exists');
+select has_table('cohort_data', 'financial_ledger_entries', 'financial ledger table exists');
 select has_type('public', 'financial_ledger_entry_type', 'financial ledger entry type exists');
 select has_function(
   'public', 'confirm_manual_payment',
@@ -9,7 +9,7 @@ select has_function(
   'manual payment confirmation RPC exists'
 );
 select ok(
-  (select relrowsecurity from pg_class where oid = 'public.financial_ledger_entries'::regclass),
+  (select relrowsecurity from pg_class where oid = 'cohort_data.financial_ledger_entries'::regclass),
   'financial ledger has RLS enabled'
 );
 select results_eq(

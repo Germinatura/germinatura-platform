@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   apiErrorSchema,
+  adminUsersQuerySchema,
   adminUsersResponseSchema,
+  cohortSelectionSchema,
   catalogProductFlagsSchema,
   catalogSlugSchema,
   commercialReservationCancelResponseSchema,
@@ -142,10 +144,28 @@ describe("shared contracts", () => {
         onboardingCompleted: true,
         roles: ["ADMIN", "CONSUMIDOR"],
       }],
+      page: { total: 1, matched: 1, offset: 0, limit: 25 },
       request_id: "20000000-0000-4000-8000-000000000001",
     });
     expect(parsed.data[0]?.roles).toEqual(["ADMIN", "CONSUMIDOR"]);
     expect(JSON.stringify(parsed)).not.toContain("password");
+  });
+
+  it("parses the administrative user filters from the query string", () => {
+    expect(adminUsersQuerySchema.parse({})).toEqual({ status: "ALL", onboarding: "ALL", roles: [], roleMatch: "ANY", offset: 0, limit: 25 });
+    expect(adminUsersQuerySchema.parse({ q: " ana ", roles: "ADMIN,VENDEDOR", roleMatch: "ALL", offset: "50", limit: "25" }))
+      .toMatchObject({ q: "ana", roles: ["ADMIN", "VENDEDOR"], roleMatch: "ALL", offset: 50, limit: 25 });
+    for (const query of [{ roles: "ADMIN_MASTER" }, { limit: "101" }, { cohort: "all" }, { status: "BLOCKED" }, { extra: "1" }]) {
+      expect(adminUsersQuerySchema.safeParse(query).success).toBe(false);
+    }
+  });
+
+  it("accepts a cohort selection only as a uuid or all", () => {
+    expect(cohortSelectionSchema.safeParse("all").success).toBe(true);
+    expect(cohortSelectionSchema.safeParse("c0000000-0000-4000-8000-000000002026").success).toBe(true);
+    for (const value of ["", "ALL", "2026", "c0000000-0000-4000-8000-000000002026;drop"]) {
+      expect(cohortSelectionSchema.safeParse(value).success).toBe(false);
+    }
   });
 
   it("rejects an invalid session identity", () => {
@@ -330,6 +350,11 @@ describe("shared contracts", () => {
     expect(publicCatalogProductsQuerySchema.parse({ limit: "50" })).toEqual({ limit: 50 });
     expect(publicCatalogProductsQuerySchema.safeParse({ limit: 51 }).success).toBe(false);
     expect(publicCatalogProductsQuerySchema.safeParse({ cursor: "not-a-uuid" }).success).toBe(false);
+    expect(publicCatalogProductsQuerySchema.safeParse({ category: "brownie" }).success).toBe(false);
+    // The search term can never carry filter syntax (commas, parentheses, quotes, wildcards) to the database.
+    expect(publicCatalogProductsQuerySchema.parse({ q: "  Brownie,name.eq.x)(\"*%_  Ninho " })).toMatchObject({ q: "Brownie name.eq.x Ninho" });
+    expect(publicCatalogProductsQuerySchema.parse({ q: "Pão de mel 2-B" })).toMatchObject({ q: "Pão de mel 2-B" });
+    expect(publicCatalogProductsQuerySchema.parse({ q: "***" })).toMatchObject({ q: "" });
 
     expect(publicCatalogProductsResponseSchema.parse({
       data: [{
@@ -564,6 +589,13 @@ describe("shared contracts", () => {
       integrationChannel: "PIX_AREA",
       proofReference: "4111111111111111",
     }).success).toBe(false);
+    // H2c: the reference is optional; absent or empty is null, never invented. When typed, the format still applies.
+    expect(manualPaymentConfirmationRequestSchema.parse({ integrationChannel: "PIX_AREA" }).proofReference).toBeNull();
+    expect(manualPaymentConfirmationRequestSchema.parse({ integrationChannel: "PIX_AREA", proofReference: "" }).proofReference).toBeNull();
+    expect(manualPaymentConfirmationRequestSchema.parse({ integrationChannel: "MAQUININHA", proofReference: null, cardMethod: "DEBITO" }).proofReference).toBeNull();
+    for (const invalid of ["ab", " NSU-1 ", "senha=1234", "token abc"]) {
+      expect(manualPaymentConfirmationRequestSchema.safeParse({ integrationChannel: "PIX_AREA", proofReference: invalid }).success).toBe(false);
+    }
 
     expect(manualPaymentConfirmationResponseSchema.parse({
       data: {
@@ -580,6 +612,7 @@ describe("shared contracts", () => {
           cardMethod: null,
           terminal: null,
         },
+        surcharge: null,
         stock: {
           reservationId: "74000000-0000-4000-8000-000000000001",
           status: "CONSUMED",

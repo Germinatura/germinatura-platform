@@ -1,7 +1,7 @@
 begin;
 select plan(26);
 
-select has_table('public', 'seller_stock_transfer_requests', 'seller transfer requests are persisted');
+select has_table('cohort_data', 'seller_stock_transfer_requests', 'seller transfer requests are persisted');
 select has_function('public', 'request_seller_stock_transfer', array['uuid', 'uuid', 'bigint', 'text', 'text', 'uuid'], 'request RPC exists');
 select has_function('public', 'resolve_seller_stock_transfer', array['uuid', 'text', 'text', 'text', 'uuid'], 'resolution RPC exists');
 select function_privs_are(

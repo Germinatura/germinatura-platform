@@ -1,9 +1,17 @@
 import { z } from "zod";
 
 export const sweetPreferences = ["Chocolate", "Caramelo", "Frutas", "Coco", "Baunilha", "Castanhas", "Brownie", "Cookie", "Brigadeiro", "Bolo", "Bala", "Chocolate branco"] as const;
+/** One username rule for the sign-up, the profile and the login (profiles_username_valid in the database). */
+export const usernameSchema = z.string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(32)
+  .regex(/^[a-z][a-z0-9._]{2,31}$/);
 export const updateProfileSchema = z.object({
   expectedRevision: z.number().int().min(0).max(2147483646),
   displayName: z.string().trim().min(2).max(120),
+  username: usernameSchema,
   avatarPath: z.string().regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|jpeg|png|webp)$/).nullable(),
   bio: z.string().trim().max(280),
   className: z.string().trim().max(60),

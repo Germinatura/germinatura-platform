@@ -3,7 +3,9 @@ import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
-import { databaseFilePreviewSchema, picpayDatabaseError, picpayErrorResponse, readPicpayFile, toFilePreview } from "@/lib/picpay-reconciliation";
+import {
+  databaseFilePreviewSchema, picpayDatabaseError, picpayErrorResponse, readPicpayFile, requireAdminMasterUser, toFilePreview,
+} from "@/lib/picpay-reconciliation";
 
 const headers = (requestId: string) => ({ "Cache-Control": "no-store", "x-request-id": requestId });
 
@@ -11,7 +13,7 @@ const headers = (requestId: string) => ({ "Cache-Control": "no-store", "x-reques
 export async function POST(request: Request) {
   const requestId = createRequestId(request.headers);
   try {
-    await requirePermission("finance.manage");
+    requireAdminMasterUser(await requirePermission("finance.manage"));
     const file = await readPicpayFile(request);
     if ("error" in file) return picpayErrorResponse(file.error, file.message, requestId, 422);
     const client = await createAuthenticatedSupabaseClient(request);

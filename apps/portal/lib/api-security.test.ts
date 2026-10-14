@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiAccessRule, rolesSatisfyAccess } from "./api-security";
+import { apiAccessRule, apiAccessRules, readAllowedInAll, rolesSatisfyAccess, writeNeedsCohort } from "./api-security";
 
 describe("inventory API access", () => {
   it("allows inventory operators and administrators only", () => {
@@ -51,6 +51,7 @@ describe("purchase payable API access", () => {
     expect(apiAccessRule("/api/v1/admin/finance/payables")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/shifts")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/terminals")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/surcharges")?.methods).toEqual(["GET", "POST"]);
     expect(apiAccessRule("/api/v1/admin/finance/sales")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/entries")?.methods).toEqual(["GET", "POST"]);
     expect(apiAccessRule("/api/v1/admin/finance/statement")?.access).toBe("finance");
@@ -87,6 +88,11 @@ describe("purchase payable API access", () => {
     expect(apiAccessRule("/api/v1/admin/finance/picpay/exceptions/resolve")?.methods).toEqual(["POST"]);
     expect(apiAccessRule("/api/v1/admin/finance/picpay/transactions/63000000-0000-4000-8000-000000000001/link")?.access).toBe("finance");
     expect(apiAccessRule("/api/v1/admin/finance/picpay/periods")?.methods).toEqual(["GET", "POST"]);
+    // E0 (ADR 0011): attribution and the isolation switch belong to ADMIN_MASTER; the switch is a global operation.
+    expect(apiAccessRule("/api/v1/admin/finance/picpay/attribution")?.access).toBe("master");
+    expect(apiAccessRule("/api/v1/admin/finance/picpay/attribution/preview")?.access).toBe("master");
+    expect(apiAccessRule("/api/v1/admin/finance/picpay/attribution/isolation")).toMatchObject({ methods: ["POST"], access: "master", cohort: "global" });
+    expect(rolesSatisfyAccess(["ADMIN"], "master")).toBe(false);
     expect(rolesSatisfyAccess(["ADMIN"], "finance")).toBe(true);
     expect(rolesSatisfyAccess(["FINANCEIRO"], "finance")).toBe(true);
     expect(rolesSatisfyAccess(["ESTOQUE"], "finance")).toBe(false);
@@ -99,11 +105,70 @@ describe("cash and shift API access", () => {
     expect(apiAccessRule("/api/v1/pdv/shifts")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/sales")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/terminals")?.access).toBe("seller");
+    expect(apiAccessRule("/api/v1/pdv/surcharges")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/pickups")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/pickups/74000000-0000-4000-8000-000000000001/complete")?.methods).toEqual(["POST"]);
     expect(apiAccessRule("/api/v1/pdv/shifts/67000000-0000-4000-8000-000000000001/close")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/sales/67000000-0000-4000-8000-000000000001/payments/cash")?.access).toBe("seller");
     expect(apiAccessRule("/api/v1/pdv/shifts/not-a-uuid!/close")).toBeUndefined();
     expect(rolesSatisfyAccess(["CONSUMIDOR"], "seller")).toBe(false);
+  });
+});
+
+describe("cohort context of API writes (ADR 0011)", () => {
+  it("ADMIN_MASTER satisfies every level; cohort administration is ADMIN_MASTER only", () => {
+    for (const level of ["admin", "finance", "inventory", "stock", "communications", "seller", "master"] as const) {
+      expect(rolesSatisfyAccess(["ADMIN_MASTER"], level)).toBe(true);
+    }
+    expect(rolesSatisfyAccess(["ADMIN"], "master")).toBe(false);
+    expect(apiAccessRule("/api/v1/admin/cohorts")?.access).toBe("master");
+    expect(apiAccessRule("/api/v1/admin/cohorts/c0000000-0000-4000-8000-000000002026")?.access).toBe("master");
+    expect(apiAccessRule("/api/v1/admin/users/10000000-0000-4000-8000-000000000001/admin-master")?.access).toBe("master");
+  });
+
+  it("every write needs a concrete cohort except the documented global operations", () => {
+    const global = apiAccessRules.filter((rule) => rule.cohort === "global").map((rule) => rule.path).sort();
+    expect(global).toEqual([
+      "/api/auth/logout", "/api/auth/reset-password", "/api/v1/account/sessions", "/api/v1/account/sessions/:id",
+      "/api/v1/admin/bootstrap", "/api/v1/admin/cohorts", "/api/v1/admin/cohorts/:id", "/api/v1/admin/cohorts/:id/default",
+      "/api/v1/admin/finance/picpay/attribution/isolation", "/api/v1/admin/signup-codes/unlock", "/api/v1/admin/users/:id/admin-master",
+      "/api/v1/admin/users/:id/cohorts",
+      "/api/v1/notifications/:id/read", "/api/v1/notifications/preferences", "/api/v1/profile", "/api/v1/session/cohort",
+    ]);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/sales/checkout"), "POST")).toBe(true);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/users"), "POST")).toBe(true);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/users"), "GET")).toBe(false);
+    expect(writeNeedsCohort(undefined, "POST")).toBe(true);
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/cohorts"), "POST")).toBe(false);
+    // A1: the sign-up code limit is keyed by the e-mail (no cohort); the database allows ADMIN_MASTER or the ADMIN of the default cohort.
+    expect(writeNeedsCohort(apiAccessRule("/api/v1/admin/signup-codes/unlock"), "POST")).toBe(false);
+  });
+});
+
+describe("reads in Todas as turmas (ADR 0011, PR 4)", () => {
+  it("allows only the declared consolidated reads, fail-closed for every other route", () => {
+    const consolidated = apiAccessRules.filter((rule) => rule.all === "read").map((rule) => rule.path).sort();
+    expect(consolidated).toEqual([
+      "/api/auth/me", "/api/v1/admin/audit", "/api/v1/admin/audit/correlations/:id", "/api/v1/admin/audit/security",
+      "/api/v1/admin/consolidated/indicators", "/api/v1/admin/consolidated/picpay", "/api/v1/admin/finance/picpay/attribution",
+      "/api/v1/admin/finance/sales",
+      "/api/v1/admin/finance/sales/:id", "/api/v1/admin/users", "/api/v1/auth/session", "/api/v1/feature-flags", "/api/v1/health",
+      "/api/v1/notifications",
+    ]);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/sales"), "GET")).toBe(true);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/payables"), "GET")).toBe(false);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/balances"), "GET")).toBe(false);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/catalog/products"), "GET")).toBe(false);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/users/10000000-0000-4000-8000-000000000001/cohorts"), "GET")).toBe(true);
+    expect(readAllowedInAll(apiAccessRule("/api/v1/admin/finance/sales"), "POST")).toBe(false);
+    expect(readAllowedInAll(undefined, "GET")).toBe(false);
+  });
+
+  it("keeps membership changes inside a concrete cohort and the consolidated views to ADMIN_MASTER", () => {
+    const membership = apiAccessRule("/api/v1/admin/users/10000000-0000-4000-8000-000000000001/membership");
+    expect(membership?.access).toBe("admin");
+    expect(writeNeedsCohort(membership, "PUT")).toBe(true);
+    expect(apiAccessRule("/api/v1/admin/consolidated/indicators")?.access).toBe("master");
+    expect(rolesSatisfyAccess(["ADMIN"], "master")).toBe(false);
   });
 });

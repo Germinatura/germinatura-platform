@@ -96,6 +96,14 @@ export function statementDatabaseError(message: string, requestId: string) {
   }
   if (message.includes("FINANCE_CATEGORY_AUTOMATIC_ONLY")) return statementErrorResponse("FINANCE_CATEGORY_AUTOMATIC_ONLY", "Receita de vendas vem só das vendas registradas.", requestId, 422);
   if (message.includes("FINANCE_MANAGE_REQUIRED")) return statementErrorResponse("FORBIDDEN", "Operação não autorizada.", requestId, 403);
+  // E0 (ADR 0011): a line counts in one cohort; unassigned lines are ADMIN_MASTER's to decide inside a cohort.
+  if (message.includes("PICPAY_EVIDENCE_ATTRIBUTED_TO_ANOTHER_COHORT")) {
+    return statementErrorResponse("PICPAY_EVIDENCE_ATTRIBUTED_TO_ANOTHER_COHORT", "Esta linha pertence a outra turma.", requestId, 409);
+  }
+  if (message.includes("PICPAY_EVIDENCE_NOT_ATTRIBUTED")) {
+    return statementErrorResponse("PICPAY_EVIDENCE_NOT_ATTRIBUTED", "Esta linha ainda não tem turma: só o ADMIN_MASTER pode atribuí-la.", requestId, 403);
+  }
+  if (message.includes("COHORT_REQUIRED")) return statementErrorResponse("COHORT_REQUIRED", "Selecione uma turma para revisar o extrato.", requestId, 422);
   if (message.includes("INVALID_")) return statementErrorResponse("INVALID_REQUEST", "Confira os dados enviados.", requestId, 422);
   return statementErrorResponse("STATEMENT_UNAVAILABLE", "Importação de extrato temporariamente indisponível.", requestId, 503);
 }

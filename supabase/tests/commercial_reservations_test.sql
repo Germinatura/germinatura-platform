@@ -1,12 +1,12 @@
 begin;
 select plan(34);
 
-select has_table('public', 'commercial_reservations', 'commercial reservations table exists');
+select has_table('cohort_data', 'commercial_reservations', 'commercial reservations table exists');
 select has_type('public', 'commercial_reservation_status', 'commercial reservation status exists');
 select has_function('public', 'create_commercial_reservation', array['uuid', 'jsonb', 'text', 'uuid', 'text'], 'create RPC exists');
 select has_function('public', 'cancel_commercial_reservation', array['uuid', 'text', 'uuid'], 'cancel RPC exists');
 select has_function('public', 'convert_commercial_reservation', array['uuid', 'text', 'uuid'], 'convert RPC exists');
-select ok((select relrowsecurity from pg_class where oid = 'public.commercial_reservations'::regclass), 'RLS is enabled');
+select ok((select relrowsecurity from pg_class where oid = 'cohort_data.commercial_reservations'::regclass), 'RLS is enabled');
 select results_eq(
   $$select count(*)::bigint from pg_policies where schemaname = 'public' and tablename = 'commercial_reservations' and cmd in ('INSERT','UPDATE','DELETE')$$,
   array[0::bigint], 'no direct write policy exists'

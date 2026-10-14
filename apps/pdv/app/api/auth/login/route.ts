@@ -1,5 +1,6 @@
 import { credentialLoginRequestSchema } from "@germinatura/contracts";
 import { NextResponse } from "next/server";
+import { accountUsable, eligiblePdvCohorts, sessionIn, withPdvCohort } from "@/lib/pdv-cohort";
 import { createPdvSupabaseAdminClient } from "@/lib/supabase-admin";
 import { createPdvSupabaseServerClient } from "@/lib/supabase-server";
 
@@ -57,15 +58,10 @@ export async function POST(request: Request) {
       if (!allowed) return response("RATE_LIMITED", "Muitas tentativas. Aguarde antes de tentar novamente.", 429);
       return response("INVALID_CREDENTIALS", genericMessage, 401);
     }
-    const { data: sessionData, error: sessionError } = await client.rpc("get_my_session");
-    const record = sessionData && typeof sessionData === "object" ? sessionData as Record<string, unknown> : null;
-    const roles = Array.isArray(record?.roles) ? record.roles : [];
-    if (
-      sessionError
-      || record?.active !== true
-      || record?.onboarding_completed !== true
-      || (!roles.includes("ADMIN") && !roles.includes("VENDEDOR"))
-    ) {
+    // ADR 0011: the PDV role is checked in each cohort, by the database, inside that cohort.
+    const { session } = await sessionIn(client, null);
+    const eligible = accountUsable(session) ? await eligiblePdvCohorts(client, session) : [];
+    if (eligible.length === 0) {
       await client.auth.signOut();
       const { data: allowed, error: limitError } = await admin.rpc("consume_institutional_auth_rate_limit", {
         p_scope: "LOGIN",
@@ -78,7 +74,7 @@ export async function POST(request: Request) {
     }
     // AUD-001: best effort; recording a login never changes its outcome.
     await client.rpc("record_login_success", { p_app: "PDV", p_request_id: null }).then(() => undefined, () => undefined);
-    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+    return withPdvCohort(NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } }), eligible.length === 1 ? eligible[0]!.id : null);
   } catch {
     return response("AUTH_UNAVAILABLE", "Autenticação temporariamente indisponível", 503);
   }

@@ -11,8 +11,11 @@ test("financeiro importa o extrato PicPay na conciliação, recusa o mesmo arqui
   const tag = Date.now().toString(36);
   // A run-specific description keeps the file new on a shared database; everything else is the fixture.
   const content = fixture.replace("Papelaria Exemplo", `Papelaria ${tag}`);
+  // E0 (ADR 0011): the shared PicPay account's files are imported by ADMIN_MASTER inside a cohort (here Turma 2026).
   expect((await page.request.post(`${portalUrl}/api/auth/login`, { headers: { Origin: portalUrl },
-    data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
+    data: { identifier: "master.teste", password: "Master123!" } })).status()).toBe(200);
+  expect((await page.request.post(`${portalUrl}/api/v1/session/cohort`, { headers: { Origin: portalUrl },
+    data: { cohort: "c0000000-0000-4000-8000-000000002026" } })).status()).toBe(200);
   // The dev server compiles each route on its first request: warm the reconciliation routes before the journey.
   const zero = "00000000-0000-4000-8000-000000000000";
   for (const request of [
@@ -40,8 +43,12 @@ test("financeiro importa o extrato PicPay na conciliação, recusa o mesmo arqui
   const row = files.getByRole("row").filter({ hasText: `extrato-${tag}.csv` });
   await expect(row.getByText("Extrato", { exact: true })).toBeVisible();
   await expect(row.getByText("Pronto para importar")).toBeVisible();
+  // The declaration is explicit: nothing is imported until the file is declared.
+  await expect(files.getByRole("button", { name: "Importar arquivos" })).toBeDisabled();
+  await files.getByLabel(/Integralmente da/).check();
   await files.getByRole("button", { name: "Importar arquivos" }).click();
   await expect(row.getByText(/Importado como arquivo nº \d+: \d+ novas/)).toBeVisible();
+  await expect(row.getByText(/item\(ns\) atribuído\(s\) à/)).toBeVisible();
   const number = Number((await row.getByText(/Importado como arquivo nº/).textContent())?.match(/nº (\d+)/)?.[1]);
 
   const imports = page.getByRole("list", { name: "Importações" });
@@ -57,7 +64,7 @@ test("financeiro importa o extrato PicPay na conciliação, recusa o mesmo arqui
   // The same file is refused, through the screen and through the API; the old import endpoint is gone.
   await page.getByLabel("Arquivos CSV").setInputFiles({ name: `de-novo-${tag}.csv`, mimeType: "text/csv", buffer: Buffer.from(content) });
   await expect(files.getByText(`Arquivo já importado (nº ${number}).`)).toBeVisible();
-  const again = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/files?fileName=de-novo.csv`, {
+  const again = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/files?fileName=de-novo.csv&scope=COHORT&cohortId=c0000000-0000-4000-8000-000000002026`, {
     headers: { Origin: portalUrl, "Idempotency-Key": `e2e-statement-again-${tag}`, "Content-Type": "text/csv" }, data: Buffer.from(content),
   });
   expect(again.status()).toBe(409);

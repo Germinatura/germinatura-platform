@@ -3,6 +3,40 @@
 begin;
 select plan(69);
 
+-- E0: importing (and previewing) PicPay files is ADMIN_MASTER's, with a declaration; these synthetic files are Turma 2026's.
+create function pg_temp.import_file(p_name text, p_content text, p_key text, p_correlation uuid) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.import_picpay_file(p_name, p_content, 'COHORT', 'c0000000-0000-4000-8000-000000002026', p_key, p_correlation);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+create function pg_temp.preview_file(p_content text) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.preview_picpay_file(p_content);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+
 create function pg_temp.today() returns date language sql as $$ select (now() at time zone 'America/Sao_Paulo')::date $$;
 create function pg_temp.opening_on() returns date language sql as $$ select pg_temp.today() - 40 $$;
 create function pg_temp.operating_since() returns date language sql as $$ select pg_temp.today() - 5 $$;
@@ -62,7 +96,7 @@ create function pg_temp.digest() returns text language sql security definer as $
     (select count(*) from private.picpay_current_links))) $$;
 
 -- Privileges and data minimisation.
-select ok(not has_function_privilege('anon', 'public.import_picpay_file(text,text,text,uuid)', 'EXECUTE'), 'anonymous cannot import PicPay files');
+select ok(not has_function_privilege('anon', 'public.import_picpay_file(text,text,public.picpay_import_scope,uuid,text,uuid)', 'EXECUTE'), 'anonymous cannot import PicPay files');
 select ok(not has_table_privilege('authenticated', 'public.picpay_transaction_observations', 'SELECT'), 'observations are read only through finance functions');
 select is((select count(*)::integer from information_schema.columns where table_schema = 'public'
   and table_name in ('picpay_transaction_observations', 'picpay_receivable_observations')
@@ -122,19 +156,19 @@ insert into files select 'native_sales', pg_temp.sales(array[
     'Aprovada', '', '', 'E0000000000000000000000000000011')]);
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
-select is(public.preview_picpay_file((select content from files where name = 'history_sales')) ->> 'source_type', 'PICPAY_SALES', 'Minhas vendas is detected from its header');
-select is(public.preview_picpay_file((select content from files where name = 'receivables')) ->> 'source_type', 'PICPAY_RECEIVABLES', 'Recebíveis is detected from its header');
-select is(public.preview_picpay_file((select content from files where name = 'statement')) ->> 'source_type', 'PICPAY_STATEMENT', 'Extrato is detected from its header');
-select is((public.preview_picpay_file('coluna;outra' || E'\n' || 'a;b' || E'\n') -> 'errors' -> 0 ->> 'code'), 'UNKNOWN_FILE', 'an unknown CSV is explained');
-select throws_ok($$select public.import_picpay_file('qualquer.csv', 'coluna;outra' || E'\n' || 'a;b' || E'\n', 'rec-unknown', gen_random_uuid())$$,
+select is(pg_temp.preview_file((select content from files where name = 'history_sales')) ->> 'source_type', 'PICPAY_SALES', 'Minhas vendas is detected from its header');
+select is(pg_temp.preview_file((select content from files where name = 'receivables')) ->> 'source_type', 'PICPAY_RECEIVABLES', 'Recebíveis is detected from its header');
+select is(pg_temp.preview_file((select content from files where name = 'statement')) ->> 'source_type', 'PICPAY_STATEMENT', 'Extrato is detected from its header');
+select is((pg_temp.preview_file('coluna;outra' || E'\n' || 'a;b' || E'\n') -> 'errors' -> 0 ->> 'code'), 'UNKNOWN_FILE', 'an unknown CSV is explained');
+select throws_ok($$select pg_temp.import_file('qualquer.csv', 'coluna;outra' || E'\n' || 'a;b' || E'\n', 'rec-unknown', gen_random_uuid())$$,
   '22023', 'PICPAY_FILE_UNKNOWN', 'an unknown CSV is refused');
-select is((public.preview_picpay_file((select content from files where name = 'history_sales')) -> 'totals' ->> 'refunded')::integer, 1,
+select is((pg_temp.preview_file((select content from files where name = 'history_sales')) -> 'totals' ->> 'refunded')::integer, 1,
   'the preview counts the refunded transactions');
 reset role;
 select is((select count(*)::integer from public.picpay_transactions), 0, 'a preview writes nothing');
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
-select throws_ok($$select public.import_picpay_file('x.csv', (select content from files where name = 'statement'), 'rec-seller', gen_random_uuid())$$,
+select throws_ok($$select public.import_picpay_file('x.csv', (select content from files where name = 'statement'), 'GLOBAL', null, 'rec-seller', gen_random_uuid())$$,
   '42501', 'FINANCE_MANAGE_REQUIRED', 'a seller cannot import PicPay files');
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 
@@ -145,10 +179,10 @@ grant all on sequence digest_a to authenticated;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 savepoint order_a;
-select lives_ok($$select public.import_picpay_file('extrato.csv', (select content from files where name = 'statement'), 'rec-a-stmt', gen_random_uuid())$$, 'Extrato before Minhas vendas');
+select lives_ok($$select pg_temp.import_file('extrato.csv', (select content from files where name = 'statement'), 'rec-a-stmt', gen_random_uuid())$$, 'Extrato before Minhas vendas');
 select is(pg_temp.resolution('PIX_RECEBIDO', pg_temp.h(2)), 'PENDENTE,PENDENTE', 'without acquirer evidence and cutover, Pix received waits');
-select lives_ok($$select public.import_picpay_file('recebiveis.csv', (select content from files where name = 'receivables'), 'rec-a-recv', gen_random_uuid())$$, 'then Recebíveis');
-select lives_ok($$select public.import_picpay_file('vendas.csv', (select content from files where name = 'history_sales'), 'rec-a-sales', gen_random_uuid())$$, 'then Minhas vendas');
+select lives_ok($$select pg_temp.import_file('recebiveis.csv', (select content from files where name = 'receivables'), 'rec-a-recv', gen_random_uuid())$$, 'then Recebíveis');
+select lives_ok($$select pg_temp.import_file('vendas.csv', (select content from files where name = 'history_sales'), 'rec-a-sales', gen_random_uuid())$$, 'then Minhas vendas');
 select lives_ok($$select public.record_finance_opening_position(pg_temp.opening_on(), pg_temp.operating_since(), 0, 500, 0, 0, 'Abertura sintética', null, null, 'rec-a-open', gen_random_uuid())$$,
   'and the opening position last');
 -- A sequence survives the rollback to the savepoint: it carries order A's digest (its first 15 hex digits).
@@ -158,10 +192,10 @@ rollback to savepoint order_a;
 -- Order B: opening position, Minhas vendas, Recebíveis, Extrato.
 select lives_ok($$select public.record_finance_opening_position(pg_temp.opening_on(), pg_temp.operating_since(), 0, 500, 0, 0, 'Abertura sintética', null, null, 'rec-b-open', gen_random_uuid())$$,
   'opening first');
-create temp table imported as select 'sales' as name, public.import_picpay_file('vendas.csv', (select content from files where name = 'history_sales'), 'rec-b-sales', gen_random_uuid()) as result;
+create temp table imported as select 'sales' as name, pg_temp.import_file('vendas.csv', (select content from files where name = 'history_sales'), 'rec-b-sales', gen_random_uuid()) as result;
 grant all on imported to authenticated;
-insert into imported select 'receivables', public.import_picpay_file('recebiveis.csv', (select content from files where name = 'receivables'), 'rec-b-recv', gen_random_uuid());
-insert into imported select 'statement', public.import_picpay_file('extrato.csv', (select content from files where name = 'statement'), 'rec-b-stmt', gen_random_uuid());
+insert into imported select 'receivables', pg_temp.import_file('recebiveis.csv', (select content from files where name = 'receivables'), 'rec-b-recv', gen_random_uuid());
+insert into imported select 'statement', pg_temp.import_file('extrato.csv', (select content from files where name = 'statement'), 'rec-b-stmt', gen_random_uuid());
 select is((select last_value from digest_a), ('x' || lpad(left(pg_temp.digest(), 15), 16, '0'))::bit(64)::bigint,
   'the order of the files and of the opening position does not change the final state');
 select is((select (result ->> 'new_count')::integer from imported where name = 'sales'), 7, 'Minhas vendas: seven new transactions');
@@ -191,21 +225,21 @@ select is(pg_temp.indicator('fees_cents'), 152::bigint, 'the real PicPay fees: 0
 select is(pg_temp.exceptions('EXTRATO_NAO_CLASSIFICADO'), 1::bigint, 'only the Pix enviado waits for a classification');
 
 -- Reimport and overlap.
-select throws_ok($$select public.import_picpay_file('vendas-de-novo.csv', (select content from files where name = 'history_sales'), 'rec-again', gen_random_uuid())$$,
+select throws_ok($$select pg_temp.import_file('vendas-de-novo.csv', (select content from files where name = 'history_sales'), 'rec-again', gen_random_uuid())$$,
   'P0001', 'PICPAY_FILE_ALREADY_IMPORTED', 'the same file is never imported twice');
-create temp table overlap as select public.import_picpay_file('extrato-sobreposto.csv', pg_temp.statement(array[
+create temp table overlap as select pg_temp.import_file('extrato-sobreposto.csv', pg_temp.statement(array[
   pg_temp.stmt(pg_temp.h(2), 'Pix recebido', 'Cliente Sintético', 1100),
   pg_temp.stmt(pg_temp.h(2), 'Pix recebido', 'Cliente Sintético', 1100),
   pg_temp.stmt(pg_temp.h(3), 'Pix recebido', 'Cliente Devolvido', 1500)]), 'rec-overlap', gen_random_uuid()) as result;
 grant select on overlap to authenticated;
 select is((select (result ->> 'new_count')::integer || '/' || (result ->> 'known_count') from overlap), '0/3', 'an overlapping export adds nothing it already knew');
-select is((select (public.import_picpay_file('extrato-tres.csv', pg_temp.statement(array[
+select is((select (pg_temp.import_file('extrato-tres.csv', pg_temp.statement(array[
   pg_temp.stmt(pg_temp.h(2), 'Pix recebido', 'Cliente Sintético', 1100), pg_temp.stmt(pg_temp.h(2), 'Pix recebido', 'Cliente Sintético', 1100),
   pg_temp.stmt(pg_temp.h(2), 'Pix recebido', 'Cliente Sintético', 1100)]), 'rec-three', gen_random_uuid()) ->> 'new_count')::integer), 1,
   'a later export with three identical movements adds exactly one');
 select is(pg_temp.resolution('PIX_RECEBIDO', pg_temp.h(2)), 'CONCILIADA_PICPAY,CONCILIADA_PICPAY,PENDENTE',
   'the third identical Pix is not reconciled without a third transaction');
-select is((select (public.import_picpay_file('extrato-incompleto.csv', pg_temp.statement(array[
+select is((select (pg_temp.import_file('extrato-incompleto.csv', pg_temp.statement(array[
   pg_temp.stmt(pg_temp.h(1), 'Dinheiro guardado', 'Cofrinho', -500), pg_temp.stmt(pg_temp.h(2), 'Pix recebido', 'Cliente Sintético', 1100),
   pg_temp.stmt(pg_temp.h(5), 'Dinheiro resgatado', 'Cofrinho', 200)]), 'rec-fewer', gen_random_uuid()) ->> 'ambiguous_count')::integer), 6,
   'an export missing known movements inside its period (two of the identical Pix among them) is a conflict per movement, not a deletion');
@@ -219,7 +253,7 @@ select is((select count(*)::integer from private.picpay_statement_line_provenanc
 -- Lifecycle: an approved transaction later reported as Devolvida.
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
-create temp table lifecycle as select public.import_picpay_file('vendas-devolucao.csv', pg_temp.sales(array[
+create temp table lifecycle as select pg_temp.import_file('vendas-devolucao.csv', pg_temp.sales(array[
   pg_temp.sale(pg_temp.at(pg_temp.h(3), '12:00:00'), pg_temp.h(4), 'Crédito', 'PicPay Mini', 1700, 0, 0, 1700, 'Devolvida', '1000001', '100001', '1000000000000000001')]),
   'rec-refund', gen_random_uuid()) as result;
 grant select on lifecycle to authenticated;
@@ -242,7 +276,7 @@ select ok(not exists (select 1 from private.picpay_acquirer_effects(pg_temp.open
 -- Native operation: PicPay transactions are linked to the PDV sales; the sale stays the only revenue; the real fee joins.
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
-create temp table native as select public.import_picpay_file('vendas-semana.csv', (select content from files where name = 'native_sales'), 'rec-native', gen_random_uuid()) as result;
+create temp table native as select pg_temp.import_file('vendas-semana.csv', (select content from files where name = 'native_sales'), 'rec-native', gen_random_uuid()) as result;
 grant select on native to authenticated;
 reset role;
 select is((select payment_attempt_id from private.picpay_transactions_view where transaction_ref = 'E0000000000000000000000000000010'),
@@ -284,20 +318,20 @@ select is(pg_temp.exceptions('VALOR_DIVERGENTE'), 0::bigint, 'and leaves the ope
 select is(public.resolve_picpay_exception((select exception_key from divergence), 'RESOLVIDA',
   'Diferença explicada pelo desconto', 'rec-resolve', gen_random_uuid()) ->> 'action', 'RESOLVIDA', 'resolving is idempotent');
 reset role;
-select is((select count(*)::integer from public.audit_logs where action = 'finance.picpay.exception_resolved'), 1, 'the resolution is audited once');
+select is((select count(*)::integer from cohort_data.audit_logs where action = 'finance.picpay.exception_resolved'), 1, 'the resolution is audited once');
 
 -- Periods: evaluated, then sent back to review by new evidence.
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select is(public.close_picpay_period(pg_temp.h(1), pg_temp.h(6), 'Conferência sintética', 'rec-period', gen_random_uuid()) ->> 'status', 'COM_PENDENCIAS',
   'a period with open exceptions is not reconciled');
-select lives_ok($$select public.import_picpay_file('extrato-depois.csv', pg_temp.statement(array[pg_temp.stmt(pg_temp.h(3), 'Pix enviado', 'Outro Fornecedor', -700)]),
+select lives_ok($$select pg_temp.import_file('extrato-depois.csv', pg_temp.statement(array[pg_temp.stmt(pg_temp.h(3), 'Pix enviado', 'Outro Fornecedor', -700)]),
   'rec-later', gen_random_uuid())$$, 'a later export touches the period');
 select is(public.list_picpay_periods(5) -> 0 ->> 'status', 'REVISAR', 'the evaluated period goes back to review');
 select is(public.picpay_reconciliation_summary(pg_temp.h(1), pg_temp.h(6)) -> 'receivables' ->> 'snapshot_cents', '1920',
   'the summary shows the receivable snapshot');
 reset role;
-select is((select count(*)::integer from public.audit_logs where action = 'finance.picpay.file_imported'), 9, 'every import is audited');
+select is((select count(*)::integer from cohort_data.audit_logs where action = 'finance.picpay.file_imported'), 9, 'every import is audited');
 
 select * from finish();
 rollback;

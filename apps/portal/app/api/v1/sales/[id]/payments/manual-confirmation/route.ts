@@ -1,14 +1,17 @@
 import {
   createApiError,
+  databasePaymentSurchargeSchema,
   idempotencyKeySchema,
   manualPaymentConfirmationRequestSchema,
   manualPaymentConfirmationResponseSchema,
+  toPaymentSurchargeSnapshot,
 } from "@germinatura/contracts";
 import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AuthorizationError, requirePermission } from "@/lib/auth";
 import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { surchargeDatabaseError, surchargeRpcArgs } from "@/lib/payment-surcharges";
 
 interface RouteContext { params: Promise<{ id: string }>; }
 
@@ -22,11 +25,13 @@ const databaseResultSchema = z.object({
     integration_channel: z.enum(["MAQUININHA", "PIX_AREA"]),
     confirmation_source: z.literal("MANUAL"),
     confirmed_at: z.string(),
-    proof_reference: z.string(),
+    proof_reference: z.string().nullable(),
     // Absent in replays stored before card methods were recorded.
     card_method: z.enum(["CREDITO", "DEBITO", "VOUCHER_ALIMENTACAO", "VOUCHER_REFEICAO"]).nullish(),
     terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).nullish(),
   }),
+  // Absent in replays stored before the acréscimo existed.
+  surcharge: databasePaymentSurchargeSchema.nullish(),
   stock: z.union([
     z.object({ reservation_id: z.uuid(), status: z.literal("CONSUMED"), sale_movement_id: z.uuid() }),
     z.object({ status: z.literal("RAFFLE_TICKETS"), raffle_numbers: z.array(z.number().int().positive()) }),
@@ -42,7 +47,9 @@ function errorResponse(code: string, message: string, requestId: string, status:
   });
 }
 
-function databaseErrorResponse(message: string, requestId: string) {
+function databaseErrorResponse(message: string, requestId: string, details?: string | null) {
+  const surcharge = surchargeDatabaseError(message, requestId, details);
+  if (surcharge) return surcharge;
   if (message.includes("SALE_NOT_FOUND") || message.includes("PAYMENT_ATTEMPT_NOT_FOUND")) {
     return errorResponse("SALE_NOT_FOUND", "Venda não encontrada", requestId, 404);
   }
@@ -124,8 +131,9 @@ export async function POST(request: Request, context: RouteContext) {
     p_terminal_id: parsed.data.terminalId ?? null,
     p_idempotency_key: idempotency.data,
     p_correlation_id: crypto.randomUUID(),
+    ...surchargeRpcArgs(parsed.data),
   });
-  if (error) return databaseErrorResponse(error.message, requestId);
+  if (error) return databaseErrorResponse(error.message, requestId, error.details);
 
   const result = databaseResultSchema.safeParse(data);
   if (!result.success) {
@@ -147,6 +155,7 @@ export async function POST(request: Request, context: RouteContext) {
         cardMethod: value.payment_attempt.card_method ?? null,
         terminal: value.payment_attempt.terminal ?? null,
       },
+      surcharge: toPaymentSurchargeSnapshot(value.surcharge),
       stock: value.stock.status === "RAFFLE_TICKETS"
         ? { status: value.stock.status, raffleNumbers: value.stock.raffle_numbers }
         : { reservationId: value.stock.reservation_id, status: value.stock.status, saleMovementId: value.stock.sale_movement_id },

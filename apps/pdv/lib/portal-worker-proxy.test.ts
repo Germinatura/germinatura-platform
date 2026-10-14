@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { forwardPortalApi, isPortalApiPath } from "./portal-worker-proxy";
 
 describe("PDV to Portal service binding", () => {
-  it("keeps login/health local and forwards only API paths", () => {
+  it("keeps the PDV's own login, handoff, cohort and health routes local and forwards only API paths", () => {
     expect(isPortalApiPath("/api/auth/login")).toBe(false);
+    expect(isPortalApiPath("/api/auth/handoff")).toBe(false);
+    expect(isPortalApiPath("/api/auth/cohort")).toBe(false);
+    expect(isPortalApiPath("/api/auth/logout")).toBe(true);
     expect(isPortalApiPath("/api/v1/health")).toBe(false);
     expect(isPortalApiPath("/offline")).toBe(false);
     expect(isPortalApiPath("/api/v1/catalog/products")).toBe(true);

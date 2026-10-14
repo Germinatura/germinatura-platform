@@ -1,6 +1,7 @@
 // Single source of the Portal navigation: the Sidebar and the command palette render the same entries.
 // Visibility only shapes navigation; pages and APIs keep enforcing permissions on the server.
-import { Banknote, Bell, BookOpenText, Boxes, CalendarClock, CalendarDays, ChartNoAxesColumn, ClipboardCheck, CreditCard, FileSearch, FileUp, HandCoins, LayoutDashboard, Link2, Megaphone, PackageSearch, PartyPopper, Percent, Receipt, Settings, Share2, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, Wallet, type LucideIcon } from "lucide-react";
+import { Banknote, Bell, BookOpenText, Boxes, CalendarClock, CalendarDays, ChartNoAxesColumn, ClipboardCheck, CreditCard, FileSearch, FileUp, GraduationCap, HandCoins, LayoutDashboard, Link2, Megaphone, PackageSearch, PartyPopper, Percent, Receipt, Settings, Share2, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, Wallet, type LucideIcon } from "lucide-react";
+import { cohortOnlyReason, screenAllowedInAll } from "./consolidated-screens";
 import { experienceHome, type PortalExperience } from "./portal-experience";
 
 export interface NavigationContext {
@@ -8,6 +9,8 @@ export interface NavigationContext {
   experience: PortalExperience;
   features: string[];
   pdvUrl: string;
+  /** ADR 0011 (PR 5): in "ALL", screens that need a concrete cohort are marked (never hidden). */
+  cohortMode?: "COHORT" | "ALL" | "NONE";
 }
 
 export type NavigationSectionId = "principal" | "catalogo" | "financeiro" | "comunicacao" | "conta" | "pdv";
@@ -23,6 +26,8 @@ export interface NavigationItem {
   /** Entries reachable only from the search (the Sidebar shows them elsewhere or not at all). */
   searchOnly?: boolean;
   active: (pathname: string) => boolean;
+  /** Set in "Todas as turmas" for a screen that opens only inside one cohort, with the reason. */
+  cohortOnly?: string;
 }
 
 export interface NavigationSection {
@@ -39,8 +44,12 @@ interface ItemDefinition extends Omit<NavigationItem, "label" | "href" | "active
   visible: (context: NavigationContext) => boolean;
 }
 
-const hasAny = (context: NavigationContext, roles: string[]) => context.roles.some((role) => roles.includes(role));
-const hasAdminRole = (context: NavigationContext) => context.roles.includes("ADMIN");
+// ADR 0011: ADMIN_MASTER counts as ADMIN in every cohort; the database still checks each action.
+const hasAny = (context: NavigationContext, roles: string[]) => context.roles.some((role) => roles.includes(role))
+  || (roles.includes("ADMIN") && context.roles.includes("ADMIN_MASTER"));
+const isMasterExperience = (context: NavigationContext) => context.roles.includes("ADMIN_MASTER") && context.experience === "admin";
+// ADR 0011: ADMIN_MASTER has the administrative experience in every cohort.
+const hasAdminRole = (context: NavigationContext) => context.roles.includes("ADMIN") || context.roles.includes("ADMIN_MASTER");
 const isAdminExperience = (context: NavigationContext) => hasAdminRole(context) && context.experience === "admin";
 // An administrator browsing as a consumer does not see staff areas; other staff roles always do.
 const staffScope = (context: NavigationContext) => context.experience !== "consumer" || !hasAdminRole(context);
@@ -64,6 +73,7 @@ const definitions: ItemDefinition[] = [
   { id: "admin-reservations", section: "principal", icon: CalendarClock, label: "Gestão de reservas", href: "/admin/reservas", keywords: ["reservas", "retiradas", "pedidos", "entrega"], visible: (context) => isAdminExperience(context) && context.features.includes("reservations") },
   { id: "admin-raffles", section: "principal", icon: Ticket, label: "Gestão de rifas", href: "/admin/rifas", keywords: ["rifa", "sorteio", "bilhetes", "compradores"], visible: (context) => isAdminExperience(context) && context.features.includes("raffles") },
   { id: "users", section: "principal", icon: UserRoundCog, label: "Usuários e vendedores", href: "/admin/usuarios", keywords: ["usuarios", "vendedores", "papeis", "permissoes", "bloqueio", "convite"], visible: isAdminExperience },
+  { id: "cohorts", section: "principal", icon: GraduationCap, label: "Turmas", href: "/admin/turmas", keywords: ["turma", "geracao", "ano", "arquivar", "admin master"], visible: isMasterExperience },
   { id: "audit", section: "principal", icon: FileSearch, label: "Auditoria", href: "/admin/auditoria", keywords: ["log", "historico", "registro", "trilha"], visible: isAdminExperience },
   { id: "admin-catalog", section: "catalogo", icon: PackageSearch, label: "Catálogo", href: "/admin/catalogo", keywords: ["produtos", "categorias", "precos", "imagens", "publicar"], visible: isAdminExperience },
   { id: "promotions", section: "catalogo", icon: Percent, label: "Promoções", href: "/admin/promocoes", keywords: ["desconto", "cupom", "combo", "oferta"], visible: isAdminExperience },
@@ -97,6 +107,7 @@ function financeItems(): ItemDefinition[] {
     ["payables", Banknote, "Contas a pagar", "/admin/financeiro/contas-a-pagar", ["boleto", "fornecedor", "vencimento", "pagar"]],
     ["shifts", HandCoins, "Turnos de caixa", "/admin/financeiro/turnos", ["turno", "caixa", "dinheiro", "troco", "conferencia"]],
     ["terminals", CreditCard, "Maquininhas", "/admin/financeiro/maquininhas", ["maquininha", "terminal", "cartao"]],
+    ["surcharges", Percent, "Acréscimos", "/admin/financeiro/acrescimos", ["acrescimo", "taxa do cliente", "meio de pagamento", "credito", "debito", "pix"]],
     ["online-payments", Link2, "Pagamentos online", "/admin/financeiro/pagamentos-online", ["link de pagamento", "picpay", "online"]],
   ];
   return entries.map(([id, icon, label, href, keywords]) => ({ id, section: "financeiro" as const, icon, label, href, keywords, visible }));
@@ -117,7 +128,8 @@ function resolve(item: ItemDefinition, context: NavigationContext): NavigationIt
   const href = typeof item.href === "function" ? item.href(context) : item.href;
   const custom = item.active;
   const active = custom ? (pathname: string) => custom(pathname, context) : item.match === "exact" ? (pathname: string) => pathname === href : (pathname: string) => pathname.startsWith(href);
-  return { id: item.id, section: item.section, icon: item.icon, keywords: item.keywords, external: item.external, searchOnly: item.searchOnly, label: typeof item.label === "function" ? item.label(context) : item.label, href, active };
+  const cohortOnly = context.cohortMode === "ALL" && !item.external && !screenAllowedInAll(href) ? cohortOnlyReason(href) : undefined;
+  return { id: item.id, section: item.section, icon: item.icon, keywords: item.keywords, external: item.external, searchOnly: item.searchOnly, label: typeof item.label === "function" ? item.label(context) : item.label, href, active, ...(cohortOnly ? { cohortOnly } : {}) };
 }
 
 export function activeSection(sections: NavigationSection[], pathname: string): NavigationSectionId | null {

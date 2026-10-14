@@ -7,7 +7,7 @@ import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase"
 
 const rowSchema = z.object({ profile_id: z.uuid(), display_name: z.string() }).nullable();
 
-/** Spec 6.15 / 15.5: finds a registered buyer by exact email or username only. */
+/** Spec 6.15 / 15.5: finds a registered buyer by exact email or username only, inside the operation's cohort. */
 export async function GET(request: Request) {
   const requestId = createRequestId(request.headers);
   const headers = { "Cache-Control": "no-store", "x-request-id": requestId };
@@ -18,6 +18,8 @@ export async function GET(request: Request) {
     await requirePermission("raffles.sell");
     const client = await createAuthenticatedSupabaseClient(request);
     const { data, error } = await client.rpc("find_raffle_buyer", { p_identifier: identifier.data });
+    // A raffle sale happens inside one concrete cohort; "all" or an undeterminable context is never a sale context.
+    if (error?.message === "COHORT_REQUIRED") return fail("COHORT_REQUIRED", "Selecione uma turma.", 409);
     const row = rowSchema.safeParse(data);
     if (error || !row.success) return fail("RAFFLE_UNAVAILABLE", "Consulta temporariamente indisponível", 503);
     return NextResponse.json(raffleBuyerLookupResponseSchema.parse({

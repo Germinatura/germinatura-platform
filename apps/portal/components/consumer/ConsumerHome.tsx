@@ -14,7 +14,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export function ConsumerHome({ user }: { user: SessionUser }) {
-  const canAccessPdv = user.roles.some((role) => role === "ADMIN" || role === "VENDEDOR");
+  const canAccessPdv = user.roles.some((role) => role === "ADMIN" || role === "VENDEDOR" || role === "ADMIN_MASTER");
   const canBootstrap = user.email === "theo.martins@institutojef.org.br" && !user.roles.includes("ADMIN");
 
 

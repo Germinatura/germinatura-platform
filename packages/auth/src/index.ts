@@ -1,6 +1,8 @@
-import type { AppRole, Permission } from "@germinatura/contracts";
+import { permissionSchema, type Permission, type SessionRole } from "@germinatura/contracts";
 
-export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> = {
+export const rolePermissions: Readonly<Record<SessionRole, readonly Permission[]>> = {
+  // ADR 0011: global capability, every permission in every cohort (it still acts inside one concrete cohort).
+  ADMIN_MASTER: permissionSchema.options,
   ADMIN: [
     "portal.access",
     "admin.access",
@@ -16,6 +18,7 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
     "sales.create",
     "sales.read.own",
     "sales.read.all",
+    "sales.surcharge.waive",
     "reservations.manage.own",
     "reservations.manage.all",
     "raffles.buy",
@@ -75,7 +78,8 @@ export const rolePermissions: Readonly<Record<AppRole, readonly Permission[]>> =
   ],
 };
 
-const rolePriority: Readonly<Record<AppRole, number>> = {
+const rolePriority: Readonly<Record<SessionRole, number>> = {
+  ADMIN_MASTER: 8,
   ADMIN: 7,
   VENDEDOR: 6,
   ESTOQUE: 5,
@@ -85,16 +89,16 @@ const rolePriority: Readonly<Record<AppRole, number>> = {
   CONSUMIDOR: 1,
 };
 
-function isKnownRole(role: unknown): role is AppRole {
+function isKnownRole(role: unknown): role is SessionRole {
   return typeof role === "string" && Object.hasOwn(rolePermissions, role);
 }
 
-function knownRoles(roles: unknown): AppRole[] {
+function knownRoles(roles: unknown): SessionRole[] {
   return Array.isArray(roles) ? roles.filter(isKnownRole) : [];
 }
 
 /** Fail-closed: unknown, malformed or missing roles grant nothing. */
-export function primaryRole(roles: readonly unknown[] | null | undefined): AppRole {
+export function primaryRole(roles: readonly unknown[] | null | undefined): SessionRole {
   return knownRoles(roles).sort((left, right) => rolePriority[right] - rolePriority[left])[0] ?? "CONSUMIDOR";
 }
 

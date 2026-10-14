@@ -8,7 +8,7 @@ select ok(to_regprocedure('public.import_picpay_statement(text,text,boolean,text
 select ok(to_regprocedure('public.preview_picpay_statement(text)') is null, 'the legacy statement preview is gone');
 select ok(not has_function_privilege('authenticated', 'private.parse_picpay_statement(text)', 'EXECUTE'), 'the statement parser is private');
 select ok(not has_function_privilege('authenticated', 'private.plan_picpay_statement(text)', 'EXECUTE'), 'the statement planner is private');
-select ok(has_function_privilege('authenticated', 'public.import_picpay_file(text,text,text,uuid)', 'EXECUTE'),
+select ok(has_function_privilege('authenticated', 'public.import_picpay_file(text,text,public.picpay_import_scope,uuid,text,uuid)', 'EXECUTE'),
   'the PicPay reconciliation import is the supported path');
 select ok(has_function_privilege('authenticated', 'public.list_picpay_statement_imports(bigint,integer)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.list_picpay_statement_lines(uuid,boolean,integer,integer)', 'EXECUTE'),

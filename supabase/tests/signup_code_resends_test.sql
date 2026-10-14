@@ -71,7 +71,7 @@ select results_eq(
 );
 reset role;
 select results_eq(
-  $$select count(*)::bigint from public.audit_logs where action='auth.signup_code.unlocked' and entity_id='10000000-0000-4000-8000-000000000003'$$,
+  $$select count(*)::bigint from cohort_data.audit_logs where action='auth.signup_code.unlocked' and entity_id='10000000-0000-4000-8000-000000000003'$$,
   array[1::bigint], 'admin unlock is audited'
 );
 set local role anon;

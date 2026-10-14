@@ -1,9 +1,9 @@
 begin;
 select plan(43);
 
-select has_table('public','purchase_payable_settlements','payable settlement table exists');
+select has_table('cohort_data','purchase_payable_settlements','payable settlement table exists');
 select has_view('public','purchase_payable_balances','payable balance projection exists');
-select ok((select relrowsecurity from pg_class where oid='public.purchase_payable_settlements'::regclass),'settlements have RLS');
+select ok((select relrowsecurity from pg_class where oid='cohort_data.purchase_payable_settlements'::regclass),'settlements have RLS');
 select ok(not has_table_privilege('authenticated','public.purchase_payable_settlements','INSERT'),'direct settlement inserts denied');
 select ok(not has_function_privilege('anon','public.settle_purchase_payable(uuid,bigint,date,text,text,text,text,uuid)','EXECUTE'),'anonymous settlement command denied');
 select ok(not has_function_privilege('anon','public.reverse_purchase_payable_settlement(uuid,date,text,text,uuid)','EXECUTE'),'anonymous reversal command denied');
