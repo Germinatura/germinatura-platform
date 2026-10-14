@@ -37,6 +37,8 @@ function pageTitle(pathname: string, user: SidebarUser | null) {
   if (pathname.startsWith("/admin/auditoria")) return "Auditoria";
   if (pathname.startsWith("/admin/financeiro/maquininhas")) return "Maquininhas";
   if (pathname.startsWith("/admin/financeiro/acrescimos")) return "Acréscimos";
+  if (pathname.startsWith("/admin/financeiro/visao-geral")) return "Visão financeira";
+  if (pathname.startsWith("/admin/financeiro/ajustes-historicos")) return "Ajustes históricos";
   if (pathname.startsWith("/admin/financeiro/pagamentos-online")) return "Pagamentos online";
   if (pathname.startsWith("/admin/rifas")) return "Gestão de rifas";
   if (pathname.startsWith("/admin/reservas")) return "Gestão de reservas";

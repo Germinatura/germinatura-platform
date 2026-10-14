@@ -2,7 +2,9 @@ import { z } from "zod";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-// ADMIN-002 (spec 4.1, 5.1 e 5.17): progress is the operating profit since countingFrom (decision of 30/09/2026).
+// ADMIN-002 (spec 4.1, 5.1 e 5.17): progress is the net available for the graduation — real accounts (PicPay free balance,
+// Cofrinho, physical cash) minus open payables (decision of 12/10/2026). Receivables are future value, shown apart;
+// countingFrom drives the projection and the "resultado operacional desde" indicator, never the progress.
 export const fundraisingGoalSchema = z.object({
   countingFrom: isoDate,
   targetDate: isoDate,
@@ -16,6 +18,12 @@ export const fundraisingGoalSchema = z.object({
   onTrack: z.boolean(),
   daysRemaining: z.number().int().nonnegative(),
   updatedAt: z.string().nullable().optional(),
+  basis: z.literal("NET_AVAILABLE").optional(),
+  accumulatedCents: z.number().int().nullable().optional(),
+  committedCents: z.number().int().nullable().optional(),
+  receivablesCents: z.number().int().nullable().optional(),
+  accounts: z.object({ freeCents: z.number().int(), vaultCents: z.number().int(), cashCents: z.number().int() }).strict().nullable().optional(),
+  operatingResultSinceCents: z.number().int().nullable().optional(),
 }).strict();
 export type FundraisingGoal = z.infer<typeof fundraisingGoalSchema>;
 

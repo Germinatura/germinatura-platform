@@ -92,6 +92,12 @@ describe("purchase payable API access", () => {
     expect(apiAccessRule("/api/v1/admin/finance/picpay/attribution")?.access).toBe("master");
     expect(apiAccessRule("/api/v1/admin/finance/picpay/attribution/preview")?.access).toBe("master");
     expect(apiAccessRule("/api/v1/admin/finance/picpay/attribution/isolation")).toMatchObject({ methods: ["POST"], access: "master", cohort: "global" });
+    // PR E: the overview, historical adjustments and counterpart designations are finance routes, in a concrete cohort.
+    expect(apiAccessRule("/api/v1/admin/finance/overview")?.access).toBe("finance");
+    expect(apiAccessRule("/api/v1/admin/finance/historical-adjustments")?.methods).toEqual(["GET", "POST"]);
+    expect(apiAccessRule("/api/v1/admin/finance/historical-adjustments/63000000-0000-4000-8000-000000000001/reverse")?.methods).toEqual(["POST"]);
+    expect(apiAccessRule("/api/v1/admin/finance/cutover-counterparts")?.methods).toEqual(["GET", "POST"]);
+    expect(apiAccessRule("/api/v1/admin/finance/cutover-counterparts/63000000-0000-4000-8000-000000000001/revoke")?.access).toBe("finance");
     expect(rolesSatisfyAccess(["ADMIN"], "master")).toBe(false);
     expect(rolesSatisfyAccess(["ADMIN"], "finance")).toBe(true);
     expect(rolesSatisfyAccess(["FINANCEIRO"], "finance")).toBe(true);

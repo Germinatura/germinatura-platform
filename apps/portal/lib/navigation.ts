@@ -1,6 +1,6 @@
 // Single source of the Portal navigation: the Sidebar and the command palette render the same entries.
 // Visibility only shapes navigation; pages and APIs keep enforcing permissions on the server.
-import { Banknote, Bell, BookOpenText, Boxes, CalendarClock, CalendarDays, ChartNoAxesColumn, ClipboardCheck, CreditCard, FileSearch, FileUp, GraduationCap, HandCoins, LayoutDashboard, Link2, Megaphone, PackageSearch, PartyPopper, Percent, Receipt, Settings, Share2, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, Wallet, type LucideIcon } from "lucide-react";
+import { Banknote, Bell, BookOpenText, Boxes, CalendarClock, CalendarDays, ChartNoAxesColumn, ClipboardCheck, CreditCard, FileSearch, FileUp, GraduationCap, HandCoins, History, Landmark, LayoutDashboard, Link2, Megaphone, PackageSearch, PartyPopper, Percent, Receipt, Settings, Share2, ShieldCheck, ShoppingBag, Store, Ticket, TrendingUp, Truck, UserRoundCog, Wallet, type LucideIcon } from "lucide-react";
 import { cohortOnlyReason, screenAllowedInAll } from "./consolidated-screens";
 import { experienceHome, type PortalExperience } from "./portal-experience";
 
@@ -96,7 +96,9 @@ function communicationScope(context: NavigationContext) {
 function financeItems(): ItemDefinition[] {
   const visible = (context: NavigationContext) => staffScope(context) && hasAny(context, ["ADMIN", "FINANCEIRO"]);
   const entries: Array<[string, LucideIcon, string, string, string[]]> = [
+    ["overview", Landmark, "Visão financeira", "/admin/financeiro/visao-geral", ["visao", "posicao", "disponivel", "meta", "ponte", "resultado", "cmv"]],
     ["indicators", TrendingUp, "Indicadores", "/admin/financeiro/indicadores", ["lucro", "meta", "resultado", "graficos", "pendencias"]],
+    ["historical-adjustments", History, "Ajustes históricos", "/admin/financeiro/ajustes-historicos", ["ajuste", "historico", "cmv", "contrapartida", "cutover"]],
     ["settings", Settings, "Configurações", "/admin/configuracoes", ["flags", "funcionalidades", "parametros", "meta"]],
     ["balances", Wallet, "Saldo e conferência", "/admin/financeiro/saldo", ["saldo", "cofrinho", "abertura", "conferencia", "recebiveis"]],
     ["sales", Receipt, "Vendas", "/admin/financeiro/vendas", ["venda", "estorno", "pagamento", "recibo"]],

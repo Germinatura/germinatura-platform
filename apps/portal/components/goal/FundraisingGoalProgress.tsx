@@ -27,6 +27,6 @@ export function FundraisingGoalProgress({ goal, title = "Meta da formatura" }: {
         ? <>No ritmo atual, a projeção é de <strong>{percent(goal.projectedBps)}</strong>{goal.projectedCents !== null ? <> (<span className="g-money">{money.format(goal.projectedCents / 100)}</span>)</> : null} na data-alvo{goal.onTrack ? " — meta ao alcance." : "."}</>
         : goal.onTrack ? "Meta alcançada." : "O prazo da meta terminou."}
     </p>
-    <p className="mt-2 text-xs text-[var(--g-text-muted)]">Conta o lucro das vendas, rifas e eventos depois de custos, perdas e despesas.</p>
+    <p className="mt-2 text-xs text-[var(--g-text-muted)]">Conta o dinheiro já disponível para a formatura: saldo PicPay, Cofrinho e dinheiro físico, menos as contas a pagar em aberto. Valores a receber entram quando chegam à conta.</p>
   </div>;
 }

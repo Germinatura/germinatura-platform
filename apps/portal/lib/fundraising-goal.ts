@@ -8,6 +8,9 @@ const databaseSchema = z.object({
   counting_from: z.string(), target_date: z.string(), public_visible: z.boolean().optional(), show_amounts: z.boolean(),
   target_cents: nullable, current_cents: nullable, projected_cents: nullable, progress_bps: n, projected_bps: n,
   on_track: z.boolean(), days_remaining: n, updated_at: z.string().nullable().optional(),
+  basis: z.literal("NET_AVAILABLE").optional(), accumulated_cents: nullable.optional(), committed_cents: nullable.optional(),
+  receivables_cents: nullable.optional(), operating_result_since_cents: nullable.optional(),
+  accounts: z.object({ free_cents: n, vault_cents: n, cash_cents: n }).nullable().optional(),
 }).nullable();
 
 /** Maps the goal progress computed by the database; null when there is no goal (or it is not public). */
@@ -21,6 +24,9 @@ export function toFundraisingGoal(data: unknown): FundraisingGoal | null {
     showAmounts: value.show_amounts, targetCents: value.target_cents, currentCents: value.current_cents,
     projectedCents: value.projected_cents, progressBps: value.progress_bps, projectedBps: value.projected_bps,
     onTrack: value.on_track, daysRemaining: value.days_remaining, updatedAt: value.updated_at ?? null,
+    basis: value.basis, accumulatedCents: value.accumulated_cents ?? null, committedCents: value.committed_cents ?? null,
+    receivablesCents: value.receivables_cents ?? null, operatingResultSinceCents: value.operating_result_since_cents ?? null,
+    accounts: value.accounts ? { freeCents: value.accounts.free_cents, vaultCents: value.accounts.vault_cents, cashCents: value.accounts.cash_cents } : null,
   });
 }
 
