@@ -57,8 +57,9 @@ test("o operador entrega a reserva separada no PDV cobrando o preço congelado",
   await expect(page.getByText("Preço congelado na reserva; não é recalculado na retirada.")).toBeVisible();
   await page.getByRole("button", { name: "Área Pix" }).click();
   const complete = page.getByRole("button", { name: "Concluir retirada" });
-  await expect(complete).toBeDisabled();
-  await page.getByLabel("Referência não sensível do comprovante").fill(`PIX-${tag}`);
+  // H2c: the external reference is optional; a typed one is still sent and kept.
+  await expect(complete).toBeEnabled();
+  await page.getByLabel("Referência externa (opcional)").fill(`PIX-${tag}`);
   const response = page.waitForResponse((candidate) => candidate.url().endsWith(`/api/v1/pdv/pickups/${reservationId}/complete`));
   await complete.click();
   expect((await response).status()).toBe(200);

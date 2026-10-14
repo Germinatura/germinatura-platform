@@ -36,3 +36,15 @@ export const purchaseReceiptsResponseSchema = z.object({
   request_id: z.string(),
 }).strict();
 export type PurchaseReceipt = z.infer<typeof purchaseReceiptSchema>;
+
+/** H1: reserves the next automatic lot code (PREFIX-DDMMYY-NN) of an order item for a delivery day. */
+export const reservePurchaseLotCodeSchema = z.object({ orderItemId: z.uuid(), receivedOn: z.iso.date() }).strict();
+export type ReservePurchaseLotCode = z.infer<typeof reservePurchaseLotCodeSchema>;
+export const reservePurchaseLotCodeResponseSchema = z.object({
+  data: z.object({
+    lotCode: z.string().regex(/^[A-Z0-9]{3}-\d{6}-\d{2,3}$/),
+    prefix: z.string().regex(/^[A-Z0-9]{3}$/),
+    sequence: z.number().int().min(1).max(999),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();

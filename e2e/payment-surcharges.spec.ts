@@ -75,7 +75,7 @@ test("financeiro configura o acréscimo do crédito e o PDV cobra produtos + acr
     // A seller has no permission to remove it.
     await expect(page.getByRole("button", { name: "Remover acréscimo" })).toHaveCount(0);
 
-    await page.getByLabel("Referência não sensível do comprovante").fill(`NSU-ACR-${Date.now().toString(36).toUpperCase()}`);
+    await page.getByLabel("Referência externa (opcional)").fill(`NSU-ACR-${Date.now().toString(36).toUpperCase()}`);
     const confirmation = page.waitForResponse((response) => response.url().endsWith("/payments/manual-confirmation"));
     await page.getByRole("button", { name: "Confirmar recebimento manualmente" }).click();
     expect((await confirmation).status()).toBe(200);
