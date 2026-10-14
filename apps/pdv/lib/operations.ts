@@ -59,7 +59,7 @@ import {
 import { apiFetch } from "@/lib/api";
 import { cartPayload } from "./operations-pure";
 
-export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary, surchargeFor } from "./operations-pure";
+export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary, proofReferenceProblem, surchargeFor } from "./operations-pure";
 
 /** PR D: the acréscimo shown to the customer and, when authorized, its removal with a reason. */
 export interface SurchargeChoice { surchargeCents: number; waiverReason?: string | null }
@@ -231,7 +231,8 @@ export async function checkoutCart(
 export async function confirmManualPayment(
   saleId: string,
   channel: Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">,
-  proofReference: string,
+  // Optional (H2c): null when the receipt has nothing useful to type.
+  proofReference: string | null,
   card: { cardMethod: CardPaymentMethod; terminalId: string | null } | null,
   idempotencyKey: string,
   surcharge?: SurchargeChoice | null,
