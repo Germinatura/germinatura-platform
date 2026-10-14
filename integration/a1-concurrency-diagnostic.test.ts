@@ -15,7 +15,7 @@ function local() {
   return { url, key, mailbox };
 }
 const { url, key, mailbox } = local();
-const safe = (text: unknown) => String(text ?? "").replace(/[\w.+-]+@[\w.-]+/g, "<email>").replace(/eyJ[\w.-]+/g, "<jwt>").replace(/\b\d{6}\b/g, "<code>").slice(0, 160);
+const safe = (text: string | null | undefined) => (text ?? "").replace(/[\w.+-]+@[\w.-]+/g, "<email>").replace(/eyJ[\w.-]+/g, "<jwt>").replace(/\b\d{6}\b/g, "<code>").slice(0, 160);
 
 async function auth(path: string, body: Record<string, unknown>) {
   return fetch(`${url}/auth/v1/${path}`, { method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
