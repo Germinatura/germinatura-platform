@@ -589,6 +589,13 @@ describe("shared contracts", () => {
       integrationChannel: "PIX_AREA",
       proofReference: "4111111111111111",
     }).success).toBe(false);
+    // H2c: the reference is optional; absent or empty is null, never invented. When typed, the format still applies.
+    expect(manualPaymentConfirmationRequestSchema.parse({ integrationChannel: "PIX_AREA" }).proofReference).toBeNull();
+    expect(manualPaymentConfirmationRequestSchema.parse({ integrationChannel: "PIX_AREA", proofReference: "" }).proofReference).toBeNull();
+    expect(manualPaymentConfirmationRequestSchema.parse({ integrationChannel: "MAQUININHA", proofReference: null, cardMethod: "DEBITO" }).proofReference).toBeNull();
+    for (const invalid of ["ab", " NSU-1 ", "senha=1234", "token abc"]) {
+      expect(manualPaymentConfirmationRequestSchema.safeParse({ integrationChannel: "PIX_AREA", proofReference: invalid }).success).toBe(false);
+    }
 
     expect(manualPaymentConfirmationResponseSchema.parse({
       data: {
