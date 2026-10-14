@@ -47,6 +47,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/procurement/suppliers", methods: ["GET", "POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/orders", methods: ["GET", "POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/receipts", methods: ["GET", "POST"], access: "procurement" },
+  { path: "/api/v1/admin/procurement/receipts/lot-code", methods: ["POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/orders/:id/cancel", methods: ["POST"], access: "procurement" },
   { path: "/api/v1/admin/finance/payables", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/shifts", methods: ["GET"], access: "finance" },
