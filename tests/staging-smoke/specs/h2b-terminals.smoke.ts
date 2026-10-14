@@ -11,9 +11,9 @@ test("H2b: atribuída, troca livre, última usada, única ativa, inativa ignorad
   const preference = async (request: typeof a.request) =>
     (await (await request.get("/api/v1/pdv/terminals")).json() as { preference: { terminalId: string | null; source: string | null } }).preference;
   const assign = (terminalId: string, assigneeId: string | null) => admin.request.post(`/api/v1/admin/finance/terminals/${terminalId}/assignment`,
-    { headers: { "Idempotency-Key": key(`assign-${terminalId}-${assigneeId}`) }, data: { assigneeId, reason: "Smoke automatizado do PDV" } });
+    { headers: { "Idempotency-Key": key(`assign-${terminalId.slice(0, 8)}-${assigneeId ? assigneeId.slice(0, 8) : "none"}`) }, data: { assigneeId, reason: "Smoke automatizado do PDV" } });
   const setActive = (terminal: { id: string; code: string; label: string }, active: boolean) => admin.request.patch(`/api/v1/admin/finance/terminals/${terminal.id}`,
-    { headers: { "Idempotency-Key": key(`active-${terminal.id}-${active}`) }, data: { code: terminal.code, label: terminal.label, active } });
+    { headers: { "Idempotency-Key": key(`active-${terminal.id.slice(0, 8)}-${active}`) }, data: { code: terminal.code, label: terminal.label, active } });
   try {
     // Two active terminals, no assignment, no history: nothing preselected.
     expect(await preference(b.request)).toEqual({ terminalId: null, source: null });
