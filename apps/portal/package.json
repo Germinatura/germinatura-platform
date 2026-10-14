@@ -20,6 +20,7 @@
                          "@germinatura/contracts":  "workspace:*",
                          "@germinatura/domain":  "workspace:*",
                          "@germinatura/observability":  "workspace:*",
+                         "@germinatura/payments":  "workspace:*",
                          "@germinatura/ui":  "workspace:*",
                          "@supabase/ssr":  "^0.7.0",
                          "@supabase/supabase-js":  "^2.56.1",

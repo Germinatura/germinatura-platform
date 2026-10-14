@@ -33,7 +33,7 @@ test("PDV: a Área Pix é confirmada sem referência externa; uma referência di
   await page.getByRole("complementary").getByRole("button", { name: "Revisar venda" }).click();
   await page.getByRole("button", { name: /^Cobrar/ }).click();
   await expect(page.getByRole("heading", { name: "Confirmar pagamento" })).toBeVisible();
-  await page.getByRole("button", { name: /Área Pix/ }).click();
+  await page.getByRole("button", { name: /^Pix/ }).click();
 
   const reference = page.getByLabel("Referência externa (opcional)");
   const confirm = page.getByRole("button", { name: "Confirmar recebimento manualmente" });

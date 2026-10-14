@@ -16,6 +16,8 @@ import {
   deliverPaidPickupResponseSchema,
   pickupReservationsResponseSchema,
   paymentTerminalsResponseSchema,
+  pixChargeResponseSchema,
+  type PixChargeResponse,
   paymentSurchargeRulesResponseSchema,
   type PaymentSurchargeRuleView,
   sellerShiftResponseSchema,
@@ -290,6 +292,27 @@ export async function loadPaymentTerminals(): Promise<PaymentTerminal[]> {
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as maquininhas."));
   const parsed = paymentTerminalsResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("As maquininhas retornaram dados inválidos.");
+  return parsed.data.data;
+}
+
+/** A failure of the Pix QR that says whether the environment lacks a valid receiver (no QR at all) or not. */
+export class PixChargeError extends Error {
+  constructor(message: string, readonly notConfigured: boolean) { super(message); }
+}
+
+/**
+ * H2d: the static Pix QR of a sale awaiting payment. The Portal decides the amount (sale total + Pix acréscimo, or
+ * without it when the operator may waive and asked to); the PDV only shows it. Nothing is confirmed by this call.
+ */
+export async function loadPixCharge(saleId: string, waiveSurcharge: boolean): Promise<PixChargeResponse["data"]> {
+  const response = await apiFetch(`/api/v1/sales/${saleId}/payments/pix-charge${waiveSurcharge ? "?waiveSurcharge=true" : ""}`);
+  if (!response.ok) {
+    const body = asRecord(await response.json().catch(() => null));
+    const message = typeof body?.message === "string" ? body.message : "Não foi possível gerar o QR Pix.";
+    throw new PixChargeError(message, body?.code === "PIX_RECEIVER_NOT_CONFIGURED");
+  }
+  const parsed = pixChargeResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new PixChargeError("O QR Pix retornou dados inválidos.", false);
   return parsed.data.data;
 }
 

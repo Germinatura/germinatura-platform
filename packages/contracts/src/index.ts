@@ -900,6 +900,24 @@ export const manualPaymentConfirmationResponseSchema = z.object({
 }).strict();
 export type ManualPaymentConfirmationResponse = z.infer<typeof manualPaymentConfirmationResponseSchema>;
 
+/**
+ * H2d: the static Pix QR of a PDV sale. The amount is decided by the server (sale total + Pix acréscimo in force, or
+ * without it when waived by an authorized operator); `payload` is the "Pix copia e cola" (BR Code). It confirms nothing.
+ */
+export const pixChargeResponseSchema = z.object({
+  data: z.object({
+    saleId: z.uuid(),
+    productCents: moneyCentsSchema,
+    surchargeCents: moneyCentsSchema,
+    amountCents: moneyCentsSchema,
+    waived: z.boolean(),
+    txid: z.string().regex(/^[A-Za-z0-9]{1,25}$/),
+    payload: z.string().min(20).max(512),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type PixChargeResponse = z.infer<typeof pixChargeResponseSchema>;
+
 export const paymentReconciliationRequestSchema = z.object({
   observedAmountCents: moneyCentsSchema.refine((value) => value > 0, "Observed amount must be positive"),
   feeAmountCents: moneyCentsSchema,
