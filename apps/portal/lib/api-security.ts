@@ -60,6 +60,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/terminals", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/surcharges", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals/:id", methods: ["PATCH"], access: "finance" },
+  { path: "/api/v1/admin/finance/terminals/assignees", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/terminals/:id/assignment", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/sales", methods: ["GET"], access: "finance", all: "read" },
   { path: "/api/v1/admin/finance/sales/:id", methods: ["GET"], access: "finance", all: "read" },
   { path: "/api/v1/admin/finance/entries", methods: ["GET", "POST"], access: "finance" },
@@ -303,6 +305,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/finance/terminals/:id") {
       return /^\/api\/v1\/admin\/finance\/terminals\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/terminals/:id/assignment") {
+      return /^\/api\/v1\/admin\/finance\/terminals\/[0-9a-f-]+\/assignment$/i.test(path);
     }
     if (rule.path.startsWith("/api/v1/admin/finance/online-payments/") && rule.path.includes("/:id/")) {
       const [prefix, suffix] = rule.path.split("/:id/");
