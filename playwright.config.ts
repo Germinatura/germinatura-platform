@@ -37,6 +37,12 @@ function localSupabaseEnvironment(): Record<string, string> {
   };
 }
 
+const e2ePixReceiver = {
+  PICPAY_PIX_KEY: "123e4567-e12b-12d1-a456-426655440000",
+  PICPAY_PIX_MERCHANT_NAME: "Comissao E2E",
+  PICPAY_PIX_MERCHANT_CITY: "Sao Paulo",
+};
+
 const localServerEnvironment = process.env.PLAYWRIGHT_EXTERNAL_SERVERS
   ? undefined
   : localSupabaseEnvironment();
@@ -62,7 +68,8 @@ export default defineConfig({
         {
           command: "pnpm --filter @germinatura/portal dev",
           url: "http://127.0.0.1:3000/api/v1/health",
-          env: localServerEnvironment,
+          // H2d: a fictitious Pix receiver (the random key of the Banco Central manual's example), test-only.
+          env: { ...localServerEnvironment, ...e2ePixReceiver },
           reuseExistingServer: !process.env.CI,
           timeout: 180_000,
         },
