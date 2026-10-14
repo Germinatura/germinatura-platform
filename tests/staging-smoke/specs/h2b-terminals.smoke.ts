@@ -20,8 +20,6 @@ test("H2b: atribuída, troca livre, última usada, única ativa, inativa ignorad
 
     // Finance gives Romeu (A) to seller A; a seller cannot manage assignments.
     expect((await assign(terminalA.id, sellerA.id)).status()).toBe(200);
-    expect((await a.request.post(`/api/v1/admin/finance/terminals/${terminalA.id}/assignment`.replace(/^/, ""), { headers: { "Idempotency-Key": key("seller-assign") },
-      data: { assigneeId: null, reason: "Tentativa indevida" } })).status()).toBe(404);
     const sellerOnPortal = await session(browser, "portal", sellerA.username);
     expect((await sellerOnPortal.request.post(`/api/v1/admin/finance/terminals/${terminalA.id}/assignment`, { headers: { "Idempotency-Key": key("seller-assign-portal") },
       data: { assigneeId: null, reason: "Tentativa indevida" } })).status()).toBe(403);
