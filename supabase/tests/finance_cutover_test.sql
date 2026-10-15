@@ -110,7 +110,10 @@ select is(pg_temp.indicator('operating_expenses_cents'), 0::bigint, 'the opening
 select is(pg_temp.indicator('operating_profit_cents'), 0::bigint, 'the opening position is not result');
 select lives_ok($$select public.configure_fundraising_goal(100000, pg_temp.opening_on(), pg_temp.today() + 30, true, true, 'cut-goal', gen_random_uuid())$$,
   'finance sets a goal counting from the opening day');
-select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint, 0::bigint, 'the opening position is not goal progress');
+-- Goal = net available resources (decision of 2026-10-12): the opening position is its base, counted once, through the balances.
+select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint,
+  pg_temp.balance(pg_temp.today(), 'available_balance_cents') + pg_temp.balance(pg_temp.today(), 'cash_balance_cents'),
+  'the opening position is the goal base, counted once');
 
 -- Historical statement (every line before operating_since), imported through the PicPay reconciliation.
 create function pg_temp.statement_import(p_id text) returns jsonb language sql as $$
@@ -262,7 +265,9 @@ select is(pg_temp.balance(pg_temp.opening_on() + 11, 'available_balance_cents'),
 select is(pg_temp.indicator('gross_revenue_cents'), 34000::bigint, 'historical revenue: 300 + 50 − 10, once');
 select is(pg_temp.indicator('operating_profit_cents'), 25000::bigint, 'result: historical revenue minus expenses, no transfer');
 select is(pg_temp.indicator('cash_balance_cents'), 25000::bigint, 'the period cash flow ignores transfers and the opening position');
-select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint, 25000::bigint, 'the goal counts historical revenue once');
+select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint,
+  pg_temp.balance(pg_temp.today(), 'available_balance_cents') + pg_temp.balance(pg_temp.today(), 'cash_balance_cents'),
+  'the goal is the real money: historical revenue once it is cash, transfers neutral, the opening once');
 select is((select jsonb_object_agg(row ->> 'source_id', row ->> 'nature') from jsonb_array_elements(public.finance_statement(pg_temp.opening_on(), pg_temp.today()) -> 'rows') row
   where row ->> 'source_id' in (pg_temp.line_id(2)::text, pg_temp.line_id(6)::text, pg_temp.line_id(9)::text) or (row ->> 'source_id' = pg_temp.line_id(11)::text and row ->> 'account' = 'COFRINHO_PICPAY')),
   jsonb_build_object(pg_temp.line_id(2)::text, 'RECEITA', pg_temp.line_id(6)::text, 'DESPESA', pg_temp.line_id(9)::text, 'ESTORNO', pg_temp.line_id(11)::text, 'TRANSFERENCIA_INTERNA'),

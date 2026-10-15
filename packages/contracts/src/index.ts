@@ -27,6 +27,7 @@ export * from "./picpay-reconciliation";
 export * from "./portal-events";
 export * from "./portal-showcase";
 export * from "./payment-surcharges";
+export * from "./finance-history";
 
 export const moneyCentsSchema = z.number()
   .int()

@@ -1,5 +1,5 @@
--- Spec 4.1, 5.1 and 5.17 (ADMIN-002): fundraising goal measured by operating profit, with projection and an
--- optional public view that can hide the amounts.
+-- Spec 4.1, 5.1 and 5.17 (ADMIN-002): fundraising goal measured by net available resources (real accounts − open payables,
+-- decision of 2026-10-12), with projection and an optional public view that can hide the amounts.
 begin;
 select plan(17);
 
@@ -21,8 +21,8 @@ grant select on goal_day to authenticated;
 select public.record_finance_entry('INCOME', 'EVENTO', 'PICPAY_EMPRESAS', null, 2000, (select today from goal_day), 'Festa junina', 'FESTA-META-01', 'goal-income', gen_random_uuid());
 create temp table goal_hidden as select public.configure_fundraising_goal(10000, (select today - 9 from goal_day), (select today + 10 from goal_day), false, true, 'goal-hidden', gen_random_uuid()) result;
 grant select on goal_hidden to authenticated;
-select is((select (result ->> 'current_cents')::bigint from goal_hidden), 2000::bigint, 'progress is the operating profit since the start');
-select is((select (result ->> 'projected_cents')::bigint from goal_hidden), 4000::bigint, 'the projection extends the daily average to the target date');
+select is((select (result ->> 'current_cents')::bigint from goal_hidden), 2000::bigint, 'progress is the net available: the event income is in the PicPay account');
+select is((select (result ->> 'projected_cents')::bigint from goal_hidden), 4000::bigint, 'the projection extends the growth of real resources to the target date');
 select is((select (result ->> 'progress_bps')::bigint from goal_hidden), 2000::bigint, 'progress in basis points');
 select is((select result ->> 'on_track' from goal_hidden), 'false', 'the projection falls short of the target');
 select is(public.configure_fundraising_goal(10000, (select today - 9 from goal_day), (select today + 10 from goal_day), false, true, 'goal-hidden', gen_random_uuid()),
@@ -34,7 +34,7 @@ select is(public.public_fundraising_goal(), null, 'an unpublished goal stays pri
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select public.configure_fundraising_goal(10000, (select today - 9 from goal_day), (select today + 10 from goal_day), true, false, 'goal-percent-only', gen_random_uuid());
 select public.record_finance_entry('EXPENSE', 'MATERIAIS', 'PICPAY_EMPRESAS', null, 500, (select today from goal_day), 'Decoração', 'DECOR-META-01', 'goal-expense', gen_random_uuid());
-select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint, 1500::bigint, 'expenses reduce the progress');
+select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint, 1500::bigint, 'an expense paid from the account reduces the net available');
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000003';
 select is((public.public_fundraising_goal() ->> 'progress_bps')::bigint, 1500::bigint, 'the class sees the percentage');

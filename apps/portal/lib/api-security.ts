@@ -87,6 +87,12 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/picpay/settlements", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/picpay/reconcile", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/picpay/periods", methods: ["GET", "POST"], access: "finance" },
+  // PR E: financial overview, historical adjustments and cutover counterpart designations.
+  { path: "/api/v1/admin/finance/overview", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/historical-adjustments", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/historical-adjustments/:id/reverse", methods: ["POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/cutover-counterparts", methods: ["GET", "POST"], access: "finance" },
+  { path: "/api/v1/admin/finance/cutover-counterparts/:id/revoke", methods: ["POST"], access: "finance" },
   // E0 (ADR 0011): attribution of the shared PicPay evidence and the isolation switch are ADMIN_MASTER's.
   { path: "/api/v1/admin/finance/picpay/attribution", methods: ["GET", "POST"], access: "master", all: "read" },
   { path: "/api/v1/admin/finance/picpay/attribution/preview", methods: ["POST"], access: "master" },
@@ -200,7 +206,8 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
       return /^\/api\/v1\/admin\/procurement\/orders\/[0-9a-f-]+\/cancel$/i.test(path);
     }
     if (rule.path.startsWith("/api/v1/admin/finance/statement-imports/:id/") || rule.path.startsWith("/api/v1/admin/finance/statement-lines/:id/")
-      || rule.path.startsWith("/api/v1/admin/finance/picpay/transactions/:id/")) {
+      || rule.path.startsWith("/api/v1/admin/finance/picpay/transactions/:id/")
+      || rule.path.startsWith("/api/v1/admin/finance/historical-adjustments/:id/") || rule.path.startsWith("/api/v1/admin/finance/cutover-counterparts/:id/")) {
       const pattern = rule.path.replace(":id", "[0-9a-f-]+").replaceAll("/", "\\/");
       return new RegExp(`^${pattern}$`, "i").test(path);
     }

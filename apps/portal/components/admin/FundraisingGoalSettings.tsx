@@ -68,7 +68,7 @@ export function FundraisingGoalSettings() {
 
   return <Card className="grid gap-6 p-5 lg:grid-cols-2">
     <form aria-label="Meta de arrecadação" className="grid gap-4" onSubmit={(event) => void save(event)}>
-      <div><h2 className="text-lg font-semibold">Meta de arrecadação</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">O progresso é o lucro operacional desde o início da contagem: vendas, rifas e eventos menos custo real, perdas e despesas.</p></div>
+      <div><h2 className="text-lg font-semibold">Meta de arrecadação</h2><p className="mt-1 text-sm text-[var(--g-text-secondary)]">O progresso é o disponível líquido para a formatura: saldo PicPay, Cofrinho e dinheiro físico, menos as contas a pagar em aberto. Recebíveis aparecem à parte, como valor futuro. O início da contagem define a projeção e o resultado operacional desde então.</p></div>
       <Field id="goal-target" label="Meta (R$)"><Input id="goal-target" inputMode="decimal" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="Ex.: 50.000,00" /></Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="goal-from" label="Início da contagem"><Input id="goal-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></Field>

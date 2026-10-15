@@ -30,23 +30,23 @@ select throws_ok($$update public.cohorts set status = 'ARCHIVED' where id = priv
 rollback to savepoint rules;
 
 -- Classificação: tabelas por turma recebem cohort_id; globais não.
-select is((select count(*)::integer from private.cohort_scoped_tables), 88,
-  '88 tables are classified: 73 of the foundation, 12 decided with the authorization (ADR 0011), 2 of the payment acréscimo, 1 of the PicPay attribution');
+select is((select count(*)::integer from private.cohort_scoped_tables), 92,
+  '92 tables are classified: 73 of the foundation, 12 decided with the authorization (ADR 0011), 2 of the payment acréscimo, 1 of the PicPay attribution, 4 of the historical finance');
 select results_eq($$select mode, count(*)::integer from private.cohort_scoped_tables group by mode order by mode$$,
-  $$values ('MASTER_NULLABLE'::text, 2), ('REQUIRED'::text, 81), ('SHARED_NULLABLE'::text, 5)$$,
+  $$values ('MASTER_NULLABLE'::text, 2), ('REQUIRED'::text, 85), ('SHARED_NULLABLE'::text, 5)$$,
   'required, attribution (nullable) and log (nullable, global = NULL) tables');
 select is((select count(*)::integer from private.cohort_scoped_tables t
   join information_schema.columns c on c.table_schema = 'cohort_data' and c.table_name = t.table_name and c.column_name = 'cohort_id'
-  where c.data_type = 'uuid'), 88, 'every cohort table lives in cohort_data with a uuid cohort_id');
+  where c.data_type = 'uuid'), 92, 'every cohort table lives in cohort_data with a uuid cohort_id');
 select is((select count(*)::integer from private.cohort_scoped_tables t
   join information_schema.columns c on c.table_schema = 'cohort_data' and c.table_name = t.table_name and c.column_name = 'cohort_id'
-  where c.column_default is null), 88, 'no constant default anymore: the guard assigns the cohort of the request or of the parent');
+  where c.column_default is null), 92, 'no constant default anymore: the guard assigns the cohort of the request or of the parent');
 select is((select count(*)::integer from private.cohort_scoped_tables t
   join pg_constraint fk on fk.conrelid = format('cohort_data.%I', t.table_name)::regclass and fk.conname = t.table_name || '_cohort_id_fkey'
-  where fk.convalidated and fk.confrelid = 'public.cohorts'::regclass), 88, 'every cohort foreign key is validated');
+  where fk.convalidated and fk.confrelid = 'public.cohorts'::regclass), 92, 'every cohort foreign key is validated');
 select is((select count(*)::integer from private.cohort_scoped_tables t
   join information_schema.columns c on c.table_schema = 'cohort_data' and c.table_name = t.table_name and c.column_name = 'cohort_id'
-  where (c.is_nullable = 'NO') = (t.mode = 'REQUIRED')), 88, 'NOT NULL exactly on the required tables (constrain after validate)');
+  where (c.is_nullable = 'NO') = (t.mode = 'REQUIRED')), 92, 'NOT NULL exactly on the required tables (constrain after validate)');
 select is((select count(*)::integer from information_schema.columns where table_schema in ('public', 'private', 'cohort_data') and column_name = 'cohort_id'
   and table_name in ('profiles', 'profile_preferences', 'roles', 'permissions', 'role_permissions', 'idempotency_keys', 'security_events',
     'notification_preferences', 'notifications', 'feature_flags', 'payment_terminals', 'payment_webhook_receipts',
