@@ -35,10 +35,11 @@ const MySalesWorkspace = dynamic(() => import("@/components/operations/MySalesWo
 const MyStockWorkspace = dynamic(() => import("@/components/operations/MyStockWorkspace").then((module) => module.MyStockWorkspace), { loading: () => <p role="status" className="p-6">Carregando estoque…</p> });
 import { useToast } from "@/components/ui/Toast";
 import { PaymentLinkPanel, PaymentLinkSuccess } from "@/components/operations/PaymentLinkPanel";
+import { PixQrPanel } from "@/components/operations/PixQrPanel";
 import { SurchargePanel, useSurcharge, type SurchargeState } from "@/components/operations/SurchargePanel";
 import {
-  cancelPendingSale, cashChange, checkoutCart, confirmCashPayment, confirmManualPayment, formatMoney, loadCatalog, parseMoneyInput,
-  loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminals, quoteCart, type CartItem, type InventoryContext,
+  cancelPendingSale, cashChange, checkoutCart, proofReferenceProblem, confirmCashPayment, confirmManualPayment, formatMoney, loadCatalog, parseMoneyInput,
+  loadDisabledFeatures, loadEnabledFeatures, loadMyShift, loadInventoryContext, loadPaymentTerminalChoice, quoteCart, terminalOptionLabel, type CartItem, type InventoryContext,
 } from "@/lib/operations";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { activeSaleFilterCount, availableBound, emptySaleCatalogFilters, filterSaleCatalog, salePriceBound, type SaleCatalogFilters } from "@/lib/catalog-filters";
@@ -175,7 +176,11 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
     const result = await checkoutCart(locationId, cart, checkoutKey.current, couponCode.trim() || undefined);
     setCheckout(result); setQuote(result.quote); setStep("payment"); window.scrollTo({ top: 0, behavior: "smooth" });
     // The server still enforces the terminal rule; a failed load only hides the picker.
-    void loadPaymentTerminals().then(setTerminals, () => setTerminals([]));
+    void loadPaymentTerminalChoice().then(({ terminals: active, preferredId }) => {
+      setTerminals(active);
+      // H2b: preselect only when the seller has not picked one; it stays editable.
+      setTerminalId((current) => current || preferredId || "");
+    }, () => setTerminals([]));
     void surcharge.reload();
   });
   const confirmPayment = () => perform("confirm", async () => {
@@ -187,10 +192,10 @@ export function SaleWorkspace({ user }: { user: PdvSessionUser }) {
         if (tenderedCents === null || cashChange(surcharge.chargeCents, tenderedCents) === null) return;
         result = await confirmCashPayment(checkout.saleId, tenderedCents, confirmationKey.current, surcharge.choice);
       } else {
-        if (proofReference.trim().length < 4) return;
+        if (proofReferenceProblem(proofReference)) return;
         if (channel === "MAQUININHA" && (!cardMethod || (terminals.length > 0 && !terminalId))) return;
         const card = channel === "MAQUININHA" && cardMethod ? { cardMethod, terminalId: terminalId || null } : null;
-        result = await confirmManualPayment(checkout.saleId, channel, proofReference.trim(), card, confirmationKey.current, surcharge.choice);
+        result = await confirmManualPayment(checkout.saleId, channel, proofReference.trim() || null, card, confirmationKey.current, surcharge.choice);
       }
     } catch (confirmationError) {
       // The rule may have changed: show the current acréscimo and let the operator confirm again with a new key.
@@ -346,9 +351,10 @@ function ReviewBar(props: Pick<CatalogProps, "itemCount" | "previewTotal" | "onl
 function CatalogStep(props: CatalogProps) {
   const filtered = props.catalog.length !== props.totalProducts;
   // The fixed bar never covers the last products or the summary: the page reserves its height below them.
-  return <div className={`grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] ${props.itemCount > 0 ? "max-lg:pb-28" : ""}`}>
+  // One explicit minmax(0,1fr) column on phones: a long product name in the summary never widens the page.
+  return <div className={`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] ${props.itemCount > 0 ? "max-lg:pb-28" : ""}`}>
     {props.itemCount > 0 && <ReviewBar itemCount={props.itemCount} previewTotal={props.previewTotal} online={props.online} action={props.action} onReview={props.onReview} />}
-    <section aria-label="Catálogo">
+    <section aria-label="Catálogo" className="min-w-0">
       <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem]">
         <label className="block min-w-0"><span className="sr-only">Buscar produtos</span><InputGroup icon={<Search />}><Input value={props.query} onChange={(event) => props.onQuery(event.target.value)} placeholder="Buscar produto, categoria ou SKU" /></InputGroup></label>
         {props.locations.length > 1 && <label><span className="sr-only">Localização da venda</span><select value={props.locationId} onChange={(event) => props.onLocation(event.target.value)} className="min-h-11 w-full rounded-[var(--g-radius-control)] border border-[var(--g-border-default)] bg-[var(--g-surface-default)] px-4 focus-visible:outline-3 focus-visible:outline-[var(--g-focus-ring)]">{props.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}
@@ -367,7 +373,7 @@ function CatalogStep(props: CatalogProps) {
           </Card>;
         })}</div>}
     </section>
-    <aside className="lg:sticky lg:top-24 lg:self-start"><Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5"><h2 className="font-semibold">Resumo</h2><p className="mt-1 text-sm text-[var(--g-text-muted)]">{props.itemCount === 0 ? "Carrinho vazio" : `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`}</p></div><div className="space-y-3 p-5">
+    <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start"><Card className="overflow-hidden"><div className="border-b border-[var(--g-border-subtle)] p-5"><h2 className="font-semibold">Resumo</h2><p className="mt-1 text-sm text-[var(--g-text-muted)]">{props.itemCount === 0 ? "Carrinho vazio" : `${props.itemCount} ${props.itemCount === 1 ? "item" : "itens"}`}</p></div><div className="space-y-3 p-5">
       {props.cart.length === 0 ? <p className="py-4 text-center text-sm text-[var(--g-text-muted)]">Adicione um produto para iniciar.</p> : props.cart.map((item) => <div key={item.product.id} className="flex justify-between gap-3 text-sm"><span className="min-w-0 truncate text-[var(--g-text-secondary)]">{item.quantity}× {item.product.name}</span><span className="g-money shrink-0 font-semibold">{formatMoney(item.product.price.amountCents * item.quantity)}</span></div>)}
       <div className="flex items-baseline justify-between border-t border-[var(--g-border-subtle)] pt-4"><span className="text-sm text-[var(--g-text-secondary)]">Prévia</span><span className="g-money text-xl font-bold">{formatMoney(props.previewTotal)}</span></div><p className="text-xs leading-5 text-[var(--g-text-muted)]">O servidor recalcula preços e promoções na próxima etapa.</p><Button variant="brand" size="lg" className="w-full" onClick={props.onReview} loading={props.action === "quote"} disabled={!props.online || props.cart.length === 0}>Revisar venda</Button>
     </div></Card></aside>
@@ -393,10 +399,14 @@ function PaymentStep(props: PaymentProps) {
   const change = cashChange(charge, parseMoneyInput(props.tendered));
   const card = props.channel === "MAQUININHA";
   const cardReady = !card || (props.cardMethod !== null && (props.terminals.length === 0 || props.terminalId !== ""));
-  const ready = props.surcharge.ready && (cash ? change !== null : props.proofReference.trim().length >= 4 && cardReady);
-  return <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"><div className="space-y-5"><Card className="p-5">
+  const proofProblem = proofReferenceProblem(props.proofReference);
+  // H2d: Área Pix shows a QR for the server's amount; without a valid QR (or with a different amount) it cannot confirm.
+  const [pixReady, setPixReady] = useState(false);
+  const pix = props.channel === "PIX_AREA";
+  const ready = props.surcharge.ready && (cash ? change !== null : proofProblem === null && cardReady && (!pix || pixReady));
+  return <div className="mx-auto grid max-w-4xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"><div className="min-w-0 space-y-5"><Card className="p-5">
     <div className="flex items-center justify-between gap-4"><div><Badge tone={link ? "info" : "warning"}>{link ? "Confirmação pelo PicPay" : "Confirmação manual"}</Badge><h2 className="mt-3 text-xl font-semibold">Como o cliente pagou?</h2></div><p className="g-money text-2xl font-bold">{formatMoney(charge)}</p></div>
-    <div className="mt-5 grid gap-3 sm:grid-cols-3"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Área Pix" description="Conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} />{props.cashEnabled && <ChannelButton icon={Wallet} selected={cash} title="Dinheiro" description="Entra no caixa do turno" onClick={() => props.onChannel("DINHEIRO")} />}{props.paymentLinkEnabled && <ChannelButton icon={Link2} selected={link} title="Link de pagamento" description="Cliente paga pelo celular" onClick={() => props.onChannel("PAYMENT_LINK")} />}</div>
+    <div className="mt-5 grid gap-3 sm:grid-cols-3"><ChannelButton icon={CreditCard} selected={props.channel === "MAQUININHA"} title="Maquininha" description="Pagamento presencial" onClick={() => props.onChannel("MAQUININHA")} /><ChannelButton icon={Banknote} selected={props.channel === "PIX_AREA"} title="Pix" description="QR Code e conferência no app PicPay" onClick={() => props.onChannel("PIX_AREA")} />{props.cashEnabled && <ChannelButton icon={Wallet} selected={cash} title="Dinheiro" description="Entra no caixa do turno" onClick={() => props.onChannel("DINHEIRO")} />}{props.paymentLinkEnabled && <ChannelButton icon={Link2} selected={link} title="Link de pagamento" description="Cliente paga pelo celular" onClick={() => props.onChannel("PAYMENT_LINK")} />}</div>
     {link
       ? <PaymentLinkPanel saleId={props.checkout.saleId} totalCents={props.quote.totalCents} online={props.online} onPaid={props.onLinkPaid} />
       : cash
@@ -406,8 +416,8 @@ function PaymentStep(props: PaymentProps) {
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">É preciso ter um turno aberto.</strong> O dinheiro fica registrado no seu caixa e será conferido no fechamento do turno.</div></>
       : <>{card && <div className="mt-5 grid gap-4">
         <fieldset><legend className="text-sm font-semibold">Método do cartão</legend><div className="mt-2 grid grid-cols-2 gap-2">{cardMethods.map((method) => <button key={method.value} type="button" aria-pressed={props.cardMethod === method.value} onClick={() => props.onCardMethod(method.value)} className={`min-h-12 rounded-[var(--g-radius-control)] border px-3 text-sm font-semibold ${props.cardMethod === method.value ? "border-[var(--g-focus-ring)] bg-[var(--g-surface-selected)]" : "border-[var(--g-border-default)] bg-[var(--g-surface-default)] hover:bg-[var(--g-surface-hover)]"}`}>{method.label}</button>)}</div></fieldset>
-        {props.terminals.length > 0 && <Field id="payment-terminal" label="Maquininha usada"><select id="payment-terminal" value={props.terminalId} onChange={(event) => props.onTerminal(event.target.value)} className="g-input min-h-12 w-full"><option value="">Selecione a maquininha</option>{props.terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
-      </div>}<SurchargePanel state={props.surcharge} baseCents={props.quote.totalCents} canWaive={props.canWaiveSurcharge} /><Field id="proof-reference" label="Referência não sensível do comprovante" description="Use o identificador da operação. Nunca informe número do cartão, CVV, senha ou token." className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} minLength={4} maxLength={128} autoComplete="off" placeholder="Ex.: COMPROVANTE-9F2A" /></Field>
+        {props.terminals.length > 0 && <Field id="payment-terminal" label="Maquininha usada"><select id="payment-terminal" value={props.terminalId} onChange={(event) => props.onTerminal(event.target.value)} className="g-input min-h-12 w-full"><option value="">Selecione a maquininha</option>{props.terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminalOptionLabel(terminal)}</option>)}</select></Field>}
+      </div>}<SurchargePanel state={props.surcharge} baseCents={props.quote.totalCents} canWaive={props.canWaiveSurcharge} />{pix && <PixQrPanel saleId={props.checkout.saleId} waived={props.surcharge.waived} expectedCents={props.surcharge.chargeCents} onReady={setPixReady} />}<Field id="proof-reference" label="Referência externa (opcional)" description="Preencha apenas se houver um identificador útil no comprovante. Nunca informe número do cartão, CVV, senha ou token." error={proofProblem ?? undefined} className="mt-5"><Input id="proof-reference" value={props.proofReference} onChange={(event) => props.onReference(event.target.value)} maxLength={128} autoComplete="off" aria-invalid={proofProblem ? true : undefined} aria-describedby={fieldDescriptionIds("proof-reference", { description: "x", error: proofProblem ?? undefined })} /></Field>
         <div className="mt-5 rounded-[var(--g-radius-control)] border border-[var(--g-status-warning)]/40 bg-[var(--g-surface-subtle)] p-4 text-sm leading-6 text-[var(--g-text-secondary)]"><strong className="text-[var(--g-text-primary)]">Confirme fora do sistema antes de continuar.</strong> Esta tela não consulta automaticamente a Maquininha nem a Área Pix.</div></>}
     {!link && <Button variant="operation" size="lg" className="mt-5 w-full" onClick={props.onConfirm} loading={props.action === "confirm"} disabled={!props.online || !ready || props.action !== null}>{cash ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>}
   </Card><Button variant="ghost" className="w-full text-[var(--g-status-danger)]" onClick={props.onCancel} loading={props.action === "cancel"} disabled={!props.online || props.action !== null}><X className="size-4" /> Cancelar venda pendente</Button></div><div><QuoteSummary quote={props.quote} /><p className="mt-3 text-xs text-[var(--g-text-muted)]">Reserva válida até {new Date(props.checkout.reservation.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p></div></div>;
@@ -420,7 +430,7 @@ function ChannelButton({ icon: Icon, selected, title, description, onClick }: { 
 function SuccessStep({ confirmation, quote, onNewSale }: { confirmation: ConfirmationData; quote: QuoteData; onNewSale: () => void }) {
   return <div className="mx-auto max-w-2xl"><Card className="overflow-hidden text-center"><div className="bg-[var(--g-status-success-soft)] p-8 text-[var(--g-status-success-foreground)]"><div className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--g-operation-primary)] text-[var(--g-operation-on-primary)]"><CircleCheck className="size-9" /></div><h2 className="mt-4 text-2xl font-bold">Pagamento confirmado</h2><p className="mt-2 text-sm">Registro manual concluído com segurança.</p></div><div className="p-6 text-left"><div className="flex items-baseline justify-between border-b border-[var(--g-border-subtle)] pb-5"><span className="text-sm text-[var(--g-text-secondary)]">Total recebido</span><strong className="g-money text-2xl">{formatMoney(confirmation.paymentAttempt.amountCents)}</strong></div>{confirmation.surcharge && <p className="pt-3 text-sm text-[var(--g-text-secondary)]">{confirmation.surcharge.waived ? <>Acréscimo de <span className="g-money">{formatMoney(confirmation.surcharge.expectedCents)}</span> removido.</> : <>Inclui acréscimo de <span className="g-money">{formatMoney(confirmation.surcharge.appliedCents)}</span> sobre <span className="g-money">{formatMoney(quote.totalCents)}</span> em produtos.</>}</p>}<dl className="grid gap-4 py-5 text-sm sm:grid-cols-2"><div><dt className="text-[var(--g-text-muted)]">Canal</dt><dd className="mt-1 font-semibold">{{ MAQUININHA: "Maquininha", PIX_AREA: "Área Pix", DINHEIRO: "Dinheiro" }[confirmation.paymentAttempt.integrationChannel]}</dd></div><div><dt className="text-[var(--g-text-muted)]">Confirmação</dt><dd className="mt-1 font-semibold">Manual</dd></div>{"cash" in confirmation
     ? <div><dt className="text-[var(--g-text-muted)]">Recebido / troco</dt><dd className="mt-1 font-semibold"><span className="g-money">{formatMoney(confirmation.cash.tenderedCents)}</span> / <span className="g-money">{formatMoney(confirmation.cash.changeCents)}</span></dd></div>
-    : <><div><dt className="text-[var(--g-text-muted)]">Referência</dt><dd className="mt-1 break-all font-semibold">{confirmation.paymentAttempt.proofReference}</dd></div>
+    : <><div><dt className="text-[var(--g-text-muted)]">Referência externa</dt><dd className="mt-1 break-all font-semibold">{confirmation.paymentAttempt.proofReference ?? "Sem referência externa"}</dd></div>
       {confirmation.paymentAttempt.cardMethod && <div><dt className="text-[var(--g-text-muted)]">Método</dt><dd className="mt-1 font-semibold">{cardMethodLabels[confirmation.paymentAttempt.cardMethod]}{confirmation.paymentAttempt.terminal ? ` · ${confirmation.paymentAttempt.terminal.code}` : ""}</dd></div>}</>}<div><dt className="text-[var(--g-text-muted)]">Venda</dt><dd className="mt-1 font-mono text-xs">{confirmation.saleId}</dd></div></dl><SaleOriginPicker saleId={confirmation.saleId} /><Button variant="brand" size="lg" className="w-full" onClick={onNewSale}><RotateCcw className="size-4" /> Iniciar nova venda</Button></div></Card></div>;
 }
 

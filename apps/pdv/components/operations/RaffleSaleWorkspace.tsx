@@ -8,7 +8,7 @@ import { PaymentLinkPanel } from "@/components/operations/PaymentLinkPanel";
 import { SurchargePanel, useSurcharge } from "@/components/operations/SurchargePanel";
 import { useToast } from "@/components/ui/Toast";
 import {
-  cancelRaffleSale, cashChange, confirmCashPayment, confirmManualPayment, findRaffleBuyer, formatMoney, loadDisabledFeatures, loadEnabledFeatures,
+  cancelRaffleSale, cashChange, confirmCashPayment, confirmManualPayment, proofReferenceProblem, findRaffleBuyer, formatMoney, loadDisabledFeatures, loadEnabledFeatures,
   loadPaymentTerminals, loadPdvRaffles, loadRaffleBoard, parseMoneyInput, reservePdvRaffle,
 } from "@/lib/operations";
 
@@ -104,9 +104,10 @@ export function RaffleSaleWorkspace({ locationId, online, canWaiveSurcharge }: {
         if (tenderedCents === null || cashChange(surcharge.chargeCents, tenderedCents) === null) throw new Error("O valor recebido precisa cobrir o total.");
         await confirmCashPayment(reservation.saleId, tenderedCents, payKey.current, surcharge.choice);
       } else if (channel !== "PAYMENT_LINK") {
-        if (proof.trim().length < 4) throw new Error("Informe a referência não sensível do comprovante.");
+        const problem = proofReferenceProblem(proof);
+        if (problem) throw new Error(problem);
         if (channel === "MAQUININHA" && (!cardMethod || (terminals.length > 0 && !terminalId))) throw new Error("Informe o método do cartão e a maquininha.");
-        await confirmManualPayment(reservation.saleId, channel, proof.trim(), channel === "MAQUININHA" && cardMethod ? { cardMethod, terminalId: terminalId || null } : null, payKey.current, surcharge.choice);
+        await confirmManualPayment(reservation.saleId, channel, proof.trim() || null, channel === "MAQUININHA" && cardMethod ? { cardMethod, terminalId: terminalId || null } : null, payKey.current, surcharge.choice);
       }
     } catch (cause) {
       void surcharge.reload(); payKey.current = operationKey("pdv-raffle-pay");
@@ -178,7 +179,7 @@ export function RaffleSaleWorkspace({ locationId, online, canWaiveSurcharge }: {
               <div className="grid grid-cols-2 gap-2">{(["CREDITO", "DEBITO"] as const).map((method) => <Button key={method} type="button" variant={cardMethod === method ? "brand" : "secondary"} aria-pressed={cardMethod === method} onClick={() => { setCardMethod(method); surcharge.reset(); payKey.current = operationKey("pdv-raffle-pay"); }}>{method === "CREDITO" ? "Crédito" : "Débito"}</Button>)}</div>
               {terminals.length > 0 && <Field id="raffle-terminal" label="Maquininha usada"><select id="raffle-terminal" className="g-input min-h-11 w-full" value={terminalId} onChange={(event) => setTerminalId(event.target.value)}><option value="">Selecione</option>{terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.code} · {terminal.label}</option>)}</select></Field>}
             </div>}
-            <Field id="raffle-proof" label="Referência não sensível do comprovante" description="Nunca informe número do cartão, CVV, senha ou token."><Input id="raffle-proof" value={proof} maxLength={128} onChange={(event) => setProof(event.target.value)} autoComplete="off" /></Field></>}
+            <Field id="raffle-proof" label="Referência externa (opcional)" description="Preencha apenas se houver um identificador útil no comprovante. Nunca informe número do cartão, CVV, senha ou token." error={proofReferenceProblem(proof) ?? undefined}><Input id="raffle-proof" value={proof} maxLength={128} onChange={(event) => setProof(event.target.value)} autoComplete="off" /></Field></>}
           <SurchargePanel state={surcharge} baseCents={reservation.totalCents} canWaive={canWaiveSurcharge} />
           <Button variant="operation" size="lg" loading={busy} disabled={!online || busy} onClick={() => void pay()}>{channel === "DINHEIRO" ? "Registrar recebimento em dinheiro" : "Confirmar recebimento manualmente"}</Button>
         </>}

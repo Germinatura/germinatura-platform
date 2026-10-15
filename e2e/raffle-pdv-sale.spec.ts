@@ -54,7 +54,7 @@ test("o vendedor vende números para comprador sem cadastro e libera a reserva d
   await page.getByRole("button", { name: "Reservar números" }).click();
   await expect(page.getByRole("heading", { name: "Números 3, 4" })).toBeVisible();
   await page.getByRole("button", { name: "Área Pix" }).click();
-  await page.getByLabel("Referência não sensível do comprovante").fill(`PIX-${Date.now().toString(36)}`);
+  await page.getByLabel("Referência externa (opcional)").fill(`PIX-${Date.now().toString(36)}`);
   const confirmation = page.waitForResponse((response) => response.url().endsWith("/payments/manual-confirmation"));
   await page.getByRole("button", { name: "Confirmar recebimento manualmente" }).click();
   expect((await confirmation).status()).toBe(200);

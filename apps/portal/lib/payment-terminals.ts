@@ -5,10 +5,15 @@ import { z } from "zod";
 // Rows returned by public.list_payment_terminals and public.save_payment_terminal.
 export const databaseTerminalSchema = z.object({
   id: z.uuid(), code: z.string(), label: z.string(), active: z.boolean(), updated_at: z.string(),
+  // H2b: absent in the save result, present (or null) in the listing.
+  assigned_to: z.object({ id: z.uuid(), name: z.string().nullable() }).nullish(),
 });
 
 export function toPaymentTerminal(value: z.infer<typeof databaseTerminalSchema>) {
-  return paymentTerminalSchema.parse({ id: value.id, code: value.code, label: value.label, active: value.active, updatedAt: value.updated_at });
+  return paymentTerminalSchema.parse({
+    id: value.id, code: value.code, label: value.label, active: value.active, updatedAt: value.updated_at,
+    ...(value.assigned_to === undefined ? {} : { assignedTo: value.assigned_to ? { id: value.assigned_to.id, name: value.assigned_to.name ?? "Sem nome" } : null }),
+  });
 }
 
 export function terminalErrorResponse(code: string, message: string, requestId: string, status: number) {
@@ -24,6 +29,10 @@ export function terminalDatabaseError(message: string, requestId: string) {
   if (message.includes("IDEMPOTENCY_CONFLICT")) return terminalErrorResponse("IDEMPOTENCY_CONFLICT", "A chave já foi usada com outro conteúdo.", requestId, 409);
   if (message.includes("IDEMPOTENCY_IN_PROGRESS")) return terminalErrorResponse("IDEMPOTENCY_IN_PROGRESS", "A operação já está em processamento.", requestId, 409);
   if (message.includes("FINANCE_MANAGE_REQUIRED") || message.includes("FORBIDDEN")) return terminalErrorResponse("FORBIDDEN", "Operação não autorizada.", requestId, 403);
+  if (message.includes("TERMINAL_ASSIGNEE_NOT_A_SELLER")) return terminalErrorResponse("TERMINAL_ASSIGNEE_NOT_A_SELLER", "Escolha um vendedor ativo desta turma.", requestId, 422);
+  if (message.includes("PAYMENT_TERMINAL_UNAVAILABLE")) return terminalErrorResponse("PAYMENT_TERMINAL_UNAVAILABLE", "Reative a maquininha antes de atribuí-la.", requestId, 409);
+  if (message.includes("COHORT_REQUIRED")) return terminalErrorResponse("COHORT_REQUIRED", "Selecione uma turma para gerenciar as maquininhas.", requestId, 409);
+  if (message.includes("INVALID_TERMINAL_ASSIGNMENT")) return terminalErrorResponse("INVALID_REQUEST", "Informe o motivo da atribuição (mínimo de 4 caracteres).", requestId, 422);
   if (message.includes("INVALID_")) return terminalErrorResponse("INVALID_REQUEST", "Confira o código e o nome da maquininha.", requestId, 422);
   return terminalErrorResponse("TERMINALS_UNAVAILABLE", "Maquininhas temporariamente indisponíveis.", requestId, 503);
 }

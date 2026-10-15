@@ -167,6 +167,9 @@ importers:
       '@germinatura/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@germinatura/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@germinatura/ui':
         specifier: workspace:*
         version: link:../../packages/ui

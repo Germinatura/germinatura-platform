@@ -47,6 +47,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/procurement/suppliers", methods: ["GET", "POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/orders", methods: ["GET", "POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/receipts", methods: ["GET", "POST"], access: "procurement" },
+  { path: "/api/v1/admin/procurement/receipts/lot-code", methods: ["POST"], access: "procurement" },
   { path: "/api/v1/admin/procurement/orders/:id/cancel", methods: ["POST"], access: "procurement" },
   { path: "/api/v1/admin/finance/payables", methods: ["GET"], access: "finance" },
   { path: "/api/v1/admin/finance/shifts", methods: ["GET"], access: "finance" },
@@ -59,6 +60,8 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/admin/finance/terminals", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/surcharges", methods: ["GET", "POST"], access: "finance" },
   { path: "/api/v1/admin/finance/terminals/:id", methods: ["PATCH"], access: "finance" },
+  { path: "/api/v1/admin/finance/terminals/assignees", methods: ["GET"], access: "finance" },
+  { path: "/api/v1/admin/finance/terminals/:id/assignment", methods: ["POST"], access: "finance" },
   { path: "/api/v1/admin/finance/sales", methods: ["GET"], access: "finance", all: "read" },
   { path: "/api/v1/admin/finance/sales/:id", methods: ["GET"], access: "finance", all: "read" },
   { path: "/api/v1/admin/finance/entries", methods: ["GET", "POST"], access: "finance" },
@@ -107,6 +110,7 @@ export const apiAccessRules: readonly ApiAccessRule[] = [
   { path: "/api/v1/sales/checkout", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/cancel", methods: ["POST"], access: "authenticated" },
   { path: "/api/v1/sales/:id/payments/manual-confirmation", methods: ["POST"], access: "seller" },
+  { path: "/api/v1/sales/:id/payments/pix-charge", methods: ["GET"], access: "seller" },
   { path: "/api/v1/sales/:id/payments/cash", methods: ["POST"], access: "seller" },
   { path: "/api/v1/pdv/raffles", methods: ["GET"], access: "seller" },
   { path: "/api/v1/pdv/raffles/buyer", methods: ["GET"], access: "seller" },
@@ -291,6 +295,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     if (rule.path === "/api/v1/sales/:id/payments/manual-confirmation") {
       return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/manual-confirmation$/i.test(path);
     }
+    if (rule.path === "/api/v1/sales/:id/payments/pix-charge") {
+      return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/pix-charge$/i.test(path);
+    }
     if (rule.path === "/api/v1/sales/:id/payments/cash") {
       return /^\/api\/v1\/sales\/[0-9a-f-]+\/payments\/cash$/i.test(path);
     }
@@ -305,6 +312,9 @@ export function apiAccessRule(path: string): ApiAccessRule | undefined {
     }
     if (rule.path === "/api/v1/admin/finance/terminals/:id") {
       return /^\/api\/v1\/admin\/finance\/terminals\/[0-9a-f-]+$/i.test(path);
+    }
+    if (rule.path === "/api/v1/admin/finance/terminals/:id/assignment") {
+      return /^\/api\/v1\/admin\/finance\/terminals\/[0-9a-f-]+\/assignment$/i.test(path);
     }
     if (rule.path.startsWith("/api/v1/admin/finance/online-payments/") && rule.path.includes("/:id/")) {
       const [prefix, suffix] = rule.path.split("/:id/");

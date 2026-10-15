@@ -16,6 +16,8 @@ import {
   deliverPaidPickupResponseSchema,
   pickupReservationsResponseSchema,
   paymentTerminalsResponseSchema,
+  pixChargeResponseSchema,
+  type PixChargeResponse,
   paymentSurchargeRulesResponseSchema,
   type PaymentSurchargeRuleView,
   sellerShiftResponseSchema,
@@ -59,7 +61,7 @@ import {
 import { apiFetch } from "@/lib/api";
 import { cartPayload } from "./operations-pure";
 
-export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary, surchargeFor } from "./operations-pure";
+export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary, proofReferenceProblem, surchargeFor } from "./operations-pure";
 
 /** PR D: the acréscimo shown to the customer and, when authorized, its removal with a reason. */
 export interface SurchargeChoice { surchargeCents: number; waiverReason?: string | null }
@@ -231,7 +233,8 @@ export async function checkoutCart(
 export async function confirmManualPayment(
   saleId: string,
   channel: Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">,
-  proofReference: string,
+  // Optional (H2c): null when the receipt has nothing useful to type.
+  proofReference: string | null,
   card: { cardMethod: CardPaymentMethod; terminalId: string | null } | null,
   idempotencyKey: string,
   surcharge?: SurchargeChoice | null,
@@ -285,10 +288,45 @@ export async function completePickup(
 
 /** Spec 6.7: active Maquininhas; when any exists the seller must name the one used. */
 export async function loadPaymentTerminals(): Promise<PaymentTerminal[]> {
+  return (await loadPaymentTerminalChoice()).terminals;
+}
+
+/**
+ * H2b: the active terminals with whom each one is, and the one to preselect for this seller, decided by the server
+ * (assigned > last used > only active > none). The seller can always pick another one.
+ */
+export async function loadPaymentTerminalChoice(): Promise<{ terminals: PaymentTerminal[]; preferredId: string | null }> {
   const response = await apiFetch("/api/v1/pdv/terminals");
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as maquininhas."));
   const parsed = paymentTerminalsResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("As maquininhas retornaram dados inválidos.");
+  const preferred = parsed.data.preference?.terminalId ?? null;
+  return { terminals: parsed.data.data, preferredId: preferred && parsed.data.data.some((terminal) => terminal.id === preferred) ? preferred : null };
+}
+
+/** The option text of a terminal: code, name and with whom it is (never a restriction). */
+export function terminalOptionLabel(terminal: PaymentTerminal) {
+  return `${terminal.code} · ${terminal.label}${terminal.assignedTo ? ` (com ${terminal.assignedTo.name})` : ""}`;
+}
+
+/** A failure of the Pix QR that says whether the environment lacks a valid receiver (no QR at all) or not. */
+export class PixChargeError extends Error {
+  constructor(message: string, readonly notConfigured: boolean) { super(message); }
+}
+
+/**
+ * H2d: the static Pix QR of a sale awaiting payment. The Portal decides the amount (sale total + Pix acréscimo, or
+ * without it when the operator may waive and asked to); the PDV only shows it. Nothing is confirmed by this call.
+ */
+export async function loadPixCharge(saleId: string, waiveSurcharge: boolean): Promise<PixChargeResponse["data"]> {
+  const response = await apiFetch(`/api/v1/sales/${saleId}/payments/pix-charge${waiveSurcharge ? "?waiveSurcharge=true" : ""}`);
+  if (!response.ok) {
+    const body = asRecord(await response.json().catch(() => null));
+    const message = typeof body?.message === "string" ? body.message : "Não foi possível gerar o QR Pix.";
+    throw new PixChargeError(message, body?.code === "PIX_RECEIVER_NOT_CONFIGURED");
+  }
+  const parsed = pixChargeResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new PixChargeError("O QR Pix retornou dados inválidos.", false);
   return parsed.data.data;
 }
 

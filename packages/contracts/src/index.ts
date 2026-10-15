@@ -666,11 +666,20 @@ export const pickupReservationsResponseSchema = z.object({
   request_id: z.string().min(1),
 }).strict();
 
+/**
+ * H2c: the external reference on a Maquininha / Área Pix receipt. Optional: empty means none (null), never a made-up
+ * value. When typed it keeps the non-sensitive format (no card number, password or token) the server also enforces.
+ */
+export const optionalProofReferenceSchema = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+  z.string().min(4).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
+    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão").nullable(),
+);
+
 export const completePickupRequestSchema = z.object({
   integrationChannel: z.enum(["DINHEIRO", "MAQUININHA", "PIX_AREA"]),
   tenderedCents: moneyCentsSchema.nullable(),
-  proofReference: z.string().min(4).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
-    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão").nullable(),
+  proofReference: optionalProofReferenceSchema,
   cardMethod: cardPaymentMethodSchema.nullable(),
   terminalId: z.uuid().nullable(),
   ...paymentSurchargeConfirmationShape,
@@ -681,7 +690,6 @@ export const completePickupRequestSchema = z.object({
     if (value.proofReference || value.cardMethod || value.terminalId) context.addIssue({ code: "custom", path: ["integrationChannel"], message: "Dinheiro não tem comprovante nem cartão" });
   } else {
     if (value.tenderedCents !== null) context.addIssue({ code: "custom", path: ["tenderedCents"], message: "Só dinheiro tem valor recebido" });
-    if (!value.proofReference) context.addIssue({ code: "custom", path: ["proofReference"], message: "Informe a referência não sensível" });
     if (value.integrationChannel === "MAQUININHA" && !value.cardMethod) context.addIssue({ code: "custom", path: ["cardMethod"], message: "Informe crédito ou débito" });
     if (value.integrationChannel === "PIX_AREA" && (value.cardMethod || value.terminalId)) context.addIssue({ code: "custom", path: ["cardMethod"], message: "Área Pix não tem cartão" });
   }
@@ -828,11 +836,32 @@ export const paymentTerminalSchema = z.object({
   label: z.string().min(2).max(80),
   active: z.boolean(),
   updatedAt: z.iso.datetime({ offset: true }),
+  // H2b: with whom the terminal is in the request cohort (an operational preference, never exclusivity).
+  assignedTo: z.object({ id: z.uuid(), name: z.string() }).strict().nullable().optional(),
 }).strict();
 export type PaymentTerminal = z.infer<typeof paymentTerminalSchema>;
 
+/** H2b: the terminal the PDV preselects for the seller: assigned > last used > only active > none. */
+export const pdvTerminalPreferenceSchema = z.object({
+  terminalId: z.uuid().nullable(),
+  source: z.enum(["ASSIGNED", "LAST_USED", "ONLY_ACTIVE"]).nullable(),
+}).strict();
+export type PdvTerminalPreference = z.infer<typeof pdvTerminalPreferenceSchema>;
+
 export const paymentTerminalsResponseSchema = z.object({
   data: z.array(paymentTerminalSchema),
+  preference: pdvTerminalPreferenceSchema.optional(),
+  request_id: z.string().min(1),
+}).strict();
+
+export const assignPaymentTerminalRequestSchema = z.object({
+  assigneeId: z.uuid().nullable(),
+  reason: z.string().trim().min(4).max(500),
+}).strict();
+export type AssignPaymentTerminalRequest = z.infer<typeof assignPaymentTerminalRequestSchema>;
+
+export const paymentTerminalAssigneesResponseSchema = z.object({
+  data: z.array(z.object({ id: z.uuid(), name: z.string(), username: z.string().nullable() }).strict()),
   request_id: z.string().min(1),
 }).strict();
 
@@ -850,9 +879,7 @@ export const paymentTerminalResponseSchema = z.object({
 
 export const manualPaymentConfirmationRequestSchema = z.object({
   integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
-  proofReference: z.string().min(4).max(128)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/)
-    .refine((value) => !/[0-9]{12,}/.test(value), "A referência não pode conter dados de cartão"),
+  proofReference: optionalProofReferenceSchema.optional().transform((value) => value ?? null),
   cardMethod: cardPaymentMethodSchema.nullable().optional(),
   terminalId: z.uuid().nullable().optional(),
   ...paymentSurchargeConfirmationShape,
@@ -878,7 +905,7 @@ export const manualPaymentConfirmationResponseSchema = z.object({
       integrationChannel: z.enum(["MAQUININHA", "PIX_AREA"]),
       confirmationSource: z.literal("MANUAL"),
       confirmedAt: z.iso.datetime({ offset: true }),
-      proofReference: z.string().min(4).max(128),
+      proofReference: z.string().min(4).max(128).nullable(),
       cardMethod: cardPaymentMethodSchema.nullable(),
       terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).strict().nullable(),
     }).strict(),
@@ -894,6 +921,24 @@ export const manualPaymentConfirmationResponseSchema = z.object({
   request_id: z.string().min(1),
 }).strict();
 export type ManualPaymentConfirmationResponse = z.infer<typeof manualPaymentConfirmationResponseSchema>;
+
+/**
+ * H2d: the static Pix QR of a PDV sale. The amount is decided by the server (sale total + Pix acréscimo in force, or
+ * without it when waived by an authorized operator); `payload` is the "Pix copia e cola" (BR Code). It confirms nothing.
+ */
+export const pixChargeResponseSchema = z.object({
+  data: z.object({
+    saleId: z.uuid(),
+    productCents: moneyCentsSchema,
+    surchargeCents: moneyCentsSchema,
+    amountCents: moneyCentsSchema,
+    waived: z.boolean(),
+    txid: z.string().regex(/^[A-Za-z0-9]{1,25}$/),
+    payload: z.string().min(20).max(512),
+  }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+export type PixChargeResponse = z.infer<typeof pixChargeResponseSchema>;
 
 export const paymentReconciliationRequestSchema = z.object({
   observedAmountCents: moneyCentsSchema.refine((value) => value > 0, "Observed amount must be positive"),

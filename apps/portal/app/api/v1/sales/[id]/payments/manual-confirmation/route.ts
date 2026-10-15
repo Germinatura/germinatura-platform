@@ -25,7 +25,7 @@ const databaseResultSchema = z.object({
     integration_channel: z.enum(["MAQUININHA", "PIX_AREA"]),
     confirmation_source: z.literal("MANUAL"),
     confirmed_at: z.string(),
-    proof_reference: z.string(),
+    proof_reference: z.string().nullable(),
     // Absent in replays stored before card methods were recorded.
     card_method: z.enum(["CREDITO", "DEBITO", "VOUCHER_ALIMENTACAO", "VOUCHER_REFEICAO"]).nullish(),
     terminal: z.object({ id: z.uuid(), code: z.string(), label: z.string() }).nullish(),
