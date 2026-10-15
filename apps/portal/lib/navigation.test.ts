@@ -14,6 +14,22 @@ describe("portal navigation", () => {
     expect(ids(context)).not.toContain("catalog");
   });
 
+  it("gives ADMIN_MASTER the administrator areas plus cohort administration, never to a cohort ADMIN", () => {
+    const master = ids({ ...base, roles: ["ADMIN_MASTER", "CONSUMIDOR"] });
+    expect(master).toEqual(expect.arrayContaining(["cohorts", "users", "audit", "admin-catalog", "inventory", "procurement", "shifts", "pdv"]));
+    expect(ids({ ...base, roles: ["ADMIN"] })).not.toContain("cohorts");
+  });
+
+  it("marks, in Todas as turmas, the screens that open only inside one cohort, without hiding them (PR 5)", () => {
+    const items = navigationFor({ ...base, roles: ["ADMIN_MASTER"], cohortMode: "ALL" }).flatMap((section) => section.items);
+    const byId = (id: string) => items.find((item) => item.id === id);
+    expect(byId("inventory")?.cohortOnly).toMatch(/locais de uma turma/);
+    expect(byId("users")?.cohortOnly).toBeUndefined();
+    expect(byId("audit")?.cohortOnly).toBeUndefined();
+    expect(byId("pdv")?.cohortOnly).toBeUndefined();
+    expect(navigationFor({ ...base, roles: ["ADMIN_MASTER"], cohortMode: "COHORT" }).flatMap((section) => section.items).some((item) => item.cohortOnly)).toBe(false);
+  });
+
   it("hides staff areas from an administrator browsing as a consumer", () => {
     const context: NavigationContext = { ...base, roles: ["ADMIN"], experience: "consumer" };
     expect(sectionIds(context)).toEqual(["principal", "conta", "pdv"]);

@@ -16,6 +16,10 @@ import {
   deliverPaidPickupResponseSchema,
   pickupReservationsResponseSchema,
   paymentTerminalsResponseSchema,
+  pixChargeResponseSchema,
+  type PixChargeResponse,
+  paymentSurchargeRulesResponseSchema,
+  type PaymentSurchargeRuleView,
   sellerShiftResponseSchema,
   pricingQuoteResponseSchema,
   publicCatalogProductsResponseSchema,
@@ -55,10 +59,28 @@ import {
   type InventoryCountMutationResponse,
 } from "@germinatura/contracts";
 import { apiFetch } from "@/lib/api";
-import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { cartPayload } from "./operations-pure";
 
-export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary } from "./operations-pure";
+export { cartPayload, cashChange, formatMoney, mySaleStatus, parseMoneyInput, paymentMethodLabel, paymentSummary, proofReferenceProblem, surchargeFor } from "./operations-pure";
+
+/** PR D: the acréscimo shown to the customer and, when authorized, its removal with a reason. */
+export interface SurchargeChoice { surchargeCents: number; waiverReason?: string | null }
+
+function surchargeBody(choice: SurchargeChoice | null | undefined) {
+  if (!choice) return {};
+  return choice.waiverReason
+    ? { surchargeCents: choice.surchargeCents, waiveSurcharge: true, surchargeWaiverReason: choice.waiverReason }
+    : { surchargeCents: choice.surchargeCents };
+}
+
+/** PR D: the acréscimo rules in force for this cohort; the server recomputes and refuses any other value. */
+export async function loadSurchargeRules(): Promise<PaymentSurchargeRuleView[]> {
+  const response = await apiFetch("/api/v1/pdv/surcharges");
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar os acréscimos dos meios de pagamento."));
+  const parsed = paymentSurchargeRulesResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new Error("Os acréscimos retornaram dados inválidos.");
+  return parsed.data.data.rules;
+}
 
 export interface StockLocation {
   id: string;
@@ -119,22 +141,12 @@ async function responseError(response: Response, fallback: string) {
 }
 
 export async function loadInventoryContext(): Promise<InventoryContext> {
-  const supabase = getSupabaseBrowserClient();
-  const [locationResult, balanceResult] = await Promise.all([
-    supabase
-      .from("stock_locations")
-      .select("id,name,location_type")
-      .eq("active", true)
-      .order("location_type", { ascending: true })
-      .order("name", { ascending: true }),
-    supabase
-      .from("inventory_balances")
-      .select("location_id,product_id,on_hand_quantity,reserved_quantity"),
-  ]);
-
-  if (locationResult.error || balanceResult.error) {
-    throw new Error("Não foi possível carregar a localização e o estoque deste PDV.");
-  }
+  // ADR 0011 (PR 5): read through the Portal, inside the PDV's cohort (never straight from the database in the browser).
+  const response = await apiFetch("/api/v1/pdv/inventory");
+  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar a localização e o estoque deste PDV."));
+  const body = asRecord(asRecord(await response.json().catch(() => null))?.data);
+  const locationResult = { data: body?.locations };
+  const balanceResult = { data: body?.balances };
   const locationRows: unknown[] = Array.isArray(locationResult.data) ? locationResult.data : [];
   const balanceRows: unknown[] = Array.isArray(balanceResult.data) ? balanceResult.data : [];
   const locations = locationRows.map(parseLocation).filter((value): value is StockLocation => value !== null);
@@ -168,12 +180,25 @@ export async function createSellerCloseout(
   return parsed.data.data;
 }
 
+// The catalog API pages by cursor (50 at most per page); the sale filters work on the whole catalog, so every page is
+// read. The cap only guards against a cursor that never ends.
+const CATALOG_PAGE_LIMIT = 50;
+const CATALOG_MAX_PAGES = 40;
+
 export async function loadCatalog(): Promise<PublicCatalogProduct[]> {
-  const response = await apiFetch("/api/v1/catalog/products?limit=50");
-  if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar o catálogo."));
-  const parsed = publicCatalogProductsResponseSchema.safeParse(await response.json());
-  if (!parsed.success) throw new Error("O catálogo retornou dados inválidos.");
-  return parsed.data.data.filter((product) => product.sellablePdv);
+  const products: PublicCatalogProduct[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < CATALOG_MAX_PAGES; page += 1) {
+    const query = new URLSearchParams({ limit: String(CATALOG_PAGE_LIMIT), ...(cursor ? { cursor } : {}) });
+    const response = await apiFetch(`/api/v1/catalog/products?${query.toString()}`);
+    if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar o catálogo."));
+    const parsed = publicCatalogProductsResponseSchema.safeParse(await response.json());
+    if (!parsed.success) throw new Error("O catálogo retornou dados inválidos.");
+    products.push(...parsed.data.data);
+    cursor = parsed.data.nextCursor;
+    if (!cursor) break;
+  }
+  return products.filter((product) => product.sellablePdv);
 }
 
 export async function quoteCart(items: CartItem[], couponCode?: string): Promise<PricingQuoteResponse["data"]> {
@@ -208,14 +233,16 @@ export async function checkoutCart(
 export async function confirmManualPayment(
   saleId: string,
   channel: Extract<PaymentIntegrationChannel, "MAQUININHA" | "PIX_AREA">,
-  proofReference: string,
+  // Optional (H2c): null when the receipt has nothing useful to type.
+  proofReference: string | null,
   card: { cardMethod: CardPaymentMethod; terminalId: string | null } | null,
   idempotencyKey: string,
+  surcharge?: SurchargeChoice | null,
 ): Promise<ManualPaymentConfirmationResponse["data"]> {
   const response = await apiFetch(`/api/v1/sales/${saleId}/payments/manual-confirmation`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ integrationChannel: channel, proofReference, ...(card ?? {}) }),
+    body: JSON.stringify({ integrationChannel: channel, proofReference, ...(card ?? {}), ...surchargeBody(surcharge) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível confirmar o recebimento."));
   const parsed = manualPaymentConfirmationResponseSchema.safeParse(await response.json());
@@ -244,11 +271,14 @@ export async function deliverPaidPickup(reservationId: string, idempotencyKey: s
 }
 
 /** Hands over a prepared reservation, charging the frozen price in one atomic step. */
-export async function completePickup(reservationId: string, payment: CompletePickupRequest, idempotencyKey: string): Promise<CompletePickupResponse["data"]> {
+export async function completePickup(
+  reservationId: string, payment: Omit<CompletePickupRequest, "surchargeCents" | "waiveSurcharge" | "surchargeWaiverReason">,
+  idempotencyKey: string, surcharge?: SurchargeChoice | null,
+): Promise<CompletePickupResponse["data"]> {
   const response = await apiFetch(`/api/v1/pdv/pickups/${reservationId}/complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify(payment),
+    body: JSON.stringify({ ...payment, ...surchargeBody(surcharge) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível concluir a retirada."));
   const parsed = completePickupResponseSchema.safeParse(await response.json());
@@ -258,10 +288,45 @@ export async function completePickup(reservationId: string, payment: CompletePic
 
 /** Spec 6.7: active Maquininhas; when any exists the seller must name the one used. */
 export async function loadPaymentTerminals(): Promise<PaymentTerminal[]> {
+  return (await loadPaymentTerminalChoice()).terminals;
+}
+
+/**
+ * H2b: the active terminals with whom each one is, and the one to preselect for this seller, decided by the server
+ * (assigned > last used > only active > none). The seller can always pick another one.
+ */
+export async function loadPaymentTerminalChoice(): Promise<{ terminals: PaymentTerminal[]; preferredId: string | null }> {
   const response = await apiFetch("/api/v1/pdv/terminals");
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível carregar as maquininhas."));
   const parsed = paymentTerminalsResponseSchema.safeParse(await response.json());
   if (!parsed.success) throw new Error("As maquininhas retornaram dados inválidos.");
+  const preferred = parsed.data.preference?.terminalId ?? null;
+  return { terminals: parsed.data.data, preferredId: preferred && parsed.data.data.some((terminal) => terminal.id === preferred) ? preferred : null };
+}
+
+/** The option text of a terminal: code, name and with whom it is (never a restriction). */
+export function terminalOptionLabel(terminal: PaymentTerminal) {
+  return `${terminal.code} · ${terminal.label}${terminal.assignedTo ? ` (com ${terminal.assignedTo.name})` : ""}`;
+}
+
+/** A failure of the Pix QR that says whether the environment lacks a valid receiver (no QR at all) or not. */
+export class PixChargeError extends Error {
+  constructor(message: string, readonly notConfigured: boolean) { super(message); }
+}
+
+/**
+ * H2d: the static Pix QR of a sale awaiting payment. The Portal decides the amount (sale total + Pix acréscimo, or
+ * without it when the operator may waive and asked to); the PDV only shows it. Nothing is confirmed by this call.
+ */
+export async function loadPixCharge(saleId: string, waiveSurcharge: boolean): Promise<PixChargeResponse["data"]> {
+  const response = await apiFetch(`/api/v1/sales/${saleId}/payments/pix-charge${waiveSurcharge ? "?waiveSurcharge=true" : ""}`);
+  if (!response.ok) {
+    const body = asRecord(await response.json().catch(() => null));
+    const message = typeof body?.message === "string" ? body.message : "Não foi possível gerar o QR Pix.";
+    throw new PixChargeError(message, body?.code === "PIX_RECEIVER_NOT_CONFIGURED");
+  }
+  const parsed = pixChargeResponseSchema.safeParse(await response.json());
+  if (!parsed.success) throw new PixChargeError("O QR Pix retornou dados inválidos.", false);
   return parsed.data.data;
 }
 
@@ -444,11 +509,13 @@ export async function closeShift(shiftId: string, countedCashCents: number, just
   return parsed.data.data;
 }
 
-export async function confirmCashPayment(saleId: string, tenderedCents: number, idempotencyKey: string): Promise<CashPaymentResponse["data"]> {
+export async function confirmCashPayment(
+  saleId: string, tenderedCents: number, idempotencyKey: string, surcharge?: SurchargeChoice | null,
+): Promise<CashPaymentResponse["data"]> {
   const response = await apiFetch(`/api/v1/sales/${saleId}/payments/cash`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
-    body: JSON.stringify({ tenderedCents }),
+    body: JSON.stringify({ tenderedCents, ...surchargeBody(surcharge) }),
   });
   if (!response.ok) throw new Error(await responseError(response, "Não foi possível registrar o recebimento em dinheiro."));
   const parsed = cashPaymentResponseSchema.safeParse(await response.json());

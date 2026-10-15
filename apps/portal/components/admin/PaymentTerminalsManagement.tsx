@@ -1,7 +1,7 @@
 "use client";
 
-import { paymentTerminalResponseSchema, paymentTerminalsResponseSchema, savePaymentTerminalRequestSchema, type PaymentTerminal } from "@germinatura/contracts";
-import { Badge, Button, Card, Field, Input } from "@germinatura/ui";
+import { assignPaymentTerminalRequestSchema, paymentTerminalAssigneesResponseSchema, paymentTerminalResponseSchema, paymentTerminalsResponseSchema, savePaymentTerminalRequestSchema, type PaymentTerminal } from "@germinatura/contracts";
+import { Badge, Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
 import { AlertTriangle, Loader2, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
@@ -21,6 +21,9 @@ export function PaymentTerminalsManagement() {
   const [code, setCode] = useState("");
   const [label, setLabel] = useState("");
   const [editing, setEditing] = useState<{ id: string; code: string; label: string } | null>(null);
+  // H2b: with whom each terminal is. Choosing a holder is a preference for the PDV, never exclusivity.
+  const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
+  const [assigning, setAssigning] = useState<{ id: string; assigneeId: string; reason: string } | null>(null);
   const keys = useRef(new Map<string, string>());
   const keyFor = (scope: string, payload: unknown) => {
     const fingerprint = `${scope}:${JSON.stringify(payload)}`;
@@ -43,6 +46,29 @@ export function PaymentTerminalsManagement() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
+  useEffect(() => {
+    void fetch("/api/v1/admin/finance/terminals/assignees", { cache: "no-store" }).then(async (response) => {
+      const parsed = paymentTerminalAssigneesResponseSchema.safeParse(await response.json().catch(() => null));
+      if (response.ok && parsed.success) setAssignees(parsed.data.data);
+    }, () => undefined);
+  }, []);
+
+  async function assign(terminal: PaymentTerminal, assigneeId: string | null, reason: string) {
+    const parsed = assignPaymentTerminalRequestSchema.safeParse({ assigneeId, reason });
+    if (!parsed.success) { setError("Informe o motivo da atribuição (mínimo de 4 caracteres)."); return; }
+    setBusy(`assign-${terminal.id}`); setError("");
+    try {
+      const response = await fetch(`/api/v1/admin/finance/terminals/${terminal.id}/assignment`, {
+        method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": keyFor(`assign-${terminal.id}`, parsed.data) },
+        body: JSON.stringify(parsed.data),
+      });
+      if (!response.ok) throw new Error(await messageFrom(response, "Não foi possível atribuir a maquininha."));
+      showToast(assigneeId ? "Responsável atualizado." : "Atribuição removida.", "success");
+      setAssigning(null);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível atribuir a maquininha."); }
+    finally { setBusy(null); }
+  }
 
   async function save(id: string | null, payload: { code: string; label: string; active: boolean }, success: string) {
     const parsed = savePaymentTerminalRequestSchema.safeParse(payload);
@@ -96,9 +122,11 @@ export function PaymentTerminalsManagement() {
                 <Button type="button" size="sm" variant="ghost" disabled={busy !== null} onClick={() => setEditing(null)}>Cancelar</Button>
               </form>
               : <div className="flex flex-wrap items-center justify-between gap-3">
-                <div><p className="font-mono font-semibold">{terminal.code}</p><p className="text-sm text-[var(--g-text-secondary)]">{terminal.label}</p></div>
+                <div><p className="font-mono font-semibold">{terminal.code}</p><p className="text-sm text-[var(--g-text-secondary)]">{terminal.label}</p>
+                  <p className="mt-1 text-sm"><span className="text-[var(--g-text-muted)]">Com quem está: </span><span className="font-semibold">{terminal.assignedTo?.name ?? "Ninguém"}</span></p></div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={terminal.active ? "success" : "neutral"}>{terminal.active ? "Ativa" : "Inativa"}</Badge>
+                  <Button type="button" size="sm" variant="ghost" disabled={busy !== null || !terminal.active} onClick={() => setAssigning({ id: terminal.id, assigneeId: terminal.assignedTo?.id ?? "", reason: "" })}>Com quem está</Button>
                   <Button type="button" size="sm" variant="ghost" disabled={busy !== null} onClick={() => setEditing({ id: terminal.id, code: terminal.code, label: terminal.label })}>Editar</Button>
                   <Button type="button" size="sm" variant="secondary" loading={busy === terminal.id} disabled={busy !== null}
                     onClick={() => void save(terminal.id, { code: terminal.code, label: terminal.label, active: !terminal.active }, terminal.active ? "Maquininha desativada." : "Maquininha reativada.")}>
@@ -106,6 +134,15 @@ export function PaymentTerminalsManagement() {
                   </Button>
                 </div>
               </div>}
+            {assigning?.id === terminal.id && <form aria-label={`Responsável por ${terminal.code}`} className="mt-4 grid gap-3 rounded-[var(--g-radius-control)] bg-[var(--g-surface-subtle)] p-4" onSubmit={(event) => {
+              event.preventDefault();
+              void assign(terminal, assigning.assigneeId || null, assigning.reason.trim());
+            }}>
+              <p className="text-sm text-[var(--g-text-secondary)]">A atribuição só sugere a maquininha no PDV: qualquer vendedor continua podendo usá-la.</p>
+              <Field id={`terminal-holder-${terminal.id}`} label="Responsável"><select id={`terminal-holder-${terminal.id}`} className="g-input" value={assigning.assigneeId} onChange={(event) => setAssigning({ ...assigning, assigneeId: event.target.value })}><option value="">Ninguém</option>{assignees.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></Field>
+              <ReasonField id={`terminal-holder-reason-${terminal.id}`} label="Motivo" minLength={4} maxLength={500} value={assigning.reason} onChange={(reason) => setAssigning({ ...assigning, reason })} />
+              <div className="flex flex-wrap gap-2"><Button type="submit" size="sm" loading={busy === `assign-${terminal.id}`} disabled={busy !== null}>{assigning.assigneeId ? "Salvar responsável" : "Remover atribuição"}</Button><Button type="button" size="sm" variant="ghost" disabled={busy !== null} onClick={() => setAssigning(null)}>Cancelar</Button></div>
+            </form>}
           </li>)}
         </ul>}
     </Card>

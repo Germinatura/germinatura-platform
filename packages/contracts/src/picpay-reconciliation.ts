@@ -58,10 +58,24 @@ export const picpayImportSchema = z.object({
   createdAt: timestamp,
 }).strict();
 export type PicpayImport = z.infer<typeof picpayImportSchema>;
+/**
+ * E0 (ADR 0011): ADMIN_MASTER declares each imported file. COHORT = "integralmente da turma" of the request (its unassigned
+ * evidence is attributed to it); GLOBAL = mixed or unknown (it stays unassigned until attributed).
+ */
+export const picpayImportScopeSchema = z.enum(["COHORT", "GLOBAL"]);
+export type PicpayImportScope = z.infer<typeof picpayImportScopeSchema>;
+export const picpayImportDeclarationSchema = z.object({
+  scope: picpayImportScopeSchema,
+  cohortId: z.uuid().nullable(),
+}).strict().refine((value) => (value.scope === "COHORT") === (value.cohortId !== null), {
+  message: "Declare a turma do arquivo ou marque como misto/global", path: ["cohortId"],
+});
+export type PicpayImportDeclaration = z.infer<typeof picpayImportDeclarationSchema>;
 export const picpayImportResponseSchema = z.object({
   data: picpayImportSchema.extend({
     reconciliation: z.object({ links: count, pix: count, refunds: count, settlements: count }).strict(),
     periodsFlagged: count,
+    declaration: z.object({ scope: picpayImportScopeSchema, cohortId: z.uuid().nullable(), attributed: count }).strict(),
   }).strict(),
   request_id: z.string().min(1),
 }).strict();
@@ -187,3 +201,67 @@ export const picpayPeriodSchema = z.object({
 }).strict();
 export type PicpayPeriod = z.infer<typeof picpayPeriodSchema>;
 export const picpayPeriodsResponseSchema = z.object({ data: z.array(picpayPeriodSchema), request_id: z.string().min(1) }).strict();
+
+// E0 (ADR 0011): attribution of global PicPay evidence to a cohort, and the isolation switch (ADMIN_MASTER only).
+export const picpayAttributionFileSchema = z.object({
+  id: z.uuid(), sourceType: picpaySourceTypeSchema, number: z.number().int().positive(), fileName: z.string(),
+  periodFrom: calendarDay, periodTo: calendarDay, createdAt: timestamp,
+  scope: z.enum(["COHORT", "GLOBAL", "LEGADO"]), declaredCohortId: z.uuid().nullable(), declaredCohortName: z.string().nullable(),
+  unassigned: count, unassignedCents: cents,
+}).strict();
+export type PicpayAttributionFile = z.infer<typeof picpayAttributionFileSchema>;
+export const picpayAttributionStatusSchema = z.object({
+  enforced: z.boolean(),
+  updatedAt: timestamp.nullable(),
+  reason: z.string().nullable(),
+  unassigned: z.object({
+    statementLines: count, statementNetCents: cents, statementPending: count,
+    transactions: count, transactionsGrossCents: cents, historicalTransactions: count,
+  }).strict(),
+  byCohort: z.array(z.object({ cohortId: z.uuid(), name: z.string(), statementLines: count, transactions: count }).strict()),
+  files: z.array(picpayAttributionFileSchema),
+}).strict();
+export type PicpayAttributionStatus = z.infer<typeof picpayAttributionStatusSchema>;
+export const picpayAttributionStatusResponseSchema = z.object({ data: picpayAttributionStatusSchema, request_id: z.string().min(1) }).strict();
+
+export const picpayUnassignedItemSchema = z.object({
+  kind: z.enum(["STATEMENT_LINE", "TRANSACTION"]), id: z.uuid(), occurredOn: calendarDay, amountCents: cents, label: z.string(),
+}).strict();
+export type PicpayUnassignedItem = z.infer<typeof picpayUnassignedItemSchema>;
+export const picpayUnassignedItemsResponseSchema = z.object({ data: z.array(picpayUnassignedItemSchema), request_id: z.string().min(1) }).strict();
+
+const assignmentSelectionShape = {
+  importId: z.uuid().nullable(),
+  statementLineIds: z.array(z.uuid()).max(2000),
+  transactionIds: z.array(z.uuid()).max(2000),
+};
+const exactlyOneSelection = (value: { importId: string | null; statementLineIds: string[]; transactionIds: string[] }) =>
+  (value.importId === null) === (value.statementLineIds.length + value.transactionIds.length > 0)
+  && value.statementLineIds.length + value.transactionIds.length <= 2000;
+export const picpayAssignmentSelectionSchema = z.object(assignmentSelectionShape).strict()
+  .refine(exactlyOneSelection, { message: "Escolha um arquivo inteiro ou itens", path: ["importId"] });
+export type PicpayAssignmentSelection = z.infer<typeof picpayAssignmentSelectionSchema>;
+export const picpayAssignmentPreviewSchema = z.object({
+  cohortId: z.uuid(), count, totalCents: cents, statementLines: count, transactions: count,
+  firstOn: calendarDay.nullable(), lastOn: calendarDay.nullable(), alreadyInCohort: count, otherCohort: count,
+}).strict();
+export type PicpayAssignmentPreview = z.infer<typeof picpayAssignmentPreviewSchema>;
+export const picpayAssignmentPreviewResponseSchema = z.object({ data: picpayAssignmentPreviewSchema, request_id: z.string().min(1) }).strict();
+export const picpayAssignmentRequestSchema = z.object({
+  ...assignmentSelectionShape,
+  reason: z.string().trim().min(8).max(300),
+  expectedCount: z.number().int().positive(),
+  expectedTotalCents: cents,
+}).strict().refine(exactlyOneSelection, { message: "Escolha um arquivo inteiro ou itens", path: ["importId"] });
+export type PicpayAssignmentRequest = z.infer<typeof picpayAssignmentRequestSchema>;
+export const picpayAssignmentResponseSchema = z.object({
+  data: picpayAssignmentPreviewSchema.extend({ batchId: z.uuid(), reason: z.string() }).strict(),
+  request_id: z.string().min(1),
+}).strict();
+
+/** Isolation is activated once and never deactivated through the Portal (an extreme rollback is a technical migration). */
+export const picpayIsolationActivationRequestSchema = z.object({ reason: z.string().trim().min(8).max(300) }).strict();
+export const picpayIsolationActivationResponseSchema = z.object({
+  data: z.object({ active: z.literal(true), activatedNow: z.boolean(), activatedAt: timestamp.nullable(), reason: z.string() }).strict(),
+  request_id: z.string().min(1),
+}).strict();

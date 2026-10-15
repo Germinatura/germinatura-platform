@@ -1,7 +1,7 @@
 begin;
 select plan(25);
 
-select has_table('public','product_images','product image metadata table exists');
+select has_table('cohort_data','product_images','product image metadata table exists');
 select ok(not has_table_privilege('authenticated','public.product_images','INSERT'),'direct metadata insert stays denied');
 select ok(not has_table_privilege('authenticated','public.product_images','UPDATE'),'direct metadata update stays denied');
 select ok(not has_function_privilege('anon','public.add_catalog_product_image(uuid,integer,uuid,text,text,text,text,uuid)','EXECUTE'),'anonymous image command is denied');

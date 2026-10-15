@@ -6,6 +6,9 @@ import {
 import { createRequestId } from "@germinatura/observability";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getSession } from "@/lib/auth";
+import { createAuthenticatedSupabaseClient } from "@/lib/authenticated-supabase";
+import { resolvePublicCohort } from "@/lib/public-cohort";
 import { createPublicSupabaseClient } from "@/lib/supabase/public";
 
 const databaseProductSchema = z.object({
@@ -38,14 +41,32 @@ export async function GET(request: Request) {
   const parsedQuery = publicCatalogProductsQuerySchema.safeParse({
     cursor: url.searchParams.get("cursor") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
+    q: url.searchParams.get("q") ?? undefined,
+    category: url.searchParams.get("category") ?? undefined,
   });
 
   if (!parsedQuery.success) {
     return errorResponse("INVALID_QUERY", "Consulta de catálogo inválida", requestId, 422, parsedQuery.error.issues);
   }
 
-  const { cursor, limit } = parsedQuery.data;
-  const supabase = createPublicSupabaseClient();
+  const { cursor, limit, q, category } = parsedQuery.data;
+  // ADR 0011: a signed-in person sees the public catalog of the cohort in context (validated by the proxy). A visitor
+  // sees the default cohort's, or the ACTIVE cohort named by its public slug (?turma=), resolved here; an unknown or
+  // inactive slug is 404, never the default cohort. The filters below repeat the public read rules.
+  const slug = url.searchParams.get("turma");
+  let supabase;
+  let resolvedCohort: string | null = null;
+  if (await getSession()) {
+    supabase = await createAuthenticatedSupabaseClient(request);
+  } else if (slug !== null) {
+    const cohort = await resolvePublicCohort(slug);
+    if (!cohort) return errorResponse("COHORT_NOT_FOUND", "Turma não encontrada ou indisponível.", requestId, 404);
+    supabase = createPublicSupabaseClient(cohort.id);
+    resolvedCohort = cohort.id;
+  } else {
+    supabase = createPublicSupabaseClient();
+  }
+  const now = new Date().toISOString();
   let query = supabase
     .from("products")
     .select(`
@@ -62,12 +83,31 @@ export async function GET(request: Request) {
     `)
     .eq("active", true)
     .eq("published", true)
+    .eq("category.active", true)
+    .lte("prices.valid_from", now)
+    .or(`valid_to.is.null,valid_to.gt."${now}"`, { referencedTable: "prices" })
+    .eq("images.status", "ACTIVE")
     .order("id", { ascending: true })
     .limit(limit + 1);
 
   if (cursor) query = query.gt("id", cursor);
+  if (category) query = query.eq("category_id", category);
+  if (q) {
+    // Name, SKU or category name. The term is already reduced to letters, digits, spaces, dots and hyphens (contract),
+    // so it cannot alter the filter; it is quoted anyway.
+    const pattern = `"*${q}*"`;
+    const categoryMatches = await supabase.from("categories").select("id").eq("active", true).ilike("name", `%${q}%`).limit(50);
+    if (categoryMatches.error) return errorResponse("CATALOG_UNAVAILABLE", "Catálogo temporariamente indisponível", requestId, 503);
+    const categoryIds = z.array(z.object({ id: z.uuid() })).catch([]).parse(categoryMatches.data).map((row) => row.id);
+    query = query.or([`name.ilike.${pattern}`, `sku.ilike.${pattern}`, ...(categoryIds.length > 0 ? [`category_id.in.(${categoryIds.join(",")})`] : [])].join(","));
+  }
 
-  const { data, error } = await query;
+  // The first page also lists every category with published products, independent of the search.
+  const categoriesRequest = cursor ? null : supabase.from("categories")
+    .select("id,slug,name,sort_order,products!inner(id)")
+    .eq("active", true).eq("products.active", true).eq("products.published", true)
+    .order("sort_order").limit(1, { referencedTable: "products" });
+  const [{ data, error }, categoriesResult] = await Promise.all([query, categoriesRequest ?? Promise.resolve(null)]);
   if (error) return errorResponse("CATALOG_UNAVAILABLE", "Catálogo temporariamente indisponível", requestId, 503);
 
   const parsedRows = z.array(databaseProductSchema).safeParse(data);
@@ -102,10 +142,16 @@ export async function GET(request: Request) {
       })),
     })),
     nextCursor: hasMore ? rows.at(-1)?.id ?? null : null,
+    // A failed category lookup only hides the list; it never breaks the catalog.
+    ...(categoriesResult && !categoriesResult.error ? {
+      categories: z.array(z.object({ id: z.uuid(), slug: z.string(), name: z.string() })).catch([]).parse(categoriesResult.data)
+        .map(({ id, slug, name }) => ({ id, slug, name })),
+    } : {}),
     request_id: requestId,
   });
 
+  // A catalog resolved from a slug names its cohort, so the PDV offline copy is stored only under that cohort.
   return NextResponse.json(response, {
-    headers: { "Cache-Control": "no-store", "x-request-id": requestId },
+    headers: { "Cache-Control": "no-store", "x-request-id": requestId, ...(resolvedCohort ? { "x-germinatura-cohort": resolvedCohort } : {}) },
   });
 }

@@ -20,7 +20,9 @@ from unnest(array['a','b']) label;
 select throws_ok($$select public.request_portal_payment_link((select reservation_id from portal_reservations where label='a'),'https://portal.example','portal-link-off',gen_random_uuid())$$, 'P0001', 'FEATURE_DISABLED', 'online payment waits for the flag');
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000005'; -- ADR 0011: global flags belong to ADMIN_MASTER
 select lives_ok($$select public.update_feature_flag('payment_link', true, 'Teste do link no Portal', gen_random_uuid())$$, 'admin turns the flag on');
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000003';
 select throws_ok($$select public.request_portal_payment_link((select reservation_id from portal_reservations where label='a'),'javascript:alert(1)','portal-link-bad',gen_random_uuid())$$, '22023', 'INVALID_PAYMENT_LINK_REQUEST', 'the return address is validated');

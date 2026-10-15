@@ -88,6 +88,7 @@ export function CommandPalette({ sections, onClose }: CommandPaletteProps) {
               >
                 <Icon aria-hidden className="size-5 shrink-0" />
                 <span className="flex-1 font-semibold">{match.item.label}</span>
+                {match.item.cohortOnly && <span className="text-xs text-[var(--g-text-muted)]">por turma</span>}
                 <span className="text-xs text-[var(--g-text-muted)]">{match.sectionLabel}</span>
               </li>
             );

@@ -4,6 +4,7 @@ import {
 } from "@germinatura/contracts";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { AuthorizationError } from "@/lib/auth";
 
 const n = z.number().int();
 
@@ -32,6 +33,13 @@ export const databaseImportSchema = z.object({
   period_from: z.string(), period_to: z.string(), new_count: n, known_count: n, updated_count: n, ambiguous_count: n,
   actor_name: z.string(), created_at: z.string(),
 });
+
+export const databaseDeclarationSchema = z.object({ scope: z.enum(["COHORT", "GLOBAL"]), cohort_id: z.uuid().nullable(), attributed: n });
+
+/** E0 (ADR 0011): the shared account's files are imported, previewed and attributed only by ADMIN_MASTER. */
+export function requireAdminMasterUser(user: { adminMaster?: boolean }) {
+  if (!user.adminMaster) throw new AuthorizationError(403, "Somente ADMIN_MASTER importa e atribui a evidência PicPay");
+}
 
 export function toImport(value: z.infer<typeof databaseImportSchema>) {
   return picpayImportSchema.parse({
@@ -169,11 +177,25 @@ export function picpayDatabaseError(message: string, requestId: string) {
     PICPAY_EXCEPTION_ALREADY_RESOLVIDA: "Esta pendência já foi resolvida.",
     PICPAY_EXCEPTION_ALREADY_REABERTA: "Esta pendência já está aberta.",
     PICPAY_EXCEPTION_REQUIRES_LINE_REVIEW: "Uma linha do Extrato se resolve revisando a linha: classifique, vincule ou marque como já registrada.",
+    PICPAY_DECLARATION_CONFLICT: "O arquivo traz evidência que já conta em outra turma. Importe como misto/global e atribua item a item.",
+    PICPAY_EVIDENCE_ATTRIBUTED_TO_ANOTHER_COHORT: "Há evidência que já conta em outra turma: ela nunca muda de turma.",
+    PICPAY_ASSIGNMENT_CHANGED: "A seleção mudou desde a prévia. Gere a prévia de novo antes de confirmar.",
     IDEMPOTENCY_CONFLICT: "A chave já foi usada com outro conteúdo.",
     IDEMPOTENCY_IN_PROGRESS: "A operação já está em processamento.",
   };
   const code = Object.keys(conflicts).find((key) => message.includes(key));
   if (code) return picpayErrorResponse(code, conflicts[code], requestId, 409);
+  if (message.includes("ADMIN_MASTER_REQUIRED")) return picpayErrorResponse("FORBIDDEN", "Somente ADMIN_MASTER.", requestId, 403);
+  if (message.includes("PICPAY_EVIDENCE_NOT_ATTRIBUTED")) {
+    return picpayErrorResponse("PICPAY_EVIDENCE_NOT_ATTRIBUTED", "Esta evidência ainda não tem turma: só o ADMIN_MASTER pode atribuí-la.", requestId, 403);
+  }
+  if (message.includes("PICPAY_DECLARATION_COHORT_MISMATCH")) {
+    return picpayErrorResponse("PICPAY_DECLARATION_COHORT_MISMATCH", "A turma declarada precisa ser a turma selecionada.", requestId, 422);
+  }
+  if (message.includes("COHORT_REQUIRED")) return picpayErrorResponse("COHORT_REQUIRED", "Selecione uma turma.", requestId, 422);
+  if (message.includes("PICPAY_IMPORT_NOT_FOUND") || message.includes("PICPAY_EVIDENCE_NOT_FOUND")) {
+    return picpayErrorResponse("NOT_FOUND", "Arquivo ou evidência não encontrado.", requestId, 404);
+  }
   if (message.includes("PICPAY_FILE_UNKNOWN")) {
     return picpayErrorResponse("PICPAY_FILE_UNKNOWN", "Arquivo não reconhecido: envie Minhas vendas, Recebíveis ou Extrato exportados do PicPay Empresas.", requestId, 422);
   }

@@ -11,7 +11,7 @@ select ok(
   'anonymous reversal is denied'
 );
 select has_index(
-  'public', 'financial_ledger_entries', 'financial_ledger_refund_attempt_unique',
+  'cohort_data', 'financial_ledger_entries', 'financial_ledger_refund_attempt_unique',
   'one refund per payment attempt is enforced'
 );
 

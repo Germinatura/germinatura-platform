@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  closePicpayPeriodRequestSchema, linkPicpayTransactionRequestSchema, picpayExceptionsQuerySchema, picpayFilePreviewSchema,
-  picpayPeriodQuerySchema, resolvePicpayExceptionRequestSchema,
+  closePicpayPeriodRequestSchema, linkPicpayTransactionRequestSchema, picpayAssignmentRequestSchema, picpayAssignmentSelectionSchema,
+  picpayExceptionsQuerySchema, picpayFilePreviewSchema, picpayImportDeclarationSchema, picpayIsolationActivationRequestSchema, picpayPeriodQuerySchema,
+  resolvePicpayExceptionRequestSchema,
 } from "./picpay-reconciliation";
 
 const preview = {
@@ -31,5 +32,32 @@ describe("PicPay reconciliation contract", () => {
     expect(resolvePicpayExceptionRequestSchema.safeParse({ key: "PICPAY_SEM_PDV:x", action: "REABERTA", reason: "Nova evidência" }).success).toBe(true);
     expect(linkPicpayTransactionRequestSchema.safeParse({ paymentAttemptId: crypto.randomUUID() }).success).toBe(false);
     expect(linkPicpayTransactionRequestSchema.safeParse({ paymentAttemptId: null, reason: "Vínculo feito por engano" }).success).toBe(true);
+  });
+
+  // E0 (ADR 0011): every import is declared; an attribution takes a whole file or listed items, never both.
+  it("requires an explicit import declaration", () => {
+    const cohortId = crypto.randomUUID();
+    expect(picpayImportDeclarationSchema.safeParse({ scope: "COHORT", cohortId }).success).toBe(true);
+    expect(picpayImportDeclarationSchema.safeParse({ scope: "GLOBAL", cohortId: null }).success).toBe(true);
+    expect(picpayImportDeclarationSchema.safeParse({ scope: "COHORT", cohortId: null }).success).toBe(false);
+    expect(picpayImportDeclarationSchema.safeParse({ scope: "GLOBAL", cohortId }).success).toBe(false);
+    expect(picpayImportDeclarationSchema.safeParse({ scope: null, cohortId: null }).success).toBe(false);
+  });
+
+  it("attributes a whole file or listed items, with a reason and the previewed figures", () => {
+    const id = crypto.randomUUID();
+    expect(picpayAssignmentSelectionSchema.safeParse({ importId: id, statementLineIds: [], transactionIds: [] }).success).toBe(true);
+    expect(picpayAssignmentSelectionSchema.safeParse({ importId: null, statementLineIds: [id], transactionIds: [] }).success).toBe(true);
+    expect(picpayAssignmentSelectionSchema.safeParse({ importId: id, statementLineIds: [id], transactionIds: [] }).success).toBe(false);
+    expect(picpayAssignmentSelectionSchema.safeParse({ importId: null, statementLineIds: [], transactionIds: [] }).success).toBe(false);
+    const request = { importId: id, statementLineIds: [], transactionIds: [], reason: "Arquivo conferido", expectedCount: 2, expectedTotalCents: -1450 };
+    expect(picpayAssignmentRequestSchema.safeParse(request).success).toBe(true);
+    expect(picpayAssignmentRequestSchema.safeParse({ ...request, reason: "curto" }).success).toBe(false);
+    expect(picpayAssignmentRequestSchema.safeParse({ ...request, expectedCount: 0 }).success).toBe(false);
+    expect(picpayAssignmentRequestSchema.safeParse({ ...request, expectedTotalCents: 10.5 }).success).toBe(false);
+    expect(picpayIsolationActivationRequestSchema.safeParse({ reason: "curto" }).success).toBe(false);
+    expect(picpayIsolationActivationRequestSchema.safeParse({ reason: "Atribuições conferidas" }).success).toBe(true);
+    // There is no way back: a request to turn it off is not even well-formed.
+    expect(picpayIsolationActivationRequestSchema.safeParse({ reason: "Atribuições conferidas", enforced: false }).success).toBe(false);
   });
 });

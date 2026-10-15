@@ -1,7 +1,7 @@
 begin;
 select plan(28);
 
-select has_table('public', 'stock_return_requests', 'stock return requests are persisted');
+select has_table('cohort_data', 'stock_return_requests', 'stock return requests are persisted');
 select has_function('public', 'request_stock_return', array['uuid','bigint','text','text','uuid'], 'request RPC exists');
 select has_function('public', 'resolve_stock_return', array['uuid','text','text','text','uuid'], 'resolution RPC exists');
 select has_function('public', 'get_stock_returns', array['uuid','integer'], 'history RPC exists');

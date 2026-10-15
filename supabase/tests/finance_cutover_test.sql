@@ -4,6 +4,40 @@
 begin;
 select plan(101);
 
+-- E0: importing (and previewing) PicPay files is ADMIN_MASTER's, with a declaration; these synthetic files are Turma 2026's.
+create function pg_temp.import_file(p_name text, p_content text, p_key text, p_correlation uuid) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.import_picpay_file(p_name, p_content, 'COHORT', 'c0000000-0000-4000-8000-000000002026', p_key, p_correlation);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+create function pg_temp.preview_file(p_content text) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.preview_picpay_file(p_content);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+
 create function pg_temp.money(p_cents bigint) returns text language sql as $$
   select case when p_cents < 0 then '-' else '' end || (abs(p_cents) / 100)::text || '.' || lpad((abs(p_cents) % 100)::text, 2, '0') $$;
 create function pg_temp.csv(p_lines text[]) returns text language sql as $$
@@ -81,7 +115,7 @@ select is((public.get_fundraising_goal_admin() ->> 'current_cents')::bigint, 0::
 -- Historical statement (every line before operating_since), imported through the PicPay reconciliation.
 create function pg_temp.statement_import(p_id text) returns jsonb language sql as $$
   select item from jsonb_array_elements(public.list_picpay_statement_imports(null, 50) -> 'items') item where item ->> 'id' = p_id $$;
-create temp table hist as select public.import_picpay_file('extrato-cutover.csv', pg_temp.csv(array[
+create temp table hist as select pg_temp.import_file('extrato-cutover.csv', pg_temp.csv(array[
   pg_temp.line(1, 'Pix recebido', 'Cliente A', 10000),
   pg_temp.line(2, 'Pix recebido', 'Cliente B', 10000),
   pg_temp.line(3, 'Pix recebido', 'Cliente C', 10000),
@@ -158,7 +192,7 @@ select throws_ok($$select public.resolve_picpay_statement_lines_bulk((select (re
 reset role;
 select ok((select bool_and(cutover and category = 'RECEITA_HISTORICA' and not automatic) from public.picpay_statement_line_resolutions
   where bulk_id = (select (result ->> 'bulk_id')::uuid from bulk_done)), 'every line keeps its own cutover decision');
-select is((select count(*) from public.audit_logs where action = 'finance.statement.lines_bulk_resolved'
+select is((select count(*) from cohort_data.audit_logs where action = 'finance.statement.lines_bulk_resolved'
   and metadata ->> 'bulk_id' = (select result ->> 'bulk_id' from bulk_done)), 1::bigint, 'the bulk is audited once, with its totals');
 set local role authenticated;
 
@@ -246,7 +280,7 @@ select is((select count(*) from public.finance_manual_entries), 2::bigint, 'a di
 set local role authenticated;
 
 -- Test 9: the same file is never imported twice.
-select throws_ok($$select public.import_picpay_file('extrato-cutover.csv', pg_temp.csv(array[
+select throws_ok($$select pg_temp.import_file('extrato-cutover.csv', pg_temp.csv(array[
   pg_temp.line(1, 'Pix recebido', 'Cliente A', 10000), pg_temp.line(2, 'Pix recebido', 'Cliente B', 10000), pg_temp.line(3, 'Pix recebido', 'Cliente C', 10000),
   pg_temp.line(4, 'Recebíveis de venda', 'Vendas maquininha', 5000), pg_temp.line(5, 'Pix enviado', 'Fornecedor X', -4000),
   pg_temp.line(6, 'Pix enviado', 'Gráfica', -2500), pg_temp.line(7, 'Pix enviado', 'Transporte', -3000), pg_temp.line(8, 'Pix estornado', 'Cliente C', -1000),
@@ -268,7 +302,7 @@ reset role;
 select ok(private.is_statement_cutover_day(pg_temp.operating_since() - 1), 'the day before operating_since is cutover history');
 select ok(not private.is_statement_cutover_day(pg_temp.operating_since()), 'operating_since itself is native operation');
 set local role authenticated;
-create temp table last_history as select public.import_picpay_file('extrato-ultimo-dia.csv', pg_temp.csv(array[
+create temp table last_history as select pg_temp.import_file('extrato-ultimo-dia.csv', pg_temp.csv(array[
   to_char(pg_temp.operating_since() - 1, 'YYYY-MM-DD') || ';Recebíveis de venda;Vendas maquininha;Entrada;30.00']), 'cut-last-day', gen_random_uuid()) result;
 select is((select (pg_temp.statement_import(result ->> 'id') -> 'status_counts' ->> 'PENDENTE_REVISAO')::integer from last_history), 1,
   'receivables on the last history day are not transferred out of receivables');
@@ -288,7 +322,7 @@ select ok(private.is_statement_cutover_day(pg_temp.operating_since()), 'the boun
 rollback to savepoint moved_boundary;
 
 -- After the cutover the normal rules apply: receivables settle receivables, and never become historical revenue.
-create temp table native as select public.import_picpay_file('extrato-operacao.csv', pg_temp.csv(array[
+create temp table native as select pg_temp.import_file('extrato-operacao.csv', pg_temp.csv(array[
   to_char(pg_temp.operating_since(), 'YYYY-MM-DD') || ';Recebíveis de venda;Vendas maquininha;Entrada;20.00',
   to_char(pg_temp.operating_since(), 'YYYY-MM-DD') || ';Pix recebido;Cliente D;Entrada;7.00']), 'cut-native', gen_random_uuid()) result;
 reset role;

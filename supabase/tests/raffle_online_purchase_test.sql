@@ -16,7 +16,9 @@ grant select on online_sale, late_sale to authenticated, service_role;
 select throws_ok($$select public.request_customer_payment_link((select (result ->> 'sale_id')::uuid from online_sale), 'https://portal.example', 'online-link-off', gen_random_uuid())$$,
   'P0001', 'FEATURE_DISABLED', 'online payment waits for the flag');
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000005'; -- ADR 0011: global flags belong to ADMIN_MASTER
 select public.update_feature_flag('payment_link', true, 'Teste da rifa online', gen_random_uuid());
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select throws_ok($$select public.request_customer_payment_link((select (result ->> 'sale_id')::uuid from online_sale), 'https://portal.example', 'online-link-other', gen_random_uuid())$$,
   'P0001', 'SALE_NOT_FOUND', 'nobody pays someone else''s numbers');
 

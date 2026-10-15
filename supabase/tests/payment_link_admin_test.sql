@@ -8,7 +8,9 @@ on conflict (location_id, product_id) do nothing;
 set local role authenticated;
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 select public.adjust_stock('50000000-0000-4000-8000-000000000002','33f00000-0000-4000-8000-000000000001',2,'Estoque visão financeira','admin-link-stock','6d000000-0000-4000-8000-000000000001');
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000005'; -- ADR 0011: global flags belong to ADMIN_MASTER
 select public.update_feature_flag('payment_link', true, 'Teste da visão financeira', gen_random_uuid());
+set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000001';
 set local "request.jwt.claim.sub" = '10000000-0000-4000-8000-000000000002';
 create temp table admin_link as select public.request_payment_link(
   (public.checkout_sale('PDV','50000000-0000-4000-8000-000000000002','[{"product_id":"33f00000-0000-4000-8000-000000000001","quantity":1}]'::jsonb,'admin-link-sale',gen_random_uuid())->>'sale_id')::uuid,

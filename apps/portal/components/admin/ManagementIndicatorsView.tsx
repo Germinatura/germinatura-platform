@@ -82,6 +82,11 @@ export function ManagementIndicatorsView() {
         <Kpi label="Margem bruta" value={formatMoney(totals.grossMarginCents)} hint={`${percent(totals.grossMarginBps)} · custo das mercadorias ${formatMoney(totals.cogsCents)}`} />
         <Kpi label="Lucro operacional estimado" value={formatMoney(totals.operatingProfitCents)} hint={`perdas ${formatMoney(totals.lossesCostCents)} · despesas ${formatMoney(totals.operatingExpensesCents)}`} />
       </section>
+      <section aria-label="Composição da receita de vendas" className="grid gap-4 sm:grid-cols-3">
+        <Kpi label="Receita de produtos" value={formatMoney(totals.productRevenueCents)} hint="vendas recebidas sem o acréscimo do meio de pagamento" />
+        <Kpi label="Acréscimos cobrados" value={formatMoney(totals.surchargeRevenueCents)} hint={`cobrados do cliente; não são tarifa · estornados ${formatMoney(totals.surchargeRefundsCents)}`} />
+        <Kpi label="Tarifas PicPay" value={formatMoney(totals.feesCents)} hint={`da conciliação · acréscimos removidos ${formatMoney(totals.surchargeWaivedCents)} (${totals.surchargeWaivers})`} />
+      </section>
       <section aria-label="Caixa do período" className="grid gap-4 sm:grid-cols-3">
         <Kpi label="Fluxo de caixa do período" value={formatMoney(totals.cashBalanceCents)} hint="entradas menos saídas do período; não é o saldo das contas" />
         <Kpi label="Pagamentos a fornecedores" value={formatMoney(totals.supplierPaymentsCents)} hint="saídas de caixa; o custo entra pela venda" />

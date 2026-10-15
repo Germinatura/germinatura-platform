@@ -31,6 +31,15 @@ async function admin<T = Record<string, unknown>>(name: string, body: Record<str
   return call<T>({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, name, body);
 }
 
+// ADR 0011: global flags belong to ADMIN_MASTER.
+async function master<T = Record<string, unknown>>(name: string, body: Record<string, unknown>) {
+  const { url, key } = supabase();
+  const login = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
+  const { access_token: token } = await login.json() as { access_token: string };
+  return call<T>({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, name, body);
+}
+
 // Plays the jobs worker and PicPay, which are not part of the E2E environment.
 function worker<T = Record<string, unknown>>(name: string, body: Record<string, unknown>) {
   const { serviceKey } = supabase();
@@ -42,7 +51,7 @@ test("o pedido pago online é entregue no PDV sem nova cobrança, e a entrega n�
   const tag = Date.now().toString(36);
   await admin("adjust_stock", { p_location_id: centralLocationId, p_product_id: productId, p_quantity_delta: 2,
     p_reason: "Preparar entrega paga E2E", p_idempotency_key: `e2e-handover-stock:${tag}`, p_correlation_id: crypto.randomUUID() });
-  await admin("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E entrega de pedido pago", p_correlation_id: crypto.randomUUID() });
+  await master("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E entrega de pedido pago", p_correlation_id: crypto.randomUUID() });
   let reservationId = "";
   try {
     // Consumer: reserves two units and pays online; PicPay confirms.
@@ -66,7 +75,7 @@ test("o pedido pago online é entregue no PDV sem nova cobrança, e a entrega n�
     await worker("worker_record_payment_link_event", { p_source: "WEBHOOK", p_event_type: "TransactionPaymentMessage",
       p_payload: { type: "PAYMENT", data: { transaction: { id: `e2e-handover-tx-${tag}`, status: "PAYED", amount: claim?.amount_cents, paymentType: "PIX" }, charge: { paymentLinkId: linkId } } } });
   } finally {
-    await admin("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E entrega de pedido pago", p_correlation_id: crypto.randomUUID() });
+    await master("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E entrega de pedido pago", p_correlation_id: crypto.randomUUID() });
   }
 
   // Central stock operator at the PDV: the order shows as paid and is delivered without any payment form.

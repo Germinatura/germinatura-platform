@@ -43,8 +43,11 @@ test("financeiro concilia Minhas vendas, Recebíveis e Extrato enviados juntos, 
   const statement = ["data;movimento;descrição;tipo;valor",
     `${day};Pix recebido;Cliente ${tag};Entrada;${dot(base)};`, `${day};Pix recebido;Cliente ${tag} B;Entrada;${dot(base + 1)};`].join("\r\n") + "\r\n";
 
+  // E0 (ADR 0011): the shared PicPay account's files are imported by ADMIN_MASTER inside a cohort (here Turma 2026).
   expect((await page.request.post(`${portalUrl}/api/auth/login`, { headers: { Origin: portalUrl },
-    data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
+    data: { identifier: "master.teste", password: "Master123!" } })).status()).toBe(200);
+  expect((await page.request.post(`${portalUrl}/api/v1/session/cohort`, { headers: { Origin: portalUrl },
+    data: { cohort: "c0000000-0000-4000-8000-000000002026" } })).status()).toBe(200);
   const zero = "00000000-0000-4000-8000-000000000000";
   for (const request of [
     page.request.get(`${portalUrl}/api/v1/admin/finance/picpay/summary?from=${day}&to=${day}`),
@@ -80,6 +83,7 @@ test("financeiro concilia Minhas vendas, Recebíveis e Extrato enviados juntos, 
   await expect(row(`recebiveis-${tag}.csv`).getByText("Recebíveis", { exact: true })).toBeVisible();
   await expect(row(`extrato-${tag}.csv`).getByText("Extrato", { exact: true })).toBeVisible();
   await expect(row(`planilha-${tag}.csv`).getByText(/Arquivo não reconhecido/)).toBeVisible();
+  await files.getByLabel(/Integralmente da/).check();
   await files.getByRole("button", { name: "Importar arquivos" }).click();
   for (const name of [`extrato-${tag}.csv`, `recebiveis-${tag}.csv`, `vendas-${tag}.csv`]) {
     await expect(row(name).getByText(/Importado como arquivo nº \d+/)).toBeVisible();
@@ -110,7 +114,7 @@ test("financeiro concilia Minhas vendas, Recebíveis e Extrato enviados juntos, 
   await expect(row(`vendas-de-novo-${tag}.csv`).getByText(/Arquivo já importado \(nº \d+\)\./)).toBeVisible();
   await files.getByRole("button", { name: "Importar arquivos" }).click();
   await expect(row(`vendas-semana-${tag}.csv`).getByText(/0 novas, 2 já conhecidas, 1 atualizadas/)).toBeVisible();
-  const again = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/files?fileName=de-novo.csv`, {
+  const again = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/files?fileName=de-novo.csv&scope=COHORT&cohortId=c0000000-0000-4000-8000-000000002026`, {
     headers: { Origin: portalUrl, "Idempotency-Key": `e2e-picpay-again-${tag}`, "Content-Type": "text/csv" }, data: Buffer.from(sales),
   });
   expect(again.status()).toBe(409);

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { latestEmailCode } from "./support/mailbox";
 
 const portalUrl = "http://127.0.0.1:3000";
 const pdvUrl = process.env.PDV_URL ?? "http://127.0.0.1:3001";
@@ -43,24 +44,6 @@ async function login(page: import("@playwright/test").Page, identifier: string, 
   await page.goto(origin === pdvUrl && identifier.startsWith("admin.") ? `${portalUrl}/` : `${origin}/`);
 }
 
-async function latestEmailCode(
-  request: import("@playwright/test").APIRequestContext,
-  email: string,
-) {
-  let code = "";
-  await expect.poll(async () => {
-    const mailbox = await request.get("http://127.0.0.1:54325/api/v1/messages");
-    const body = await mailbox.json() as {
-      messages: Array<{ To: Array<{ Address: string }>; Subject: string; Snippet: string; Created: string }>;
-    };
-    const message = body.messages
-      .filter((candidate) => candidate.To.some((recipient) => recipient.Address === email))
-      .sort((left, right) => right.Created.localeCompare(left.Created))[0];
-    code = message?.Snippet.match(/\b\d{6}\b/)?.[0] ?? "";
-    return code;
-  }, { timeout: 10_000 }).toMatch(/^\d{6}$/);
-  return code;
-}
 
 test("Portal and PDV expose minimal independent health endpoints", async ({ request }) => {
   const portal = await request.get("/api/v1/health");
@@ -171,8 +154,8 @@ test("Portal signup verifies institutional email, completes the profile and enab
   await expect(page).toHaveURL(`${portalUrl}/cadastro/perfil`);
   await expect(page.locator('form[data-hydrated="true"]')).toBeVisible();
 
-  await page.getByLabel("Nome").fill("Pessoa Cadastro E2E");
-  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Nome", { exact: true }).fill("Pessoa Cadastro E2E");
+  await page.getByLabel("Nome de usuário").fill(username);
   await page.getByLabel("Senha", { exact: true }).fill(password);
   await page.getByLabel("Confirmar senha").fill(password);
   await page.getByRole("button", { name: "Concluir cadastro" }).click();
@@ -248,6 +231,9 @@ test("Password recovery changes the password and the third request requires an a
   await page.getByLabel("Código de 6 a 10 dígitos").fill(await latestEmailCode(request, email));
   await page.getByRole("button", { name: "Confirmar código" }).click();
   await expect(page).toHaveURL(`${portalUrl}/recuperar-senha`, { timeout: 45_000 });
+  // The page is compiled on first visit; filling before React hydrates loses the typed values (the form then submits
+  // empty fields). Wait for it to settle, as the other steps of this file do.
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("Nova senha", { exact: true }).fill("Consumidor456!");
   await page.getByLabel("Confirmar nova senha").fill("Consumidor456!");
   await page.getByRole("button", { name: "Salvar nova senha" }).click();
@@ -765,7 +751,8 @@ test("Administrator enters the Portal and can navigate through the PDV", async (
   const session = await page.request.get("/api/v1/auth/session");
   await expect(session).toBeOK();
   const sessionBody = await session.json();
-  expect(sessionBody).toMatchObject({ user: { perfil: "ADMIN", roles: ["ADMIN"] } });
+  // ADR 0011: admin.teste is the ADMIN of Turma 2026 only (master.teste is the local ADMIN_MASTER).
+  expect(sessionBody).toMatchObject({ user: { perfil: "ADMIN", roles: ["ADMIN"], adminMaster: false, cohortMode: "COHORT" } });
   const sessionText = JSON.stringify(sessionBody);
   expect(sessionText).not.toContain("access_token");
   expect(sessionText).not.toContain("refresh_token");

@@ -34,6 +34,22 @@ O `BrandMark` é a implementação canônica da geometria vetorial fornecida no 
 
 O login do Portal, a sidebar e o PDV consomem esse mesmo componente. Imagens remotas não podem substituir a marca institucional.
 
+### Ícones e identidade dos apps
+
+Portal e PDV são a mesma marca em dois contextos. A mesma geometria muda só de superfície e cor:
+
+| | Portal | PDV |
+|---|---|---|
+| Ícone (PWA, Android, Apple, favicon) | marca `#0E208E` sobre branco | marca `operation.primary` `#00B982` sobre `#070B18` |
+| `theme_color` / `background_color` | `brand.primary` `#001EC5` / `#FFFFFF` | `#070B18` / `#070B18` |
+| `short_name` | Germinatura | PDV |
+| `BrandMark` em superfície escura | `tone="inverse"` em branco | `tone="inverse"` em `operation.primary` (7,72:1 sobre `#070B18`) |
+
+- A fonte única é `packages/ui/src/brand.ts`, com `appBrand` e `appIconSvg`. Os PNG, o SVG e o `favicon.ico` de cada app são gerados por `pnpm brand:icons` a partir da geometria vetorial, já no tamanho final. Nunca se amplia uma imagem pequena. `tools/brand/app-icons.test.ts` falha se um arquivo commitado divergir do que a geometria produz.
+- Formatos: `any`, com superfície de cantos arredondados; `maskable`, com a marca inteira dentro do círculo seguro de 80%; Apple touch e favicon em quadrado cheio, porque a plataforma arredonda.
+- Só o ícone de plataforma leva superfície própria; dentro dos apps, a regra do `BrandMark` acima continua valendo.
+- `operation.primary` tem o mesmo valor de `status.success`. O PDV o usa como identidade apenas no ícone, na marca e no detalhe do card de acesso; as cores de status não mudam e continuam reservadas aos estados.
+
 - `brand.primary`: `#001EC5`
 - `brand.primary-hover`: `#0018A8`
 - `brand.primary-active`: `#00158F`
@@ -159,6 +175,13 @@ Componentes compartilhados devem residir em `packages/ui` quando não dependem d
   - É uma grade que segue a largura da própria linha (container query): `auto minmax(0,1fr) auto` quando cabe, ações abaixo quando estreita e tudo empilhado em largura mínima.
   - O texto ocupa o espaço livre e quebra palavras longas; as ações nunca o cobrem.
 - **`.g-field-action`:** botão numa linha de campos. Em telas largas reserva a linha do rótulo e alinha com os inputs, qualquer que seja o texto de ajuda abaixo deles; empilhado, ocupa a largura toda.
+- **`FilterShell`** (`@germinatura/ui/filters`, `.g-filter-*`): o único padrão para telas com vários filtros.
+  - A partir de 768px: painel inline, aberto por padrão (o PDV começa recolhido para manter os produtos à vista). O botão diz "Recolher filtros" quando aberto e "Filtros (n)" quando fechado. Recolher nunca limpa valores, e cada mudança é aplicada na hora. Telas com consulta cara ou campos digitados (Auditoria, Segurança) usam `applyMode="explicit"`: o painel vira um formulário com rascunho próprio e botão "Pesquisar"; os chips mostram só o que está em vigor.
+  - Abaixo de 768px: só o botão "Filtros (n)". Ele abre um bottom sheet (`<dialog>` modal nativo, com foco preso, Esc e retorno do foco ao botão). O sheet tem rascunho próprio e as ações "Limpar" (volta o rascunho ao vazio) e "Aplicar". Fechar por X, Esc ou fundo descarta só o rascunho, e os filtros em vigor continuam. Respeita safe-area e trava a rolagem da página.
+  - Chips dos filtros em vigor ("Remover filtro …") e "Limpar filtros" ficam sempre visíveis. Chips têm 44px em telas de toque.
+  - A busca textual principal fica fora do painel. Contexto operacional que muda a tela (local de venda, turma em contexto) também fica fora.
+  - Não usar para tela com só uma busca ou um único select.
+  - O filtro respeita onde os dados vivem: consulta paginada no servidor filtra no servidor (Usuários pela API, Catálogo admin pela URL, Catálogo do consumidor com `q`/`category` na API paginada); conjunto completo já carregado pode filtrar em memória (PDV, que lê todas as páginas do catálogo).
 - **Bordas:** sempre com cor de token (`border-[var(--g-border-subtle)]` ou `-default`). `border` sem cor usa `currentColor` no Tailwind 4 e vira uma linha escura.
 - **Texto longo:** cards e dialogs quebram palavras longas (`overflow-wrap: anywhere`), e tabelas mantêm suas regras e rolam na própria região. Badges e valores (`g-money`) nunca encolhem nem quebram.
 
@@ -213,7 +236,7 @@ Rifas seguem a mesma regra: campanhas, números próprios e prova do sorteio pod
 
 ## Shell de consulta offline do PDV
 
-O shell público é propositalmente independente do framework para não cachear HTML autenticado nem chunks operacionais. Usa a paleta escura, Segoe UI, espaçamentos, raios e alvos de 44px deste guia; `apps/pdv/public/offline.css` é sua representação mínima, que deve ser revisada junto dos tokens quando o padrão mudar. A geometria oficial da marca permanece única em `packages/ui/src/brand.ts`, consumida pelo `BrandMark` e pelo ícone SVG do PWA, azul sobre superfície branca.
+O shell público é propositalmente independente do framework para não cachear HTML autenticado nem chunks operacionais. Usa a paleta escura, Segoe UI, espaçamentos, raios e alvos de 44px deste guia; `apps/pdv/public/offline.css` é sua representação mínima, que deve ser revisada junto dos tokens quando o padrão mudar. A geometria oficial da marca permanece única em `packages/ui/src/brand.ts`, consumida pelo `BrandMark` e pelos ícones do PWA (ver "Ícones e identidade dos apps").
 
 Exibir “Consulta offline”, data da cópia, validade e aviso de preços sujeitos à atualização. Não exibir avatar, papel, saldo ou confirmação de acesso; a cópia pública não equivale a sessão autenticada. Não oferecer carrinho, reserva ou pagamento. Erro/expiração orientam a reconectar; o usuário pode apagar a cópia neste dispositivo.
 

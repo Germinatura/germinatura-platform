@@ -27,6 +27,15 @@ async function admin<T = Record<string, unknown>>(name: string, body: Record<str
   return call<T>({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, name, body);
 }
 
+// ADR 0011: global flags belong to ADMIN_MASTER.
+async function master<T = Record<string, unknown>>(name: string, body: Record<string, unknown>) {
+  const { url, key } = supabase();
+  const login = await fetch(`${url}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "master.teste@institutojef.org.br", password: "Master123!" }) });
+  const { access_token: token } = await login.json() as { access_token: string };
+  return call<T>({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, name, body);
+}
+
 // Plays the jobs worker and PicPay, which are not part of the E2E environment.
 function worker<T = Record<string, unknown>>(name: string, body: Record<string, unknown>) {
   const { serviceKey } = supabase();
@@ -43,7 +52,7 @@ test("o consumidor escolhe números, paga online e vê os bilhetes pagos", async
   });
   await admin("transition_raffle_campaign", { p_campaign_id: campaign.campaign_id, p_action: "PUBLISH",
     p_idempotency_key: `e2e-raffle-publish-${crypto.randomUUID()}`, p_correlation_id: crypto.randomUUID() });
-  await admin("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E rifa online", p_correlation_id: crypto.randomUUID() });
+  await master("update_feature_flag", { p_key: "payment_link", p_enabled: true, p_reason: "E2E rifa online", p_correlation_id: crypto.randomUUID() });
   try {
     expect((await page.request.post(`${portalUrl}/api/auth/login`, { headers: { Origin: portalUrl }, data: { identifier: "consumidor.teste", password: "Consumidor123!" } })).status()).toBe(200);
     await page.goto(`${portalUrl}/rifas`);
@@ -78,6 +87,6 @@ test("o consumidor escolhe números, paga online e vê os bilhetes pagos", async
     await page.getByRole("link", { name: "Meus bilhetes" }).click();
     await expect(page.getByRole("listitem", { name: `Bilhetes de ${name}` }).getByText("Pago", { exact: true })).toBeVisible();
   } finally {
-    await admin("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E rifa online", p_correlation_id: crypto.randomUUID() });
+    await master("update_feature_flag", { p_key: "payment_link", p_enabled: false, p_reason: "Fim do E2E rifa online", p_correlation_id: crypto.randomUUID() });
   }
 });

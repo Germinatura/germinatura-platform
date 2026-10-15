@@ -7,8 +7,8 @@ values('35c00000-0000-4000-8000-000000000002','23f00000-0000-4000-8000-000000000
 insert into public.product_prices(product_id,amount_cents,valid_from)
 values('35c00000-0000-4000-8000-000000000002',1990,'2026-01-01T00:00:00Z');
 
-select has_table('public','promotion_combo_rules','combo rules table exists');
-select has_table('public','promotion_combo_components','combo components table exists');
+select has_table('cohort_data','promotion_combo_rules','combo rules table exists');
+select has_table('cohort_data','promotion_combo_components','combo components table exists');
 select ok(not has_table_privilege('authenticated','public.promotion_combo_components','INSERT'),'components deny direct insert');
 
 create function pg_temp.save(p_code text,p_rule jsonb,p_key text,p_products uuid[],p_priority integer default 300,p_id uuid default null,p_revision integer default null)

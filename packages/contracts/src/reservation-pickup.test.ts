@@ -10,10 +10,13 @@ describe("reservation pickup contracts", () => {
     expect(completePickupRequestSchema.safeParse({ ...none, integrationChannel: "DINHEIRO", tenderedCents: 3_000, proofReference: "NSU-0001" }).success).toBe(false);
   });
 
-  it("requires a proof and, on the Maquininha, the card method", () => {
+  it("takes an optional proof and, on the Maquininha, requires the card method", () => {
     expect(completePickupRequestSchema.safeParse({ ...none, integrationChannel: "MAQUININHA", proofReference: "NSU-0001", cardMethod: "DEBITO" }).success).toBe(true);
     expect(completePickupRequestSchema.safeParse({ ...none, integrationChannel: "MAQUININHA", proofReference: "NSU-0001" }).success).toBe(false);
     expect(completePickupRequestSchema.safeParse({ ...none, integrationChannel: "PIX_AREA", proofReference: "PIX-0001" }).success).toBe(true);
     expect(completePickupRequestSchema.safeParse({ ...none, integrationChannel: "PIX_AREA", proofReference: "4111111111111111" }).success).toBe(false);
+    // H2c: no reference on the receipt is accepted as none; an empty field is the same as none.
+    expect(completePickupRequestSchema.safeParse({ ...none, integrationChannel: "MAQUININHA", cardMethod: "DEBITO" }).success).toBe(true);
+    expect(completePickupRequestSchema.parse({ ...none, integrationChannel: "PIX_AREA", proofReference: "   " }).proofReference).toBeNull();
   });
 });

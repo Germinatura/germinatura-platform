@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { COHORT_HEADER, cohortHeaders, parseCohortSelection } from "@/lib/cohort-context";
 
 function publicConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,10 +9,17 @@ function publicConfig() {
   return { url, publishableKey };
 }
 
-export async function createSupabaseServerClient() {
+// Pages and routes run after the proxy, which leaves in the request only the cohort selection it validated
+// (lib/cohort-context.ts); every database call of the request carries it.
+export async function createSupabaseServerClient(cohortOverride?: string) {
   const { url, publishableKey } = publicConfig();
   const cookieStore = await cookies();
+  // ADR 0011 (PR 4): the consolidated view of ADMIN_MASTER reads each cohort inside that cohort; the database validates
+  // the override exactly like any other selection.
+  const cohort = cohortOverride ? parseCohortSelection(cohortOverride) : parseCohortSelection((await headers()).get(COHORT_HEADER));
+  if (cohortOverride && !cohort) throw new Error("INVALID_COHORT_CONTEXT");
   return createServerClient(url, publishableKey, {
+    global: { headers: cohortHeaders(cohort) },
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (cookiesToSet) => {

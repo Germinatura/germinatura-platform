@@ -110,7 +110,7 @@ Cada etapa comporta PRs pequenos e completos. O catálogo transacional e as oper
 
 Por mutação: permission + rota/allowlist + RLS + RPC + idempotência + interface + teste de abuso. Preço é do servidor, histórico é imutável e tarefas secundárias usam outbox. Se a cotação mudar antes de cobrar, confirmar novamente; a reserva comercial conserva o snapshot.
 
-O PWA já integrado permite somente shell/catálogo público datado, primeira página até 50 produtos, TTL 24h e indicação de parcialidade. Nunca cachear sessão, saldo, carrinho ou pagamentos; nenhuma fila offline. O service binding PDV→Portal foi integrado no PR #51, com smoke de catálogo/sessão; instalação real continua pendente.
+O PWA já integrado permite somente shell/catálogo público datado, primeira página até 50 produtos, TTL 24h e indicação de parcialidade. Desde o PR 5 do multi-turma (ADR 0011), a cópia é por turma concreta e é apagada ao sair ou ao entrar. Nunca cachear sessão, saldo, carrinho ou pagamentos; nenhuma fila offline. O service binding PDV→Portal foi integrado no PR #51, com smoke de catálogo/sessão; instalação real continua pendente.
 
 ## Fila contínua de implementação
 
@@ -492,3 +492,37 @@ Spec 5.8 (FIN-002, FIN-003, FIN-007), feito na homologação real.
   - motivos de estoque, inventário, devolução, transferência, fechamento, eventos, rifas, lançamentos, abertura e Conciliação.
 - **Teste de layout:** `e2e/responsive-layout.spec.ts` nos 6 viewports.
 
+## Etapa 12 — Multi-turma e ADMIN_MASTER (iniciada em 08/10/2026)
+
+COH-001 a COH-006, ADR 0011. Um único banco e domínio, com segregação lógica e de segurança por turma. Ranking, fidelidade, chatbot, rede social nova e acréscimos por meio de pagamento ficam fora desta etapa.
+
+- **PR 1, fundação de dados:**
+  - `cohorts`, a Turma 2026 de bootstrap (`c0000000-0000-4000-8000-000000002026`) e `user_cohorts`;
+  - `cohort_id` em 73 tabelas por turma, com default constante: sem reescrita de linhas e sem mudança de comportamento;
+  - relatório de integridade;
+  - teste de upgrade sobre o schema anterior populado, que roda na CI;
+  - runbook `docs/operations/cohort-cutover-runbook.md`.
+- **Spike (#177):** isolamento provado (49/49 em bancos limpo, populado e restaurado; Data API; Realtime).
+- **PR 2:** autorização por turma, ADMIN_MASTER (bootstrap fail-closed), isolamento de 85 tabelas, `NOT NULL`, unicidades e singletons por turma, maquininhas globais, flags globais × por turma, atribuição PicPay, testes A/B.
+- **PR 3:** contexto da turma ponta a ponta.
+  - Portal: header/cookie validados pelo proxy e pelo banco; seletor com "Todas as turmas" para ADMIN_MASTER;
+    escrita em "Todas" recusada.
+  - ADMIN_MASTER: tela de turmas e concessão de ADMIN_MASTER.
+  - Gestão de usuários escopada, com filtros e paginação no servidor.
+  - PDV: sempre numa turma; o handoff carrega a turma.
+  - Testes A/B.
+- **PR 4:** visão consolidada e vínculos.
+  - Em "Todas", só telas consolidadas abrem e só leituras declaradas passam; o resto pede a turma.
+  - Telas consolidadas: visão geral comparada, indicadores lado a lado, vendas e auditoria com a turma de cada registro.
+  - Conta PicPay como evidência global.
+  - Vínculos usuário ↔ turma com papéis por turma, travas de operações em aberto e histórico.
+  - `/admin/turmas` com contagens e trava de arquivamento.
+- **PR 5:** fechamento técnico.
+  - Nenhum registro cai numa turma por falta de contexto (fallback e guard).
+  - Turma padrão explícita, definida pelo ADMIN_MASTER.
+  - Visitante por slug e link resolvidos no servidor.
+  - Cadastro explícito na turma padrão.
+  - Storage por turma.
+  - Revogação com pendências e encerramento de turno pelo financeiro.
+  - Menu em "Todas" marcando as telas por turma.
+  - Produção só com autorização.

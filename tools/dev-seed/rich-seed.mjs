@@ -24,7 +24,10 @@ function fail(message) {
 // ---------------------------------------------------------------------------------------------- guards (fail closed)
 function localTarget() {
   if (process.env.NODE_ENV === "production") fail("NODE_ENV=production.");
+  // The upgrade check (tools/upgrade-check) seeds the CI runner's own local Supabase; it only lifts the CI check.
+  const upgradeCheck = process.env.DEVSEED_UPGRADE_CHECK === "1";
   for (const name of ["CI", "SUPABASE_ACCESS_TOKEN", "SUPABASE_PROJECT_REF", "SUPABASE_DB_PASSWORD"]) {
+    if (name === "CI" && upgradeCheck) continue;
     if (process.env[name]) fail(`a variável ${name} indica um ambiente que não é o desenvolvimento local.`);
   }
   const config = readFileSync(join(root, "supabase", "config.toml"), "utf8");

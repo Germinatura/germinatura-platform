@@ -57,6 +57,22 @@ jobs:
       - name: Configure PDV server secret
         working-directory: apps/pdv
         run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env production
+      # H2d: the Pix receiver of the PDV QR (key, name, city) comes only from this environment's GitHub variables. Without
+      # all three the deploy goes on and the Portal shows the QR as unavailable; values are never guessed or defaulted.
+      - name: Configure Portal Pix receiver
+        working-directory: apps/portal
+        env:
+          PICPAY_PIX_KEY: ${{ vars.PICPAY_PIX_KEY }}
+          PICPAY_PIX_MERCHANT_NAME: ${{ vars.PICPAY_PIX_MERCHANT_NAME }}
+          PICPAY_PIX_MERCHANT_CITY: ${{ vars.PICPAY_PIX_MERCHANT_CITY }}
+        run: |
+          if [ -z "$PICPAY_PIX_KEY" ] || [ -z "$PICPAY_PIX_MERCHANT_NAME" ] || [ -z "$PICPAY_PIX_MERCHANT_CITY" ]; then
+            echo "Recebedor Pix não configurado neste ambiente: o QR Pix do PDV fica indisponível."
+            exit 0
+          fi
+          for name in PICPAY_PIX_KEY PICPAY_PIX_MERCHANT_NAME PICPAY_PIX_MERCHANT_CITY; do
+            printenv "$name" | pnpm exec wrangler secret put "$name" --env production
+          done
       - name: Configure Jobs server secret
         working-directory: apps/jobs
         run: test -n "$SUPABASE_SECRET_KEY" && printf '%s' "$SUPABASE_SECRET_KEY" | pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env production

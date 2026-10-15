@@ -11,8 +11,8 @@ insert into public.inventory_balances(location_id,product_id) values
   ('50000000-0000-4000-8000-000000000002','33f00000-0000-4000-8000-000000000001')
 on conflict (location_id,product_id) do nothing;
 
-select has_table('public','promotion_coupon_rules','coupon rules table exists');
-select has_table('public','promotion_redemptions','redemption ledger exists');
+select has_table('cohort_data','promotion_coupon_rules','coupon rules table exists');
+select has_table('cohort_data','promotion_redemptions','redemption ledger exists');
 select has_function('public','get_pricing_inputs',array['promotion_channel','uuid[]','text'],'single pricing entry point exists');
 select ok(not has_table_privilege('authenticated','public.promotion_redemptions','INSERT'),'ledger denies direct insert');
 

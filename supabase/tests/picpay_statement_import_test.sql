@@ -2,6 +2,40 @@
 begin;
 select plan(56);
 
+-- E0: importing (and previewing) PicPay files is ADMIN_MASTER's, with a declaration; these synthetic files are Turma 2026's.
+create function pg_temp.import_file(p_name text, p_content text, p_key text, p_correlation uuid) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.import_picpay_file(p_name, p_content, 'COHORT', 'c0000000-0000-4000-8000-000000002026', p_key, p_correlation);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+create function pg_temp.preview_file(p_content text) returns jsonb language plpgsql as $wrap$
+declare
+  v_sub text := current_setting('request.jwt.claim.sub', true);
+  v_headers text := current_setting('request.headers', true);
+  v_result jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000005', true);
+  perform set_config('request.headers', '{"x-germinatura-cohort": "c0000000-0000-4000-8000-000000002026"}', true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  v_result := public.preview_picpay_file(p_content);
+  perform set_config('request.jwt.claim.sub', coalesce(v_sub, ''), true);
+  perform set_config('request.headers', coalesce(v_headers, ''), true);
+  perform set_config('germinatura.cohort_scope', '', true);
+  return v_result;
+end;
+$wrap$;
+
 create function pg_temp.money(p_cents bigint) returns text language sql as $$
   select case when p_cents < 0 then '-' else '' end || (abs(p_cents) / 100)::text || '.' || lpad((abs(p_cents) % 100)::text, 2, '0') $$;
 create function pg_temp.csv(p_lines text[]) returns text language sql as $$
@@ -15,7 +49,7 @@ create function pg_temp.total(p_result jsonb, p_key text) returns bigint languag
 create function pg_temp.account(p_result jsonb, p_account text) returns bigint language sql as $$
   select coalesce((p_result -> 'totals' -> 'by_account' ->> p_account)::bigint, 0) $$;
 
-select ok(not has_function_privilege('anon', 'public.import_picpay_file(text,text,text,uuid)', 'EXECUTE'), 'anonymous cannot import');
+select ok(not has_function_privilege('anon', 'public.import_picpay_file(text,text,public.picpay_import_scope,uuid,text,uuid)', 'EXECUTE'), 'anonymous cannot import');
 -- The statement-only import is gone: files enter only through the PicPay reconciliation.
 select ok(to_regprocedure('public.import_picpay_statement(text,text,boolean,text,uuid)') is null, 'the legacy statement import no longer exists');
 select ok(to_regprocedure('public.preview_picpay_statement(text)') is null, 'the legacy statement preview no longer exists');
@@ -98,7 +132,7 @@ create temp table file as select pg_temp.csv(array[
 reset role;
 create temp table stored_before as select (select count(*) from public.picpay_statement_imports) as imports, (select count(*) from public.picpay_statement_lines) as lines;
 set local role authenticated;
-create temp table preview as select public.preview_picpay_file((select content from file)) as result;
+create temp table preview as select pg_temp.preview_file((select content from file)) as result;
 select is((select (result ->> 'error_count')::integer from preview), 0, 'the preview finds no errors');
 select is((select result ->> 'source_type' from preview), 'PICPAY_STATEMENT', 'the preview detects the statement by its header');
 select is((select (result ->> 'new_count') || '/' || (result ->> 'known_count') from preview), '12/0',
@@ -108,13 +142,13 @@ select is((select count(*) from public.picpay_statement_imports), (select import
 set local role authenticated;
 
 -- A partially invalid file is refused whole.
-select throws_ok($$select public.import_picpay_file('parcial.csv', (select content from file) || '2026-02-30;Pix recebido;X;Entrada;1.00;' || E'\r\n', 'picpay-csv-partial', gen_random_uuid())$$,
+select throws_ok($$select pg_temp.import_file('parcial.csv', (select content from file) || '2026-02-30;Pix recebido;X;Entrada;1.00;' || E'\r\n', 'picpay-csv-partial', gen_random_uuid())$$,
   '22023', 'PICPAY_FILE_INVALID', 'a file with an invalid line is not imported');
 reset role;
 select is((select count(*) from public.picpay_statement_lines), (select lines from stored_before), 'no line of the invalid file is kept');
 set local role authenticated;
 
-create temp table imported as select public.import_picpay_file('C:\fakepath\48789680000109-extrato.csv', (select content from file), 'picpay-csv-import', gen_random_uuid()) as result;
+create temp table imported as select pg_temp.import_file('C:\fakepath\48789680000109-extrato.csv', (select content from file), 'picpay-csv-import', gen_random_uuid()) as result;
 select is((select pg_temp.statement_import(result ->> 'id') ->> 'account' from imported), 'PICPAY_EMPRESAS', 'the import is on the PicPay Empresas account');
 select is((select result ->> 'file_name' from imported), '[doc]-extrato.csv', 'the file name keeps no path or document number');
 select is((select result ->> 'file_sha256' from imported), encode(sha256(convert_to((select content from file), 'UTF8')), 'hex'), 'the file hash is stored');
@@ -138,14 +172,14 @@ select is((select count(*) from public.payment_attempts where sale_id in (select
 set local role authenticated;
 
 -- Replays and the same file again.
-select is((select public.import_picpay_file('C:\fakepath\48789680000109-extrato.csv', (select content from file), 'picpay-csv-import', gen_random_uuid()) ->> 'id'),
+select is((select pg_temp.import_file('C:\fakepath\48789680000109-extrato.csv', (select content from file), 'picpay-csv-import', gen_random_uuid()) ->> 'id'),
   (select result ->> 'id' from imported), 'a replay with the same key returns the same import');
-select throws_ok($$select public.import_picpay_file('outro-nome.csv', (select content from file), 'picpay-csv-import-again', gen_random_uuid())$$,
+select throws_ok($$select pg_temp.import_file('outro-nome.csv', (select content from file), 'picpay-csv-import-again', gen_random_uuid())$$,
   'P0001', 'PICPAY_FILE_ALREADY_IMPORTED', 'the same file is not imported twice');
-select is((select result -> 'already_imported' ->> 'number' from (select public.preview_picpay_file((select content from file)) as result) again),
+select is((select result -> 'already_imported' ->> 'number' from (select pg_temp.preview_file((select content from file)) as result) again),
   (select result ->> 'number' from imported), 'the preview warns about the earlier import');
 -- An overlapping export needs no confirmation any more: known movements are recognized and only the new one is added.
-select is((select (result ->> 'new_count') || '/' || (result ->> 'known_count') from (select public.import_picpay_file('cruzado.csv',
+select is((select (result ->> 'new_count') || '/' || (result ->> 'known_count') from (select pg_temp.import_file('cruzado.csv',
   pg_temp.csv(array[pg_temp.line('Pix recebido', 'Colega Repetido', 1234), pg_temp.line('Pix recebido', 'Outro dia', 999)]),
   'picpay-csv-overlap', gen_random_uuid()) as result) overlap), '1/1', 'an overlapping export adds only what is new');
 

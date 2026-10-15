@@ -1,9 +1,9 @@
 begin;
 select plan(41);
 
-select has_table('public', 'sales', 'sales table exists');
-select has_table('public', 'sale_items', 'immutable sale items table exists');
-select has_table('public', 'sale_status_history', 'sale status history table exists');
+select has_table('cohort_data', 'sales', 'sales table exists');
+select has_table('cohort_data', 'sale_items', 'immutable sale items table exists');
+select has_table('cohort_data', 'sale_status_history', 'sale status history table exists');
 select has_type('public', 'sale_status', 'closed sale status type exists');
 select has_function(
   'private', 'transition_sale_state',
@@ -12,7 +12,7 @@ select has_function(
 );
 select has_function('private', 'assert_sale_totals', array['uuid'], 'sale total assertion exists');
 select results_eq(
-  $$select count(*)::bigint from pg_class where oid in ('public.sales'::regclass, 'public.sale_items'::regclass, 'public.sale_status_history'::regclass) and relrowsecurity$$,
+  $$select count(*)::bigint from pg_class where oid in ('cohort_data.sales'::regclass, 'cohort_data.sale_items'::regclass, 'cohort_data.sale_status_history'::regclass) and relrowsecurity$$,
   array[3::bigint],
   'all sale tables have RLS enabled'
 );

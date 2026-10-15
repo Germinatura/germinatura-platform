@@ -1,6 +1,6 @@
 -- Spec 5.13 (GROW-002): seller links and attribution of online and PDV sales, with paid figures from the ledger.
 begin;
-select plan(16);
+select plan(17);
 
 select ok(not has_table_privilege('authenticated', 'public.sale_attributions', 'SELECT'), 'attributions are read only through functions');
 
@@ -23,6 +23,8 @@ create temp table link as select public.create_seller_share_link('Meu link do in
 select is((select result ->> 'seller_id' from link), '10000000-0000-4000-8000-000000000002', 'the link belongs to the seller');
 select ok(exists (select 1 from jsonb_array_elements(public.list_my_share_links() -> 'campaigns') item where item ->> 'code' = (select result ->> 'code' from campaign)),
   'the seller can attribute to the class campaign');
+select is((select item -> 'mine' from jsonb_array_elements(public.list_my_share_links() -> 'campaigns') item
+  where item ->> 'code' = (select result ->> 'code' from campaign)), 'false'::jsonb, 'a team campaign is listed as not mine (a boolean, never null)');
 
 -- A cash sale at the PDV, attributed to the seller's link.
 select lives_ok($$select public.open_seller_shift('50000000-0000-4000-8000-000000000002', 0, 'attribution-shift', gen_random_uuid())$$, 'seller opens a shift');

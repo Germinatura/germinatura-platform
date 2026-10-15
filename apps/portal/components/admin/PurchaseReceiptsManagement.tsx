@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { createPurchaseReceiptSchema, purchaseReceiptCommandResponseSchema, purchaseReceiptsResponseSchema, purchaseOrdersResponseSchema, type PurchaseOrder, type PurchaseReceipt } from "@germinatura/contracts";
+import { createPurchaseReceiptSchema, purchaseReceiptCommandResponseSchema, reservePurchaseLotCodeResponseSchema, purchaseReceiptsResponseSchema, purchaseOrdersResponseSchema, type PurchaseOrder, type PurchaseReceipt } from "@germinatura/contracts";
 import { formatMoneyBrl, moneyFromCents } from "@germinatura/domain";
 import { Button, Card, Field, Input, ReasonField } from "@germinatura/ui";
+import { todayInSaoPaulo } from "@/lib/sao-paulo-date";
 
 type Progress = { orderItemId: string; orderedQuantity: number; receivedQuantity: number };
 const nullable = (value: string) => value.trim() || null;
@@ -19,7 +20,9 @@ export function PurchaseReceiptsManagement({ initialOrderId }: { initialOrderId:
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [itemId, setItemId] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [receivedOn, setReceivedOn] = useState("");
+  // H1: the delivery date starts on today in São Paulo (never the UTC day) and stays after each receipt; it is editable.
+  const [receivedOn, setReceivedOn] = useState(() => todayInSaoPaulo());
+  const [generating, setGenerating] = useState(false);
   const [lotCode, setLotCode] = useState("");
   const [manufacturedOn, setManufacturedOn] = useState("");
   const [expiresOn, setExpiresOn] = useState("");
@@ -59,6 +62,25 @@ export function PurchaseReceiptsManagement({ initialOrderId }: { initialOrderId:
     if (!parsed.success) { setError("Informe um identificador de pedido válido."); return; }
     setError(""); setNotice(""); setOrder(null); setReceipts([]); setProgress([]); setLookupId(parsed.data);
     if (parsed.data === lookupId) setRefresh((value) => value + 1);
+  }
+
+  // H1: the database reserves the next PREFIX-DDMMYY-NN for this item and day; the code stays editable.
+  async function generateLot() {
+    if (!itemId || !receivedOn) return;
+    setGenerating(true); setError("");
+    try {
+      const response = await fetch("/api/v1/admin/procurement/receipts/lot-code", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderItemId: itemId, receivedOn }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) throw new Error(messageFrom(body, "Não foi possível gerar o lote."));
+      createKey.current = null;
+      setLotCode(reservePurchaseLotCodeResponseSchema.parse(body).data.lotCode);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível gerar o lote.");
+    } finally {
+      setGenerating(false);
+    }
   }
 
   async function receive(event: React.FormEvent) {
@@ -125,8 +147,9 @@ export function PurchaseReceiptsManagement({ initialOrderId }: { initialOrderId:
         <form onSubmit={(event) => void receive(event)} className="mt-5 space-y-4"><fieldset disabled={busy} className="space-y-4">
           <Field id="receipt-item" label="Item do pedido"><select id="receipt-item" required className="g-input" value={itemId} onChange={(event) => { createKey.current = null; setItemId(event.target.value); }}><option value="">Selecione</option>{order.items.filter((item) => { const current = progress.find((value) => value.orderItemId === item.id); return (current?.receivedQuantity ?? 0) < item.quantity; }).map((item) => <option key={item.id} value={item.id}>{item.productName} · {item.productSku}</option>)}</select></Field>
           {selected && selectedProgress && <p className="text-sm">Restam {selectedProgress.orderedQuantity - selectedProgress.receivedQuantity} unidade(s) deste item.</p>}
-          <div className="grid gap-4 sm:grid-cols-2"><Field id="receipt-quantity" label="Quantidade conferida"><Input id="receipt-quantity" required type="number" min="1" max={selectedProgress ? selectedProgress.orderedQuantity - selectedProgress.receivedQuantity : undefined} step="1" value={quantity} onChange={(event) => { createKey.current = null; setQuantity(event.target.value); }} /></Field><Field id="receipt-date" label="Data do recebimento"><Input id="receipt-date" required type="date" value={receivedOn} onChange={(event) => { createKey.current = null; setReceivedOn(event.target.value); }} /></Field></div>
-          <Field id="receipt-lot" label={selected?.tracksLots ? "Código do lote" : "Código do lote (opcional)"}><Input id="receipt-lot" required={selected?.tracksLots} minLength={selected?.tracksLots ? 2 : undefined} maxLength={100} value={lotCode} onChange={(event) => { createKey.current = null; setLotCode(event.target.value); }} placeholder={selected?.tracksLots ? "Código impresso na embalagem" : "Opcional"} /></Field>
+          <div className="grid gap-4 sm:grid-cols-2"><Field id="receipt-quantity" label="Quantidade conferida"><Input id="receipt-quantity" required type="number" min="1" max={selectedProgress ? selectedProgress.orderedQuantity - selectedProgress.receivedQuantity : undefined} step="1" value={quantity} onChange={(event) => { createKey.current = null; setQuantity(event.target.value); }} /></Field><Field id="receipt-date" label="Data do recebimento"><Input id="receipt-date" required type="date" max={todayInSaoPaulo()} value={receivedOn} onChange={(event) => { createKey.current = null; setReceivedOn(event.target.value); }} /></Field></div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><Field id="receipt-lot" label={selected?.tracksLots ? "Código do lote" : "Código do lote (opcional)"} description="Digite o lote do fornecedor ou gere um código do sistema."><Input id="receipt-lot" required={selected?.tracksLots} minLength={selected?.tracksLots ? 2 : undefined} maxLength={100} value={lotCode} onChange={(event) => { createKey.current = null; setLotCode(event.target.value); }} placeholder={selected?.tracksLots ? "Código impresso na embalagem" : "Opcional"} /></Field>
+            <div className="g-field-action"><Button type="button" variant="secondary" loading={generating} disabled={!itemId || !receivedOn || generating} onClick={() => void generateLot()}>Gerar lote</Button></div></div>
           <div className="grid gap-4 sm:grid-cols-2"><Field id="receipt-manufacture" label="Fabricação opcional"><Input id="receipt-manufacture" type="date" value={manufacturedOn} onChange={(event) => { createKey.current = null; setManufacturedOn(event.target.value); }} /></Field><Field id="receipt-expiry" label="Validade opcional"><Input id="receipt-expiry" type="date" value={expiresOn} onChange={(event) => { createKey.current = null; setExpiresOn(event.target.value); }} /></Field></div>
           <ReasonField id="receipt-reason" required label="Motivo e conferência" minLength={4} maxLength={500} value={reason} onChange={(value) => { createKey.current = null; setReason(value); }} placeholder="Ex.: entrega conferida com nota" />
           <Button type="submit" loading={busy} disabled={!itemId}>Registrar recebimento</Button>

@@ -2,7 +2,7 @@
 begin;
 select plan(22);
 
-select has_table('public','finance_manual_entries','manual entries exist');
+select has_table('cohort_data','finance_manual_entries','manual entries exist');
 select ok(not has_function_privilege('anon','public.record_finance_entry(public.finance_manual_entry_kind,public.finance_category,public.finance_account,public.finance_account,bigint,date,text,text,text,uuid)','EXECUTE'),'anonymous cannot record entries');
 select ok(not has_table_privilege('authenticated','public.finance_manual_entries','INSERT'),'entries deny direct writes');
 

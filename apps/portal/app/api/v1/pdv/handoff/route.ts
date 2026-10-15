@@ -24,6 +24,8 @@ export async function POST(request: Request) {
     const { data, error } = await client.rpc("create_pdv_handoff", { p_code_hash: await sha256Hex(code) });
     if (error?.message.includes("PDV_HANDOFF_RATE_LIMITED")) return fail("RATE_LIMITED", "Muitas aberturas seguidas. Aguarde alguns minutos.", 429);
     if (error?.message.includes("PDV_ACCESS_REQUIRED")) return fail("FORBIDDEN", "Sua conta não tem acesso ao PDV.", 403);
+    // ADR 0011: the code carries the cohort of the request, so the PDV opens exactly there.
+    if (error?.message.includes("COHORT_REQUIRED")) return fail("COHORT_REQUIRED", "Selecione uma turma antes de abrir o PDV.", 409);
     const expiresAt = (data as { expires_at?: unknown } | null)?.expires_at;
     if (error || typeof expiresAt !== "string") return fail("PDV_HANDOFF_UNAVAILABLE", "Não foi possível abrir o PDV agora.", 503);
     const pdvUrl = new URL(process.env.NEXT_PUBLIC_PDV_URL ?? "http://127.0.0.1:3001").origin;

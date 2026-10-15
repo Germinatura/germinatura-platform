@@ -1,4 +1,5 @@
-import type { PublicCatalogProduct } from "@germinatura/contracts";
+import type { PaymentSurchargeRuleView, PublicCatalogProduct } from "@germinatura/contracts";
+import { computePaymentSurchargeCents, paymentSurchargeMethodFor, type PaymentSurchargeMethod } from "@germinatura/domain";
 
 export interface CartPayloadItem {
   product: PublicCatalogProduct;
@@ -23,6 +24,18 @@ export function parseMoneyInput(value: string): number | null {
   if (!match) return null;
   const cents = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
   return Number.isSafeInteger(cents) ? cents : null;
+}
+
+/**
+ * H2c: what is wrong with a typed external reference, or null when it can be sent. Empty is fine (the reference is
+ * optional and never invented); a typed one follows the server's non-sensitive format, never card data.
+ */
+export function proofReferenceProblem(value: string): string | null {
+  const typed = value.trim();
+  if (!typed) return null;
+  if (/[0-9]{12,}/.test(typed)) return "Não informe número do cartão: use só um identificador do comprovante.";
+  if (typed.length < 4 || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,127}$/.test(typed)) return "Use de 4 a 128 letras, números, ponto, hífen, dois-pontos ou barra.";
+  return null;
 }
 
 /** Change for a cash payment, or null while the tendered amount does not cover the total. */
@@ -58,4 +71,30 @@ export function paymentSummary(payment: { integrationChannel: string | null; car
   const channel = paymentMethodLabel(payment?.integrationChannel);
   const card = payment?.cardMethod ? cardMethodLabels[payment.cardMethod] ?? payment.cardMethod : null;
   return [channel, card, payment?.terminalCode ?? null].filter(Boolean).join(" · ");
+}
+
+/**
+ * PR D: the acréscimo of the chosen channel over the sale total, as the server computes it. Null method = the channel is
+ * not eligible (vouchers, Payment Link) or the card method is not chosen yet.
+ */
+export function surchargeFor(
+  rules: readonly PaymentSurchargeRuleView[], channel: "DINHEIRO" | "PIX_AREA" | "MAQUININHA" | "PAYMENT_LINK",
+  cardMethod: string | null, baseCents: number,
+): { method: PaymentSurchargeMethod | null; cents: number; rule: PaymentSurchargeRuleView | null } {
+  const method = paymentSurchargeMethodFor(channel, cardMethod);
+  const rule = method ? rules.find((candidate) => candidate.method === method) ?? null : null;
+  if (!rule || rule.mode === "NONE") return { method, cents: 0, rule };
+  const cents = rule.mode === "PERCENTAGE"
+    ? computePaymentSurchargeCents({ mode: "PERCENTAGE", rateBps: rule.rateBps ?? 0 }, baseCents)
+    : computePaymentSurchargeCents({ mode: "FIXED", fixedCents: rule.fixedCents ?? 0 }, baseCents);
+  return { method, cents, rule };
+}
+
+/** "3,49%" or "R$ 1,50": how the rule reads to the customer. */
+export function surchargeRuleLabel(rule: PaymentSurchargeRuleView): string {
+  if (rule.mode === "PERCENTAGE" && rule.rateBps !== null) {
+    return `${(rule.rateBps / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
+  }
+  if (rule.mode === "FIXED" && rule.fixedCents !== null) return formatMoney(rule.fixedCents);
+  return "sem acréscimo";
 }

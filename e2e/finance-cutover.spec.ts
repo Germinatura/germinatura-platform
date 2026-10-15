@@ -13,8 +13,11 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
   test.slow();
   const tag = Date.now().toString(36);
   const base = 100_000 + (Date.now() % 800_000);
+  // E0 (ADR 0011): the shared PicPay account's files are imported by ADMIN_MASTER inside a cohort (here Turma 2026).
   expect((await page.request.post(`${portalUrl}/api/auth/login`, { headers: { Origin: portalUrl },
-    data: { identifier: "admin.teste", password: "Admin123!" } })).status()).toBe(200);
+    data: { identifier: "master.teste", password: "Master123!" } })).status()).toBe(200);
+  expect((await page.request.post(`${portalUrl}/api/v1/session/cohort`, { headers: { Origin: portalUrl },
+    data: { cohort: "c0000000-0000-4000-8000-000000002026" } })).status()).toBe(200);
   const zero = "00000000-0000-4000-8000-000000000000";
   for (const request of [
     page.request.get(`${portalUrl}/api/v1/admin/finance/balances`),
@@ -64,7 +67,7 @@ test("financeiro registra a abertura, revisa o histórico do extrato em lote e p
     line("Pix recebido", `Cliente ${tag} A`, base), line("Pix recebido", `Cliente ${tag} B`, base + 1),
     line("Recebíveis de venda", "Vendas maquininha", base + 2), line("Pix enviado", `Gráfica ${tag}`, -(base + 3)),
     line("Pix enviado", `Frete ${tag}`, -(base + 4))].join("\r\n");
-  const imported = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/files?fileName=historico-${tag}.csv`, {
+  const imported = await page.request.post(`${portalUrl}/api/v1/admin/finance/picpay/files?fileName=historico-${tag}.csv&scope=COHORT&cohortId=c0000000-0000-4000-8000-000000002026`, {
     headers: { Origin: portalUrl, "Idempotency-Key": `e2e-cutover-import-${tag}`, "Content-Type": "text/csv" }, data: Buffer.from(csv),
   });
   expect(imported.status()).toBe(201);

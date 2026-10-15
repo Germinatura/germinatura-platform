@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { COHORT_HEADER, cohortHeaders, parseCohortSelection } from "@/lib/cohort-context";
 import { createSessionContext, forwardSessionContext, SESSION_CONTEXT_HEADER } from "@/lib/session-context";
 import { resolveSession, resolveSupabaseSession, type SupabaseSession } from "@/lib/session-resolution";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -23,17 +24,19 @@ export async function getSession(): Promise<SupabaseSession | null> {
     const authorization = requestHeaders.get("authorization");
     // Set by the proxy for this same request (and stripped from what the client sent); see lib/session-context.ts.
     const sessionContext = requestHeaders.get(SESSION_CONTEXT_HEADER);
+    // The cohort selection the proxy validated for this request (lib/cohort-context.ts).
+    const cohort = parseCohortSelection(requestHeaders.get(COHORT_HEADER));
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (authorization?.startsWith("Bearer ") && url && publishableKey) {
       const accessToken = authorization.slice("Bearer ".length);
       const client = createClient(url, publishableKey, {
         auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-        global: { headers: { Authorization: authorization } },
+        global: { headers: { Authorization: authorization, ...cohortHeaders(cohort) } },
       });
-      return await resolveSupabaseSession(client, accessToken, "route", sessionContext);
+      return await resolveSupabaseSession(client, accessToken, "route", sessionContext, cohort);
     }
-    return await resolveSupabaseSession(await createSupabaseServerClient(), undefined, "route", sessionContext);
+    return await resolveSupabaseSession(await createSupabaseServerClient(), undefined, "route", sessionContext, cohort);
   } catch {
     return null;
   }
@@ -60,6 +63,10 @@ export async function requireSession(): Promise<SessionUser> {
     role: session.user.perfil,
     roles: session.user.roles,
     active: true,
+    adminMaster: session.user.adminMaster,
+    cohortMode: session.user.cohortMode,
+    cohort: session.user.cohort,
+    cohorts: session.user.cohorts,
   };
 }
 
@@ -82,24 +89,29 @@ export async function requirePermission(permission: Permission): Promise<Session
   return user;
 }
 
-export async function updateSession(request: NextRequest) {
+/**
+ * Proxy: resolves the session for the request's cohort selection (lib/cohort-context.ts). The caller decides what to
+ * do when the database did not accept the selection; `cohort` is the selection the session was resolved with.
+ */
+export async function updateSession(request: NextRequest, cohort: import("@germinatura/contracts").CohortSelection | null = null) {
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !publishableKey) return { response: withSessionContext(request, response, null), session: null, client: null };
+  if (!url || !publishableKey) return { response: withSessionContext(request, response, null, null), session: null, client: null };
 
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) {
     const accessToken = authorization.slice("Bearer ".length);
     const client = createClient(url, publishableKey, {
       auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-      global: { headers: { Authorization: authorization } },
+      global: { headers: { Authorization: authorization, ...cohortHeaders(cohort) } },
     });
-    const resolved = await resolveSession(client, accessToken, "proxy");
-    return { response: withSessionContext(request, response, await contextFor(resolved)), session: resolved.session, client };
+    const resolved = await resolveSession(client, accessToken, "proxy", null, cohort);
+    return { response: withSessionContext(request, response, await contextFor(resolved), cohort), session: resolved.session, client };
   }
 
   const client = createServerClient(url, publishableKey, {
+    global: { headers: cohortHeaders(cohort) },
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet) => {
@@ -109,8 +121,8 @@ export async function updateSession(request: NextRequest) {
       },
     },
   });
-  const resolved = await resolveSession(client, undefined, "proxy");
-  return { response: withSessionContext(request, response, await contextFor(resolved)), session: resolved.session, client };
+  const resolved = await resolveSession(client, undefined, "proxy", null, cohort);
+  return { response: withSessionContext(request, response, await contextFor(resolved), cohort), session: resolved.session, client };
 }
 
 async function contextFor({ session, accessToken }: { session: SupabaseSession | null; accessToken: string | null }) {
@@ -118,9 +130,14 @@ async function contextFor({ session, accessToken }: { session: SupabaseSession |
 }
 
 // The route sees the request headers with the client's context header removed and, when a session was resolved,
-// the proxy's own signed context. Cookies refreshed by Supabase stay on the response.
-function withSessionContext(request: NextRequest, response: NextResponse, context: string | null) {
-  const next = NextResponse.next({ request: { headers: forwardSessionContext(request.headers, context) } });
+// the proxy's own signed context; the cohort header is always replaced by the selection the session was resolved
+// with (the proxy refuses a selection the database did not accept). Cookies refreshed by Supabase stay on the response.
+function withSessionContext(request: NextRequest, response: NextResponse, context: string | null,
+  cohort: import("@germinatura/contracts").CohortSelection | null) {
+  const forwarded = forwardSessionContext(request.headers, context);
+  forwarded.delete(COHORT_HEADER);
+  if (cohort) forwarded.set(COHORT_HEADER, cohort);
+  const next = NextResponse.next({ request: { headers: forwarded } });
   for (const cookie of response.cookies.getAll()) next.cookies.set(cookie);
   return next;
 }

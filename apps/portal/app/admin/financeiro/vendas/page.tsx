@@ -14,6 +14,6 @@ export default async function FinanceSalesPage() {
       <h1 className="mt-1 text-3xl font-bold tracking-tight">Vendas</h1>
       <p className="mt-2 max-w-2xl text-base text-[var(--g-text-secondary)]">Consulte todas as vendas por situação, canal e período. Estornos voltam o estoque e registram como o valor retornou ao cliente, inclusive a devolução em dinheiro pelo caixa de um turno aberto.</p>
     </header>
-    <FinanceSalesManagement />
+    <FinanceSalesManagement cohorts={user.cohortMode === "ALL" ? user.cohorts : undefined} />
   </div></div>;
 }

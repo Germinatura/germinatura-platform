@@ -6,8 +6,8 @@ create temp table count_baseline as select
   (select count(*)::bigint from public.outbox_events where aggregate_type='inventory_count') events;
 grant select on count_baseline to authenticated;
 
-select has_table('public','inventory_counts','physical counts are persisted');
-select has_table('public','inventory_count_items','count snapshots are persisted');
+select has_table('cohort_data','inventory_counts','physical counts are persisted');
+select has_table('cohort_data','inventory_count_items','count snapshots are persisted');
 select has_function('public','submit_inventory_count',array['uuid','jsonb','text','text','uuid'],'submission RPC exists');
 select has_function('public','resolve_inventory_count',array['uuid','text','text','text','uuid'],'resolution RPC exists');
 select has_function('public','get_inventory_count_context',array['uuid','uuid','integer'],'context RPC exists');
